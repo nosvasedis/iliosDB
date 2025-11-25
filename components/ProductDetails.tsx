@@ -1,9 +1,12 @@
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp } from 'lucide-react';
+import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload } from 'lucide-react';
 import BarcodeView from './BarcodeView';
+import { uploadProductImage, supabase } from '../lib/supabase';
+import { compressImage } from '../utils/imageHelpers';
 
 interface Props {
   product: Product;
@@ -24,6 +27,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || []
   });
 
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
   // Smart Builder State
   const [builderFinish, setBuilderFinish] = useState('');
   const [builderStone, setBuilderStone] = useState('');
@@ -39,6 +44,32 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const handleSave = () => {
     if (onSave) onSave(editedProduct);
     onClose();
+  };
+
+  const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          setIsUploadingImage(true);
+          try {
+              // 1. Compress
+              const compressedBlob = await compressImage(file);
+              // 2. Upload
+              const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
+              
+              if (publicUrl) {
+                  // 3. Update State
+                  setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
+                  
+                  // 4. Update Supabase Row immediately (optional but good for consistency)
+                  await supabase.from('products').update({ image_url: publicUrl }).eq('sku', editedProduct.sku);
+              }
+          } catch (error) {
+              console.error("Image update failed:", error);
+              alert("Σφάλμα κατά την ενημέρωση της φωτογραφίας.");
+          } finally {
+              setIsUploadingImage(false);
+          }
+      }
   };
 
   const handleSmartAdd = () => {
@@ -142,9 +173,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         {/* Header */}
         <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50">
           <div className="flex gap-4">
-            <div className="w-24 h-24 bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex-shrink-0">
+            {/* Image Container with Edit Overlay */}
+            <div className="group relative w-24 h-24 bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex-shrink-0 cursor-pointer">
                <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover" />
+               
+               {/* Hover Overlay */}
+               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-medium">
+                  {isUploadingImage ? <Loader2 className="animate-spin mb-1" size={20} /> : <Camera size={20} className="mb-1" />}
+                  {isUploadingImage ? 'Uploading...' : 'Αλλαγή'}
+               </div>
+               
+               {/* Hidden Input */}
+               {!isUploadingImage && (
+                   <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleImageUpdate}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                   />
+               )}
             </div>
+
             <div>
               <div className="flex items-center gap-2 mb-1">
                  <h2 className="text-2xl font-black text-slate-800">{editedProduct.sku}</h2>
