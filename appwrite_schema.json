@@ -1,0 +1,56 @@
+{
+  "databaseName": "ilios_erp_db",
+  "collections": [
+    {
+      "name": "products",
+      "id": "products",
+      "attributes": [
+        {"key": "sku", "type": "string", "size": 32, "required": true},
+        {"key": "prefix", "type": "string", "size": 5, "required": true},
+        {"key": "category", "type": "string", "size": 50, "required": true},
+        {"key": "gender", "type": "string", "size": 20, "required": true},
+        {"key": "image_url", "type": "url", "required": false},
+        {"key": "weight_g", "type": "double", "required": true},
+        {"key": "plating_type", "type": "string", "size": 20, "required": true},
+        {"key": "active_price", "type": "double", "required": true},
+        {"key": "draft_price", "type": "double", "required": true},
+        {"key": "stock_qty", "type": "integer", "required": true},
+        {"key": "sample_qty", "type": "integer", "required": true},
+        {"key": "casting_cost", "type": "double", "required": true},
+        {"key": "setter_cost", "type": "double", "required": true},
+        {"key": "technician_cost", "type": "double", "required": true},
+        {"key": "plating_cost", "type": "double", "required": true}
+      ],
+      "indexes": [
+        {"key": "sku", "type": "unique", "attributes": ["sku"]}
+      ]
+    },
+    {
+      "name": "materials",
+      "id": "materials",
+      "attributes": [
+        {"key": "name", "type": "string", "size": 100, "required": true},
+        {"key": "type", "type": "string", "size": 20, "required": true},
+        {"key": "cost_per_unit", "type": "double", "required": true},
+        {"key": "unit", "type": "string", "size": 10, "required": true}
+      ]
+    },
+    {
+      "name": "product_materials",
+      "id": "product_materials",
+      "attributes": [
+        {"key": "quantity", "type": "integer", "required": true},
+        {"key": "product", "type": "relationship", "relatedCollection": "products", "relationType": "manyToOne", "twoWay": true},
+        {"key": "material", "type": "relationship", "relatedCollection": "materials", "relationType": "manyToOne", "twoWay": false}
+      ]
+    },
+    {
+      "name": "global_settings",
+      "id": "global_settings",
+      "attributes": [
+        {"key": "silver_price_gram", "type": "double", "required": true},
+        {"key": "loss_percentage", "type": "double", "required": true}
+      ]
+    }
+  ]
+}
