@@ -436,32 +436,52 @@ export default function NewProduct({ products, materials, molds = [], setProduct
              <div className="space-y-6 animate-in slide-in-from-right duration-300">
                  <h3 className="text-lg font-semibold text-slate-700 pb-2 border-b">3. Κόστος & Εργατικά</h3>
                  
-                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
                     <label className="block text-sm font-bold text-slate-700 mb-1">Βάρος Ασημιού (γραμμάρια)</label>
                     <input 
                         type="number" step="0.01" 
                         value={weight} 
                         onChange={e => setWeight(parseFloat(e.target.value))} 
-                        className="w-full p-3 border border-slate-300 rounded bg-white text-slate-900 text-lg font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none" 
+                        className="w-full p-3 border border-slate-300 rounded-md bg-white text-slate-900 text-lg font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none shadow-sm transition-all" 
                     />
                  </div>
 
                  <div className="grid grid-cols-2 gap-4">
                      <div>
-                        <label className="text-xs font-bold text-slate-500">Χύτευση €</label>
-                        <input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Χύτευση €</label>
+                        <input 
+                            type="number" step="0.01" 
+                            value={labor.casting_cost} 
+                            onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value)})} 
+                            className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none shadow-sm transition-all" 
+                        />
                      </div>
                      <div>
-                        <label className="text-xs font-bold text-slate-500">Καρφωτικό €</label>
-                        <input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Καρφωτικό €</label>
+                        <input 
+                            type="number" step="0.01" 
+                            value={labor.setter_cost} 
+                            onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value)})} 
+                            className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none shadow-sm transition-all" 
+                        />
                      </div>
                      <div>
-                        <label className="text-xs font-bold text-slate-500">Τεχνίτης €</label>
-                        <input type="number" step="0.01" value={labor.technician_cost} onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Τεχνίτης €</label>
+                        <input 
+                            type="number" step="0.01" 
+                            value={labor.technician_cost} 
+                            onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value)})} 
+                            className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none shadow-sm transition-all" 
+                        />
                      </div>
                      <div>
-                        <label className="text-xs font-bold text-slate-500">Επιμετάλλωση €</label>
-                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Επιμετάλλωση €</label>
+                        <input 
+                            type="number" step="0.01" 
+                            value={labor.plating_cost} 
+                            onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value)})} 
+                            className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none shadow-sm transition-all" 
+                        />
                      </div>
                  </div>
              </div>
