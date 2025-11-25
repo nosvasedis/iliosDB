@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
-import { parseSku, calculateProductCost } from '../utils/pricingEngine';
-import { Save, Plus, Trash2, Camera, Calculator, Box, Gem, MapPin, Upload, Loader2, Image as ImageIcon, ArrowRight, ArrowLeft, CheckCircle } from 'lucide-react';
+import { parseSku, calculateProductCost, analyzeSku } from '../utils/pricingEngine';
+import { Save, Plus, Trash2, Camera, Calculator, Box, Gem, MapPin, Upload, Loader2, Image as ImageIcon, ArrowRight, ArrowLeft, CheckCircle, Lightbulb } from 'lucide-react';
 import { INITIAL_SETTINGS } from '../constants';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -49,23 +49,44 @@ export default function NewProduct({ products, materials, molds = [], setProduct
   const [isSTX, setIsSTX] = useState(false);
   const [estimatedCost, setEstimatedCost] = useState(0);
 
-  // Auto-Suggest Logic
+  // Smart SKU Detection State
+  const [detectedMasterSku, setDetectedMasterSku] = useState('');
+  const [detectedSuffix, setDetectedSuffix] = useState('');
+  const [detectedVariantDesc, setDetectedVariantDesc] = useState('');
+
+  // Auto-Suggest Logic & Smart SKU Analysis
   useEffect(() => {
     if (sku.length >= 2) {
+      // 1. Analyze Category/Gender
       const meta = parseSku(sku);
-      if (meta.category !== 'Γενικό') {
+      if (meta.category !== 'Γενικό' && !category) {
          setCategory(meta.category);
          setGender(meta.gender as Gender);
       }
       if (sku.startsWith('STX')) setIsSTX(true);
-      else setIsSTX(false);
+      
+      // 2. Smart Suffix Analysis
+      const analysis = analyzeSku(sku);
+      if (analysis.isVariant) {
+          setDetectedMasterSku(analysis.masterSku);
+          setDetectedSuffix(analysis.suffix);
+          setDetectedVariantDesc(analysis.variantDescription);
+          setPlating(analysis.detectedPlating);
+      } else {
+          setDetectedMasterSku(sku);
+          setDetectedSuffix('');
+          setDetectedVariantDesc('');
+      }
+    } else {
+        setDetectedMasterSku(sku);
+        setDetectedSuffix('');
     }
   }, [sku]);
 
   // Cost Calculator Effect
   useEffect(() => {
     const tempProduct: Product = {
-      sku,
+      sku: detectedMasterSku || sku, // Use Master for calculation context
       prefix: sku.substring(0, 2),
       category: category,
       gender: gender as Gender || Gender.Unisex,
@@ -84,7 +105,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
     };
     const cost = calculateProductCost(tempProduct, INITIAL_SETTINGS, materials, products);
     setEstimatedCost(cost.total);
-  }, [sku, category, gender, weight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products]);
+  }, [sku, detectedMasterSku, category, gender, weight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products]);
 
   // Derived Profit Calculations
   const profit = sellingPrice - estimatedCost;
@@ -147,20 +168,21 @@ export default function NewProduct({ products, materials, molds = [], setProduct
     
     setIsUploading(true);
     let finalImageUrl = 'https://picsum.photos/300/300'; 
+    const finalMasterSku = detectedMasterSku || sku;
 
     try {
-        // 1. Handle Image Upload
+        // 1. Handle Image Upload (Always attached to Master SKU)
         if (selectedImage) {
             const compressedBlob = await compressImage(selectedImage);
-            const uploadedUrl = await uploadProductImage(compressedBlob, sku);
+            const uploadedUrl = await uploadProductImage(compressedBlob, finalMasterSku);
             if (uploadedUrl) {
                 finalImageUrl = uploadedUrl;
             }
         }
 
         const newProduct: Product = {
-          sku: sku.toUpperCase(),
-          prefix: sku.substring(0, 2).toUpperCase(),
+          sku: finalMasterSku.toUpperCase(),
+          prefix: finalMasterSku.substring(0, 2).toUpperCase(),
           category: category,
           gender: gender as Gender,
           image_url: finalImageUrl,
@@ -183,9 +205,11 @@ export default function NewProduct({ products, materials, molds = [], setProduct
           }
         };
         
-        // 2. Persist to DB
-        // Insert product
-        await supabase.from('products').insert({
+        // 2. Persist to DB (Master Product)
+        // Check if master already exists to avoid PK violation? 
+        // For this strict flow, we assume we are creating new. 
+        // If Master exists, upsert will update it, which is fine.
+        await supabase.from('products').upsert({
             sku: newProduct.sku,
             prefix: newProduct.prefix,
             category: newProduct.category,
@@ -205,8 +229,19 @@ export default function NewProduct({ products, materials, molds = [], setProduct
             labor_technician: newProduct.labor.technician_cost,
             labor_plating: newProduct.labor.plating_cost
         });
+
+        // 3. Create Variant if detected
+        if (detectedSuffix) {
+            await supabase.from('product_variants').insert({
+                product_sku: newProduct.sku,
+                suffix: detectedSuffix,
+                description: detectedVariantDesc,
+                stock_qty: 0 // Initial stock 0
+            });
+        }
         
-        // Insert Recipe
+        // Insert Recipe (Clear old first if upserting logic was robust, but simple insert here)
+        // Note: Real world app should handle clean up on upsert.
         for (const r of recipe) {
              if (r.type === 'raw') {
                  await supabase.from('recipes').insert({ parent_sku: newProduct.sku, type: 'raw', material_id: r.id, quantity: r.quantity });
@@ -221,7 +256,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
         }
 
         queryClient.invalidateQueries({ queryKey: ['products'] });
-        alert("Το προϊόν αποθηκεύτηκε επιτυχώς!");
+        alert(`Το προϊόν αποθηκεύτηκε ως ${finalMasterSku}${detectedSuffix ? ` με παραλλαγή ${detectedSuffix}` : ''}!`);
         
         // Reset Form
         setSku('');
@@ -271,7 +306,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
                 <div className="flex flex-col md:flex-row gap-6">
                     {/* Image Uploader - Fixed Click Area */}
                     <div className="w-full md:w-1/3">
-                        <label className="block text-sm font-medium text-slate-600 mb-2">Φωτογραφία</label>
+                        <label className="block text-sm font-medium text-slate-600 mb-2">Φωτογραφία (Main SKU)</label>
                         <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg overflow-hidden hover:border-amber-400 transition-colors cursor-pointer">
                             {imagePreview ? (
                                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
@@ -298,14 +333,25 @@ export default function NewProduct({ products, materials, molds = [], setProduct
 
                     <div className="flex-1 space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-600 mb-1">SKU</label>
+                          <label className="block text-sm font-medium text-slate-600 mb-1">SKU Εισαγωγής</label>
                           <input 
                             type="text" 
                             value={sku}
                             onChange={(e) => setSku(e.target.value.toUpperCase())}
                             className="w-full p-2 border border-slate-300 rounded-md font-mono uppercase bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                            placeholder="π.χ. XR2050"
+                            placeholder="π.χ. XR2050P"
                           />
+                          {/* Smart Detection Feedback */}
+                          {detectedSuffix && (
+                              <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded flex items-start gap-2 text-xs text-blue-700">
+                                  <Lightbulb size={14} className="mt-0.5 shrink-0" />
+                                  <div>
+                                      <span className="font-bold">Αυτόματη Αναγνώριση:</span><br/>
+                                      Master SKU: <strong>{detectedMasterSku}</strong><br/>
+                                      Παραλλαγή: <strong>{detectedSuffix} ({detectedVariantDesc})</strong>
+                                  </div>
+                              </div>
+                          )}
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -339,6 +385,23 @@ export default function NewProduct({ products, materials, molds = [], setProduct
                                 </select>
                             </div>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Τύπος Επιμετάλλωσης</label>
+                            <select 
+                                value={plating} 
+                                onChange={(e) => setPlating(e.target.value as PlatingType)}
+                                className={`w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-colors ${detectedSuffix ? 'bg-amber-50 border-amber-300 font-medium' : ''}`}
+                            >
+                                <option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option>
+                                <option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option>
+                                <option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option>
+                                <option value={PlatingType.Platinum}>Πλατινωμένο (Platinum)</option>
+                                <option value={PlatingType.RoseGold}>Ροζ Χρυσό (Rose)</option>
+                            </select>
+                            {detectedSuffix && <p className="text-[10px] text-amber-600 mt-1">*Επιλέχθηκε αυτόματα βάσει του SKU ({detectedSuffix}).</p>}
+                        </div>
+
                         <div className="bg-slate-50 p-2 rounded-md flex items-center gap-2">
                              <input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
                              <span className="text-sm font-medium text-slate-800">Είναι Εξάρτημα (STX);</span>
@@ -525,7 +588,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
                  )}
                  
                  <div className="bg-slate-50 p-4 rounded-lg text-sm space-y-2 text-slate-600">
-                     <p><strong>SKU:</strong> {sku}</p>
+                     <p><strong>SKU:</strong> {detectedMasterSku || sku} {detectedSuffix ? `(${detectedSuffix} variant)` : ''}</p>
                      <p><strong>Κατηγορία:</strong> {category}</p>
                      <p><strong>Υλικά:</strong> {recipe.length} αντικείμενα</p>
                      <p><strong>Λάστιχα:</strong> {selectedMolds.join(', ') || '-'}</p>

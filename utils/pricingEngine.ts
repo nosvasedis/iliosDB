@@ -1,4 +1,4 @@
-import { Product, GlobalSettings, Material } from '../types';
+import { Product, GlobalSettings, Material, PlatingType } from '../types';
 
 export const calculateProductCost = (
   product: Product,
@@ -112,4 +112,47 @@ export const parseSku = (sku: string) => {
   }
 
   return { gender: 'Unisex', category: 'Γενικό' };
+};
+
+/**
+ * Intelligent SKU Analyzer
+ * Detects if the user typed a specific variant code (e.g. RN001P) and extracts the Master SKU (RN001).
+ */
+export const analyzeSku = (rawSku: string) => {
+    const cleanSku = rawSku.trim().toUpperCase();
+    
+    // Definitions of Suffixes
+    const SUFFIX_RULES: Record<string, { plating: PlatingType, description: string }> = {
+        'P': { plating: PlatingType.None, description: 'Πατίνα' },
+        'X': { plating: PlatingType.GoldPlated, description: 'Επίχρυσο' },
+        'D': { plating: PlatingType.TwoTone, description: 'Δίχρωμο' },
+        'R': { plating: PlatingType.RoseGold, description: 'Ροζ Χρυσό' },
+        'L': { plating: PlatingType.Platinum, description: 'Πλατινωμένο' } // L for Platinum/Lefko
+    };
+
+    // Check if SKU ends with any known suffix
+    // We check purely for single char suffixes at the end for now based on the prompt requirements
+    const lastChar = cleanSku.slice(-1);
+    
+    // Ensure SKU is long enough (e.g. at least 3 chars + suffix) to avoid false positives on short codes
+    if (cleanSku.length > 4 && SUFFIX_RULES[lastChar]) {
+        const masterSku = cleanSku.slice(0, -1);
+        const rule = SUFFIX_RULES[lastChar];
+        
+        return {
+            isVariant: true,
+            masterSku: masterSku,
+            suffix: lastChar,
+            detectedPlating: rule.plating,
+            variantDescription: rule.description
+        };
+    }
+
+    return {
+        isVariant: false,
+        masterSku: cleanSku,
+        suffix: '',
+        detectedPlating: PlatingType.None,
+        variantDescription: ''
+    };
 };
