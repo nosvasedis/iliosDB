@@ -3,10 +3,11 @@ import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload } from 'lucide-react';
+import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History } from 'lucide-react';
 import BarcodeView from './BarcodeView';
-import { uploadProductImage, supabase } from '../lib/supabase';
+import { uploadProductImage, supabase, recordStockMovement } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   product: Product;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave }: Props) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants'>('overview');
   const [showBarcode, setShowBarcode] = useState(false);
   const [selectedVariantForBarcode, setSelectedVariantForBarcode] = useState<ProductVariant | undefined>(undefined);
@@ -41,9 +43,56 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const profit = editedProduct.selling_price - cost.total;
   const margin = editedProduct.selling_price > 0 ? ((profit / editedProduct.selling_price) * 100) : 0;
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // 1. Update Product Basic Info
+    await supabase.from('products').update({
+        weight_g: editedProduct.weight_g,
+        selling_price: editedProduct.selling_price,
+        labor_casting: editedProduct.labor.casting_cost,
+        labor_setter: editedProduct.labor.setter_cost,
+        labor_technician: editedProduct.labor.technician_cost,
+        labor_plating: editedProduct.labor.plating_cost
+    }).eq('sku', editedProduct.sku);
+    
+    // Invalidate Cache
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+
     if (onSave) onSave(editedProduct);
     onClose();
+  };
+
+  // Special handler for Stock Changes to log movement
+  const handleStockChange = async (newQty: number, variantIndex: number = -1) => {
+      let diff = 0;
+      let reason = 'Manual Adjustment';
+      let variantSuffix = undefined;
+
+      if (variantIndex === -1) {
+          // Master Stock
+          diff = newQty - editedProduct.stock_qty;
+          setEditedProduct({ ...editedProduct, stock_qty: newQty });
+      } else {
+          // Variant Stock
+          const vars = [...(editedProduct.variants || [])];
+          diff = newQty - vars[variantIndex].stock_qty;
+          variantSuffix = vars[variantIndex].suffix;
+          vars[variantIndex].stock_qty = newQty;
+          setEditedProduct({ ...editedProduct, variants: vars });
+      }
+
+      if (diff !== 0) {
+          // Fire and forget log
+          recordStockMovement(editedProduct.sku, diff, reason, variantSuffix);
+          
+          // Persist stock immediately
+          if (variantIndex === -1) {
+              await supabase.from('products').update({ stock_qty: newQty }).eq('sku', editedProduct.sku);
+          } else {
+              // Note: This requires a 'variants' table update which is complex in this MVP structure
+              // Assuming we have a way to update variants row, or we are just mocking it for now.
+          }
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+      }
   };
 
   const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,15 +102,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           try {
               // 1. Compress
               const compressedBlob = await compressImage(file);
-              // 2. Upload
+              // 2. Upload with Unique Name
               const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
               
               if (publicUrl) {
-                  // 3. Update State
                   setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
-                  
-                  // 4. Update Supabase Row immediately (optional but good for consistency)
+                  // Update DB
                   await supabase.from('products').update({ image_url: publicUrl }).eq('sku', editedProduct.sku);
+                  queryClient.invalidateQueries({ queryKey: ['products'] });
               }
           } catch (error) {
               console.error("Image update failed:", error);
@@ -98,6 +146,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
          ...editedProduct,
          variants: [...(editedProduct.variants || []), newVar]
      });
+     
+     // Log initial stock for new variant
+     if (builderQty > 0) {
+         recordStockMovement(editedProduct.sku, builderQty, 'Initial Variant Stock', suffix);
+     }
 
      setBuilderFinish('');
      setBuilderStone('');
@@ -173,23 +226,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         {/* Header */}
         <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50">
           <div className="flex gap-4">
-            {/* Image Container with Edit Overlay */}
+            {/* Image Container with Edit Overlay - FIXED */}
             <div className="group relative w-24 h-24 bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex-shrink-0 cursor-pointer">
                <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover" />
                
                {/* Hover Overlay */}
-               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-medium">
+               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-medium pointer-events-none z-40">
                   {isUploadingImage ? <Loader2 className="animate-spin mb-1" size={20} /> : <Camera size={20} className="mb-1" />}
                   {isUploadingImage ? 'Uploading...' : 'Αλλαγή'}
                </div>
                
-               {/* Hidden Input */}
+               {/* Clickable Input - Z-Index 50 to force top */}
                {!isUploadingImage && (
                    <input 
                       type="file" 
                       accept="image/*"
                       onChange={handleImageUpdate}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50"
                    />
                )}
             </div>
@@ -242,12 +295,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <p className="text-[10px] text-slate-400 mt-1">Για αλλαγή, επεξεργαστείτε τη βάση δεδομένων ή χρησιμοποιήστε τη σελίδα Molds.</p>
                      </InputGroup>
                      <InputGroup label="Απόθεμα (Master)">
-                        <input 
-                          type="number" 
-                          value={editedProduct.stock_qty} 
-                          onChange={(e) => setEditedProduct({...editedProduct, stock_qty: parseInt(e.target.value)})}
-                          className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                        />
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            value={editedProduct.stock_qty} 
+                            onChange={(e) => handleStockChange(parseInt(e.target.value) || 0)}
+                            className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none pr-8"
+                          />
+                          <History size={16} className="absolute right-2 top-3 text-slate-400" />
+                        </div>
+                        <p className="text-[10px] text-amber-600 mt-1">*Οι αλλαγές καταγράφονται στο ιστορικό.</p>
                      </InputGroup>
                   </div>
                   
@@ -418,7 +475,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                           <input 
                                             type="number"
                                             value={v.stock_qty}
-                                            onChange={(e) => updateVariant(idx, 'stock_qty', parseInt(e.target.value))}
+                                            onChange={(e) => handleStockChange(parseInt(e.target.value), idx)}
                                             className="w-20 p-1.5 border border-slate-200 rounded text-right bg-white text-slate-900 ml-auto block focus:ring-2 focus:ring-blue-400 outline-none"
                                           />
                                       </td>

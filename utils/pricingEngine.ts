@@ -5,21 +5,32 @@ export const calculateProductCost = (
   settings: GlobalSettings,
   allMaterials: Material[],
   allProducts: Product[],
-  depth: number = 0
+  depth: number = 0,
+  visitedSkus: Set<string> = new Set()
 ): { total: number; breakdown: any } => {
   
-  // Safety check for circular dependencies
-  if (depth > 5) {
+  // 1. Cycle Detection
+  if (visitedSkus.has(product.sku)) {
+    console.error(`Circular dependency detected for product ${product.sku}`);
+    return { total: 0, breakdown: { error: 'Circular Dependency' } };
+  }
+  
+  // Create a new set for the next recursive step
+  const newVisited = new Set(visitedSkus);
+  newVisited.add(product.sku);
+
+  // Safety check for recursion depth
+  if (depth > 10) {
     console.warn(`Max recursion depth reached for product ${product.sku}`);
     return { total: 0, breakdown: {} };
   }
 
-  // 1. Silver Cost
+  // 2. Silver Cost
   // Formula: (SilverWeight * (LivePrice + Loss%))
   const lossMultiplier = 1 + (settings.loss_percentage / 100);
   const silverBaseCost = product.weight_g * (settings.silver_price_gram * lossMultiplier);
 
-  // 2. Materials & Components Cost (Recursive)
+  // 3. Materials & Components Cost (Recursive)
   let materialsCost = 0;
   
   // We iterate through the 'recipe'
@@ -35,13 +46,13 @@ export const calculateProductCost = (
       const subProduct = allProducts.find(p => p.sku === item.sku);
       if (subProduct) {
         // RECURSION: Calculate cost of the sub-product
-        const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1);
+        const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1, newVisited);
         materialsCost += (subCost.total * item.quantity);
       }
     }
   });
 
-  // 3. Labor Costs
+  // 4. Labor Costs
   const labor = product.labor;
   const laborTotal = 
     (labor.casting_cost || 0) + 
@@ -72,7 +83,7 @@ export const parseSku = (sku: string) => {
   }
   
   // Men's Prefixes
-  // XR (Bracelets), CR (Cross), ST (Cross - also women's), RN (Ring), PN (Pendant)
+  // XR (Bracelets), CR (Cross), RN (Ring), PN (Pendant)
   if (['XR', 'CR', 'RN', 'PN'].includes(prefix)) {
     const map: Record<string, string> = {
         'XR': 'Βραχιόλι', 
@@ -84,7 +95,7 @@ export const parseSku = (sku: string) => {
   }
   
   // Women's Prefixes
-  // DA (Ring), SK (Earrings), MN (Pendant), BR (Bracelet), ST (Cross - also men's)
+  // DA (Ring), SK (Earrings), MN (Pendant), BR (Bracelet)
   if (['DA', 'SK', 'MN', 'BR'].includes(prefix)) {
      const map: Record<string, string> = {
         'DA': 'Δαχτυλίδι', 

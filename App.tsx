@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   PackagePlus, 
@@ -13,9 +13,9 @@ import {
   Gem,
   MapPin
 } from 'lucide-react';
-import { GlobalSettings, Product, Material, ProductVariant, RecipeItem, Mold, Gender, PlatingType } from './types';
-import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS, APP_LOGO, APP_ICON_ONLY } from './constants';
-import { supabase } from './lib/supabase';
+import { APP_LOGO, APP_ICON_ONLY } from './constants';
+import { api } from './lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -32,123 +32,25 @@ export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Application State
-  const [products, setProducts] = useState<Product[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [molds, setMolds] = useState<Mold[]>([]);
-  const [settings, setSettings] = useState<GlobalSettings>(INITIAL_SETTINGS);
+  // --- React Query Data Fetching ---
+  const { data: settings, isLoading: loadingSettings, refetch: refetchSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: materials, isLoading: loadingMaterials, refetch: refetchMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: molds, isLoading: loadingMolds, refetch: refetchMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+  const { data: products, isLoading: loadingProducts, refetch: refetchProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
 
-  // FETCH DATA FROM SUPABASE
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
+  const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts;
 
-        // 1. Fetch Global Settings
-        const { data: settingsData } = await supabase.from('global_settings').select('*').single();
-        if (settingsData) {
-          setSettings({
-            silver_price_gram: Number(settingsData.silver_price_gram),
-            loss_percentage: Number(settingsData.loss_percentage)
-          });
-        }
-
-        // 2. Fetch Materials
-        const { data: matData } = await supabase.from('materials').select('*');
-        if (matData) {
-          setMaterials(matData.map((m: any) => ({
-             id: m.id,
-             name: m.name,
-             type: m.type,
-             cost_per_unit: Number(m.cost_per_unit),
-             unit: m.unit
-          })));
-        }
-
-        // 3. Fetch Molds
-        const { data: moldData } = await supabase.from('molds').select('*');
-        if (moldData) {
-            setMolds(moldData.map((m: any) => ({
-                code: m.code,
-                location: m.location,
-                description: m.description
-            })));
-        }
-
-        // 4. Fetch Products and Relational Data
-        const { data: prodData } = await supabase.from('products').select('*');
-        const { data: varData } = await supabase.from('product_variants').select('*');
-        const { data: recData } = await supabase.from('recipes').select('*');
-        const { data: prodMoldsData } = await supabase.from('product_molds').select('*'); // Join table
-
-        if (prodData) {
-          const assembledProducts: Product[] = prodData.map((p: any) => {
-            // Find Variants
-            const pVariants: ProductVariant[] = varData
-              ?.filter((v: any) => v.product_sku === p.sku)
-              .map((v: any) => ({
-                suffix: v.suffix,
-                description: v.description,
-                stock_qty: v.stock_qty
-              })) || [];
-
-            // Find Recipe
-            const pRecipeRaw = recData?.filter((r: any) => r.parent_sku === p.sku) || [];
-            const pRecipe: RecipeItem[] = pRecipeRaw.map((r: any) => {
-               if (r.type === 'raw') {
-                 return { type: 'raw', id: r.material_id, quantity: Number(r.quantity) };
-               } else {
-                 return { type: 'component', sku: r.component_sku, quantity: Number(r.quantity) };
-               }
-            });
-            
-            // Find Molds (Many-to-Many)
-            const pMolds = prodMoldsData
-                ?.filter((pm: any) => pm.product_sku === p.sku)
-                .map((pm: any) => pm.mold_code) || [];
-
-            return {
-              sku: p.sku,
-              prefix: p.prefix,
-              category: p.category,
-              gender: p.gender as Gender,
-              image_url: p.image_url || 'https://picsum.photos/300/300',
-              weight_g: Number(p.weight_g),
-              plating_type: p.plating_type as PlatingType,
-              active_price: Number(p.active_price),
-              draft_price: Number(p.draft_price),
-              selling_price: Number(p.selling_price || 0),
-              stock_qty: p.stock_qty,
-              sample_qty: p.sample_qty,
-              molds: pMolds,
-              is_component: p.is_component,
-              variants: pVariants,
-              recipe: pRecipe,
-              labor: {
-                casting_cost: Number(p.labor_casting),
-                setter_cost: Number(p.labor_setter),
-                technician_cost: Number(p.labor_technician),
-                plating_cost: Number(p.labor_plating)
-              }
-            };
-          });
-          setProducts(assembledProducts);
-        }
-
-      } catch (error) {
-        console.error("Error loading data from Supabase:", error);
-        // Fallback to mocks if offline or error
-        setProducts(MOCK_PRODUCTS);
-        setMaterials(MOCK_MATERIALS);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  // Optimistic/Local updaters to pass down (for MVP compatibility)
+  // In a full implementation, these would be replace by useMutation
+  const setProducts = (newProds: any) => { 
+     // This is a mock function to satisfy prop types for now, 
+     // real updates should invalidate queries
+     refetchProducts(); 
+  }; 
+  const setSettings = (newSettings: any) => { refetchSettings(); };
+  const setMaterials = (newMats: any) => { refetchMaterials(); };
+  const setMolds = (newMolds: any) => { refetchMolds(); };
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -163,10 +65,13 @@ export default function App() {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
         <Loader2 size={48} className="animate-spin mb-4 text-amber-500" />
-        <p className="font-medium">Σύνδεση με Supabase...</p>
+        <p className="font-medium">Φόρτωση Δεδομένων...</p>
       </div>
     );
   }
+
+  // Safe fallback
+  if (!settings || !products || !materials || !molds) return null;
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-800 bg-slate-100">
@@ -277,7 +182,7 @@ export default function App() {
            {!isCollapsed && (
               <div className="mt-4 text-xs text-slate-500 text-center">
                 <p>Ag925: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                <p>v1.2.0</p>
+                <p>v1.3.0</p>
               </div>
            )}
         </div>

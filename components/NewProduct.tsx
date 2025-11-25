@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost } from '../utils/pricingEngine';
-import { Save, Plus, Trash2, Camera, Calculator, Box, Gem, TrendingUp, MapPin, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Save, Plus, Trash2, Camera, Calculator, Box, Gem, MapPin, Upload, Loader2, Image as ImageIcon, ArrowRight, ArrowLeft, CheckCircle } from 'lucide-react';
 import { INITIAL_SETTINGS } from '../constants';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   products: Product[];
@@ -14,7 +15,17 @@ interface Props {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }
 
+const STEPS = [
+  { id: 1, title: 'Στοιχεία' },
+  { id: 2, title: 'Συνταγή' },
+  { id: 3, title: 'Εργατικά' },
+  { id: 4, title: 'Σύνοψη' }
+];
+
 export default function NewProduct({ products, materials, molds = [], setProducts }: Props) {
+  const queryClient = useQueryClient();
+  const [currentStep, setCurrentStep] = useState(1);
+
   // Form State
   const [sku, setSku] = useState('');
   const [category, setCategory] = useState('');
@@ -131,15 +142,14 @@ export default function NewProduct({ products, materials, molds = [], setProduct
       }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!sku) return alert("Το SKU είναι υποχρεωτικό");
     
     setIsUploading(true);
-    let finalImageUrl = 'https://picsum.photos/300/300'; // Fallback
+    let finalImageUrl = 'https://picsum.photos/300/300'; 
 
     try {
-        // 1. Handle Image Upload (Compress -> Upload to Supabase)
+        // 1. Handle Image Upload
         if (selectedImage) {
             const compressedBlob = await compressImage(selectedImage);
             const uploadedUrl = await uploadProductImage(compressedBlob, sku);
@@ -163,7 +173,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
           sample_qty: 1,
           molds: selectedMolds,
           is_component: isSTX,
-          variants: [], // New products start with no variants
+          variants: [],
           recipe: recipe,
           labor: {
               casting_cost: Number(labor.casting_cost),
@@ -173,19 +183,44 @@ export default function NewProduct({ products, materials, molds = [], setProduct
           }
         };
         
-        // 2. Persist to DB (if implemented in App context) or just Local State
-        // For now, we update local state as per previous pattern
-        setProducts(prev => [...prev, newProduct]);
-        
-        // Optional: Trigger a real Supabase insert here if needed in future
-        /*
+        // 2. Persist to DB
+        // Insert product
         await supabase.from('products').insert({
             sku: newProduct.sku,
-            // ... map other fields
-            image_url: finalImageUrl
+            prefix: newProduct.prefix,
+            category: newProduct.category,
+            gender: newProduct.gender,
+            image_url: finalImageUrl,
+            weight_g: newProduct.weight_g,
+            plating_type: newProduct.plating_type,
+            active_price: newProduct.active_price,
+            draft_price: newProduct.draft_price,
+            selling_price: newProduct.selling_price,
+            stock_qty: 0,
+            sample_qty: 1,
+            is_component: newProduct.is_component,
+            // Labor
+            labor_casting: newProduct.labor.casting_cost,
+            labor_setter: newProduct.labor.setter_cost,
+            labor_technician: newProduct.labor.technician_cost,
+            labor_plating: newProduct.labor.plating_cost
         });
-        */
+        
+        // Insert Recipe
+        for (const r of recipe) {
+             if (r.type === 'raw') {
+                 await supabase.from('recipes').insert({ parent_sku: newProduct.sku, type: 'raw', material_id: r.id, quantity: r.quantity });
+             } else {
+                 await supabase.from('recipes').insert({ parent_sku: newProduct.sku, type: 'component', component_sku: r.sku, quantity: r.quantity });
+             }
+        }
+        
+        // Insert Molds
+        for (const m of selectedMolds) {
+             await supabase.from('product_molds').insert({ product_sku: newProduct.sku, mold_code: m });
+        }
 
+        queryClient.invalidateQueries({ queryKey: ['products'] });
         alert("Το προϊόν αποθηκεύτηκε επιτυχώς!");
         
         // Reset Form
@@ -196,6 +231,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
         setSelectedMolds([]);
         setSelectedImage(null);
         setImagePreview('');
+        setCurrentStep(1);
 
     } catch (error) {
         console.error("Save error:", error);
@@ -205,301 +241,307 @@ export default function NewProduct({ products, materials, molds = [], setProduct
     }
   };
 
+  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 4));
+  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+
   return (
-    <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-        <Calculator className="text-amber-500" />
-        Δημιουργία Συνταγής (Νέο Προϊόν)
-      </h1>
+    <div className="max-w-3xl mx-auto h-full flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <Calculator className="text-amber-500" />
+            Νέο Προϊόν
+          </h1>
+          {/* Progress Indicators */}
+          <div className="flex gap-2">
+             {STEPS.map(s => (
+                 <div key={s.id} className={`h-2 w-8 rounded-full transition-colors ${currentStep >= s.id ? 'bg-amber-500' : 'bg-slate-200'}`} />
+             ))}
+          </div>
+      </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex-1 flex flex-col overflow-hidden">
         
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6">
           
-          {/* Identity */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 className="text-lg font-semibold mb-4 text-slate-700 border-b pb-2">1. Βασικά Στοιχεία & Φωτογραφία</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Image Uploader */}
-              <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-slate-600 mb-2">Φωτογραφία</label>
-                  <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg overflow-hidden hover:border-amber-400 transition-colors cursor-pointer">
-                      {imagePreview ? (
-                          <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                          <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                              <Camera size={32} className="mb-2 opacity-50" />
-                              <span className="text-xs font-medium">Επιλογή Φωτό</span>
-                          </div>
-                      )}
-                      
-                      {/* Overlay Input */}
-                      <input 
-                          type="file" 
-                          accept="image/*"
-                          onChange={handleImageSelect}
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      
-                      {/* Hover Overlay */}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-medium text-xs">
-                          <Upload size={16} className="mr-1" /> Αλλαγή
-                      </div>
-                  </div>
-              </div>
-
-              {/* Basic Fields */}
-              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-600 mb-1">SKU (Κωδικός)</label>
-                    <input 
-                      type="text" 
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value.toUpperCase())}
-                      className="w-full p-2 border border-slate-300 rounded-md font-mono uppercase bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                      placeholder="π.χ. XR2050"
-                      required
-                    />
-                  </div>
-                   
-                  {/* Dropdowns */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Φύλο</label>
-                    <select 
-                        value={gender} 
-                        onChange={(e) => setGender(e.target.value as Gender)}
-                        className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                        required
-                    >
-                        <option value="" disabled>Επιλέξτε</option>
-                        <option value={Gender.Women}>Γυναικείο</option>
-                        <option value={Gender.Men}>Ανδρικό</option>
-                        <option value={Gender.Unisex}>Unisex</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Κατηγορία</label>
-                    <select 
-                        value={category} 
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                        required
-                    >
-                        <option value="" disabled>Επιλέξτε</option>
-                        <option value="Δαχτυλίδι">Δαχτυλίδι</option>
-                        <option value="Σκουλαρίκια">Σκουλαρίκια</option>
-                        <option value="Μενταγιόν">Μενταγιόν</option>
-                        <option value="Βραχιόλι">Βραχιόλι</option>
-                        <option value="Σταυρός">Σταυρός</option>
-                        <option value="Εξάρτημα (STX)">Εξάρτημα (STX)</option>
-                        <option value="Άλλο">Άλλο</option>
-                    </select>
-                  </div>
-
-                  {/* STX Toggle */}
-                  <div className="md:col-span-2">
-                     <div className="bg-slate-50 p-2 rounded-md flex items-center gap-2">
-                        <input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                        <span className="text-sm font-medium text-slate-800">Είναι Εξάρτημα (STX);</span>
-                     </div>
-                  </div>
-              </div>
-              
-              {/* Molds Multi Select */}
-              <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Ανάθεση Λάστιχων</label>
-                  <div className="p-3 border border-slate-300 rounded-md bg-white max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
-                      {molds.length > 0 ? molds.map(m => (
-                          <div 
-                             key={m.code} 
-                             onClick={() => toggleMold(m.code)}
-                             className={`flex items-center gap-2 text-sm p-1 rounded cursor-pointer select-none transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 text-amber-900 font-medium' : 'hover:bg-slate-50 text-slate-600'}`}
-                          >
-                              <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedMolds.includes(m.code) ? 'bg-amber-500 border-amber-600' : 'border-slate-300'}`}>
-                                  {selectedMolds.includes(m.code) && <div className="w-2 h-2 bg-white rounded-full" />}
-                              </div>
-                              <span>{m.code} - {m.description}</span>
-                          </div>
-                      )) : (
-                          <span className="text-slate-400 text-sm col-span-2 italic">Δεν υπάρχουν διαθέσιμα λάστιχα.</span>
-                      )}
-                  </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Recipe Builder */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="flex justify-between items-center mb-4 border-b pb-2">
-              <h3 className="text-lg font-semibold text-slate-700">2. Συνταγή (BOM)</h3>
-              <div className="flex gap-2">
-                 <button type="button" onClick={addRawMaterial} className="text-sm flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded hover:bg-purple-100 transition-colors">
-                    <Gem size={14} /> Υλικό
-                 </button>
-                 <button type="button" onClick={addComponent} className="text-sm flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded hover:bg-blue-100 transition-colors">
-                    <Box size={14} /> Εξάρτημα (STX)
-                 </button>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              {recipe.map((item, idx) => (
-                <div key={idx} className={`flex items-end gap-3 p-3 rounded-lg ${item.type === 'raw' ? 'bg-purple-50' : 'bg-blue-50'}`}>
-                  <div className="flex-1">
-                    <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
-                        {item.type === 'raw' ? 'Πρώτη Ύλη' : 'Εξάρτημα (STX)'}
-                    </label>
-                    {item.type === 'raw' ? (
-                         <select 
-                           value={item.id}
-                           onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
-                           className="w-full p-2 text-sm border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                         >
-                           {materials.map(m => (
-                             <option key={m.id} value={m.id}>{m.name} ({m.cost_per_unit}€)</option>
-                           ))}
-                         </select>
-                    ) : (
-                         <select 
-                           value={item.sku}
-                           onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
-                           className="w-full p-2 text-sm border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                         >
-                           {products.filter(p => p.is_component).map(p => (
-                             <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>
-                           ))}
-                         </select>
-                    )}
-                  </div>
-                  <div className="w-24">
-                    <label className="block text-[10px] text-slate-500 mb-1">Ποσότητα</label>
-                    <input 
-                      type="number" 
-                      value={item.quantity}
-                      onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)}
-                      className="w-full p-2 text-sm border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                    />
-                  </div>
-                  <button type="button" onClick={() => removeRecipeItem(idx)} className="p-2 text-red-500 hover:bg-red-100 rounded-md">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
-              {recipe.length === 0 && <p className="text-sm text-slate-400 italic">Προσθέστε υλικά ή εξαρτήματα.</p>}
-            </div>
-          </div>
-          
-           {/* Labor Costs */}
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-             <h3 className="text-lg font-semibold mb-4 text-slate-700">3. Κόστος Εργασίας</h3>
-             <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="text-xs font-bold text-slate-500">Χύτευση (Casting) €</label>
-                    <input 
-                      type="number" step="0.01" 
-                      value={labor.casting_cost} 
-                      onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value)})} 
-                      className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" 
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs font-bold text-slate-500">Καρφωτικό (Setting) €</label>
-                    <input 
-                      type="number" step="0.01" 
-                      value={labor.setter_cost} 
-                      onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value)})} 
-                      className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" 
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs font-bold text-slate-500">Τεχνίτης (Finishing) €</label>
-                    <input 
-                      type="number" step="0.01" 
-                      value={labor.technician_cost} 
-                      onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value)})} 
-                      className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" 
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs font-bold text-slate-500">Επιμετάλλωση (Plating) €</label>
-                    <input 
-                      type="number" step="0.01" 
-                      value={labor.plating_cost} 
-                      onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value)})} 
-                      className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" 
-                    />
-                 </div>
-             </div>
-           </div>
-
-        </div>
-
-        {/* Right Column: Preview */}
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 sticky top-4">
-            <h3 className="text-lg font-semibold mb-4 text-slate-700">Σύνοψη</h3>
-             <div className="space-y-4">
-                <div>
-                   <label className="block text-sm font-medium text-slate-600 mb-1">Βάρος Ασημιού (g)</label>
-                   <input 
-                     type="number" step="0.01" value={weight}
-                     onChange={(e) => setWeight(parseFloat(e.target.value))}
-                     className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                   />
-                </div>
+          {/* STEP 1: BASIC INFO & IMAGE */}
+          {currentStep === 1 && (
+             <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                <h3 className="text-lg font-semibold text-slate-700 pb-2 border-b">1. Βασικά Στοιχεία</h3>
                 
-                {!isSTX && (
-                  <div>
-                    <label className="block text-sm font-bold text-amber-700 mb-1">Τιμή Πώλησης (€)</label>
-                    <input 
-                      type="number" step="0.1" value={sellingPrice}
-                      onChange={(e) => setSellingPrice(parseFloat(e.target.value))}
-                      className="w-full p-2 border border-amber-300 rounded-md bg-amber-50 text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
-                    />
-                  </div>
-                )}
-             </div>
+                <div className="flex flex-col md:flex-row gap-6">
+                    {/* Image Uploader - Fixed Click Area */}
+                    <div className="w-full md:w-1/3">
+                        <label className="block text-sm font-medium text-slate-600 mb-2">Φωτογραφία</label>
+                        <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg overflow-hidden hover:border-amber-400 transition-colors cursor-pointer">
+                            {imagePreview ? (
+                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400 pointer-events-none">
+                                    <Camera size={32} className="mb-2 opacity-50" />
+                                    <span className="text-xs font-medium">Επιλογή Φωτό</span>
+                                </div>
+                            )}
+                            
+                            {/* The input must cover the entire container and be clickable - Z-Index 50 to force top */}
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleImageSelect}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50"
+                            />
+                            
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-medium text-xs pointer-events-none z-40">
+                                <Upload size={16} className="mr-1" /> Αλλαγή
+                            </div>
+                        </div>
+                    </div>
 
-             <div className="mt-6 pt-6 border-t border-slate-200">
-               <div className="flex justify-between items-end mb-2">
-                <span className="text-slate-600 font-medium">Κόστος</span>
-                <span className="text-2xl font-bold text-slate-600">{estimatedCost.toFixed(2)}€</span>
-              </div>
-              {!isSTX && (
-                  <>
-                      <div className="flex justify-between items-end mb-4">
-                        <span className="text-slate-800 font-bold">Πώληση</span>
-                        <span className="text-3xl font-bold text-amber-600">{sellingPrice.toFixed(2)}€</span>
-                      </div>
-                      
-                      <div className={`p-4 rounded-lg flex justify-between items-center ${profit > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                          <div className="flex flex-col">
-                              <span className="text-xs font-bold uppercase tracking-wide">Κέρδος</span>
-                              <span className="font-bold text-xl">{profit.toFixed(2)}€</span>
-                          </div>
-                          <div className="flex flex-col items-end">
-                              <span className="text-xs font-bold uppercase tracking-wide">Margin</span>
-                              <span className="font-bold text-xl">{margin.toFixed(1)}%</span>
-                          </div>
-                      </div>
-                  </>
-              )}
-            </div>
-            <button 
-                type="submit" 
-                disabled={isUploading}
-                className="w-full mt-6 bg-slate-900 text-white py-3 rounded-lg font-medium hover:bg-slate-800 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} 
-              {isUploading ? 'Αποστολή...' : 'Αποθήκευση'}
-            </button>
-          </div>
+                    <div className="flex-1 space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-600 mb-1">SKU</label>
+                          <input 
+                            type="text" 
+                            value={sku}
+                            onChange={(e) => setSku(e.target.value.toUpperCase())}
+                            className="w-full p-2 border border-slate-300 rounded-md font-mono uppercase bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                            placeholder="π.χ. XR2050"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Φύλο</label>
+                                <select 
+                                    value={gender} 
+                                    onChange={(e) => setGender(e.target.value as Gender)}
+                                    className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                >
+                                    <option value="" disabled>Επιλέξτε</option>
+                                    <option value={Gender.Women}>Γυναικείο</option>
+                                    <option value={Gender.Men}>Ανδρικό</option>
+                                    <option value={Gender.Unisex}>Unisex</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Κατηγορία</label>
+                                <select 
+                                    value={category} 
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                >
+                                    <option value="" disabled>Επιλέξτε</option>
+                                    <option value="Δαχτυλίδι">Δαχτυλίδι</option>
+                                    <option value="Σκουλαρίκια">Σκουλαρίκια</option>
+                                    <option value="Μενταγιόν">Μενταγιόν</option>
+                                    <option value="Βραχιόλι">Βραχιόλι</option>
+                                    <option value="Σταυρός">Σταυρός</option>
+                                    <option value="Εξάρτημα (STX)">Εξάρτημα (STX)</option>
+                                    <option value="Άλλο">Άλλο</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-md flex items-center gap-2">
+                             <input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                             <span className="text-sm font-medium text-slate-800">Είναι Εξάρτημα (STX);</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Ανάθεση Λάστιχων</label>
+                    <div className="p-3 border border-slate-300 rounded-md bg-white max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
+                        {molds.length > 0 ? molds.map(m => (
+                            <div 
+                               key={m.code} 
+                               onClick={() => toggleMold(m.code)}
+                               className={`flex items-center gap-2 text-sm p-1 rounded cursor-pointer select-none transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 text-amber-900 font-medium' : 'hover:bg-slate-50 text-slate-600'}`}
+                            >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedMolds.includes(m.code) ? 'bg-amber-500 border-amber-600' : 'border-slate-300'}`}>
+                                    {selectedMolds.includes(m.code) && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </div>
+                                <span>{m.code}</span>
+                            </div>
+                        )) : (
+                            <span className="text-slate-400 text-sm col-span-2 italic">Δεν υπάρχουν διαθέσιμα λάστιχα.</span>
+                        )}
+                    </div>
+                </div>
+             </div>
+          )}
+
+          {/* STEP 2: RECIPE */}
+          {currentStep === 2 && (
+             <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                 <div className="flex justify-between items-center pb-2 border-b">
+                     <h3 className="text-lg font-semibold text-slate-700">2. Συνταγή (BOM)</h3>
+                     <div className="flex gap-2">
+                        <button type="button" onClick={addRawMaterial} className="text-xs flex items-center gap-1 bg-purple-100 text-purple-700 px-3 py-2 rounded hover:bg-purple-200 transition-colors font-medium">
+                           <Plus size={14} /> Υλικό
+                        </button>
+                        <button type="button" onClick={addComponent} className="text-xs flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-2 rounded hover:bg-blue-200 transition-colors font-medium">
+                           <Plus size={14} /> STX
+                        </button>
+                     </div>
+                 </div>
+
+                 <div className="space-y-3">
+                   {recipe.map((item, idx) => (
+                     <div key={idx} className={`flex items-center gap-2 p-3 rounded-lg border ${item.type === 'raw' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
+                       <div className="flex-1">
+                         <label className="block text-[10px] text-slate-500 uppercase tracking-wide">
+                             {item.type === 'raw' ? 'Πρώτη Ύλη' : 'Εξάρτημα'}
+                         </label>
+                         {item.type === 'raw' ? (
+                              <select 
+                                value={item.id}
+                                onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
+                                className="w-full p-1 text-sm bg-transparent font-medium text-slate-900 outline-none"
+                              >
+                                {materials.map(m => (
+                                  <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                              </select>
+                         ) : (
+                              <select 
+                                value={item.sku}
+                                onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
+                                className="w-full p-1 text-sm bg-transparent font-medium text-slate-900 outline-none"
+                              >
+                                {products.filter(p => p.is_component).map(p => (
+                                  <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>
+                                ))}
+                              </select>
+                         )}
+                       </div>
+                       <div className="w-20">
+                         <label className="block text-[10px] text-slate-500">Ποσότητα</label>
+                         <input 
+                           type="number" 
+                           value={item.quantity}
+                           onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)}
+                           className="w-full p-1 text-sm bg-white border border-slate-300 rounded text-center outline-none focus:border-amber-500"
+                         />
+                       </div>
+                       <button type="button" onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-400 hover:text-red-500">
+                         <Trash2 size={18} />
+                       </button>
+                     </div>
+                   ))}
+                   {recipe.length === 0 && <p className="text-center py-8 text-slate-400 italic bg-slate-50 rounded-lg">Δεν έχουν προστεθεί υλικά.</p>}
+                 </div>
+             </div>
+          )}
+
+          {/* STEP 3: LABOR & SILVER */}
+          {currentStep === 3 && (
+             <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                 <h3 className="text-lg font-semibold text-slate-700 pb-2 border-b">3. Κόστος & Εργατικά</h3>
+                 
+                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Βάρος Ασημιού (γραμμάρια)</label>
+                    <input 
+                        type="number" step="0.01" 
+                        value={weight} 
+                        onChange={e => setWeight(parseFloat(e.target.value))} 
+                        className="w-full p-3 border border-slate-300 rounded bg-white text-slate-900 text-lg font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none" 
+                    />
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-xs font-bold text-slate-500">Χύτευση €</label>
+                        <input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500">Καρφωτικό €</label>
+                        <input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500">Τεχνίτης €</label>
+                        <input type="number" step="0.01" value={labor.technician_cost} onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500">Επιμετάλλωση €</label>
+                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value)})} className="w-full p-2 border border-slate-300 rounded mt-1 outline-none" />
+                     </div>
+                 </div>
+             </div>
+          )}
+
+          {/* STEP 4: SUMMARY */}
+          {currentStep === 4 && (
+             <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                 <h3 className="text-lg font-semibold text-slate-700 pb-2 border-b">4. Σύνοψη & Τιμολόγηση</h3>
+                 
+                 <div className="grid grid-cols-2 gap-4">
+                     <div className="p-4 bg-slate-50 rounded-lg">
+                        <span className="text-sm text-slate-500">Εκτιμώμενο Κόστος</span>
+                        <p className="text-2xl font-bold text-slate-800">{estimatedCost.toFixed(2)}€</p>
+                     </div>
+                     {!isSTX && (
+                        <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                           <label className="text-sm font-bold text-amber-700 block mb-1">Τιμή Πώλησης</label>
+                           <input 
+                             type="number" 
+                             step="0.1" 
+                             value={sellingPrice}
+                             onChange={(e) => setSellingPrice(parseFloat(e.target.value))}
+                             className="w-full bg-white p-1 rounded border border-amber-200 font-bold text-lg text-amber-900 outline-none focus:ring-2 focus:ring-amber-500"
+                           />
+                        </div>
+                     )}
+                 </div>
+
+                 {!isSTX && (
+                     <div className="flex gap-4">
+                         <div className={`flex-1 p-3 rounded text-center ${profit > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                             <span className="text-xs uppercase font-bold">Κέρδος</span>
+                             <p className="font-bold text-lg">{profit.toFixed(2)}€</p>
+                         </div>
+                         <div className={`flex-1 p-3 rounded text-center ${margin > 30 ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                             <span className="text-xs uppercase font-bold">Margin</span>
+                             <p className="font-bold text-lg">{margin.toFixed(1)}%</p>
+                         </div>
+                     </div>
+                 )}
+                 
+                 <div className="bg-slate-50 p-4 rounded-lg text-sm space-y-2 text-slate-600">
+                     <p><strong>SKU:</strong> {sku}</p>
+                     <p><strong>Κατηγορία:</strong> {category}</p>
+                     <p><strong>Υλικά:</strong> {recipe.length} αντικείμενα</p>
+                     <p><strong>Λάστιχα:</strong> {selectedMolds.join(', ') || '-'}</p>
+                 </div>
+             </div>
+          )}
+
         </div>
-      </form>
+
+        {/* FOOTER NAVIGATION */}
+        <div className="p-4 border-t bg-slate-50 flex justify-between">
+            {currentStep > 1 ? (
+                <button onClick={prevStep} className="px-6 py-2 rounded-lg border border-slate-300 hover:bg-white transition-colors font-medium flex items-center gap-2 text-slate-600">
+                    <ArrowLeft size={16} /> Πίσω
+                </button>
+            ) : (
+                <div /> // Spacer
+            )}
+
+            {currentStep < 4 ? (
+                <button onClick={nextStep} className="px-6 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors font-medium flex items-center gap-2">
+                    Επόμενο <ArrowRight size={16} />
+                </button>
+            ) : (
+                <button 
+                    onClick={handleSubmit} 
+                    disabled={isUploading}
+                    className="px-8 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors font-medium flex items-center gap-2 shadow-lg shadow-green-200"
+                >
+                    {isUploading ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />} 
+                    {isUploading ? 'Αποθήκευση...' : 'Ολοκλήρωση'}
+                </button>
+            )}
+        </div>
+
+      </div>
     </div>
   );
 }
