@@ -40,6 +40,74 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 };
 
 /**
+ * Robust Product Deletion
+ * 1. Checks if product is used as a component in OTHER recipes (blocks delete if true).
+ * 2. Deletes the image from Storage.
+ * 3. Deletes related DB entries (variants, recipe, molds, stock logs).
+ * 4. Deletes the Product row.
+ */
+export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        // 1. SAFETY CHECK: Is this product used as a component in another product's recipe?
+        const { data: usedInRecipes, error: checkError } = await supabase
+            .from('recipes')
+            .select('parent_sku')
+            .eq('component_sku', sku);
+
+        if (checkError) throw checkError;
+
+        if (usedInRecipes && usedInRecipes.length > 0) {
+            const parentSkus = usedInRecipes.map(r => r.parent_sku).join(', ');
+            return { 
+                success: false, 
+                error: `Δεν είναι δυνατή η διαγραφή. Το προϊόν χρησιμοποιείται ως συστατικό στις συνταγές των: ${parentSkus}. Αφαιρέστε το πρώτα από εκείνες τις συνταγές.` 
+            };
+        }
+
+        // 2. STORAGE CLEANUP: Delete image if exists
+        if (imageUrl && imageUrl.includes('product-images')) {
+            try {
+                // Extract filename from URL
+                // URL format: .../product-images/FILENAME.jpg
+                const urlParts = imageUrl.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+                
+                if (fileName) {
+                    await supabase.storage.from('product-images').remove([fileName]);
+                }
+            } catch (storageErr) {
+                console.warn("Could not delete image file, proceeding with DB delete.", storageErr);
+            }
+        }
+
+        // 3. DATABASE CLEANUP (Manual Cascade to be safe)
+        
+        // Delete Variants
+        await supabase.from('product_variants').delete().eq('product_sku', sku);
+        
+        // Delete ITS Own Recipe (where it is the parent)
+        await supabase.from('recipes').delete().eq('parent_sku', sku);
+        
+        // Delete Mold Associations
+        await supabase.from('product_molds').delete().eq('product_sku', sku);
+        
+        // Delete Stock History
+        await supabase.from('stock_movements').delete().eq('product_sku', sku);
+
+        // 4. DELETE PRODUCT
+        const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
+        
+        if (deleteError) throw deleteError;
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Delete Product Error:", error);
+        return { success: false, error: error.message || 'Άγνωστο σφάλμα κατά τη διαγραφή.' };
+    }
+};
+
+/**
  * Records a stock movement (Audit Log)
  */
 export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {

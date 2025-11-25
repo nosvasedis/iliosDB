@@ -1,11 +1,12 @@
 
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History } from 'lucide-react';
+import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle } from 'lucide-react';
 import BarcodeView from './BarcodeView';
-import { uploadProductImage, supabase, recordStockMovement } from '../lib/supabase';
+import { uploadProductImage, supabase, recordStockMovement, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -21,6 +22,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants'>('overview');
   const [showBarcode, setShowBarcode] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const [selectedVariantForBarcode, setSelectedVariantForBarcode] = useState<ProductVariant | undefined>(undefined);
   const [editedProduct, setEditedProduct] = useState<Product>({ 
       ...product,
@@ -59,6 +63,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     if (onSave) onSave(editedProduct);
     onClose();
+  };
+
+  const handleDelete = async () => {
+      setIsDeleting(true);
+      const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
+      setIsDeleting(false);
+
+      if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          onClose(); // Close the main modal
+          alert("Το προϊόν διαγράφηκε επιτυχώς.");
+      } else {
+          alert(`Σφάλμα: ${result.error}`);
+          setShowDeleteConfirm(false); // Close the confirmation but keep the details open so user can fix issues
+      }
   };
 
   // Special handler for Stock Changes to log movement
@@ -221,6 +240,44 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-6">
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border-t-4 border-red-600">
+                <div className="flex items-center gap-3 text-red-600 mb-4">
+                    <div className="p-3 bg-red-100 rounded-full">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold">Διαγραφή Προϊόντος</h3>
+                </div>
+                <p className="text-slate-700 font-medium mb-2">
+                    Είστε σίγουροι ότι θέλετε να διαγράψετε το προϊόν <strong>{editedProduct.sku}</strong>;
+                </p>
+                <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                    Αυτή η ενέργεια είναι μόνιμη. Θα διαγραφούν όλες οι παραλλαγές, το ιστορικό και η φωτογραφία του.
+                </p>
+                <div className="flex justify-end gap-3">
+                    <button 
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                        disabled={isDeleting}
+                    >
+                        Ακύρωση
+                    </button>
+                    <button 
+                        onClick={handleDelete}
+                        className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium flex items-center gap-2"
+                        disabled={isDeleting}
+                    >
+                        {isDeleting && <Loader2 className="animate-spin" size={16} />}
+                        {isDeleting ? 'Διαγραφή...' : 'Οριστική Διαγραφή'}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -602,12 +659,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         {/* Footer Actions */}
         <div className="p-6 border-t border-slate-200 bg-white flex justify-between items-center">
-           <button 
-             onClick={() => setShowBarcode(true)}
-             className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
-           >
-              <Printer size={20} /> <span className="hidden sm:inline">Εκτύπωση Ετικέτας</span>
-           </button>
+            <div className="flex items-center gap-2">
+               <button 
+                 onClick={() => setShowBarcode(true)}
+                 className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
+               >
+                  <Printer size={20} /> <span className="hidden sm:inline">Εκτύπωση Ετικέτας</span>
+               </button>
+               {/* DELETE BUTTON */}
+               <button 
+                 onClick={() => setShowDeleteConfirm(true)}
+                 className="flex items-center gap-2 text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded transition-colors ml-4"
+               >
+                  <Trash2 size={18} /> <span className="hidden sm:inline">Διαγραφή</span>
+               </button>
+            </div>
            
            <div className="flex gap-4">
               <button onClick={onClose} className="px-6 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium">
