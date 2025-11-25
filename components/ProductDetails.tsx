@@ -186,7 +186,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                <div className="space-y-4">
                   <h3 className="font-bold text-slate-700 border-b pb-2">Στοιχεία Αποθήκης</h3>
                   <div className="grid grid-cols-2 gap-4">
-                     <InputGroup label="Λάστιχα (Molds Codes)">
+                     <InputGroup label="Λάστιχα">
                         <div className="p-2 border border-slate-300 rounded bg-slate-100 text-slate-600 text-sm">
                             {editedProduct.molds?.length ? editedProduct.molds.join(', ') : 'Κανένα Λάστιχο'}
                         </div>

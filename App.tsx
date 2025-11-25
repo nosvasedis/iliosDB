@@ -14,7 +14,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { GlobalSettings, Product, Material, ProductVariant, RecipeItem, Mold, Gender, PlatingType } from './types';
-import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from './constants';
+import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS, APP_LOGO, APP_ICON_ONLY } from './constants';
 import { supabase } from './lib/supabase';
 
 // Pages
@@ -190,11 +190,11 @@ export default function App() {
         <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-slate-700 h-24`}>
           {!isCollapsed ? (
             <div className="flex items-center justify-center w-full">
-              <img src="/logo.png" alt="Ilios Kosmima" className="h-16 w-auto object-contain" />
+              <img src={APP_LOGO} alt="Ilios Kosmima" className="h-16 w-auto object-contain" />
             </div>
           ) : (
             <div className="w-10 h-10 flex items-center justify-center">
-               <img src="/logo.png" alt="Icon" className="w-full h-full object-contain" />
+               <img src={APP_ICON_ONLY} alt="Icon" className="w-full h-full object-contain" />
             </div>
           )}
           
@@ -284,7 +284,7 @@ export default function App() {
              <Menu size={24} />
            </button>
            <div className="h-8">
-              <img src="/logo.png" alt="Ilios Kosmima" className="h-full w-auto object-contain" />
+              <img src={APP_LOGO} alt="Ilios Kosmima" className="h-full w-auto object-contain" />
            </div>
            <div className="w-6"></div>
         </header>

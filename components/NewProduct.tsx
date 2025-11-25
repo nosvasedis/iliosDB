@@ -182,7 +182,7 @@ export default function NewProduct({ products, materials, molds = [], setProduct
                
               {/* Molds Multi Select */}
               <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Ανάθεση Λάστιχων (Molds)</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Ανάθεση Λάστιχων</label>
                   <div className="p-3 border border-slate-300 rounded-md bg-white max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
                       {molds.length > 0 ? molds.map(m => (
                           <div 
