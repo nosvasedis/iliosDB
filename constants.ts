@@ -1,7 +1,7 @@
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender } from './types';
 
-// Updated to absolute path to ensure correct loading from public/ root
-export const APP_LOGO = '/logo.png';
+// Points to logo.png which MUST be in the 'public' folder for Vercel/Vite
+export const APP_LOGO = 'logo.png';
 
 export const APP_ICON_ONLY = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none'%3E%3Ccircle cx='30' cy='30' r='12' stroke='%23f59e0b' stroke-width='4'/%3E%3Cpath d='M30 6V12M30 48V54M13 13L17.5 17.5M42.5 42.5L47 47M6 30H12M48 30H54M13 47L17.5 42.5M42.5 17.5L47 13' stroke='%23f59e0b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E`;
 

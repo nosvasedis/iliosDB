@@ -189,13 +189,12 @@ export default function App() {
       >
         <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} border-b border-slate-700 h-24 relative`}>
           {!isCollapsed ? (
-            <div className="flex items-center justify-center w-full px-2">
+            <div className="flex items-center justify-center w-full px-2 h-full">
               <img 
                 src={APP_LOGO} 
                 alt="Ilios Kosmima" 
-                className="h-14 max-w-full object-contain" 
+                className="h-14 w-auto object-contain" 
                 onError={(e) => {
-                  // Fallback if image fails
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.parentElement!.innerText = 'ILIOS KOSMIMA';
                 }}
