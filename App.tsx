@@ -187,10 +187,19 @@ export default function App() {
           ${isCollapsed ? 'md:w-20' : 'md:w-64'}
         `}
       >
-        <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-slate-700 h-24`}>
+        <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} border-b border-slate-700 h-24 relative`}>
           {!isCollapsed ? (
-            <div className="flex items-center justify-center w-full">
-              <img src={APP_LOGO} alt="Ilios Kosmima" className="h-16 w-auto object-contain" />
+            <div className="flex items-center justify-center w-full px-2">
+              <img 
+                src={APP_LOGO} 
+                alt="Ilios Kosmima" 
+                className="h-14 max-w-full object-contain" 
+                onError={(e) => {
+                  // Fallback if image fails
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.parentElement!.innerText = 'ILIOS KOSMIMA';
+                }}
+              />
             </div>
           ) : (
             <div className="w-10 h-10 flex items-center justify-center">
