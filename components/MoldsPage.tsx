@@ -78,7 +78,7 @@ export default function MoldsPage({ molds, setMolds }: Props) {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <MapPin className="text-amber-600" />
-            Διαχείριση Λάστιχων (Molds)
+            Διαχείριση Λάστιχων
         </h1>
       </div>
 
