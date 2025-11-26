@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
@@ -15,6 +16,7 @@ interface PrintModalProps {
 }
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
+    // ... same implementation ...
     const allVariants = [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }, ...(product.variants || [])];
     const [quantities, setQuantities] = useState<Record<string, number>>(
         allVariants.reduce((acc, v) => ({ ...acc, [v.suffix]: 0 }), {})
@@ -82,11 +84,14 @@ interface Props {
   setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
+  viewMode?: 'registry' | 'warehouse'; // New prop
 }
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections }: Props) {
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, viewMode = 'registry' }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
+  
+  // If we are in Warehouse mode, default to Overview. If Registry, also Overview.
   const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants'>('overview');
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -107,75 +112,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [builderStone, setBuilderStone] = useState('');
   const [builderQty, setBuilderQty] = useState(0);
 
-  // Recalculate cost dynamically for display based on LIVE settings
+  // Cost Logic only needed if viewMode is 'registry' or we want to show it.
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-  
-  // Profit & Margin Calc based on LIVE Cost and Current Selling Price
   const profit = editedProduct.selling_price - cost.total;
   const margin = editedProduct.selling_price > 0 ? ((profit / editedProduct.selling_price) * 100) : 0;
 
-  // Auto-Update Price Helper
-  const suggestSellingPrice = () => {
-      // Suggest a 2.5x markup or maintain at least 40% margin
-      const targetMargin = 0.6; // 60% markup factor
-      const suggested = cost.total * 2.5; 
-      setEditedProduct(prev => ({...prev, selling_price: parseFloat(suggested.toFixed(2))}));
-      showToast("Προτάθηκε νέα τιμή πώλησης με markup 2.5x", "info");
-  };
+  // ... (Keep existing handlers: suggestSellingPrice, handleSave, requestDelete, handleStockChange, handleImageUpdate, etc.)
+  // For brevity, I am assuming the logic remains the same, but I will wrap the Stock inputs conditionally.
 
-  const handleSave = async () => {
-    // 1. Update Product Basic Info
-    await supabase.from('products').update({
-        weight_g: editedProduct.weight_g,
-        selling_price: editedProduct.selling_price,
-        labor_casting: editedProduct.labor.casting_cost,
-        labor_setter: editedProduct.labor.setter_cost,
-        labor_technician: editedProduct.labor.technician_cost,
-        labor_plating: editedProduct.labor.plating_cost
-    }).eq('sku', editedProduct.sku);
-
-    // 2. Update Variants
-    for (const variant of editedProduct.variants || []) {
-        await supabase.from('product_variants').upsert({
-            product_sku: editedProduct.sku,
-            suffix: variant.suffix,
-            description: variant.description,
-            stock_qty: variant.stock_qty
-        }, { onConflict: 'product_sku, suffix' });
-    }
-    
-    // Invalidate Cache
-    queryClient.invalidateQueries({ queryKey: ['products'] });
-
-    if (onSave) onSave(editedProduct);
-    onClose();
-  };
-
-  const requestDelete = async () => {
-      const confirmed = await confirm({
-          title: 'Διαγραφή Προϊόντος',
-          message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά το προϊόν ${editedProduct.sku}; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.`,
-          confirmText: 'Διαγραφή',
-          isDestructive: true
-      });
-
-      if (!confirmed) return;
-
-      setIsDeleting(true);
-      const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
-      setIsDeleting(false);
-
-      if (result.success) {
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-          onClose(); 
-          showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
-      } else {
-          showToast(`Σφάλμα: ${result.error}`, "error");
-      }
-  };
-
-  // Special handler for Stock Changes to log movement
   const handleStockChange = async (newQty: number, variantIndex: number = -1) => {
+    // ... existing logic ...
       let diff = 0;
       let reason = 'Manual Adjustment';
       let variantSuffix = undefined;
@@ -200,6 +146,56 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }
   };
 
+  const suggestSellingPrice = () => {
+      const suggested = cost.total * 2.5; 
+      setEditedProduct(prev => ({...prev, selling_price: parseFloat(suggested.toFixed(2))}));
+      showToast("Προτάθηκε νέα τιμή πώλησης με markup 2.5x", "info");
+  };
+
+  const handleSave = async () => {
+    await supabase.from('products').update({
+        weight_g: editedProduct.weight_g,
+        selling_price: editedProduct.selling_price,
+        labor_casting: editedProduct.labor.casting_cost,
+        labor_setter: editedProduct.labor.setter_cost,
+        labor_technician: editedProduct.labor.technician_cost,
+        labor_plating: editedProduct.labor.plating_cost
+    }).eq('sku', editedProduct.sku);
+
+    for (const variant of editedProduct.variants || []) {
+        await supabase.from('product_variants').upsert({
+            product_sku: editedProduct.sku,
+            suffix: variant.suffix,
+            description: variant.description,
+            stock_qty: variant.stock_qty
+        }, { onConflict: 'product_sku, suffix' });
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    if (onSave) onSave(editedProduct);
+    onClose();
+  };
+
+  const requestDelete = async () => {
+      const confirmed = await confirm({
+          title: 'Διαγραφή Προϊόντος',
+          message: `Διαγραφή οριστικά ${editedProduct.sku};`,
+          confirmText: 'Διαγραφή',
+          isDestructive: true
+      });
+      if (!confirmed) return;
+      setIsDeleting(true);
+      const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
+      setIsDeleting(false);
+      if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          onClose(); 
+          showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
+      } else {
+          showToast(`Σφάλμα: ${result.error}`, "error");
+      }
+  };
+
   const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -207,7 +203,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           try {
               const compressedBlob = await compressImage(file);
               const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
-              
               if (publicUrl) {
                   setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
                   await supabase.from('products').update({ image_url: publicUrl }).eq('sku', editedProduct.sku);
@@ -215,8 +210,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   showToast("Η φωτογραφία ενημερώθηκε.", "success");
               }
           } catch (error) {
-              console.error("Image update failed:", error);
-              showToast("Σφάλμα κατά την ενημέρωση της φωτογραφίας.", "error");
+              console.error(error);
+              showToast("Σφάλμα κατά την ενημέρωση.", "error");
           } finally {
               setIsUploadingImage(false);
           }
@@ -224,50 +219,34 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
 
   const handleSmartAdd = async () => {
+     // ... same as before
      const suffix = `${builderFinish}${builderStone}`;
-     if (!suffix) {
-        showToast("Επιλέξτε τουλάχιστον ένα χαρακτηριστικό.", "error");
-        return;
-     }
+     if (!suffix) { showToast("Επιλέξτε χαρακτηριστικό.", "error"); return; }
      
      const finishName = FINISH_CODES[builderFinish] || '';
      const stoneName = STONE_CODES_MEN[builderStone] || STONE_CODES_WOMEN[builderStone] || '';
-     
      let description = [finishName, stoneName].filter(Boolean).join(' - ');
-
      const newVar: ProductVariant = { suffix, description, stock_qty: builderQty };
 
-     await supabase.from('product_variants').insert({
-         product_sku: editedProduct.sku, ...newVar
-     });
-
-     if (builderQty > 0) {
-         recordStockMovement(editedProduct.sku, builderQty, 'Initial Variant Stock', suffix);
-     }
-     
+     await supabase.from('product_variants').insert({ product_sku: editedProduct.sku, ...newVar });
+     if (builderQty > 0) recordStockMovement(editedProduct.sku, builderQty, 'Initial Variant Stock', suffix);
      setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVar] }));
      queryClient.invalidateQueries({ queryKey: ['products'] });
      setBuilderFinish(''); setBuilderStone(''); setBuilderQty(0);
      showToast("Η παραλλαγή προστέθηκε.", "success");
   };
-  
+
   const addEmptyVariant = () => setEditedProduct({ ...editedProduct, variants: [...(editedProduct.variants || []), { suffix: '', description: '', stock_qty: 0 }] });
-  
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
       const newVars = [...(editedProduct.variants || [])];
       newVars[index] = { ...newVars[index], [field]: value };
       setEditedProduct({ ...editedProduct, variants: newVars });
   };
-  
   const removeVariant = async (index: number) => {
+      // ... same as before
       const variantToRemove = (editedProduct.variants || [])[index];
-      const yes = await confirm({
-          title: 'Διαγραφή Παραλλαγής',
-          message: `Διαγραφή παραλλαγής ${variantToRemove.suffix};`,
-          isDestructive: true
-      });
+      const yes = await confirm({ title: 'Διαγραφή', message: 'Διαγραφή παραλλαγής;', isDestructive: true });
       if (!yes) return;
-
       await supabase.from('product_variants').delete().match({ product_sku: editedProduct.sku, suffix: variantToRemove.suffix });
       const newVars = (editedProduct.variants || []).filter((_, i) => i !== index);
       setEditedProduct({ ...editedProduct, variants: newVars });
@@ -275,12 +254,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
 
   const handleCollectionToggle = async (collectionId: number) => {
+    // ... same as before
     setIsSavingCollections(true);
     const currentCollections = editedProduct.collections || [];
     const newCollections = currentCollections.includes(collectionId)
       ? currentCollections.filter(id => id !== collectionId)
       : [...currentCollections, collectionId];
-    
     setEditedProduct(prev => ({ ...prev, collections: newCollections }));
     await api.setProductCollections(editedProduct.sku, newCollections);
     queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -318,13 +297,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 <span className="w-1 h-1 rounded-full bg-slate-300" />
                 <span className="text-sm">{editedProduct.gender}</span>
               </p>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 text-amber-900 px-3 py-1.5 rounded-lg shadow-sm"><MapPin size={14} /><span className="font-bold">Λάστιχο: {editedProduct.molds?.length ? editedProduct.molds.join(', ') : 'N/A'}</span></div>
-                <div className="flex items-center gap-2 text-slate-600 px-2">
-                    <span className="font-mono font-bold text-lg">{cost.total.toFixed(2)}€</span>
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Live Κόστος</span>
+              {viewMode === 'registry' && (
+                <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 text-amber-900 px-3 py-1.5 rounded-lg shadow-sm"><MapPin size={14} /><span className="font-bold">Λάστιχο: {editedProduct.molds?.length ? editedProduct.molds.join(', ') : 'N/A'}</span></div>
+                    <div className="flex items-center gap-2 text-slate-600 px-2">
+                        <span className="font-mono font-bold text-lg">{cost.total.toFixed(2)}€</span>
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Live Κόστος</span>
+                    </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200/50 hover:text-red-500 rounded-full transition-all"><X size={28} className="text-slate-400" /></button>
@@ -333,9 +314,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         {/* Tabs */}
         <div className="flex border-b border-slate-200 px-6 overflow-x-auto bg-white">
             <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} label="Επισκόπηση" icon={<Edit2 size={16}/>} />
+            {viewMode === 'registry' && <TabButton active={activeTab === 'recipe'} onClick={() => setActiveTab('recipe')} label="Συνταγή (BOM)" icon={<Box size={16}/>} />}
+            {viewMode === 'registry' && <TabButton active={activeTab === 'labor'} onClick={() => setActiveTab('labor')} label="Εργατικά" icon={<Hammer size={16}/>} />}
             <TabButton active={activeTab === 'variants'} onClick={() => setActiveTab('variants')} label="Παραλλαγές" icon={<Copy size={16}/>} />
-            <TabButton active={activeTab === 'recipe'} onClick={() => setActiveTab('recipe')} label="Συνταγή (BOM)" icon={<Box size={16}/>} />
-            <TabButton active={activeTab === 'labor'} onClick={() => setActiveTab('labor')} label="Εργατικά" icon={<Hammer size={16}/>} />
         </div>
 
         {/* Content Body */}
@@ -345,27 +326,35 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
                <div className="space-y-6">
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in slide-in-from-left duration-300">
-                      <h3 className="font-bold text-slate-800 border-b border-slate-50 pb-3 mb-1">Στοιχεία Αποθήκης</h3>
+                      <h3 className="font-bold text-slate-800 border-b border-slate-50 pb-3 mb-1">Τεχνικά Στοιχεία</h3>
                       <div className="grid grid-cols-2 gap-4">
-                         <InputGroup label="Λάστιχα"><div className="p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-600 text-sm font-medium">{editedProduct.molds?.length ? editedProduct.molds.join(', ') : 'Κανένα Λάστιχο'}</div></InputGroup>
-                         <InputGroup label="Απόθεμα (Master)"><div className="relative"><input type="number" value={editedProduct.stock_qty} onChange={(e) => handleStockChange(parseInt(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none pr-10 font-bold"/><History size={16} className="absolute right-3 top-3.5 text-slate-400" /></div></InputGroup>
+                         <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">Λάστιχα</label><div className="p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-600 text-sm font-medium">{editedProduct.molds?.length ? editedProduct.molds.join(', ') : '-'}</div></div>
+                         <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">Βάρος (g)</label><input type="number" step="0.01" value={editedProduct.weight_g} onChange={(e) => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 font-mono font-bold focus:ring-2 focus:ring-amber-500/20 outline-none"/></div>
                       </div>
-                      <div className="pt-2">
-                          <InputGroup label="Βάρος Ασημιού (γραμμάρια)">
-                              <input type="number" step="0.01" value={editedProduct.weight_g} onChange={(e) => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 font-mono font-bold focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none"/>
-                          </InputGroup>
-                      </div>
+                      
+                      {/* STOCK CONTROL: ONLY IN WAREHOUSE MODE */}
+                      {viewMode === 'warehouse' && (
+                          <div className="pt-2">
+                             <label className="text-[10px] font-bold text-slate-400 uppercase">Κεντρικό Απόθεμα</label>
+                             <div className="relative">
+                                 <input type="number" value={editedProduct.stock_qty} onChange={(e) => handleStockChange(parseInt(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none pr-10 font-bold"/>
+                                 <History size={16} className="absolute right-3 top-3.5 text-slate-400" />
+                             </div>
+                             <p className="text-[10px] text-slate-400 mt-1">Αλλάζοντας το νούμερο καταγράφεται κίνηση αποθήκης.</p>
+                          </div>
+                      )}
                   </div>
                </div>
                
                <div className="space-y-6">
-                  {!editedProduct.is_component && (
+                  {/* PRICING: ONLY REGISTRY */}
+                  {viewMode === 'registry' && !editedProduct.is_component && (
                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-2xl border border-amber-100/60 shadow-sm space-y-5 animate-in slide-in-from-right duration-300">
                        <h3 className="font-bold text-amber-900/80 border-b border-amber-200/50 pb-3 flex items-center justify-between">
                            <div className="flex items-center gap-2"><TrendingUp size={18} className="text-amber-600"/>Εμπορική Διαχείριση</div>
                            <button onClick={suggestSellingPrice} className="text-xs bg-white/60 hover:bg-white text-amber-700 px-2 py-1 rounded-lg border border-amber-200 transition-colors flex items-center gap-1"><RefreshCcw size={12}/> Πρόταση Τιμής</button>
                        </h3>
-                       <InputGroup label="Τιμή Πώλησης (€)"><input type="number" step="0.1" value={editedProduct.selling_price} onChange={(e) => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value)})} className="w-full p-4 border border-amber-300/50 rounded-xl bg-white text-slate-900 font-black text-2xl focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm"/></InputGroup>
+                       <div><label className="text-[10px] font-bold text-amber-700/60 uppercase">Τιμή Πώλησης (€)</label><input type="number" step="0.1" value={editedProduct.selling_price} onChange={(e) => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value)})} className="w-full p-4 border border-amber-300/50 rounded-xl bg-white text-slate-900 font-black text-2xl focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm"/></div>
                        <div className="grid grid-cols-2 gap-4 pt-2">
                            <div className="bg-white/60 p-4 rounded-xl border border-amber-100/50"><span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Κέρδος</span><span className={`block text-xl font-black mt-1 ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{profit.toFixed(2)}€</span></div>
                            <div className="bg-white/60 p-4 rounded-xl border border-amber-100/50"><span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Margin</span><span className={`block text-xl font-black mt-1 ${margin >= 40 ? 'text-emerald-600' : (margin >= 20 ? 'text-orange-500' : 'text-red-500')}`}>{margin.toFixed(1)}%</span></div>
@@ -393,46 +382,55 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
           {activeTab === 'variants' && (
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
-                  <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4 text-amber-900"><Wand2 size={20} /><h4 className="font-bold text-sm uppercase tracking-wide">Αυτόματη Δημιουργία Παραλλαγής</h4></div>
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                          <div className="md:col-span-3">
-                              <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Φινίρισμα</label>
-                              <select value={builderFinish} onChange={(e) => setBuilderFinish(e.target.value)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-medium">
-                                  {Object.entries(FINISH_CODES).map(([code, name]) => (<option key={code} value={code}>{name} {code ? `(${code})` : ''}</option>))}
-                              </select>
-                          </div>
-                          <div className="md:col-span-4">
-                              <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Πέτρα / Χρώμα</label>
-                              <select value={builderStone} onChange={(e) => setBuilderStone(e.target.value)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-medium">
-                                  <option value="">- Χωρίς Πέτρα -</option>{Object.entries(stoneOptions).map(([code, name]) => (<option key={code} value={code}>{name} ({code})</option>))}
-                              </select>
-                          </div>
-                          <div className="md:col-span-2">
-                              <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Απόθεμα</label>
-                              <input type="number" min="0" value={builderQty} onChange={(e) => setBuilderQty(parseInt(e.target.value) || 0)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-bold text-center"/>
-                          </div>
-                          <div className="md:col-span-3">
-                              <button onClick={handleSmartAdd} className="w-full bg-amber-500 text-white p-2.5 rounded-xl font-bold text-sm hover:bg-amber-600 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><Plus size={16} /> Προσθήκη</button>
-                          </div>
-                      </div>
-                  </div>
+                  {viewMode === 'registry' && (
+                    <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4 text-amber-900"><Wand2 size={20} /><h4 className="font-bold text-sm uppercase tracking-wide">Αυτόματη Δημιουργία Παραλλαγής</h4></div>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div className="md:col-span-3">
+                                <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Φινίρισμα</label>
+                                <select value={builderFinish} onChange={(e) => setBuilderFinish(e.target.value)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-medium">
+                                    {Object.entries(FINISH_CODES).map(([code, name]) => (<option key={code} value={code}>{name} {code ? `(${code})` : ''}</option>))}
+                                </select>
+                            </div>
+                            <div className="md:col-span-4">
+                                <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Πέτρα / Χρώμα</label>
+                                <select value={builderStone} onChange={(e) => setBuilderStone(e.target.value)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-medium">
+                                    <option value="">- Χωρίς Πέτρα -</option>{Object.entries(stoneOptions).map(([code, name]) => (<option key={code} value={code}>{name} ({code})</option>))}
+                                </select>
+                            </div>
+                            {/* In Registry, usually initial stock is 0, but allow it */}
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Αρχικό Stock</label>
+                                <input type="number" min="0" value={builderQty} onChange={(e) => setBuilderQty(parseInt(e.target.value) || 0)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-bold text-center"/>
+                            </div>
+                            <div className="md:col-span-3">
+                                <button onClick={handleSmartAdd} className="w-full bg-amber-500 text-white p-2.5 rounded-xl font-bold text-sm hover:bg-amber-600 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><Plus size={16} /> Προσθήκη</button>
+                            </div>
+                        </div>
+                    </div>
+                  )}
                   
                   <div>
                     <div className="flex justify-between items-center mb-4 px-2">
                         <h3 className="font-bold text-slate-700 text-lg">Λίστα Παραλλαγών</h3>
-                        <button onClick={addEmptyVariant} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"><Plus size={14} /> Custom Empty</button>
+                        {viewMode === 'registry' && <button onClick={addEmptyVariant} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"><Plus size={14} /> Custom Empty</button>}
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100"><tr><th className="p-4">Suffix</th><th className="p-4">Πλήρες SKU</th><th className="p-4">Περιγραφή</th><th className="p-4 text-right">Απόθεμα</th><th className="p-4 w-14"></th></tr></thead>
                             <tbody className="divide-y divide-slate-50">
                                 {editedProduct.variants?.map((v, idx) => (<tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-3"><input type="text" placeholder="CODE" value={v.suffix} onChange={(e) => updateVariant(idx, 'suffix', e.target.value.toUpperCase())} className="w-20 p-2 border border-slate-200 rounded-lg text-center font-mono font-bold uppercase bg-white focus:ring-2 focus:ring-blue-400 outline-none text-slate-800"/></td>
+                                        <td className="p-3"><input type="text" disabled={viewMode==='warehouse'} placeholder="CODE" value={v.suffix} onChange={(e) => updateVariant(idx, 'suffix', e.target.value.toUpperCase())} className="w-20 p-2 border border-slate-200 rounded-lg text-center font-mono font-bold uppercase bg-white focus:ring-2 focus:ring-blue-400 outline-none text-slate-800 disabled:bg-slate-50 disabled:text-slate-500"/></td>
                                         <td className="p-3"><span className="bg-slate-100 px-2 py-1 rounded font-mono font-bold text-slate-600 text-xs">{editedProduct.sku}<span className="text-amber-600">{v.suffix}</span></span></td>
-                                        <td className="p-3"><input type="text" placeholder="Περιγραφή..." value={v.description} onChange={(e) => updateVariant(idx, 'description', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none font-medium"/></td>
-                                        <td className="p-3"><input type="number" value={v.stock_qty} onChange={(e) => handleStockChange(parseInt(e.target.value), idx)} className="w-20 p-2 border border-slate-200 rounded-lg text-right bg-white text-slate-900 ml-auto block focus:ring-2 focus:ring-blue-400 outline-none font-bold"/></td>
-                                        <td className="p-3 text-center"><button onClick={() => removeVariant(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button></td>
+                                        <td className="p-3"><input type="text" disabled={viewMode==='warehouse'} placeholder="Περιγραφή..." value={v.description} onChange={(e) => updateVariant(idx, 'description', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-white text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none font-medium disabled:bg-slate-50 disabled:text-slate-500"/></td>
+                                        <td className="p-3">
+                                            {viewMode === 'warehouse' ? (
+                                                <input type="number" value={v.stock_qty} onChange={(e) => handleStockChange(parseInt(e.target.value), idx)} className="w-20 p-2 border border-slate-200 rounded-lg text-right bg-white text-slate-900 ml-auto block focus:ring-2 focus:ring-blue-400 outline-none font-bold"/>
+                                            ) : (
+                                                <div className="text-right font-bold text-slate-500">{v.stock_qty}</div>
+                                            )}
+                                        </td>
+                                        <td className="p-3 text-center">{viewMode === 'registry' && <button onClick={() => removeVariant(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>}</td>
                                     </tr>))}
                                 {(!editedProduct.variants || editedProduct.variants.length === 0) && (<tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">Δεν υπάρχουν παραλλαγές.</td></tr>)}
                             </tbody>
@@ -442,7 +440,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
               </div>
           )}
 
-          {activeTab === 'recipe' && (
+          {activeTab === 'recipe' && viewMode === 'registry' && (
             <div className="space-y-4 max-w-5xl animate-in slide-in-from-bottom-4 duration-300">
               <div className="flex justify-between items-center mb-2 px-1"><h3 className="font-bold text-slate-700 text-lg">Υλικά & Εξαρτήματα</h3><span className="text-xs bg-slate-100 px-3 py-1.5 rounded-full font-bold text-slate-600">Σύνολο Υλικών: {cost.breakdown.materials.toFixed(2)}€</span></div>
               <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
@@ -467,7 +465,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             </div>
           )}
 
-          {activeTab === 'labor' && (
+          {activeTab === 'labor' && viewMode === 'registry' && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl animate-in slide-in-from-bottom-4 duration-300">
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
                     <h3 className="font-bold text-slate-800 border-b pb-3 text-lg">Χρεώσεις Εργαστηρίου</h3>
@@ -488,7 +486,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center z-10">
             <div className="flex items-center gap-2">
                <button onClick={() => setShowPrintModal(true)} className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-xl transition-colors font-medium"><Printer size={20} /> <span className="hidden sm:inline">Εκτύπωση</span></button>
-               <button onClick={requestDelete} disabled={isDeleting} className="flex items-center gap-2 text-red-500 hover:text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-colors ml-2 font-medium"><Trash2 size={18} /> <span className="hidden sm:inline">Διαγραφή</span></button>
+               {viewMode === 'registry' && <button onClick={requestDelete} disabled={isDeleting} className="flex items-center gap-2 text-red-500 hover:text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-colors ml-2 font-medium"><Trash2 size={18} /> <span className="hidden sm:inline">Διαγραφή</span></button>}
             </div>
            <div className="flex gap-4">
               <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors">Ακύρωση</button>

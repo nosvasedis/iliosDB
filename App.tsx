@@ -18,7 +18,8 @@ import {
   ShoppingCart,
   Factory,
   Users,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
@@ -32,6 +33,7 @@ import SetupScreen from './components/SetupScreen';
 // Pages
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
+import ProductRegistry from './components/ProductRegistry'; // New Import
 import NewProduct from './components/NewProduct';
 import PricingManager from './components/PricingManager';
 import SettingsPage from './components/SettingsPage';
@@ -45,7 +47,7 @@ import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
 import AiStudio from './components/AiStudio';
 
-type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
@@ -79,7 +81,6 @@ function AppContent() {
   const { signOut, profile } = useAuth();
   
   // --- React Query Data Fetching ---
-  // Only runs if AuthGuard passes
   const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -88,7 +89,6 @@ function AppContent() {
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
-  // Print effect
   useEffect(() => {
     if (printItems.length > 0) {
       const timer = setTimeout(() => {
@@ -117,7 +117,6 @@ function AppContent() {
     );
   }
 
-  // Safe fallback
   if (!settings || !products || !materials || !molds || !collections) return null;
   
   const flattenedPrintItems = printItems.flatMap(item => 
@@ -194,7 +193,6 @@ function AppContent() {
 
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-            {/* User Profile Snippet */}
             <div className={`mb-6 px-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-500 flex items-center justify-center text-white font-bold shadow-lg">
                     {profile?.full_name?.charAt(0) || 'U'}
@@ -240,6 +238,15 @@ function AppContent() {
             </div>
 
             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            
+            <NavItem 
+              icon={<Database size={22} />} 
+              label="Μητρώο Κωδικών" 
+              isActive={activePage === 'registry'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('registry')} 
+            />
+            
             <NavItem 
               icon={<ShoppingCart size={22} />} 
               label="Παραγγελίες" 
@@ -261,10 +268,12 @@ function AppContent() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('customers')} 
             />
+            
             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            
             <NavItem 
               icon={<Warehouse size={22} />} 
-              label="Αποθήκη" 
+              label="Αποθήκη & Στοκ" 
               isActive={activePage === 'inventory'} 
               isCollapsed={isCollapsed}
               onClick={() => handleNav('inventory')} 
@@ -336,7 +345,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.0.0 (Secure)</p>
+                  <p className="opacity-50 mt-1">v1.1.0 (Split View)</p>
                 </div>
             )}
           </div>
@@ -359,7 +368,8 @@ function AppContent() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
-              {activePage === 'inventory' && <Inventory products={products} materials={materials} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
+              {activePage === 'registry' && <ProductRegistry />}
+              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
               {activePage === 'orders' && <OrdersPage products={products} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
