@@ -72,10 +72,13 @@ export interface Product {
   draft_price: number;
   selling_price: number; // Commercial Selling Price
   
-  // Inventory
-  stock_qty: number;
-  sample_qty: number;
+  // Inventory (Legacy System Columns)
+  stock_qty: number; // Central
+  sample_qty: number; // Showroom
   
+  // Dynamic Inventory (New)
+  location_stock?: Record<string, number>; // key: warehouse_id, value: qty
+
   // Manufacturing
   molds: string[]; // Array of Mold Codes (e.g. ['A-12', 'B-02'])
   is_component: boolean; // Is this an STX part?
@@ -92,6 +95,21 @@ export interface GlobalSettings {
   loss_percentage: number;
   barcode_width_mm: number;
   barcode_height_mm: number;
+}
+
+// --- WAREHOUSE MANAGEMENT ---
+export interface Warehouse {
+    id: string;
+    name: string;
+    type: 'Central' | 'Showroom' | 'Store' | 'Other';
+    is_system?: boolean; // If true, maps to standard columns (stock_qty, sample_qty)
+    address?: string;
+}
+
+export interface WarehouseStock {
+    warehouse_id: string;
+    product_sku: string;
+    quantity: number;
 }
 
 // --- NEW ORDERS & PRODUCTION TYPES ---
@@ -159,4 +177,19 @@ export interface ProductionBatch {
   // Computed helpers for UI
   product_image?: string;
   requires_setting?: boolean; // Does it have stones?
+  
+  // UI Logic helpers
+  diffHours?: number;
+  isDelayed?: boolean;
+}
+
+// --- AI STUDIO TYPES ---
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text?: string;
+  image?: string;
+  attachedProductSku?: string;
+  isTrendAnalysis?: boolean;
 }

@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, MaterialType, Customer } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users } from 'lucide-react';
@@ -92,9 +90,6 @@ export default function OrdersPage({ products }: Props) {
           return;
       }
 
-      // If selecting a new name but ID is null, we could optionally auto-create customer. 
-      // For now, we allow loose coupling (guest checkout style) but recommend picking a user.
-
       const newOrder: Order = {
           id: `ORD-${Date.now().toString().slice(-6)}`,
           customer_id: selectedCustomerId || undefined,
@@ -155,11 +150,11 @@ export default function OrdersPage({ products }: Props) {
 
   const getStatusColor = (status: OrderStatus) => {
       switch(status) {
-          case OrderStatus.Pending: return 'bg-slate-100 text-slate-600';
-          case OrderStatus.InProduction: return 'bg-blue-100 text-blue-600';
-          case OrderStatus.Ready: return 'bg-emerald-100 text-emerald-600';
-          case OrderStatus.Delivered: return 'bg-slate-900 text-white';
-          case OrderStatus.Cancelled: return 'bg-red-50 text-red-500';
+          case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
+          case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
+          case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+          case OrderStatus.Delivered: return 'bg-slate-800 text-white border-slate-800';
+          case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
       }
   };
 
@@ -191,7 +186,7 @@ export default function OrdersPage({ products }: Props) {
               <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-y-auto">
                   <div className="lg:col-span-1 space-y-6">
                       <div className="space-y-4">
-                          <label className="block text-sm font-bold text-slate-700 uppercase tracking-wide">Στοιχεία Πελάτη</label>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Στοιχεία Πελάτη</label>
                           
                           {/* Smart Customer Search */}
                           <div className="relative">
@@ -208,7 +203,7 @@ export default function OrdersPage({ products }: Props) {
                                         if (!e.target.value) setSelectedCustomerId(null);
                                     }}
                                     onFocus={() => setShowCustomerResults(true)}
-                                    className={`w-full pl-10 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 ${selectedCustomerId ? 'border-indigo-300 bg-indigo-50 text-indigo-900 font-bold' : 'border-slate-200'}`}
+                                    className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-all ${selectedCustomerId ? 'border-indigo-300 ring-2 ring-indigo-50 text-indigo-900 font-bold' : 'border-slate-200'}`}
                                   />
                                   {selectedCustomerId && (
                                       <button onClick={() => { setSelectedCustomerId(null); setCustomerName(''); setCustomerPhone(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600">
@@ -233,23 +228,23 @@ export default function OrdersPage({ products }: Props) {
 
                           <div className="relative">
                               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                              <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"/>
+                              <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"/>
                           </div>
                       </div>
                       
-                      <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                          <div className="flex justify-between items-center mb-2">
-                             <span className="font-bold text-indigo-900">Σύνολο</span>
-                             <span className="font-black text-2xl text-indigo-600">{calculateTotal().toFixed(2)}€</span>
+                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
+                          <div className="flex justify-between items-center mb-4">
+                             <span className="font-bold text-indigo-900 text-sm uppercase">Σύνολο Παραγγελίας</span>
+                             <span className="font-black text-3xl text-indigo-700">{calculateTotal().toFixed(2)}€</span>
                           </div>
-                          <button onClick={handleCreateOrder} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">
+                          <button onClick={handleCreateOrder} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5 active:scale-95">
                               Καταχώρηση
                           </button>
                       </div>
                   </div>
 
                   <div className="lg:col-span-2 flex flex-col h-full">
-                      <label className="block text-sm font-bold text-slate-700 uppercase tracking-wide mb-2">Προϊόντα</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Προϊόντα</label>
                       <div className="relative mb-4 z-20">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                           <input 
@@ -257,7 +252,7 @@ export default function OrdersPage({ products }: Props) {
                             placeholder="Αναζήτηση SKU..." 
                             value={productSearch} 
                             onChange={e => setProductSearch(e.target.value)} 
-                            className="w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                           />
                           {productSearch && (
                               <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 max-h-60 overflow-y-auto divide-y divide-slate-50">
@@ -283,27 +278,27 @@ export default function OrdersPage({ products }: Props) {
                           )}
                       </div>
 
-                      <div className="flex-1 overflow-y-auto border border-slate-100 rounded-xl bg-slate-50 p-2 space-y-2">
+                      <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl bg-slate-50/50 p-2 space-y-2">
                           {selectedItems.map((item, idx) => (
-                              <div key={idx} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex items-center justify-between">
+                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                      {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-10 h-10 rounded-md object-cover bg-slate-100"/>}
+                                      {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>}
                                       <div>
-                                          <div className="font-bold text-slate-800">{item.sku}{item.variant_suffix}</div>
-                                          <div className="text-xs text-slate-500">{item.price_at_order}€ / τεμ</div>
+                                          <div className="font-bold text-slate-800 text-lg leading-none">{item.sku}<span className="text-indigo-600">{item.variant_suffix}</span></div>
+                                          <div className="text-xs text-slate-500 mt-1">{item.price_at_order}€ / τεμ</div>
                                       </div>
                                   </div>
                                   <div className="flex items-center gap-3">
-                                      <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-1 border border-slate-200 rounded text-center font-bold"/>
-                                      <div className="font-bold w-16 text-right">{(item.price_at_order * item.quantity).toFixed(2)}€</div>
-                                      <button onClick={() => updateQuantity(idx, 0)} className="text-slate-300 hover:text-red-500"><X size={18}/></button>
+                                      <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-2 bg-white border border-slate-200 rounded-lg text-center font-bold outline-none focus:border-indigo-500 transition-colors"/>
+                                      <div className="font-black w-20 text-right text-slate-800 text-lg">{(item.price_at_order * item.quantity).toFixed(2)}€</div>
+                                      <button onClick={() => updateQuantity(idx, 0)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
                                   </div>
                               </div>
                           ))}
                           {selectedItems.length === 0 && (
-                              <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
-                                  <Package size={48} className="mb-2"/>
-                                  <p>Το καλάθι είναι άδειο</p>
+                              <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-60">
+                                  <Package size={64} className="mb-3"/>
+                                  <p className="font-medium">Το καλάθι είναι άδειο</p>
                               </div>
                           )}
                       </div>
@@ -312,13 +307,19 @@ export default function OrdersPage({ products }: Props) {
           </div>
       ) : (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex-1 overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex items-center gap-3">
+              <div className="p-5 border-b border-slate-100 bg-white flex items-center gap-3">
                    <Search className="text-slate-400" size={20}/>
-                   <input type="text" placeholder="Αναζήτηση παραγγελίας ή πελάτη..." className="bg-transparent outline-none w-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+                   <input 
+                    type="text" 
+                    placeholder="Αναζήτηση παραγγελίας ή πελάτη..." 
+                    className="bg-transparent outline-none w-full text-slate-800 placeholder-slate-400" 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)}
+                   />
               </div>
               <div className="overflow-y-auto flex-1">
                   <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0">
+                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 border-b border-slate-100">
                           <tr>
                               <th className="p-4 pl-6">ID</th>
                               <th className="p-4">Πελάτης</th>
@@ -334,37 +335,37 @@ export default function OrdersPage({ products }: Props) {
                                   <td className="p-4 pl-6 font-mono font-bold text-slate-700">{order.id}</td>
                                   <td className="p-4">
                                       <div className="font-bold text-slate-800 flex items-center gap-2">
-                                          {order.customer_id ? <Users size={14} className="text-blue-500"/> : null} 
+                                          {order.customer_id ? <Users size={14} className="text-indigo-500"/> : null} 
                                           {order.customer_name}
                                       </div>
-                                      {order.customer_phone && <div className="text-xs text-slate-500">{order.customer_phone}</div>}
+                                      {order.customer_phone && <div className="text-xs text-slate-500 mt-0.5">{order.customer_phone}</div>}
                                   </td>
                                   <td className="p-4 text-sm text-slate-600">
                                       <div className="flex items-center gap-1.5"><Calendar size={14} className="opacity-50"/> {new Date(order.created_at).toLocaleDateString('el-GR')}</div>
                                   </td>
                                   <td className="p-4">
-                                      <span className={`px-3 py-1 rounded-full text-xs font-bold border border-transparent ${getStatusColor(order.status)}`}>
+                                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                                           {order.status}
                                       </span>
                                   </td>
-                                  <td className="p-4 text-right font-bold text-slate-800">
+                                  <td className="p-4 text-right font-black text-slate-800">
                                       {order.total_price.toFixed(2)}€
                                   </td>
                                   <td className="p-4 text-center">
                                       {order.status === OrderStatus.Pending && (
-                                          <button onClick={() => sendToProduction(order)} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition-colors flex items-center gap-1 mx-auto">
+                                          <button onClick={() => sendToProduction(order)} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition-colors flex items-center gap-1 mx-auto hover:shadow-sm">
                                               <Factory size={14}/> Παραγωγή
                                           </button>
                                       )}
                                       {order.status === OrderStatus.Ready && (
-                                          <button className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 mx-auto">
+                                          <button className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 mx-auto hover:shadow-sm">
                                               <CheckCircle size={14}/> Παράδοση
                                           </button>
                                       )}
                                   </td>
                               </tr>
                           ))}
-                          {orders?.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-slate-400">Δεν βρέθηκαν παραγγελίες.</td></tr>}
+                          {orders?.length === 0 && <tr><td colSpan={6} className="p-16 text-center text-slate-400 italic">Δεν βρέθηκαν παραγγελίες.</td></tr>}
                       </tbody>
                   </table>
               </div>

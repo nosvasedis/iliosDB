@@ -1,13 +1,12 @@
 
-
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
-const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
-const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
-const AUTH_KEY_SECRET = '2112Aris101!';
+export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
+export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
+export const AUTH_KEY_SECRET = '2112Aris101!';
 // --- END CONFIGURATION ---
 
 // Credentials provided by user
@@ -15,6 +14,12 @@ const SUPABASE_URL = 'https://mtwkkzwveuskdcjkaiag.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wCP1B81ATC-jjMx99mq14A_3J18p_dO';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// System Warehouse IDs (Must match SQL Insert)
+export const SYSTEM_IDS = {
+    CENTRAL: '00000000-0000-0000-0000-000000000001',
+    SHOWROOM: '00000000-0000-0000-0000-000000000002'
+};
 
 /**
  * [NEW] Uploads a product image to Cloudflare R2 via a secure worker.
@@ -110,6 +115,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ s
         await supabase.from('product_molds').delete().eq('product_sku', sku);
         await supabase.from('product_collections').delete().eq('product_sku', sku);
         await supabase.from('stock_movements').delete().eq('product_sku', sku);
+        await supabase.from('product_stock').delete().eq('product_sku', sku); // New table
 
         // 4. DELETE PRODUCT
         const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
@@ -142,49 +148,64 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
  */
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
-        const { data, error } = await supabase.from('global_settings').select('*').single();
-        if (error || !data) return { 
-            ...INITIAL_SETTINGS, 
-            barcode_width_mm: 50, 
-            barcode_height_mm: 30 
-        };
-        return {
-            silver_price_gram: Number(data.silver_price_gram),
-            loss_percentage: Number(data.loss_percentage),
-            barcode_width_mm: Number(data.barcode_width_mm) || 50,
-            barcode_height_mm: Number(data.barcode_height_mm) || 30
-        };
+        try {
+            const { data, error } = await supabase.from('global_settings').select('*').single();
+            if (error) throw error;
+            if (!data) return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+            return {
+                silver_price_gram: Number(data.silver_price_gram),
+                loss_percentage: Number(data.loss_percentage),
+                barcode_width_mm: Number(data.barcode_width_mm) || 50,
+                barcode_height_mm: Number(data.barcode_height_mm) || 30
+            };
+        } catch (e) {
+            console.warn("API Error, using mock settings:", e);
+            return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+        }
     },
 
     getMaterials: async (): Promise<Material[]> => {
-        const { data, error } = await supabase.from('materials').select('*');
-        if (error || !data) return MOCK_MATERIALS;
-        return data.map((m: any) => ({
-             id: m.id,
-             name: m.name,
-             type: m.type,
-             cost_per_unit: Number(m.cost_per_unit),
-             unit: m.unit
-        }));
+        try {
+            const { data, error } = await supabase.from('materials').select('*');
+            if (error) throw error;
+            if (!data) return MOCK_MATERIALS;
+            return data.map((m: any) => ({
+                 id: m.id,
+                 name: m.name,
+                 type: m.type,
+                 cost_per_unit: Number(m.cost_per_unit),
+                 unit: m.unit
+            }));
+        } catch (e) {
+            console.warn("API Error, using mock materials:", e);
+            return MOCK_MATERIALS;
+        }
     },
 
     getMolds: async (): Promise<Mold[]> => {
-        const { data } = await supabase.from('molds').select('*');
-        if (!data) return [];
-        return data.map((m: any) => ({
-            code: m.code,
-            location: m.location,
-            description: m.description
-        }));
+        try {
+            const { data, error } = await supabase.from('molds').select('*');
+            if (error) throw error;
+            return data.map((m: any) => ({
+                code: m.code,
+                location: m.location,
+                description: m.description
+            })) || [];
+        } catch (e) {
+            console.warn("API Error, returning empty molds:", e);
+            return [];
+        }
     },
 
     getCollections: async (): Promise<Collection[]> => {
-        const { data, error } = await supabase.from('collections').select('*').order('name');
-        if (error) {
-            console.error("Error fetching collections", error);
-            throw error;
+        try {
+            const { data, error } = await supabase.from('collections').select('*').order('name');
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.warn("API Error, returning empty collections:", e);
+            return [];
         }
-        return data || [];
     },
 
     setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
@@ -199,77 +220,196 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
-        const { data: prodData, error } = await supabase.from('products').select('*');
-        if (error || !prodData) return MOCK_PRODUCTS;
+        try {
+            const { data: prodData, error } = await supabase.from('products').select('*');
+            if (error) throw error;
+            if (!prodData) return MOCK_PRODUCTS;
 
-        const { data: varData } = await supabase.from('product_variants').select('*');
-        const { data: recData } = await supabase.from('recipes').select('*');
-        const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
-        const { data: prodCollData } = await supabase.from('product_collections').select('*');
-
-        const assembledProducts: Product[] = prodData.map((p: any) => {
-            const pVariants: ProductVariant[] = varData
-              ?.filter((v: any) => v.product_sku === p.sku)
-              .map((v: any) => ({
-                suffix: v.suffix,
-                description: v.description,
-                stock_qty: v.stock_qty
-              })) || [];
-
-            const pRecipeRaw = recData?.filter((r: any) => r.parent_sku === p.sku) || [];
-            const pRecipe: RecipeItem[] = pRecipeRaw.map((r: any) => {
-               if (r.type === 'raw') {
-                 return { type: 'raw', id: r.material_id, quantity: Number(r.quantity) };
-               } else {
-                 return { type: 'component', sku: r.component_sku, quantity: Number(r.quantity) };
-               }
-            });
+            const { data: varData } = await supabase.from('product_variants').select('*');
+            const { data: recData } = await supabase.from('recipes').select('*');
+            const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
+            const { data: prodCollData } = await supabase.from('product_collections').select('*');
             
-            const pMolds = prodMoldsData
-                ?.filter((pm: any) => pm.product_sku === p.sku)
-                .map((pm: any) => pm.mold_code) || [];
+            // Fetch Custom Warehouse Stocks
+            const { data: stockData } = await supabase.from('product_stock').select('*');
 
-            const pCollections = prodCollData
-                ?.filter((pc: any) => pc.product_sku === p.sku)
-                .map((pc: any) => pc.collection_id) || [];
+            const assembledProducts: Product[] = prodData.map((p: any) => {
+                const pVariants: ProductVariant[] = varData
+                  ?.filter((v: any) => v.product_sku === p.sku)
+                  .map((v: any) => ({
+                    suffix: v.suffix,
+                    description: v.description,
+                    stock_qty: v.stock_qty
+                  })) || [];
 
-            return {
-              sku: p.sku,
-              prefix: p.prefix,
-              category: p.category,
-              gender: p.gender as Gender,
-              image_url: p.image_url || 'https://picsum.photos/300/300',
-              weight_g: Number(p.weight_g),
-              plating_type: p.plating_type as PlatingType,
-              active_price: Number(p.active_price),
-              draft_price: Number(p.draft_price),
-              selling_price: Number(p.selling_price || 0),
-              stock_qty: p.stock_qty,
-              sample_qty: p.sample_qty,
-              molds: pMolds,
-              is_component: p.is_component,
-              variants: pVariants,
-              recipe: pRecipe,
-              collections: pCollections,
-              labor: {
-                casting_cost: Number(p.labor_casting),
-                setter_cost: Number(p.labor_setter),
-                technician_cost: Number(p.labor_technician),
-                plating_cost: Number(p.labor_plating)
-              }
-            };
-        });
-        return assembledProducts;
+                const pRecipeRaw = recData?.filter((r: any) => r.parent_sku === p.sku) || [];
+                const pRecipe: RecipeItem[] = pRecipeRaw.map((r: any) => {
+                   if (r.type === 'raw') {
+                     return { type: 'raw', id: r.material_id, quantity: Number(r.quantity) };
+                   } else {
+                     return { type: 'component', sku: r.component_sku, quantity: Number(r.quantity) };
+                   }
+                });
+                
+                const pMolds = prodMoldsData
+                    ?.filter((pm: any) => pm.product_sku === p.sku)
+                    .map((pm: any) => pm.mold_code) || [];
+
+                const pCollections = prodCollData
+                    ?.filter((pc: any) => pc.product_sku === p.sku)
+                    .map((pc: any) => pc.collection_id) || [];
+
+                // Map custom stock
+                const customStock: Record<string, number> = {};
+                if (stockData) {
+                    stockData.filter((s: any) => s.product_sku === p.sku).forEach((s: any) => {
+                        customStock[s.warehouse_id] = s.quantity;
+                    });
+                }
+                
+                // Add System Stocks to the map for uniform access
+                customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
+                customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
+
+                return {
+                  sku: p.sku,
+                  prefix: p.prefix,
+                  category: p.category,
+                  gender: p.gender as Gender,
+                  image_url: p.image_url || 'https://picsum.photos/300/300',
+                  weight_g: Number(p.weight_g),
+                  plating_type: p.plating_type as PlatingType,
+                  active_price: Number(p.active_price),
+                  draft_price: Number(p.draft_price),
+                  selling_price: Number(p.selling_price || 0),
+                  stock_qty: p.stock_qty, // Keep for backward compat
+                  sample_qty: p.sample_qty, // Keep for backward compat
+                  location_stock: customStock, // Unified stock map
+                  molds: pMolds,
+                  is_component: p.is_component,
+                  variants: pVariants,
+                  recipe: pRecipe,
+                  collections: pCollections,
+                  labor: {
+                    casting_cost: Number(p.labor_casting),
+                    setter_cost: Number(p.labor_setter),
+                    technician_cost: Number(p.labor_technician),
+                    plating_cost: Number(p.labor_plating)
+                  }
+                };
+            });
+            return assembledProducts;
+        } catch (e) {
+            console.warn("API Error, using mock products:", e);
+            return MOCK_PRODUCTS;
+        }
+    },
+    
+    // --- WAREHOUSE MANAGEMENT API ---
+    getWarehouses: async (): Promise<Warehouse[]> => {
+        try {
+            const { data, error } = await supabase.from('warehouses').select('*').order('created_at');
+            if (error) {
+                // If table doesn't exist, return defaults
+                console.warn("Warehouses table might not exist yet:", error);
+                return [
+                    { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
+                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
+                ];
+            }
+            return data as Warehouse[];
+        } catch (e) {
+             return [
+                { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
+                { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
+            ];
+        }
+    },
+
+    saveWarehouse: async (wh: Partial<Warehouse>): Promise<Warehouse> => {
+        const { data, error } = await supabase.from('warehouses').insert(wh).select().single();
+        if (error) throw error;
+        return data;
+    },
+
+    updateWarehouse: async (id: string, updates: Partial<Warehouse>): Promise<void> => {
+        const { error } = await supabase.from('warehouses').update(updates).eq('id', id);
+        if (error) throw error;
+    },
+
+    deleteWarehouse: async (id: string): Promise<void> => {
+        // Also delete stocks associated? Handled by DB cascade
+        const { error } = await supabase.from('warehouses').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    /**
+     * UNIFIED TRANSFER LOGIC
+     * Handles movement between:
+     * 1. System -> System (stock_qty <-> sample_qty)
+     * 2. System -> Custom (stock_qty -> product_stock table)
+     * 3. Custom -> System (product_stock -> stock_qty)
+     * 4. Custom -> Custom (product_stock -> product_stock)
+     */
+    transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
+        // Fetch current product to get system stocks
+        const { data: prod, error: pErr } = await supabase.from('products').select('*').eq('sku', productSku).single();
+        if (pErr) throw pErr;
+
+        // Fetch custom stocks
+        const { data: stockFrom } = await supabase.from('product_stock').select('quantity').match({ product_sku: productSku, warehouse_id: fromId }).single();
+        const { data: stockTo } = await supabase.from('product_stock').select('quantity').match({ product_sku: productSku, warehouse_id: toId }).single();
+        
+        let newFromQty = 0;
+        let newToQty = 0;
+
+        // --- DECREMENT SOURCE ---
+        if (fromId === SYSTEM_IDS.CENTRAL) {
+            newFromQty = prod.stock_qty - qty;
+            if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στην Κεντρική Αποθήκη");
+            await supabase.from('products').update({ stock_qty: newFromQty }).eq('sku', productSku);
+        } else if (fromId === SYSTEM_IDS.SHOWROOM) {
+            newFromQty = prod.sample_qty - qty;
+            if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στο Δειγματολόγιο");
+            await supabase.from('products').update({ sample_qty: newFromQty }).eq('sku', productSku);
+        } else {
+            // Custom Source
+            const current = stockFrom ? stockFrom.quantity : 0;
+            newFromQty = current - qty;
+            if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στον επιλεγμένο χώρο");
+            await supabase.from('product_stock').upsert({ product_sku: productSku, warehouse_id: fromId, quantity: newFromQty });
+        }
+
+        // --- INCREMENT TARGET ---
+        // Refetch product in case we just updated it above (if source was system)
+        
+        if (toId === SYSTEM_IDS.CENTRAL) {
+            const { data: freshProd } = await supabase.from('products').select('*').eq('sku', productSku).single();
+            await supabase.from('products').update({ stock_qty: freshProd.stock_qty + qty }).eq('sku', productSku);
+
+        } else if (toId === SYSTEM_IDS.SHOWROOM) {
+            const { data: freshProd } = await supabase.from('products').select('*').eq('sku', productSku).single();
+            await supabase.from('products').update({ sample_qty: freshProd.sample_qty + qty }).eq('sku', productSku);
+        } else {
+            // Custom Target
+            const current = stockTo ? stockTo.quantity : 0;
+            newToQty = current + qty;
+            await supabase.from('product_stock').upsert({ product_sku: productSku, warehouse_id: toId, quantity: newToQty });
+        }
+
+        await recordStockMovement(productSku, qty, `Transfer: ${fromId} -> ${toId}`);
     },
 
     // --- CUSTOMERS API ---
     getCustomers: async (): Promise<Customer[]> => {
-        const { data, error } = await supabase.from('customers').select('*').order('full_name');
-        if (error) {
-            console.error("Error fetching customers:", error);
+        try {
+            const { data, error } = await supabase.from('customers').select('*').order('full_name');
+            if (error) throw error;
+            return data as Customer[];
+        } catch (e) {
+            console.warn("API Error, returning empty customers:", e);
             return [];
         }
-        return data as Customer[];
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
@@ -292,23 +432,24 @@ export const api = {
     },
 
     deleteCustomer: async (id: string): Promise<void> => {
-        // Warning: This might fail if orders exist unless we set ON DELETE SET NULL/CASCADE in SQL
         const { error } = await supabase.from('customers').delete().eq('id', id);
         if (error) throw error;
     },
 
     // --- ORDERS API ---
     getOrders: async (): Promise<Order[]> => {
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (error) {
-            console.error("Error fetching orders:", error);
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            return data as Order[];
+        } catch (e) {
+            console.warn("API Error, returning empty orders:", e);
             return [];
         }
-        return data as Order[];
     },
 
     saveOrder: async (order: Order): Promise<void> => {
@@ -343,16 +484,18 @@ export const api = {
 
     // --- PRODUCTION API ---
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
-        const { data, error } = await supabase
-            .from('production_batches')
-            .select('*')
-            .order('created_at', { ascending: false });
+        try {
+            const { data, error } = await supabase
+                .from('production_batches')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-        if (error) {
-            console.error("Error fetching batches:", error);
+            if (error) throw error;
+            return data as ProductionBatch[];
+        } catch (e) {
+            console.warn("API Error, returning empty batches:", e);
             return [];
         }
-        return data as ProductionBatch[];
     },
 
     createProductionBatch: async (batch: ProductionBatch): Promise<void> => {

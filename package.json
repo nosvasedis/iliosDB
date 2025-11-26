@@ -16,7 +16,8 @@
     "@supabase/supabase-js": "2",
     "@tanstack/react-query": "5",
     "appwrite": "14.0.0",
-    "jsbarcode": "3.11.5"
+    "jsbarcode": "3.11.5",
+    "@google/genai": "^1.30.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

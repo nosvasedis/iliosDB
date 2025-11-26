@@ -18,7 +18,8 @@ import {
   Printer,
   ShoppingCart,
   Factory,
-  Users
+  Users,
+  Sparkles
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api } from './lib/supabase';
@@ -40,8 +41,9 @@ import BatchPrintPage from './components/BatchPrintPage';
 import OrdersPage from './components/OrdersPage';
 import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
+import AiStudio from './components/AiStudio';
 
-type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers';
+type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -172,6 +174,31 @@ function AppContent() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('dashboard')} 
             />
+            
+            {/* AI Studio Highlight */}
+            <div className="my-2 mx-2">
+                <button
+                    onClick={() => handleNav('ai-studio')}
+                    title={isCollapsed ? 'AI Studio' : ''}
+                    className={`
+                    w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-300 group relative
+                    ${activePage === 'ai-studio' 
+                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/30 ring-1 ring-indigo-400' 
+                        : 'text-indigo-200 hover:bg-white/5 hover:text-white border border-indigo-500/20 bg-indigo-900/10'}
+                    `}
+                >
+                    <div className={`${activePage === 'ai-studio' ? 'text-white' : 'text-indigo-300 group-hover:text-white transition-colors duration-200'}`}>
+                        <Sparkles size={22} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} />
+                    </div>
+                    {!isCollapsed && <span className="font-bold truncate tracking-wide text-sm">AI Studio</span>}
+                    {isCollapsed && (
+                    <div className="absolute left-full ml-3 px-3 py-1.5 bg-indigo-900 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-indigo-700 transition-opacity duration-200">
+                        AI Studio
+                    </div>
+                    )}
+                </button>
+            </div>
+
             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
               icon={<ShoppingCart size={22} />} 
@@ -269,7 +296,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v0.0.4-b</p>
+                  <p className="opacity-50 mt-1">v0.0.5 (AI Enabled)</p>
                 </div>
             )}
           </div>
@@ -303,6 +330,7 @@ function AppContent() {
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
               {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} />}
               {activePage === 'settings' && <SettingsPage />}
+              {activePage === 'ai-studio' && <AiStudio />}
             </div>
           </div>
         </main>
