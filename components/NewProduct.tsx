@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Calculator, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, MapPin, Tag } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ interface Props {
   products: Product[];
   materials: Material[];
   molds?: Mold[];
+  onCancel?: () => void;
 }
 
 const STEPS = [
@@ -23,7 +24,7 @@ const STEPS = [
   { id: 4, title: 'Σύνοψη' }
 ];
 
-export default function NewProduct({ products, materials, molds = [] }: Props) {
+export default function NewProduct({ products, materials, molds = [], onCancel }: Props) {
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const [currentStep, setCurrentStep] = useState(1);
@@ -269,8 +270,13 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
         queryClient.invalidateQueries({ queryKey: ['products'] });
         showToast(`Το προϊόν αποθηκεύτηκε ως ${finalMasterSku}${detectedSuffix ? ` με παραλλαγή ${detectedSuffix}` : ''}!`, "success");
         
-        // Reset Form
-        setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setCurrentStep(1); setCategory(''); setGender('');
+        // Return to registry list if callback exists
+        if (onCancel) {
+            onCancel();
+        } else {
+             // Reset Form
+            setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setCurrentStep(1); setCategory(''); setGender('');
+        }
 
     } catch (error) {
         console.error("Save error:", error);
@@ -286,7 +292,12 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
   return (
     <div className="max-w-4xl mx-auto h-[calc(100vh-140px)] flex flex-col">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div>
+          <div className="flex items-center gap-4">
+            {onCancel && (
+                <button onClick={onCancel} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors">
+                    <ArrowLeft size={24} />
+                </button>
+            )}
             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
                 <div className="p-2 bg-amber-100 rounded-xl text-amber-600">
                     <Wand2 size={24} />

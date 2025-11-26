@@ -1,11 +1,10 @@
 
 
-
-
 import React, { useState, useMemo } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material } from '../types';
-import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen } from 'lucide-react';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold } from '../types';
+import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus } from 'lucide-react';
 import ProductDetails from './ProductDetails';
+import NewProduct from './NewProduct';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { calculateProductCost } from '../utils/pricingEngine';
@@ -17,12 +16,14 @@ interface Props {
 export default function ProductRegistry({ setPrintItems }: Props) {
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Derive Categories
   const categories = useMemo(() => {
@@ -40,8 +41,19 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     });
   }, [products, searchTerm, filterCategory]);
 
-  if (loadingProducts || loadingMaterials || !settings || !products || !materials || !collections) {
+  if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; // Parent loader handles this usually, or add loader here
+  }
+
+  if (isCreating) {
+      return (
+          <NewProduct 
+            products={products}
+            materials={materials}
+            molds={molds}
+            onCancel={() => setIsCreating(false)}
+          />
+      );
   }
 
   return (
@@ -59,6 +71,10 @@ export default function ProductRegistry({ setPrintItems }: Props) {
          </div>
          
          <div className="flex gap-3 w-full md:w-auto">
+             <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                <PackagePlus size={20}/> <span className="hidden sm:inline">Νέο Προϊόν</span>
+             </button>
+             
              <div className="relative group flex-1 md:flex-none">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
                 <input 

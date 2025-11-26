@@ -124,20 +124,23 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
               const totalStock = Object.values(mergedLocationStock).reduce((a, b) => a + b, 0);
 
-              items.push({
-                  id: key,
-                  masterSku: p.sku,
-                  suffix: v.suffix,
-                  description: v.description,
-                  category: p.category,
-                  imageUrl: p.image_url,
-                  locationStock: mergedLocationStock,
-                  totalStock,
-                  demandQty: demand,
-                  product: p,
-                  variantRef: v,
-                  isSingleVariantMode: true
-              });
+              // VISIBILITY CHECK: Hide if stock is 0 and no demand
+              if (totalStock > 0 || demand > 0) {
+                  items.push({
+                      id: key,
+                      masterSku: p.sku,
+                      suffix: v.suffix,
+                      description: v.description,
+                      category: p.category,
+                      imageUrl: p.image_url,
+                      locationStock: mergedLocationStock,
+                      totalStock,
+                      demandQty: demand,
+                      product: p,
+                      variantRef: v,
+                      isSingleVariantMode: true
+                  });
+              }
 
           } else if (p.variants && p.variants.length > 1) {
               // --- MULTIPLE VARIANTS MODE ---
@@ -276,11 +279,20 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
               if (viewWarehouseId === SYSTEM_IDS.CENTRAL) {
                   movementAmount = item.locationStock[SYSTEM_IDS.CENTRAL] || 0;
-                  if (suffix && !item.isSingleVariantMode) {
+                  
+                  // Logic for Single Variant Mode: We must check where the stock lives. 
+                  // It typically lives in product_variants, but let's be safe and clear Master too if it was summed.
+                  if (item.isSingleVariantMode) {
+                       // Clear master stock
+                       await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+                       // Clear variant stock if suffix exists
+                       if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                  } else if (suffix) {
                       await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
                   } else {
                       await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
                   }
+
               } else if (viewWarehouseId === SYSTEM_IDS.SHOWROOM) {
                    // Showroom is generally on Master Product level in this schema
                    movementAmount = item.locationStock[SYSTEM_IDS.SHOWROOM] || 0;
@@ -298,16 +310,18 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               // --- GLOBAL CLEAR (ALL WAREHOUSES) ---
               
               // 1. Clear Central
-              if (suffix && !item.isSingleVariantMode) {
+              if (item.isSingleVariantMode) {
+                   await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+                   if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+              } else if (suffix) {
                   await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
               } else {
                   await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
               }
 
               // 2. Clear Showroom (Only on master usually, but let's be safe)
-              if (!suffix || item.isSingleVariantMode) {
-                 await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
-              }
+              // Even for single variant mode, sample_qty is on master
+              await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
 
               // 3. Clear All Custom Stocks
               await clearCustomStock();
@@ -499,7 +513,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                } else {
                     await supabase.from('product_stock').upsert({ 
                       product_sku: sku, 
-                      variant_suffix: variantSuffix || null,
+                      variant_suffix: variantSuffix || null, 
                       warehouse_id: whId, 
                       quantity: qty 
                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
