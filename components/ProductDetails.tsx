@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
@@ -55,7 +57,10 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
         
         if (itemsToPrint.length > 0) {
             onPrint(itemsToPrint);
-            onClose(); // Close modal after sending to print queue
+            // Delay closing to ensure the print state propagates to the parent App and triggers the hidden print view
+            setTimeout(() => {
+                onClose(); 
+            }, 500);
         }
     };
 

@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -93,10 +92,11 @@ function AppContent() {
 
   useEffect(() => {
     if (printItems.length > 0) {
+      // Increased delay to 500ms to ensure BarcodeView canvas renders completely before print dialog interrupts
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
-      }, 100);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [printItems]);

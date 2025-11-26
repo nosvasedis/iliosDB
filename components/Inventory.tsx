@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer } from 'lucide-react';
@@ -29,6 +31,7 @@ interface InventoryItem {
     demandQty: number;
     product: Product;
     variantRef?: ProductVariant;
+    isSingleVariantMode?: boolean; // New flag for the "Single Variant" logic
 }
 
 export default function Inventory({ products, setPrintItems, settings, collections }: Props) {
@@ -88,14 +91,70 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       }
 
       products.forEach(p => {
-          // If product has variants, create an item for EACH variant
-          if (p.variants && p.variants.length > 0) {
+          // LOGIC CHANGE: Check if product has EXACTLY ONE variant
+          const hasSingleVariant = p.variants && p.variants.length === 1;
+
+          if (hasSingleVariant) {
+              // --- SINGLE VARIANT MODE ---
+              // We merge Master + Single Variant into ONE display item.
+              const v = p.variants![0];
+              const key = p.sku + v.suffix;
+              
+              // Demand can be on Master SKU (legacy) or Variant SKU
+              const demand = (demandMap[p.sku] || 0) + (demandMap[key] || 0);
+
+              // Merge Stocks (Master Stock + Variant Stock)
+              // This ensures if stock is in 'RN001P' but we view 'RN001', we see the total.
+              const mergedLocationStock: Record<string, number> = {};
+              
+              // 1. Central Stock
+              mergedLocationStock[SYSTEM_IDS.CENTRAL] = (p.stock_qty || 0) + (v.stock_qty || 0);
+              
+              // 2. Showroom (Usually tracked on Master)
+              mergedLocationStock[SYSTEM_IDS.SHOWROOM] = (p.sample_qty || 0); // Variants usually don't track sample separately yet
+
+              // 3. Merge Custom Warehouses
+              const allWarehouseIds = new Set([
+                  ...Object.keys(p.location_stock || {}),
+                  ...Object.keys(v.location_stock || {})
+              ]);
+
+              allWarehouseIds.forEach(whId => {
+                  if (whId !== SYSTEM_IDS.CENTRAL && whId !== SYSTEM_IDS.SHOWROOM) {
+                      mergedLocationStock[whId] = (p.location_stock?.[whId] || 0) + (v.location_stock?.[whId] || 0);
+                  }
+              });
+
+              const totalStock = Object.values(mergedLocationStock).reduce((a, b) => a + b, 0);
+
+              items.push({
+                  id: key,
+                  masterSku: p.sku,
+                  suffix: v.suffix,
+                  description: v.description,
+                  category: p.category,
+                  imageUrl: p.image_url,
+                  locationStock: mergedLocationStock,
+                  totalStock,
+                  demandQty: demand,
+                  product: p,
+                  variantRef: v,
+                  isSingleVariantMode: true
+              });
+
+          } else if (p.variants && p.variants.length > 1) {
+              // --- MULTIPLE VARIANTS MODE ---
+              // Show individual rows for each variant
               p.variants.forEach(v => {
                   const key = p.sku + v.suffix;
-                  const totalStock = Object.values(v.location_stock || {}).reduce((a, b) => a + b, 0);
+                  const totalStock = Object.values(v.location_stock || {}).reduce((a, b) => a + b, 0) + v.stock_qty; // Add central explicitly if not in location_stock
+                  
+                  // For multiple variants, we treat Central Stock specifically from the variant table
+                  const variantLocStock = { ...v.location_stock };
+                  variantLocStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
+
                   const demand = demandMap[key] || 0;
                   
-                  // Only show if it exists in a warehouse OR has demand
                   if (totalStock > 0 || demand > 0) {
                       items.push({
                           id: key,
@@ -104,7 +163,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                           description: v.description,
                           category: p.category,
                           imageUrl: p.image_url,
-                          locationStock: v.location_stock || {},
+                          locationStock: variantLocStock,
                           totalStock,
                           demandQty: demand,
                           product: p,
@@ -112,11 +171,38 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       });
                   }
               });
+
+              // Optional: If Master has "Orphaned" stock not in variants
+              const masterCentral = p.stock_qty;
+              const masterCustomTotal = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0);
+              const masterDemand = demandMap[p.sku] || 0;
+
+              if ((masterCentral > 0 || masterCustomTotal > 0 || masterDemand > 0)) {
+                  items.push({
+                      id: p.sku,
+                      masterSku: p.sku,
+                      suffix: '', // No suffix
+                      description: 'Αταξινόμητο / Master',
+                      category: p.category,
+                      imageUrl: p.image_url,
+                      locationStock: { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: masterCentral, [SYSTEM_IDS.SHOWROOM]: p.sample_qty },
+                      totalStock: masterCentral + masterCustomTotal + p.sample_qty,
+                      demandQty: masterDemand,
+                      product: p
+                  });
+              }
+
           } else {
-              // No variants (Master Only)
-              const totalStock = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0);
+              // --- NO VARIANTS (PURE MASTER) ---
+              const totalStock = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0) + p.stock_qty + p.sample_qty;
               const demand = demandMap[p.sku] || 0;
-               if (totalStock > 0 || demand > 0) {
+              
+              // Include Central/Showroom in location map for display
+              const displayStock = { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: p.stock_qty, [SYSTEM_IDS.SHOWROOM]: p.sample_qty };
+
+              // Always show if it exists, or if demand exists
+              // (Or if we want to show all products, remove the check. Keeping check for cleaner view)
+               if (totalStock >= 0 || demand > 0) {
                   items.push({
                       id: p.sku,
                       masterSku: p.sku,
@@ -124,7 +210,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       description: 'Βασικό',
                       category: p.category,
                       imageUrl: p.image_url,
-                      locationStock: p.location_stock || {},
+                      locationStock: displayStock,
                       totalStock,
                       demandQty: demand,
                       product: p
@@ -147,19 +233,24 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       setScanInput(val);
       
       if (val.length > 0) {
-          // Find first matching Variant or Master
-          // Search Logic: Starts with input
+          // Search Priority: 
+          // 1. Exact Match in Flattened Inventory
+          // 2. Starts With
+          
           let match = flattenedInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
           
-          // If not found in already flattened (maybe stock is 0), search in raw products
+          // Fallback: Check raw products for "Single Variant" redirect
           if (!match) {
              const prod = products.find(p => p.sku.startsWith(val));
              if (prod) {
-                 if (prod.variants && prod.variants.length > 0) {
+                 if (prod.variants && prod.variants.length === 1) {
+                     // AUTO-SUGGEST THE SINGLE VARIANT
+                     setScanSuggestion(prod.sku + prod.variants[0].suffix);
+                 } else if (prod.variants && prod.variants.length > 0) {
                      // Try to match specific variant suffix
                      const vMatch = prod.variants.find(v => (prod.sku + v.suffix).startsWith(val));
                      if (vMatch) setScanSuggestion(prod.sku + vMatch.suffix);
-                     else setScanSuggestion(prod.sku); // Default to master if variant not specific enough yet
+                     else setScanSuggestion(prod.sku); 
                  } else {
                      setScanSuggestion(prod.sku);
                  }
@@ -187,7 +278,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   const executeQuickAdd = async () => {
       const targetCode = scanSuggestion || scanInput;
-      // We need to find the product and potentially the variant
+      // Find the product
       const product = products.find(p => targetCode.startsWith(p.sku));
       
       if (!product) {
@@ -195,17 +286,22 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           return;
       }
       
-      // Determine if it targets a variant
-      const variantSuffix = targetCode.replace(product.sku, '');
-      const variant = product.variants?.find(v => v.suffix === variantSuffix);
+      // Determine Variant Logic
+      let variantSuffix = targetCode.replace(product.sku, '');
+      let variant = product.variants?.find(v => v.suffix === variantSuffix);
       
+      // SMART RULE: If product has EXACTLY ONE variant, always target that variant,
+      // even if the user only scanned the Master SKU.
+      if (product.variants && product.variants.length === 1 && !variantSuffix) {
+          variant = product.variants[0];
+          variantSuffix = variant.suffix;
+      }
+
+      // If user typed a specific suffix but it doesn't exist
       if (product.variants && product.variants.length > 0 && !variant && variantSuffix) {
            showToast(`Η παραλλαγή ${variantSuffix} δεν βρέθηκε.`, "error");
            return;
       }
-
-      // Check if trying to add to master when variants exist (policy check)
-      // Usually we allow it, but best to be specific.
       
       try {
           const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
@@ -213,13 +309,18 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           if (variant) {
               // Update Variant Stock
                const currentStock = variant.location_stock?.[scanTargetId] || 0;
-               const newQty = currentStock + scanQty;
+               // If targeting Central, verify if we need to add to variant table or product table
+               // But usually variants store central stock in `stock_qty` column of `product_variants`
                
+               let newQty = 0;
+
                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                   newQty = (variant.stock_qty || 0) + scanQty;
                    // Update product_variants table
                    await supabase.from('product_variants').update({ stock_qty: newQty }).match({ product_sku: product.sku, suffix: variant.suffix });
                } else {
-                   // Custom Warehouse or Showroom for Variants: Store in product_stock with variant_suffix
+                   // Custom Warehouse or Showroom for Variants
+                   newQty = currentStock + scanQty;
                    await supabase.from('product_stock').upsert({ 
                       product_sku: product.sku, 
                       variant_suffix: variant.suffix,
@@ -230,7 +331,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
 
           } else {
-              // Update Master Stock
+              // Update Master Stock (Only if no single variant redirection happened)
               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
                   const newQty = product.stock_qty + scanQty;
                   await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
@@ -251,7 +352,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           }
 
           queryClient.invalidateQueries({ queryKey: ['products'] });
-          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${targetCode}`, "success");
+          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${product.sku}${variant ? variant.suffix : ''}`, "success");
           
           setScanInput('');
           setScanSuggestion('');
@@ -305,10 +406,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       
       setIsTransferring(true);
       try {
-          // We need to implement a smarter transfer function or handle the manual logic here for variants
-          // The api.transferStock logic currently assumes Master SKU mostly or simple product_stock table.
-          // Let's implement robust logic right here for variants support.
-          
           const variantSuffix = transferItem.suffix;
           const sku = transferItem.masterSku;
 
@@ -458,7 +555,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       const hasDemand = item.demandQty > 0;
                       const inStock = item.totalStock > 0;
                       const canFulfill = inStock && item.totalStock >= item.demandQty;
-                      const displayName = item.suffix ? `${item.masterSku}-${item.suffix}` : item.masterSku;
+                      const displayName = (item.isSingleVariantMode || !item.suffix) ? item.masterSku : `${item.masterSku}-${item.suffix}`;
                       
                       return (
                           <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden">
@@ -474,6 +571,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                       <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2" onClick={() => setSelectedProduct(item.product)}>
                                           {displayName}
                                           {item.suffix && <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">{item.description}</span>}
+                                          {item.isSingleVariantMode && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="Μοναδική Παραλλαγή">1 Var</span>}
                                       </h3>
                                       <p className="text-xs text-slate-500 font-medium">{item.category}</p>
                                   </div>
