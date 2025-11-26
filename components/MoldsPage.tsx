@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, Save, MapPin, AlertTriangle, Loader2 } from 'lucide-react';
+import { Trash2, Plus, Save, MapPin, Loader2, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { useUI } from './UIProvider';
 
 export default function MoldsPage() {
   const queryClient = useQueryClient();
+  const { showToast, confirm } = useUI();
   const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
 
   const [editableMolds, setEditableMolds] = useState<Mold[]>([]);
   const [newMold, setNewMold] = useState<Mold>({ code: '', location: '', description: '' });
-  const [deleteCode, setDeleteCode] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   React.useEffect(() => {
     if (molds) {
@@ -19,8 +21,13 @@ export default function MoldsPage() {
     }
   }, [molds]);
 
+  const filteredMolds = editableMolds.filter(m => m.code.includes(searchTerm.toUpperCase()) || m.description.toLowerCase().includes(searchTerm.toLowerCase()));
+
   const handleCreate = async () => {
-      if (!newMold.code) return alert("Ο Κωδικός είναι υποχρεωτικός.");
+      if (!newMold.code) {
+          showToast("Ο Κωδικός είναι υποχρεωτικός.", 'error');
+          return;
+      }
 
       try {
           const { error } = await supabase.from('molds').insert(newMold);
@@ -28,23 +35,30 @@ export default function MoldsPage() {
           
           queryClient.invalidateQueries({ queryKey: ['molds'] });
           setNewMold({ code: '', location: '', description: '' });
-          alert("Το λάστιχο προστέθηκε.");
+          showToast("Το λάστιχο προστέθηκε.", 'success');
       } catch(e) {
           console.error(e);
-          alert("Σφάλμα. Πιθανώς ο κωδικός υπάρχει ήδη.");
+          showToast("Σφάλμα. Πιθανώς ο κωδικός υπάρχει ήδη.", 'error');
       }
   };
 
-  const confirmDelete = async () => {
-      if (!deleteCode) return;
+  const handleDelete = async (code: string) => {
+      const yes = await confirm({
+          title: 'Διαγραφή Λάστιχου',
+          message: `Είστε σίγουροι ότι θέλετε να διαγράψετε το λάστιχο ${code};`,
+          isDestructive: true,
+          confirmText: 'Διαγραφή'
+      });
+      if (!yes) return;
+
       try {
-          const { error } = await supabase.from('molds').delete().eq('code', deleteCode);
+          const { error } = await supabase.from('molds').delete().eq('code', code);
           if (error) throw error;
           queryClient.invalidateQueries({ queryKey: ['molds'] });
-          setDeleteCode(null);
+          showToast("Διαγράφηκε.", 'info');
       } catch(e) {
           console.error(e);
-          alert("Σφάλμα κατά τη διαγραφή.");
+          showToast("Σφάλμα κατά τη διαγραφή.", 'error');
       }
   };
 
@@ -63,60 +77,79 @@ export default function MoldsPage() {
 
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['molds'] });
-      alert(`Το λάστιχο ${moldToSave.code} αποθηκεύτηκε.`);
+      showToast(`Το λάστιχο ${moldToSave.code} αποθηκεύτηκε.`, 'success');
     } catch(e) {
       console.error("Error saving mold:", e);
-      alert("Σφάλμα αποθήκευσης.");
+      showToast("Σφάλμα αποθήκευσης.", 'error');
     }
   };
 
-  if (isLoading) return <div className="flex justify-center items-center"><Loader2 className="animate-spin" /></div>;
+  if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 relative">
-
-      {deleteCode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-red-600 mb-4"><div className="p-3 bg-red-100 rounded-full"><AlertTriangle size={24} /></div><h3 className="text-lg font-bold">Διαγραφή Λάστιχου</h3></div>
-            <p className="text-slate-600 mb-6">Είστε σίγουροι ότι θέλετε να διαγράψετε το λάστιχο <strong>{deleteCode}</strong>;</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteCode(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Ακύρωση</button>
-              <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium">Διαγραφή</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><MapPin className="text-amber-600" />Διαχείριση Λάστιχων</h1></div>
+    <div className="space-y-6">
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+         <div>
+             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3 tracking-tight">
+                <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><MapPin size={24} /></div>
+                Διαχείριση Λάστιχων
+             </h1>
+             <p className="text-slate-500 mt-1 ml-14">Οργάνωση καλουπιών παραγωγής.</p>
+         </div>
+         <div className="relative group w-full md:w-64">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={20} />
+            <input 
+              type="text" 
+              placeholder="Αναζήτηση..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-12 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none w-full bg-slate-50 focus:bg-white transition-all text-slate-900"
+            />
+         </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-fit sticky top-6">
-              <h3 className="font-bold text-slate-700 mb-4 border-b pb-2">Προσθήκη Νέου</h3>
-              <div className="space-y-4">
-                  <div><label className="block text-xs font-bold text-slate-500 mb-1">Κωδικός (Code)</label><input type="text" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. A-12" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 uppercase font-mono"/></div>
-                  <div><label className="block text-xs font-bold text-slate-500 mb-1">Τοποθεσία / Συρτάρι</label><input type="text" value={newMold.location} onChange={e => setNewMold({...newMold, location: e.target.value})} placeholder="π.χ. Συρτάρι 1" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"/></div>
-                  <div><label className="block text-xs font-bold text-slate-500 mb-1">Περιγραφή</label><input type="text" value={newMold.description} onChange={e => setNewMold({...newMold, description: e.target.value})} placeholder="π.χ. Κορμός δαχτυλιδιού" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"/></div>
-                  <button onClick={handleCreate} className="w-full bg-slate-900 text-white py-2 rounded-lg font-medium hover:bg-slate-800 flex items-center justify-center gap-2"><Plus size={18} /> Προσθήκη</button>
+          <div className="lg:col-span-1">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-fit sticky top-6">
+                  <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Plus size={20} className="text-amber-500"/> Νέο Λάστιχο</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Κωδικός (Code)</label>
+                          <input type="text" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. A-12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Τοποθεσία</label>
+                          <input type="text" value={newMold.location} onChange={e => setNewMold({...newMold, location: e.target.value})} placeholder="π.χ. Συρτάρι 1" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Περιγραφή</label>
+                          <input type="text" value={newMold.description} onChange={e => setNewMold({...newMold, description: e.target.value})} placeholder="π.χ. Κορμός..." className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                      </div>
+                      <button onClick={handleCreate} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-all hover:shadow-lg mt-2">
+                          Προσθήκη
+                      </button>
+                  </div>
               </div>
           </div>
 
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs"><tr><th className="p-3">Κωδικός</th><th className="p-3">Τοποθεσία</th><th className="p-3">Περιγραφή</th><th className="p-3 text-center">Ενέργειες</th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                    {editableMolds.map(m => (
-                        <tr key={m.code} className="hover:bg-slate-50 group">
-                            <td className="p-3 font-mono font-bold text-slate-800">{m.code}</td>
-                            <td className="p-3"><input type="text" value={m.location} onChange={(e) => updateMold(m.code, 'location', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 text-slate-800 outline-none transition-all"/></td>
-                            <td className="p-3"><input type="text" value={m.description} onChange={(e) => updateMold(m.code, 'description', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 text-slate-800 outline-none transition-all"/></td>
-                            <td className="p-3 flex justify-center gap-2">
-                                <button onClick={() => handleSaveRow(m.code)} title="Αποθήκευση αλλαγών" className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"><Save size={16} /></button>
-                                <button onClick={() => setDeleteCode(m.code)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={16} /></button>
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100"><tr><th className="p-4">Κωδικός</th><th className="p-4">Τοποθεσία</th><th className="p-4">Περιγραφή</th><th className="p-4 text-center"></th></tr></thead>
+                <tbody className="divide-y divide-slate-50">
+                    {filteredMolds.map(m => (
+                        <tr key={m.code} className="hover:bg-slate-50/80 group transition-colors">
+                            <td className="p-4 font-mono font-bold text-slate-800">{m.code}</td>
+                            <td className="p-4"><input type="text" value={m.location} onChange={(e) => updateMold(m.code, 'location', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 rounded-none py-1 text-slate-800 outline-none transition-all"/></td>
+                            <td className="p-4"><input type="text" value={m.description} onChange={(e) => updateMold(m.code, 'description', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 rounded-none py-1 text-slate-800 outline-none transition-all"/></td>
+                            <td className="p-4">
+                                <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleSaveRow(m.code)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                                    <button onClick={() => handleDelete(m.code)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                                </div>
                             </td>
                         </tr>
                     ))}
-                    {molds && molds.length === 0 && (<tr><td colSpan={4} className="p-8 text-center text-slate-400">Κανένα λάστιχο.</td></tr>)}
+                    {molds && molds.length === 0 && (<tr><td colSpan={4} className="p-16 text-center text-slate-400 italic">Κανένα λάστιχο.</td></tr>)}
                 </tbody>
              </table>
           </div>

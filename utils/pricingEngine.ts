@@ -1,4 +1,5 @@
 import { Product, GlobalSettings, Material, PlatingType, Gender } from '../types';
+import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 export const calculateProductCost = (
   product: Product,
@@ -139,39 +140,77 @@ export const parseSku = (sku: string) => {
   return { gender: Gender.Unisex, category: 'Γενικό' };
 };
 
+// Map of finish codes to Plating Types
+const PLATING_MAP: Record<string, PlatingType> = {
+  'P': PlatingType.None,
+  'X': PlatingType.GoldPlated,
+  'D': PlatingType.TwoTone,
+  'H': PlatingType.Platinum,
+  '': PlatingType.None
+};
+
 /**
  * Intelligent SKU Analyzer
- * Detects if the user typed a specific variant code (e.g. RN001P) and extracts the Master SKU (RN001).
+ * Detects if the user typed a specific variant code (e.g. RN001P or XR2020BSU) and extracts the Master SKU.
+ * Now supports both Finish codes AND Stone codes.
  */
 export const analyzeSku = (rawSku: string) => {
     const cleanSku = rawSku.trim().toUpperCase();
     
-    // Definitions of Suffixes
-    const SUFFIX_RULES: Record<string, { plating: PlatingType, description: string }> = {
-        'P': { plating: PlatingType.None, description: 'Πατίνα' },
-        'X': { plating: PlatingType.GoldPlated, description: 'Επίχρυσο' },
-        'D': { plating: PlatingType.TwoTone, description: 'Δίχρωμο' },
-        'H': { plating: PlatingType.Platinum, description: 'Επιπλατινωμένο' }
-    };
+    // 1. Prepare Dictionaries
+    // Merge men and women stones to check against all possibilities
+    const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+    // Sort keys by length descending to match longest suffix first (e.g. matching 'PBSU' correctly)
+    const stoneKeys = Object.keys(allStones).sort((a, b) => b.length - a.length);
+    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
 
-    // Check if SKU ends with any known suffix
-    // We check purely for single char suffixes at the end for now based on the prompt requirements
-    const lastChar = cleanSku.slice(-1);
-    
-    // Ensure SKU is long enough (e.g. at least 3 chars + suffix) to avoid false positives on short codes
-    if (cleanSku.length > 4 && SUFFIX_RULES[lastChar]) {
-        const masterSku = cleanSku.slice(0, -1);
-        const rule = SUFFIX_RULES[lastChar];
+    let detectedStoneCode = '';
+    let detectedFinishCode = '';
+    let remainder = cleanSku;
+
+    // 2. Check for Stone Suffix first (usually at the very end)
+    for (const sCode of stoneKeys) {
+        if (remainder.endsWith(sCode)) {
+            detectedStoneCode = sCode;
+            remainder = remainder.slice(0, -sCode.length);
+            break; 
+        }
+    }
+
+    // 3. Check for Finish Suffix (on the remainder)
+    // Example: XR2020PBSU -> Remainder became XR2020P -> Now detects P
+    for (const fCode of finishKeys) {
+        if (remainder.endsWith(fCode)) {
+            detectedFinishCode = fCode;
+            remainder = remainder.slice(0, -fCode.length);
+            break;
+        }
+    }
+
+    // 4. Construct Result
+    // Valid variant if we found either a stone or a finish code, and there is still a Master SKU left
+    const isVariant = (detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2;
+
+    if (isVariant) {
+        const finishDesc = detectedFinishCode ? FINISH_CODES[detectedFinishCode] : '';
+        const stoneDesc = detectedStoneCode ? allStones[detectedStoneCode] : '';
         
+        // Format description: "Finish - Stone" or just "Finish" or just "Stone"
+        let fullDesc = '';
+        if (finishDesc && stoneDesc) fullDesc = `${finishDesc} - ${stoneDesc}`;
+        else if (finishDesc) fullDesc = finishDesc;
+        else if (stoneDesc) fullDesc = stoneDesc;
+
         return {
             isVariant: true,
-            masterSku: masterSku,
-            suffix: lastChar,
-            detectedPlating: rule.plating,
-            variantDescription: rule.description
+            masterSku: remainder,
+            suffix: detectedFinishCode + detectedStoneCode,
+            detectedPlating: PLATING_MAP[detectedFinishCode] || PlatingType.None,
+            variantDescription: fullDesc
         };
     }
 
+    // Fallback: No recognized variant suffix
     return {
         isVariant: false,
         masterSku: cleanSku,

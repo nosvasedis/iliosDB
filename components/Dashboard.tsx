@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, GlobalSettings } from '../types';
-import { TrendingUp, Package, AlertTriangle, Layers } from 'lucide-react';
+import { TrendingUp, Package, AlertTriangle, Layers, ArrowUpRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Props {
@@ -22,66 +22,100 @@ export default function Dashboard({ products, settings }: Props) {
   ];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Πίνακας Ελέγχου</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Πίνακας Ελέγχου</h1>
+        <p className="text-slate-500 mt-2">Επισκόπηση της παραγωγής και της αποθήκης.</p>
+      </div>
       
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
-          title="Συνολική Αξία Αποθήκης" 
+          title="Αξία Αποθήκης" 
           value={`${totalValue.toFixed(2)}€`} 
-          icon={<TrendingUp className="text-green-500" />} 
-          bg="bg-green-50"
+          icon={<TrendingUp className="text-emerald-600" size={24} />} 
+          bg="bg-emerald-50"
+          border="border-emerald-100"
         />
         <StatCard 
-          title="Κωδικοί Προϊόντων (SKUs)" 
+          title="Κωδικοί (SKUs)" 
           value={products.length.toString()} 
-          icon={<Layers className="text-blue-500" />} 
+          icon={<Layers className="text-blue-600" size={24} />} 
           bg="bg-blue-50"
+          border="border-blue-100"
         />
         <StatCard 
           title="Σύνολο Τεμαχίων" 
           value={totalStock.toString()} 
-          icon={<Package className="text-amber-500" />} 
+          icon={<Package className="text-amber-600" size={24} />} 
           bg="bg-amber-50"
+          border="border-amber-100"
         />
         <StatCard 
           title="Χαμηλό Απόθεμα" 
           value={lowStock.toString()} 
-          icon={<AlertTriangle className="text-red-500" />} 
-          bg="bg-red-50"
+          icon={<AlertTriangle className="text-rose-600" size={24} />} 
+          bg="bg-rose-50"
+          border="border-rose-100"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 min-w-0">
-          <h3 className="text-lg font-semibold mb-4 text-slate-700">Κατανομή Κατηγοριών</h3>
-          {/* Explicit height and overflow hidden to fix Recharts width calculation */}
-          <div className="w-full h-[300px] overflow-hidden">
+        <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 min-w-0 transition-all hover:shadow-md">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-slate-800">Κατανομή Κατηγοριών</h3>
+          </div>
+          <div className="w-full h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{fontSize: 12}} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" name="Πλήθος" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{fontSize: 12, fill: '#64748b'}} 
+                  axisLine={false}
+                  tickLine={false}
+                  dy={10}
+                />
+                <YAxis 
+                  tick={{fontSize: 12, fill: '#64748b'}} 
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                />
+                <Bar 
+                  dataKey="count" 
+                  name="Πλήθος" 
+                  fill="#f59e0b" 
+                  radius={[6, 6, 0, 0]} 
+                  barSize={40}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Quick Settings View */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold mb-4 text-slate-700">Τρέχουσες Τιμές</h3>
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 h-fit transition-all hover:shadow-md">
+          <h3 className="text-xl font-bold mb-6 text-slate-800">Τρέχουσες Τιμές</h3>
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-slate-600">Τιμή Ασημιού (Ag925)</span>
-              <span className="font-mono font-bold text-lg text-slate-800">{settings.silver_price_gram} €/g</span>
+            <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-600 font-medium">Τιμή Ασημιού</span>
+              <span className="font-mono font-bold text-xl text-slate-900">{settings.silver_price_gram} €/g</span>
             </div>
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-slate-600">Ποσοστό Απώλειας</span>
-              <span className="font-mono font-bold text-lg text-slate-800">{settings.loss_percentage}%</span>
+            <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-600 font-medium">Ποσοστό Απώλειας</span>
+              <span className="font-mono font-bold text-xl text-slate-900">{settings.loss_percentage}%</span>
+            </div>
+            
+            <div className="pt-4 border-t border-slate-100 mt-4">
+               <div className="text-sm text-slate-400 flex items-center gap-2">
+                 <ArrowUpRight size={16} />
+                 <span>Τελευταία ενημέρωση: Σήμερα</span>
+               </div>
             </div>
           </div>
         </div>
@@ -90,12 +124,12 @@ export default function Dashboard({ products, settings }: Props) {
   );
 }
 
-const StatCard = ({ title, value, icon, bg }: { title: string, value: string, icon: React.ReactNode, bg: string }) => (
-  <div className={`p-6 rounded-xl border border-slate-100 shadow-sm ${bg} flex items-center justify-between`}>
+const StatCard = ({ title, value, icon, bg, border }: { title: string, value: string, icon: React.ReactNode, bg: string, border: string }) => (
+  <div className={`p-6 rounded-3xl border shadow-sm ${bg} ${border} flex items-center justify-between transition-transform hover:-translate-y-1`}>
     <div>
-      <p className="text-slate-500 text-sm font-medium">{title}</p>
-      <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+      <p className="text-slate-600 text-sm font-semibold tracking-wide uppercase opacity-80">{title}</p>
+      <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{value}</p>
     </div>
-    <div className="p-3 bg-white rounded-full shadow-sm">{icon}</div>
+    <div className="p-4 bg-white rounded-2xl shadow-sm bg-opacity-60 backdrop-blur-sm">{icon}</div>
   </div>
 );

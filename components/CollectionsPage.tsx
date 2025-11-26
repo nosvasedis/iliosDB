@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Save, Trash2, Edit, X, Search, Loader2 } from 'lucide-react';
+import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
+import { useUI } from './UIProvider';
 
 export default function CollectionsPage() {
     const queryClient = useQueryClient();
+    const { showToast, confirm } = useUI();
     const { data: collections, isLoading: loadingCollections, isError, error } = useQuery<Collection[]>({ queryKey: ['collections'], queryFn: api.getCollections });
     const { data: allProducts, isLoading: loadingProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
 
@@ -19,14 +21,22 @@ export default function CollectionsPage() {
             await supabase.from('collections').insert({ name: newCollectionName.trim() });
             queryClient.invalidateQueries({ queryKey: ['collections'] });
             setNewCollectionName('');
+            showToast("Η συλλογή δημιουργήθηκε.", "success");
         } catch (e) {
             console.error(e);
-            alert("Error creating collection.");
+            showToast("Σφάλμα δημιουργίας.", "error");
         }
     };
 
     const handleDeleteCollection = async (id: number) => {
-        if (window.confirm("Are you sure you want to delete this collection? This cannot be undone.")) {
+        const yes = await confirm({
+            title: 'Διαγραφή Συλλογής',
+            message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή τη συλλογή; Τα προϊόντα δεν θα διαγραφούν.',
+            isDestructive: true,
+            confirmText: 'Διαγραφή'
+        });
+
+        if (yes) {
             try {
                 // First delete associations
                 await supabase.from('product_collections').delete().eq('collection_id', id);
@@ -36,9 +46,10 @@ export default function CollectionsPage() {
                 if (selectedCollection?.id === id) {
                     setSelectedCollection(null);
                 }
+                showToast("Η συλλογή διαγράφηκε.", "info");
             } catch (e) {
                 console.error(e);
-                alert("Error deleting collection.");
+                showToast("Σφάλμα διαγραφής.", "error");
             }
         }
     };
@@ -78,71 +89,125 @@ export default function CollectionsPage() {
     if (isError) {
         return (
             <div className="max-w-7xl mx-auto space-y-6">
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><FolderKanban className="text-blue-600" />Διαχείριση Συλλογών</h1>
-                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
-                    <p className="font-bold">Σφάλμα!</p>
-                    <p>Δεν ήταν δυνατή η φόρτωση των συλλογών. Βεβαιωθείτε ότι ο πίνακας 'collections' υπάρχει και ότι οι πολιτικές RLS επιτρέπουν την ανάγνωση.</p>
-                    <p className="text-sm mt-2 font-mono bg-red-200 p-2 rounded">{(error as Error).message}</p>
+                 <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><FolderKanban size={24} /></div>
+                    Διαχείριση Συλλογών
+                 </h1>
+                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
+                    <p className="font-bold mb-2">Σφάλμα!</p>
+                    <p>Δεν ήταν δυνατή η φόρτωση των συλλογών.</p>
+                    <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(error as Error).message}</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6">
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><FolderKanban className="text-blue-600" />Διαχείριση Συλλογών</h1>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 space-y-4">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border">
-                        <h3 className="font-bold text-slate-700 mb-3">Νέα Συλλογή</h3>
+        <div className="max-w-7xl mx-auto space-y-8 h-[calc(100vh-120px)] flex flex-col">
+            <div>
+                <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3 tracking-tight">
+                   <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><FolderKanban size={24} /></div>
+                   Διαχείριση Συλλογών
+                </h1>
+                <p className="text-slate-500 mt-2 ml-14">Οργανώστε τα προϊόντα σε ομάδες.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+                
+                {/* LEFT: LIST */}
+                <div className="lg:col-span-4 flex flex-col gap-4 min-h-0">
+                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                        <h3 className="font-bold text-slate-800 mb-3 ml-1">Νέα Συλλογή</h3>
                         <div className="flex gap-2">
-                            <input type="text" value={newCollectionName} onChange={e => setNewCollectionName(e.target.value)} placeholder="Όνομα Συλλογής" className="w-full p-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-colors"/>
-                            <button onClick={handleCreateCollection} className="bg-slate-800 text-white px-4 rounded-lg hover:bg-slate-700 transition-colors"><Plus/></button>
+                            <input type="text" value={newCollectionName} onChange={e => setNewCollectionName(e.target.value)} placeholder="Όνομα..." className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"/>
+                            <button onClick={handleCreateCollection} className="bg-slate-900 text-white px-4 rounded-xl hover:bg-slate-800 transition-colors"><Plus/></button>
                         </div>
                     </div>
-                    <div className="bg-white p-4 rounded-xl shadow-sm border">
-                        <h3 className="font-bold text-slate-700 mb-3">Λίστα</h3>
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                    
+                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex-1 flex flex-col min-h-0">
+                        <h3 className="font-bold text-slate-800 mb-4 ml-1">Λίστα Συλλογών</h3>
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                             {collections?.map(c => (
-                                <div key={c.id} onClick={() => setSelectedCollection(c)} className={`flex justify-between items-center p-3 rounded-lg cursor-pointer transition-colors ${selectedCollection?.id === c.id ? 'bg-amber-100' : 'hover:bg-slate-50'}`}>
-                                    <span className="font-medium">{c.name}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCollection(c.id); }} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                                <div 
+                                    key={c.id} 
+                                    onClick={() => setSelectedCollection(c)} 
+                                    className={`
+                                        flex justify-between items-center p-4 rounded-2xl cursor-pointer transition-all border
+                                        ${selectedCollection?.id === c.id 
+                                            ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                                            : 'hover:bg-slate-50 border-transparent hover:border-slate-100'}
+                                    `}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <FolderKanban size={18} className={selectedCollection?.id === c.id ? 'text-blue-600' : 'text-slate-400'} />
+                                        <span className={`font-bold ${selectedCollection?.id === c.id ? 'text-blue-900' : 'text-slate-700'}`}>{c.name}</span>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCollection(c.id); }} className="text-slate-300 hover:text-red-500 p-1 hover:bg-red-50 rounded transition-colors"><Trash2 size={16}/></button>
                                 </div>
                             ))}
+                            {collections?.length === 0 && <div className="text-slate-400 text-center py-10 italic">Δεν υπάρχουν συλλογές.</div>}
                         </div>
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border">
+                {/* RIGHT: DETAILS */}
+                <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col min-h-0 relative overflow-hidden">
                     {!selectedCollection ? (
-                        <div className="text-center py-20 text-slate-400">Επιλέξτε μια συλλογή για να δείτε τα περιεχόμενά της.</div>
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-10">
+                            <FolderKanban size={64} className="mb-4 opacity-20" />
+                            <p className="font-medium text-lg">Επιλέξτε μια συλλογή.</p>
+                        </div>
                     ) : (
-                        <div>
-                            <h2 className="text-xl font-bold mb-4">Προϊόντα στη συλλογή: {selectedCollection.name}</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-48 overflow-y-auto mb-6 border-b pb-4">
-                                {productsInSelectedCollection.map(p => (
-                                    <div key={p.sku} className="relative group p-2 border rounded-lg text-center">
-                                        <img src={p.image_url} alt={p.sku} className="w-16 h-16 object-cover mx-auto mb-2 rounded"/>
-                                        <p className="text-xs font-bold">{p.sku}</p>
-                                        <button onClick={() => handleToggleProduct(p.sku, selectedCollection.id)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100"><X size={12}/></button>
-                                    </div>
-                                ))}
-                                {productsInSelectedCollection.length === 0 && <div className="col-span-full text-sm text-slate-400 text-center py-4">Αυτή η συλλογή είναι άδεια.</div>}
+                        <div className="flex flex-col h-full">
+                            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <span className="text-blue-600">#{selectedCollection.name}</span>
+                                    <span className="text-slate-400 text-sm font-normal ml-auto">{productsInSelectedCollection.length} προϊόντα</span>
+                                </h2>
                             </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-6 min-h-0">
+                                {productsInSelectedCollection.length > 0 && (
+                                    <div className="mb-8">
+                                        <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase tracking-wide opacity-70">Περιεχομενα</h3>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                            {productsInSelectedCollection.map(p => (
+                                                <div key={p.sku} className="relative group bg-white border border-slate-100 rounded-xl p-3 shadow-sm hover:shadow-md transition-all text-center">
+                                                    <div className="aspect-square bg-slate-50 rounded-lg mb-2 overflow-hidden">
+                                                        <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-800">{p.sku}</p>
+                                                    <button onClick={() => handleToggleProduct(p.sku, selectedCollection.id)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 scale-75 group-hover:scale-100"><X size={14}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
-                            <h3 className="font-semibold mb-3">Προσθήκη Προϊόντων</h3>
-                             <div className="relative mb-3">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input type="text" placeholder="Αναζήτηση SKU..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 p-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-colors"/>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto">
-                                {filteredAvailableProducts.map(p => (
-                                    <div key={p.sku} onClick={() => handleToggleProduct(p.sku, selectedCollection.id)} className="relative group p-2 border rounded-lg text-center cursor-pointer hover:bg-green-50">
-                                        <img src={p.image_url} alt={p.sku} className="w-16 h-16 object-cover mx-auto mb-2 rounded"/>
-                                        <p className="text-xs font-bold">{p.sku}</p>
-                                        <div className="absolute inset-0 bg-green-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"><Plus size={24}/></div>
+                                <div>
+                                    <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase tracking-wide opacity-70 flex items-center justify-between">
+                                        <span>Προσθηκη Προιοντων</span>
+                                    </h3>
+                                     <div className="relative mb-6 group">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                        <input type="text" placeholder="Αναζήτηση διαθέσιμων προϊόντων..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-11 p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"/>
                                     </div>
-                                ))}
+                                    
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        {filteredAvailableProducts.map(p => (
+                                            <div key={p.sku} onClick={() => handleToggleProduct(p.sku, selectedCollection.id)} className="relative group bg-white border border-slate-100 rounded-xl p-3 shadow-sm hover:shadow-md transition-all text-center cursor-pointer hover:border-emerald-200">
+                                                <div className="aspect-square bg-slate-50 rounded-lg mb-2 overflow-hidden relative">
+                                                    <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"/>
+                                                    <div className="absolute inset-0 bg-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <div className="bg-emerald-500 text-white rounded-full p-2 shadow-lg"><Plus size={20}/></div>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-800">{p.sku}</p>
+                                            </div>
+                                        ))}
+                                        {filteredAvailableProducts.length === 0 && searchTerm && <div className="col-span-full text-center text-slate-400 py-8">Δεν βρέθηκαν άλλα προϊόντα.</div>}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -20,6 +19,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api } from './lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Product, ProductVariant } from './types';
+import { UIProvider } from './components/UIProvider';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -35,7 +35,7 @@ import BatchPrintPage from './components/BatchPrintPage';
 
 type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print';
 
-export default function App() {
+function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -49,13 +49,11 @@ export default function App() {
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
-
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
   // Print effect
   useEffect(() => {
     if (printItems.length > 0) {
-      // Allow react to render the print view before dialog opens
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
@@ -75,9 +73,9 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500 font-sans">
         <Loader2 size={48} className="animate-spin mb-4 text-amber-500" />
-        <p className="font-medium">Φόρτωση Δεδομένων...</p>
+        <p className="font-medium text-lg tracking-tight">Φόρτωση ERP...</p>
       </div>
     );
   }
@@ -91,7 +89,7 @@ export default function App() {
 
   return (
     <>
-      {/* Print View (Hidden by default, outside the main app flow) */}
+      {/* Print View */}
       <div className="print-view">
         <div className="print-area">
           {flattenedPrintItems.map((item, index) => (
@@ -107,11 +105,11 @@ export default function App() {
       </div>
       
       {/* Main Application Container */}
-      <div id="app-container" className="flex h-screen overflow-hidden text-slate-800 bg-slate-100">
+      <div id="app-container" className="flex h-screen overflow-hidden text-slate-800 bg-slate-50 font-sans selection:bg-amber-100">
         {/* Mobile Overlay */}
         {isSidebarOpen && (
           <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -119,25 +117,27 @@ export default function App() {
         {/* Sidebar */}
         <aside 
           className={`
-            fixed inset-y-0 left-0 z-40 bg-slate-900 text-white transition-all duration-300 ease-in-out shadow-xl flex flex-col
-            ${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
-            ${isCollapsed ? 'md:w-20' : 'md:w-64'}
+            fixed inset-y-0 left-0 z-40 bg-slate-900 text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
+            ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'}
+            ${isCollapsed ? 'md:w-20' : 'md:w-72'}
+            border-r border-slate-800
           `}
         >
-          <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} border-b border-slate-700 h-24 relative`}>
+          {/* Sidebar Header */}
+          <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} h-24 relative bg-slate-950/30`}>
             {!isCollapsed ? (
-              <div className="flex items-center justify-center w-full px-2 h-full">
+              <div className="flex items-center justify-center w-full px-2 h-full animate-in fade-in duration-300">
                 <img 
                   src={APP_LOGO} 
                   alt="Ilios Kosmima" 
-                  className="h-14 w-auto object-contain" 
+                  className="h-16 w-auto object-contain drop-shadow-lg" 
                   onError={(e) => {
                     const target = e.currentTarget;
                     target.style.display = 'none';
                     const parent = target.parentElement;
                     if (parent && !parent.querySelector('.app-title')) {
                       const title = document.createElement('div');
-                      title.className = 'app-title text-white font-bold text-center';
+                      title.className = 'app-title text-white font-bold text-center text-xl tracking-wider';
                       title.innerText = 'ILIOS KOSMIMA';
                       parent.appendChild(title);
                     }
@@ -145,17 +145,18 @@ export default function App() {
                 />
               </div>
             ) : (
-              <div className="w-10 h-10 flex items-center justify-center">
+              <div className="w-10 h-10 flex items-center justify-center animate-in zoom-in duration-300">
                 <img src={APP_ICON_ONLY} alt="Icon" className="w-full h-full object-contain" />
               </div>
             )}
             
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-4">
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-6 transition-colors">
               <X size={24} />
             </button>
           </div>
 
-          <nav className="flex-1 py-6 px-2 space-y-2 overflow-y-auto overflow-x-hidden">
+          {/* Navigation */}
+          <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
             <NavItem 
               icon={<LayoutDashboard size={22} />} 
               label="Πίνακας Ελέγχου" 
@@ -163,13 +164,22 @@ export default function App() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('dashboard')} 
             />
+            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
               icon={<Warehouse size={22} />} 
-              label="Αποθήκη / Προϊόντα" 
+              label="Αποθήκη" 
               isActive={activePage === 'inventory'} 
               isCollapsed={isCollapsed}
               onClick={() => handleNav('inventory')} 
             />
+            <NavItem 
+              icon={<PackagePlus size={22} />} 
+              label="Νέο Προϊόν" 
+              isActive={activePage === 'new-product'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('new-product')} 
+            />
+             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
               icon={<Gem size={22} />} 
               label="Υλικά" 
@@ -191,13 +201,7 @@ export default function App() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('collections')} 
             />
-            <NavItem 
-              icon={<PackagePlus size={22} />} 
-              label="Νέο Προϊόν" 
-              isActive={activePage === 'new-product'} 
-              isCollapsed={isCollapsed}
-              onClick={() => handleNav('new-product')} 
-            />
+            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
               icon={<DollarSign size={22} />} 
               label="Τιμολόγηση" 
@@ -212,7 +216,7 @@ export default function App() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('batch-print')} 
             />
-            <div className="pt-4 mt-4 border-t border-slate-700">
+            <div className="mt-auto pt-6">
               <NavItem 
                 icon={<SettingsIcon size={22} />} 
                 label="Ρυθμίσεις" 
@@ -224,39 +228,39 @@ export default function App() {
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-slate-700 bg-slate-900">
+          <div className="p-4 bg-slate-950/30">
             <button 
               onClick={toggleCollapse}
-              className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
             >
-              {isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 text-sm"><ChevronLeft size={16}/> <span>Σύμπτυξη</span></div>}
+              {isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider"><ChevronLeft size={16}/> <span>Σύμπτυξη</span></div>}
             </button>
             
             {!isCollapsed && (
-                <div className="mt-4 text-xs text-slate-500 text-center">
-                  <p>Ag925: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p>v1.5.0</p>
+                <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
+                  <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
+                  <p className="opacity-50 mt-1">v0.0.2-b</p>
                 </div>
             )}
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${isCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
+        <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 ${isCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
           
           {/* Mobile Header */}
-          <header className="md:hidden bg-white p-4 shadow-sm flex items-center justify-between z-30 sticky top-0">
-            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600">
+          <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200/60">
+            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
               <Menu size={24} />
             </button>
             <div className="h-8">
-                <img src={APP_LOGO} alt="Ilios Kosmima" className="h-full w-auto object-contain" />
+                <img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" />
             </div>
-            <div className="w-6"></div>
+            <div className="w-8"></div>
           </header>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative">
-            <div className="max-w-7xl mx-auto">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
+            <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'inventory' && <Inventory products={products} materials={materials} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
               {activePage === 'materials' && <MaterialsPage />}
@@ -279,18 +283,28 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
     onClick={onClick}
     title={isCollapsed ? label : ''}
     className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-3 py-3 rounded-lg transition-all duration-200 group relative
-      ${isActive ? 'bg-amber-500 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}
+      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
+      ${isActive 
+        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
+        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
     `}
   >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
       {icon}
     </div>
-    {!isCollapsed && <span className="font-medium truncate">{label}</span>}
+    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
     {isCollapsed && (
-      <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl">
+      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
         {label}
       </div>
     )}
   </button>
 );
+
+export default function App() {
+  return (
+    <UIProvider>
+      <AppContent />
+    </UIProvider>
+  );
+}

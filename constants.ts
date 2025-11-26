@@ -9,7 +9,6 @@ export const APP_ICON_ONLY = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='htt
 export const INITIAL_SETTINGS: GlobalSettings = {
   silver_price_gram: 0.82,
   loss_percentage: 10.0,
-  // FIX: Added missing properties to conform to GlobalSettings type
   barcode_width_mm: 50,
   barcode_height_mm: 30,
 };
@@ -41,14 +40,22 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'AX': 'Αχάτης',
   'TG': 'Μάτι Τίγρης',
   'QN': 'Όνυχας',
-  'TY': 'Τυρκουάζ'
+  'TY': 'Τυρκουάζ',
+  // New Additions
+  'BSU': 'Μαύρος Σουλεμάνης',
+  'GSU': 'Πράσινος Σουλεμάνης',
+  'RSU': 'Κόκκινος Σουλεμάνης',
+  'MA': 'Μαλαχίτης',
+  'FI': 'Φίλντισι',
+  'OP': 'Οπάλιο'
 };
 
 export const FINISH_CODES: Record<string, string> = {
   '': 'Λουστρέ (Γυαλιστερό)',
   'P': 'Πατίνα',
   'X': 'Επίχρυσο',
-  'D': 'Δίχρωμο' // Two-tone
+  'D': 'Δίχρωμο', // Two-tone
+  'H': 'Επιπλατινωμένο'
 };
 
 // Initial Mock Materials (Translated)

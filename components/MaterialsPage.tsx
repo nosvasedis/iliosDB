@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Material, MaterialType } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { useUI } from './UIProvider';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -14,10 +15,10 @@ const MAT_TYPE_MAP: Record<MaterialType, string> = {
 
 export default function MaterialsPage() {
   const queryClient = useQueryClient();
+  const { showToast, confirm } = useUI();
   const { data: materials, isLoading } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
 
   const [editableMaterials, setEditableMaterials] = useState<Material[]>([]);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (materials) {
@@ -32,9 +33,10 @@ export default function MaterialsPage() {
         });
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ['materials'] });
+        showToast('Το υλικό δημιουργήθηκε.', 'success');
     } catch(e) {
         console.error("Error creating material:", e);
-        alert("Σφάλμα κατά τη δημιουργία.");
+        showToast("Σφάλμα κατά τη δημιουργία.", 'error');
     }
   };
 
@@ -53,74 +55,117 @@ export default function MaterialsPage() {
 
           if (error) throw error;
           queryClient.invalidateQueries({ queryKey: ['materials'] });
-          alert("Επιτυχής αποθήκευση!");
+          showToast("Αποθηκεύτηκε επιτυχώς!", 'success');
       } catch(e) {
           console.error("Error saving material:", e);
-          alert("Σφάλμα αποθήκευσης.");
+          showToast("Σφάλμα αποθήκευσης.", 'error');
       }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteId) return;
+  const handleDelete = async (id: string) => {
+    const yes = await confirm({
+        title: 'Διαγραφή Υλικού',
+        message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το υλικό; Η ενέργεια δεν μπορεί να αναιρεθεί.',
+        isDestructive: true,
+        confirmText: 'Διαγραφή'
+    });
+    
+    if (!yes) return;
     
     try {
-        const { error } = await supabase.from('materials').delete().eq('id', deleteId);
+        const { error } = await supabase.from('materials').delete().eq('id', id);
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ['materials'] });
-        setDeleteId(null);
+        showToast("Το υλικό διαγράφηκε.", 'info');
     } catch(e) {
         console.error("Error deleting material:", e);
-        alert("Σφάλμα διαγραφής. Το υλικό μπορεί να χρησιμοποιείται σε συνταγές.");
+        showToast("Σφάλμα διαγραφής. Το υλικό μπορεί να χρησιμοποιείται σε συνταγές.", 'error');
     }
   };
 
-  if (isLoading) return <div className="flex justify-center items-center"><Loader2 className="animate-spin" /></div>;
+  if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 relative">
-      
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-red-600 mb-4"><div className="p-3 bg-red-100 rounded-full"><AlertTriangle size={24} /></div><h3 className="text-lg font-bold">Διαγραφή Υλικού</h3></div>
-            <p className="text-slate-600 mb-6">Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το υλικό; Η ενέργεια δεν μπορεί να αναιρεθεί.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteId(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Ακύρωση</button>
-              <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium">Διαγραφή</button>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+        <div>
+           <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
+               <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
+                    <Gem size={24} />
+               </div>
+               Διαχείριση Υλικών
+           </h1>
+           <p className="text-slate-500 mt-1 ml-14">Κατάλογος πρώτων υλών για κοστολόγηση.</p>
         </div>
-      )}
-
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Gem className="text-purple-600" />Διαχείριση Υλικών</h1>
-        <button onClick={handleAddMaterial} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 font-medium transition-colors"><Plus size={18} /> Νέο Υλικό</button>
+        <button onClick={handleAddMaterial} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-slate-800 font-bold transition-all hover:shadow-lg hover:-translate-y-0.5">
+            <Plus size={20} /> Νέο Υλικό
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs">
-              <tr><th className="p-4">Όνομα</th><th className="p-4">Τύπος</th><th className="p-4">Κόστος (€)</th><th className="p-4">Μονάδα</th><th className="p-4 text-center">Ενέργειες</th></tr>
+            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100">
+              <tr>
+                  <th className="p-5 w-16 text-center">#</th>
+                  <th className="p-5">Όνομα</th>
+                  <th className="p-5">Τύπος</th>
+                  <th className="p-5 text-right">Κόστος (€)</th>
+                  <th className="p-5 w-24 text-center">Μονάδα</th>
+                  <th className="p-5 text-center w-32">Ενέργειες</th>
+              </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {editableMaterials.map(m => (
-                <tr key={m.id} className="hover:bg-slate-50 group">
-                  <td className="p-3"><input type="text" value={m.name} onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 font-medium text-slate-800 outline-none transition-all"/></td>
-                  <td className="p-3">
-                    <select value={m.type} onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} className="bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 text-slate-600 outline-none w-full appearance-none">
-                        {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
-                    </select>
+            <tbody className="divide-y divide-slate-50">
+              {editableMaterials.map((m, idx) => (
+                <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
+                  <td className="p-4">
+                      <input 
+                        type="text" 
+                        value={m.name} 
+                        onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
+                        className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
+                      />
                   </td>
-                  <td className="p-3"><input type="number" step="0.001" value={m.cost_per_unit} onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} className="w-32 bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 text-right text-slate-900 font-mono outline-none"/></td>
-                  <td className="p-3 text-slate-500"><input type="text" value={m.unit} onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} className="w-20 bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-500 rounded p-2 text-center text-slate-600 outline-none"/></td>
-                  <td className="p-3 flex justify-center gap-2">
-                    <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση αλλαγών" className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"><Save size={18} /></button>
-                    <button onClick={() => setDeleteId(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={18} /></button>
+                  <td className="p-4">
+                    <div className="relative">
+                        <select 
+                            value={m.type} 
+                            onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 
+                            className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 text-slate-600 outline-none w-full appearance-none font-medium cursor-pointer"
+                        >
+                            {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
+                        </select>
+                    </div>
+                  </td>
+                  <td className="p-4 text-right">
+                      <input 
+                        type="number" 
+                        step="0.001" 
+                        value={m.cost_per_unit} 
+                        onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} 
+                        className="w-24 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 text-right text-slate-900 font-mono font-bold outline-none"
+                      />
+                  </td>
+                  <td className="p-4 text-center">
+                      <input 
+                        type="text" 
+                        value={m.unit} 
+                        onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} 
+                        className="w-16 bg-slate-100 rounded py-1 text-center text-slate-500 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                  </td>
+                  <td className="p-4">
+                    <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                        <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {materials && materials.length === 0 && (<tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">Δεν υπάρχουν υλικά. Προσθέστε το πρώτο σας υλικό.</td></tr>)}
+              {materials && materials.length === 0 && (
+                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν υπάρχουν υλικά. Προσθέστε το πρώτο σας υλικό.</span></td></tr>
+              )}
             </tbody>
           </table>
         </div>
