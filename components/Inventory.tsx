@@ -1,14 +1,10 @@
 
-
-
-
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
-import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
+import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface Props {
@@ -38,6 +34,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
   
   // Data Fetching
   const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
@@ -73,7 +70,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   // --- FLATTENED INVENTORY LOGIC ---
-  const flattenedInventory = useMemo(() => {
+  const rawInventory = useMemo(() => {
       if (!products) return [];
       
       const items: InventoryItem[] = [];
@@ -218,14 +215,54 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                }
           }
       });
-      
-      // Filter by search
-      return items.filter(i => 
-          i.masterSku.includes(searchTerm.toUpperCase()) || 
-          i.suffix.includes(searchTerm.toUpperCase()) ||
-          i.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-  }, [products, orders, searchTerm]);
+      return items;
+  }, [products, orders]);
+
+  // Apply Filters
+  const filteredInventory = useMemo(() => {
+    return rawInventory.filter(i => {
+      // 1. Warehouse Filter
+      if (viewWarehouseId !== 'ALL') {
+         const qtyInWh = i.locationStock[viewWarehouseId] || 0;
+         if (qtyInWh <= 0) return false;
+      }
+
+      // 2. Search Filter
+      const term = searchTerm.toUpperCase();
+      if (term) {
+        return i.masterSku.includes(term) || 
+               i.suffix.includes(term) ||
+               i.category.toLowerCase().includes(term.toLowerCase());
+      }
+      return true;
+    });
+  }, [rawInventory, viewWarehouseId, searchTerm]);
+
+  // --- ACTIONS ---
+
+  const handleDeleteItem = async (item: InventoryItem) => {
+      const confirmMsg = item.variantRef && !item.isSingleVariantMode
+        ? `Διαγραφή παραλλαγής ${item.masterSku}${item.suffix};`
+        : `Διαγραφή προϊόντος ${item.masterSku};`;
+
+      if (!await confirm({ title: 'Διαγραφή Αποθέματος', message: confirmMsg, isDestructive: true })) return;
+
+      try {
+          if (item.variantRef && !item.isSingleVariantMode) {
+             // Delete specific variant
+             const { error } = await supabase.from('product_variants').delete().match({ product_sku: item.masterSku, suffix: item.suffix });
+             if (error) throw error;
+          } else {
+             // Delete master product (Single variant mode or master item)
+             const res = await deleteProduct(item.masterSku, item.imageUrl);
+             if (!res.success) throw new Error(res.error);
+          }
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          showToast('Το στοιχείο διαγράφηκε.', 'success');
+      } catch (err: any) {
+          showToast(err.message || 'Σφάλμα διαγραφής', 'error');
+      }
+  };
 
   // --- SMART SCANNER LOGIC ---
   const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,21 +270,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       setScanInput(val);
       
       if (val.length > 0) {
-          // Search Priority: 
-          // 1. Exact Match in Flattened Inventory
-          // 2. Starts With
+          let match = rawInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
           
-          let match = flattenedInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
-          
-          // Fallback: Check raw products for "Single Variant" redirect
           if (!match) {
              const prod = products.find(p => p.sku.startsWith(val));
              if (prod) {
                  if (prod.variants && prod.variants.length === 1) {
-                     // AUTO-SUGGEST THE SINGLE VARIANT
                      setScanSuggestion(prod.sku + prod.variants[0].suffix);
                  } else if (prod.variants && prod.variants.length > 0) {
-                     // Try to match specific variant suffix
                      const vMatch = prod.variants.find(v => (prod.sku + v.suffix).startsWith(val));
                      if (vMatch) setScanSuggestion(prod.sku + vMatch.suffix);
                      else setScanSuggestion(prod.sku); 
@@ -278,7 +308,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   const executeQuickAdd = async () => {
       const targetCode = scanSuggestion || scanInput;
-      // Find the product
       const product = products.find(p => targetCode.startsWith(p.sku));
       
       if (!product) {
@@ -286,18 +315,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           return;
       }
       
-      // Determine Variant Logic
       let variantSuffix = targetCode.replace(product.sku, '');
       let variant = product.variants?.find(v => v.suffix === variantSuffix);
       
-      // SMART RULE: If product has EXACTLY ONE variant, always target that variant,
-      // even if the user only scanned the Master SKU.
       if (product.variants && product.variants.length === 1 && !variantSuffix) {
           variant = product.variants[0];
           variantSuffix = variant.suffix;
       }
 
-      // If user typed a specific suffix but it doesn't exist
       if (product.variants && product.variants.length > 0 && !variant && variantSuffix) {
            showToast(`Η παραλλαγή ${variantSuffix} δεν βρέθηκε.`, "error");
            return;
@@ -307,19 +332,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
           
           if (variant) {
-              // Update Variant Stock
                const currentStock = variant.location_stock?.[scanTargetId] || 0;
-               // If targeting Central, verify if we need to add to variant table or product table
-               // But usually variants store central stock in `stock_qty` column of `product_variants`
-               
                let newQty = 0;
 
                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
                    newQty = (variant.stock_qty || 0) + scanQty;
-                   // Update product_variants table
                    await supabase.from('product_variants').update({ stock_qty: newQty }).match({ product_sku: product.sku, suffix: variant.suffix });
                } else {
-                   // Custom Warehouse or Showroom for Variants
                    newQty = currentStock + scanQty;
                    await supabase.from('product_stock').upsert({ 
                       product_sku: product.sku, 
@@ -331,7 +350,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
 
           } else {
-              // Update Master Stock (Only if no single variant redirection happened)
               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
                   const newQty = product.stock_qty + scanQty;
                   await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
@@ -339,7 +357,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   const newQty = (product.sample_qty || 0) + scanQty;
                   await supabase.from('products').update({ sample_qty: newQty }).eq('sku', product.sku);
               } else {
-                  // Custom Warehouse
                   const currentStock = product.location_stock?.[scanTargetId] || 0;
                   const newQty = currentStock + scanQty;
                   await supabase.from('product_stock').upsert({ 
@@ -409,9 +426,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           const variantSuffix = transferItem.suffix;
           const sku = transferItem.masterSku;
 
-          // 1. Decrement Source
           const newSourceQty = currentSourceQty - transferQty;
-          // 2. Increment Target
           const currentTargetQty = transferItem.locationStock[targetId] || 0;
           const newTargetQty = currentTargetQty + transferQty;
 
@@ -422,7 +437,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                } else if (whId === SYSTEM_IDS.SHOWROOM && !variantSuffix) {
                    await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
                } else {
-                   // Custom Warehouse OR Showroom with Variant
                     await supabase.from('product_stock').upsert({ 
                       product_sku: sku, 
                       variant_suffix: variantSuffix || null,
@@ -537,21 +551,39 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   </div>
               </div>
 
-              {/* Search Filter */}
-              <div className="relative max-w-md">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                 <input 
-                   type="text" 
-                   placeholder="Φίλτρο λίστας (Κωδικός, Κατηγορία)..." 
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                   className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
-                 />
+              {/* Filters Bar */}
+              <div className="flex flex-col md:flex-row gap-4 mb-2">
+                 {/* Warehouse Filter */}
+                 <div className="w-full md:w-64 relative">
+                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                     <select 
+                         value={viewWarehouseId} 
+                         onChange={(e) => setViewWarehouseId(e.target.value)}
+                         className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-200 appearance-none font-medium cursor-pointer"
+                     >
+                         <option value="ALL">Όλες οι Αποθήκες</option>
+                         {warehouses?.map(w => (
+                             <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>
+                         ))}
+                     </select>
+                 </div>
+                 
+                 {/* Search Filter */}
+                 <div className="relative flex-1">
+                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                     <input 
+                       type="text" 
+                       placeholder="Φίλτρο λίστας (Κωδικός, Κατηγορία)..." 
+                       value={searchTerm}
+                       onChange={(e) => setSearchTerm(e.target.value)}
+                       className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
+                     />
+                 </div>
               </div>
 
               {/* Enhanced Flattened Stock Table/Cards */}
               <div className="grid grid-cols-1 gap-4">
-                  {flattenedInventory.map(item => {
+                  {filteredInventory.map(item => {
                       const hasDemand = item.demandQty > 0;
                       const inStock = item.totalStock > 0;
                       const canFulfill = inStock && item.totalStock >= item.demandQty;
@@ -581,11 +613,19 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">
                                    {Object.entries(item.locationStock).map(([whId, qty]) => {
                                        if (qty <= 0) return null;
+                                       // If filtering by warehouse, maybe visually emphasize the selected one, or just show all relevant.
                                        const whObj = warehouses?.find(w => w.id === whId);
                                        const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
+                                       const isSelected = viewWarehouseId === whId;
+                                       
+                                       // If filtered and this is NOT the selected warehouse, we could hide it or dim it?
+                                       // User request: "cannot know which products exist in which αποθήκη".
+                                       // Filtering the LIST solves this. The badges provide extra context.
+                                       // We'll keep showing all non-zero locations for context, maybe highlight selected.
+                                       
                                        return (
-                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
                                                <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 15)}</span>
                                                <span className="text-base">{qty}</span>
                                            </div>
@@ -609,20 +649,23 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
                               {/* Actions */}
                               <div className="flex items-center gap-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 mt-3 md:mt-0">
-                                  <button onClick={() => openTransfer(item)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm transition-colors">
+                                  <button onClick={() => openTransfer(item)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors">
                                       <ArrowLeftRight size={16}/> Μεταφορά
                                   </button>
                                   <button onClick={() => setSelectedProduct(item.product)} className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-slate-800 transition-colors">
                                       <Edit2 size={16}/>
                                   </button>
+                                  <button onClick={() => handleDeleteItem(item)} className="bg-red-50 text-red-600 p-2.5 rounded-xl hover:bg-red-100 transition-colors border border-red-100">
+                                      <Trash2 size={16}/>
+                                  </button>
                               </div>
                           </div>
                       );
                   })}
-                  {flattenedInventory.length === 0 && (
+                  {filteredInventory.length === 0 && (
                       <div className="text-center py-20 text-slate-400">
                           <Package size={48} className="mx-auto mb-4 opacity-20"/>
-                          <p className="font-medium">Δεν βρέθηκαν αποθέματα ή παραγγελίες.</p>
+                          <p className="font-medium">Δεν βρέθηκαν αποθέματα με αυτά τα κριτήρια.</p>
                       </div>
                   )}
               </div>
