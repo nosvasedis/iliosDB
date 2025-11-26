@@ -1,3 +1,5 @@
+
+
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -90,4 +92,71 @@ export interface GlobalSettings {
   loss_percentage: number;
   barcode_width_mm: number;
   barcode_height_mm: number;
+}
+
+// --- NEW ORDERS & PRODUCTION TYPES ---
+
+export enum OrderStatus {
+  Pending = 'Pending',
+  InProduction = 'In Production',
+  Ready = 'Ready',
+  Delivered = 'Delivered',
+  Cancelled = 'Cancelled'
+}
+
+export interface OrderItem {
+  sku: string;
+  variant_suffix?: string;
+  quantity: number;
+  price_at_order: number;
+  product_details?: Product; // Populated for UI
+}
+
+export interface Order {
+  id: string;
+  customer_id?: string; // Link to Customer
+  customer_name: string; // Fallback / Cache
+  customer_phone?: string;
+  created_at: string;
+  status: OrderStatus;
+  items: OrderItem[];
+  total_price: number;
+  notes?: string;
+}
+
+export interface Customer {
+  id: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  vat_number?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export enum ProductionStage {
+  Waxing = 'Waxing',       // Λάστιχα/Κεριά
+  Casting = 'Casting',     // Χυτήριο
+  Setting = 'Setting',     // Καρφωτής (Conditional)
+  Polishing = 'Polishing', // Τεχνίτης/Γυάλισμα
+  Labeling = 'Labeling',   // Καρτελάκια/QC
+  Ready = 'Ready'          // Έτοιμο για κατάστημα
+}
+
+export interface ProductionBatch {
+  id: string;
+  order_id?: string; // Optional (might be stock production)
+  sku: string;
+  variant_suffix?: string;
+  quantity: number;
+  current_stage: ProductionStage;
+  created_at: string;
+  updated_at: string;
+  priority: 'Normal' | 'High';
+  notes?: string;
+  
+  // Computed helpers for UI
+  product_image?: string;
+  requires_setting?: boolean; // Does it have stones?
 }

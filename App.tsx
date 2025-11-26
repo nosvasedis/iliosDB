@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -13,7 +15,10 @@ import {
   Gem,
   MapPin,
   FolderKanban,
-  Printer
+  Printer,
+  ShoppingCart,
+  Factory,
+  Users
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api } from './lib/supabase';
@@ -32,8 +37,11 @@ import MoldsPage from './components/MoldsPage';
 import CollectionsPage from './components/CollectionsPage';
 import BarcodeView from './components/BarcodeView';
 import BatchPrintPage from './components/BatchPrintPage';
+import OrdersPage from './components/OrdersPage';
+import ProductionPage from './components/ProductionPage';
+import CustomersPage from './components/CustomersPage';
 
-type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print';
+type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -166,6 +174,28 @@ function AppContent() {
             />
             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
+              icon={<ShoppingCart size={22} />} 
+              label="Παραγγελίες" 
+              isActive={activePage === 'orders'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('orders')} 
+            />
+            <NavItem 
+              icon={<Factory size={22} />} 
+              label="Παραγωγή" 
+              isActive={activePage === 'production'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('production')} 
+            />
+            <NavItem 
+              icon={<Users size={22} />} 
+              label="Πελάτες" 
+              isActive={activePage === 'customers'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('customers')} 
+            />
+            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            <NavItem 
               icon={<Warehouse size={22} />} 
               label="Αποθήκη" 
               isActive={activePage === 'inventory'} 
@@ -239,7 +269,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v0.0.2-b</p>
+                  <p className="opacity-50 mt-1">v0.0.4-b</p>
                 </div>
             )}
           </div>
@@ -263,6 +293,9 @@ function AppContent() {
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'inventory' && <Inventory products={products} materials={materials} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
+              {activePage === 'orders' && <OrdersPage products={products} />}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
+              {activePage === 'customers' && <CustomersPage />}
               {activePage === 'materials' && <MaterialsPage />}
               {activePage === 'molds' && <MoldsPage />}
               {activePage === 'collections' && <CollectionsPage />}

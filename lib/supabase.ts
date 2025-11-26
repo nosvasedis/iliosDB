@@ -1,5 +1,7 @@
+
+
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
@@ -258,5 +260,159 @@ export const api = {
             };
         });
         return assembledProducts;
+    },
+
+    // --- CUSTOMERS API ---
+    getCustomers: async (): Promise<Customer[]> => {
+        const { data, error } = await supabase.from('customers').select('*').order('full_name');
+        if (error) {
+            console.error("Error fetching customers:", error);
+            return [];
+        }
+        return data as Customer[];
+    },
+
+    saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
+        const { data, error } = await supabase
+            .from('customers')
+            .insert(customer)
+            .select()
+            .single();
+        
+        if (error) {
+            console.error("Error saving customer:", error);
+            throw error;
+        }
+        return data;
+    },
+
+    updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
+        const { error } = await supabase.from('customers').update(updates).eq('id', id);
+        if (error) throw error;
+    },
+
+    deleteCustomer: async (id: string): Promise<void> => {
+        // Warning: This might fail if orders exist unless we set ON DELETE SET NULL/CASCADE in SQL
+        const { error } = await supabase.from('customers').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    // --- ORDERS API ---
+    getOrders: async (): Promise<Order[]> => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error("Error fetching orders:", error);
+            return [];
+        }
+        return data as Order[];
+    },
+
+    saveOrder: async (order: Order): Promise<void> => {
+        const { error } = await supabase.from('orders').insert({
+            id: order.id,
+            customer_id: order.customer_id, // Link
+            customer_name: order.customer_name,
+            customer_phone: order.customer_phone,
+            status: order.status,
+            total_price: order.total_price,
+            items: order.items, // Stores as JSONB
+            created_at: order.created_at
+        });
+
+        if (error) {
+            console.error("Error saving order:", error);
+            throw error;
+        }
+    },
+    
+    updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
+        const { error } = await supabase
+            .from('orders')
+            .update({ status })
+            .eq('id', orderId);
+            
+        if (error) {
+            console.error("Error updating order status:", error);
+            throw error;
+        }
+    },
+
+    // --- PRODUCTION API ---
+    getProductionBatches: async (): Promise<ProductionBatch[]> => {
+        const { data, error } = await supabase
+            .from('production_batches')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error("Error fetching batches:", error);
+            return [];
+        }
+        return data as ProductionBatch[];
+    },
+
+    createProductionBatch: async (batch: ProductionBatch): Promise<void> => {
+        const { error } = await supabase.from('production_batches').insert({
+            id: batch.id,
+            order_id: batch.order_id,
+            sku: batch.sku,
+            variant_suffix: batch.variant_suffix,
+            quantity: batch.quantity,
+            current_stage: batch.current_stage,
+            priority: batch.priority,
+            created_at: batch.created_at,
+            updated_at: batch.updated_at
+        });
+
+        if (error) {
+            console.error("Error creating batch:", error);
+            throw error;
+        }
+    },
+
+    updateBatchStage: async (batchId: string, stage: ProductionStage): Promise<void> => {
+        // 1. Update the specific batch
+        const { data: updatedBatch, error } = await supabase
+            .from('production_batches')
+            .update({ current_stage: stage, updated_at: new Date().toISOString() })
+            .eq('id', batchId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error updating batch stage:", error);
+            throw error;
+        }
+
+        // 2. Sync Logic: If batch is linked to an order, check if the whole order is Ready
+        if (updatedBatch && updatedBatch.order_id && stage === ProductionStage.Ready) {
+            // Fetch all batches for this order
+            const { data: orderBatches } = await supabase
+                .from('production_batches')
+                .select('current_stage')
+                .eq('order_id', updatedBatch.order_id);
+
+            if (orderBatches) {
+                const allReady = orderBatches.every((b: any) => b.current_stage === ProductionStage.Ready);
+                if (allReady) {
+                    await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.Ready);
+                } else {
+                    // Ensure it is marked as In Production if not all ready (sanity check)
+                    await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.InProduction);
+                }
+            }
+        }
+    },
+    
+    deleteProductionBatch: async (batchId: string): Promise<void> => {
+        const { error } = await supabase.from('production_batches').delete().eq('id', batchId);
+        if (error) {
+             console.error("Error deleting batch:", error);
+             throw error;
+        }
     }
 };

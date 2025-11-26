@@ -30,7 +30,7 @@ export const useUI = () => {
   return context;
 };
 
-export const UIProvider = ({ children }: { children: ReactNode }) => {
+export const UIProvider = ({ children }: { children?: ReactNode }) => {
   // Toast State
   const [toasts, setToasts] = useState<Toast[]>([]);
   
