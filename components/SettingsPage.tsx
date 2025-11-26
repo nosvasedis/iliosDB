@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
 import { Save, TrendingUp, Loader2 } from 'lucide-react';
@@ -88,16 +89,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-slate-800">Ρυθμίσεις Συστήματος</h1>
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-slate-700">Γενικές Παράμετροι</h2>
-            <button 
-                onClick={handleSaveSettings} 
-                disabled={isSaving}
-                className="flex items-center gap-1 text-sm bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium disabled:opacity-50"
-            >
-                {isSaving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Αποθήκευση
-            </button>
-        </div>
+        <h2 className="text-lg font-semibold text-slate-700 mb-4">Γενικές Παράμετροι</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -156,6 +148,17 @@ export default function SettingsPage() {
         </div>
         <p className="text-xs text-slate-400 mt-2">Καθορίστε τις διαστάσεις για τις ετικέτες που εκτυπώνετε.</p>
       </div>
+      
+      <div className="flex justify-end pt-4">
+        <button 
+            onClick={handleSaveSettings} 
+            disabled={isSaving}
+            className="flex items-center gap-2 text-base bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 font-medium disabled:opacity-50 shadow-md"
+        >
+            {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} Αποθήκευση Όλων των Ρυθμίσεων
+        </button>
+      </div>
+
     </div>
   );
 }

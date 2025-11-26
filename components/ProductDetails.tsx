@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
@@ -13,7 +14,8 @@ import { useQueryClient } from '@tanstack/react-query';
 interface PrintModalProps {
     product: Product;
     onClose: () => void;
-    onPrint: (items: { product: Product, variant?: ProductVariant }[]) => void;
+    // FIX: Update onPrint to expect items with a `quantity` property.
+    onPrint: (items: { product: Product, variant?: ProductVariant, quantity: number }[]) => void;
 }
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
@@ -27,14 +29,13 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
     };
 
     const handlePrint = () => {
-        const itemsToPrint: { product: Product, variant?: ProductVariant }[] = [];
+        // FIX: Create an array of items with quantities, instead of a flattened array.
+        const itemsToPrint: { product: Product, variant?: ProductVariant, quantity: number }[] = [];
         for (const suffix in quantities) {
             const qty = quantities[suffix];
             if (qty > 0) {
                 const variant = suffix === '(Master)' ? undefined : product.variants?.find(v => v.suffix === suffix);
-                for (let i = 0; i < qty; i++) {
-                    itemsToPrint.push({ product, variant });
-                }
+                itemsToPrint.push({ product, variant, quantity: qty });
             }
         }
         if (itemsToPrint.length > 0) {
@@ -83,7 +84,8 @@ interface Props {
   allMaterials: Material[];
   onClose: () => void;
   onSave?: (updatedProduct: Product) => void;
-  setPrintItems: (items: { product: Product; variant?: ProductVariant }[]) => void;
+  // FIX: Update setPrintItems to expect items with a `quantity` property.
+  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
 }

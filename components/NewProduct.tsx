@@ -344,8 +344,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                                 <option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option>
                                 <option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option>
                                 <option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option>
-                                <option value={PlatingType.Platinum}>Πλατινωμένο (Platinum)</option>
-                                <option value={PlatingType.RoseGold}>Ροζ Χρυσό (Rose)</option>
+                                <option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option>
                             </select>
                             {detectedSuffix && <p className="text-[10px] text-amber-600 mt-1">*Επιλέχθηκε αυτόματα βάσει του SKU ({detectedSuffix}).</p>}
                         </div>

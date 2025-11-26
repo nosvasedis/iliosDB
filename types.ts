@@ -15,8 +15,7 @@ export enum PlatingType {
   None = 'None',
   GoldPlated = 'Gold-Plated',
   TwoTone = 'Two-Tone',
-  Platinum = 'Platinum',
-  RoseGold = 'Rose-Gold'
+  Platinum = 'Platinum'
 }
 
 export interface Material {

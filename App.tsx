@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -12,7 +13,8 @@ import {
   Loader2,
   Gem,
   MapPin,
-  FolderKanban
+  FolderKanban,
+  Printer
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api } from './lib/supabase';
@@ -29,14 +31,15 @@ import MaterialsPage from './components/MaterialsPage';
 import MoldsPage from './components/MoldsPage';
 import CollectionsPage from './components/CollectionsPage';
 import BarcodeView from './components/BarcodeView';
+import BatchPrintPage from './components/BatchPrintPage';
 
-type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections';
+type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant}[]>([]);
+  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number}[]>([]);
   const queryClient = useQueryClient();
 
   // --- React Query Data Fetching ---
@@ -81,15 +84,19 @@ export default function App() {
 
   // Safe fallback
   if (!settings || !products || !materials || !molds || !collections) return null;
+  
+  const flattenedPrintItems = printItems.flatMap(item => 
+      Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant }))
+  );
 
   return (
     <>
       {/* Print View (Hidden by default, outside the main app flow) */}
       <div className="print-view">
         <div className="print-area">
-          {printItems.map((item, index) => (
+          {flattenedPrintItems.map((item, index) => (
             <BarcodeView 
-              key={index} 
+              key={`${item.product.sku}-${item.variant?.suffix || 'master'}-${index}`}
               product={item.product} 
               variant={item.variant}
               width={settings.barcode_width_mm}
@@ -198,6 +205,13 @@ export default function App() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('pricing')} 
             />
+            <NavItem 
+              icon={<Printer size={22} />} 
+              label="Μαζική Εκτύπωση" 
+              isActive={activePage === 'batch-print'} 
+              isCollapsed={isCollapsed}
+              onClick={() => handleNav('batch-print')} 
+            />
             <div className="pt-4 mt-4 border-t border-slate-700">
               <NavItem 
                 icon={<SettingsIcon size={22} />} 
@@ -221,7 +235,7 @@ export default function App() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center">
                   <p>Ag925: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p>v1.4.0</p>
+                  <p>v1.5.0</p>
                 </div>
             )}
           </div>
@@ -250,6 +264,7 @@ export default function App() {
               {activePage === 'collections' && <CollectionsPage />}
               {activePage === 'new-product' && <NewProduct products={products} materials={materials} molds={molds} />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
+              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} />}
               {activePage === 'settings' && <SettingsPage />}
             </div>
           </div>

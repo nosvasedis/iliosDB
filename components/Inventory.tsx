@@ -1,12 +1,15 @@
+
 import React, { useState } from 'react';
-import { Product, Gender, Material, GlobalSettings, Collection } from '../types';
+// FIX: Import ProductVariant to use in prop types.
+import { Product, Gender, Material, GlobalSettings, Collection, ProductVariant } from '../types';
 import { Search, Filter, MapPin, Box } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 
 interface Props {
   products: Product[];
   materials?: Material[];
-  setPrintItems: (items: { product: Product; variant?: any }[]) => void;
+  // FIX: Updated setPrintItems prop to expect an array of items with a `quantity` property.
+  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
 }

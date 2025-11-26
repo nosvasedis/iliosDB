@@ -151,8 +151,7 @@ export const analyzeSku = (rawSku: string) => {
         'P': { plating: PlatingType.None, description: 'Πατίνα' },
         'X': { plating: PlatingType.GoldPlated, description: 'Επίχρυσο' },
         'D': { plating: PlatingType.TwoTone, description: 'Δίχρωμο' },
-        'R': { plating: PlatingType.RoseGold, description: 'Ροζ Χρυσό' },
-        'L': { plating: PlatingType.Platinum, description: 'Πλατινωμένο' } // L for Platinum/Lefko
+        'H': { plating: PlatingType.Platinum, description: 'Επιπλατινωμένο' }
     };
 
     // Check if SKU ends with any known suffix
