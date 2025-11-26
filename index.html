@@ -38,6 +38,11 @@
             gap: 0;
         }
 
+        .print-area > * {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
         @page {
           size: A4;
           margin: 10mm; 
@@ -63,7 +68,8 @@
     "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react,react-dom",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
     "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5?external=react,react-dom",
-    "appwrite": "https://esm.sh/appwrite@14.0.0"
+    "appwrite": "https://esm.sh/appwrite@14.0.0",
+    "jsbarcode": "https://esm.sh/jsbarcode@3.11.5"
   }
 }
 </script>
