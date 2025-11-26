@@ -1,5 +1,6 @@
 
 
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -345,14 +346,14 @@ export const api = {
                 console.warn("Warehouses table might not exist yet:", error);
                 return [
                     { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
-                    { id: SYSTEM_IDS.SHOWROOM, name: 'Samples', type: 'Showroom', is_system: true } // Default to Samples
+                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true } // Default to Δειγματολόγιο
                 ];
             }
             return data as Warehouse[];
         } catch (e) {
              return [
                 { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
-                { id: SYSTEM_IDS.SHOWROOM, name: 'Samples', type: 'Showroom', is_system: true }
+                { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
             ];
         }
     },

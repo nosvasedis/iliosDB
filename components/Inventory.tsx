@@ -1,10 +1,10 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
-import { Search, Filter, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, RefreshCw, ArrowRight, ArrowDown, ShoppingBag, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
-import { api, SYSTEM_IDS } from '../lib/supabase';
+import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface Props {
@@ -38,21 +38,17 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [transferQty, setTransferQty] = useState(1);
   const [isTransferring, setIsTransferring] = useState(false);
 
-  // Helper to display warehouse types nicely
-  const getWarehouseTypeLabel = (type: string, id?: string) => {
-      if (id === SYSTEM_IDS.SHOWROOM) return 'Samples'; 
-      switch (type) {
-          case 'Central': return 'Κεντρική Διάθεση';
-          case 'Showroom': return 'Samples';
-          case 'Store': return 'Κατάστημα';
-          case 'Warehouse': return 'Αποθήκη';
-          default: return type;
-      }
-  };
+  // --- SMART SCANNER STATE ---
+  const [scanSku, setScanSku] = useState('');
+  const [scanSuggestion, setScanSuggestion] = useState('');
+  const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
+  const [scanQty, setScanQty] = useState(1);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to get warehouse name (overriding system default if needed)
-  const getWarehouseName = (w: Warehouse) => {
-      if (w.id === SYSTEM_IDS.SHOWROOM && (w.name === 'Showroom' || w.name === 'Δειγματολόγιο')) return 'Samples';
+  // Helper to display warehouse types nicely
+  const getWarehouseNameClean = (w: Warehouse) => {
+      if (w.id === SYSTEM_IDS.CENTRAL) return 'Κεντρική Αποθήκη';
+      if (w.id === SYSTEM_IDS.SHOWROOM || w.type === 'Showroom' || w.name === 'Showroom') return 'Δειγματολόγιο';
       return w.name;
   };
 
@@ -62,7 +58,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
       const pendingOrders = orders.filter(o => o.status === OrderStatus.Pending);
       
-      // Map required SKUs from pending orders
       const demandMap: Record<string, { qty: number, orderIds: string[] }> = {};
       
       pendingOrders.forEach(o => {
@@ -77,11 +72,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           });
       });
 
-      // Filter products: Must have stock somewhere OR be in demand
       return products.map(p => {
-          const totalStock = p.stock_qty + (p.sample_qty || 0) + Object.values(p.location_stock || {}).reduce((a,b) => a+b, 0) - p.stock_qty - (p.sample_qty||0); 
           const realTotalStock = Object.values(p.location_stock || {}).reduce((acc, val) => acc + val, 0);
-
           const demand = demandMap[p.sku];
           
           return {
@@ -94,6 +86,82 @@ export default function Inventory({ products, setPrintItems, settings, collectio
         .filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
   }, [products, orders, searchTerm]);
+
+  // --- SMART SCANNER LOGIC ---
+  const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.toUpperCase();
+      setScanSku(val);
+      
+      if (val.length > 0) {
+          // Find first matching SKU that starts with input
+          const match = products.find(p => p.sku.startsWith(val));
+          if (match) {
+              setScanSuggestion(match.sku);
+          } else {
+              setScanSuggestion('');
+          }
+      } else {
+          setScanSuggestion('');
+      }
+  };
+
+  const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Autocomplete on Right Arrow
+      if (e.key === 'ArrowRight' && scanSuggestion) {
+          e.preventDefault();
+          setScanSku(scanSuggestion);
+      }
+      // Submit on Enter
+      if (e.key === 'Enter') {
+          e.preventDefault();
+          executeQuickAdd();
+      }
+  };
+
+  const executeQuickAdd = async () => {
+      const targetSku = scanSuggestion || scanSku;
+      const product = products.find(p => p.sku === targetSku);
+      
+      if (!product) {
+          showToast(`Ο κωδικός ${targetSku} δεν βρέθηκε.`, "error");
+          return;
+      }
+      
+      try {
+          const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
+          
+          if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+              const newQty = product.stock_qty + scanQty;
+              await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
+          } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) {
+              const newQty = (product.sample_qty || 0) + scanQty;
+              await supabase.from('products').update({ sample_qty: newQty }).eq('sku', product.sku);
+          } else {
+              // Custom Warehouse
+              const currentStock = product.location_stock?.[scanTargetId] || 0;
+              const newQty = currentStock + scanQty;
+              await supabase.from('product_stock').upsert({ 
+                  product_sku: product.sku, 
+                  warehouse_id: scanTargetId, 
+                  quantity: newQty 
+              });
+          }
+
+          await recordStockMovement(product.sku, scanQty, `Quick Add: ${whName}`);
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          
+          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${product.sku}`, "success");
+          
+          // Reset but keep focus
+          setScanSku('');
+          setScanSuggestion('');
+          setScanQty(1);
+          inputRef.current?.focus();
+
+      } catch (err) {
+          showToast("Σφάλμα ενημέρωσης.", "error");
+      }
+  };
 
   // --- WAREHOUSE ACTIONS ---
   const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); };
@@ -171,13 +239,80 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       </div>
 
       {activeTab === 'stock' && (
-          <div className="space-y-4 animate-in slide-in-from-bottom-2">
-              {/* Search */}
+          <div className="space-y-6 animate-in slide-in-from-bottom-2">
+              
+              {/* --- SMART SCANNER BAR --- */}
+              <div className="bg-slate-900 p-5 rounded-2xl shadow-lg flex flex-col lg:flex-row items-center gap-4 border border-slate-800">
+                  <div className="flex items-center gap-2 text-white/80 font-bold shrink-0">
+                      <ScanBarcode size={24} className="text-amber-400" /> 
+                      <span className="uppercase tracking-wider text-sm">Γρήγορη Εισαγωγή</span>
+                  </div>
+                  
+                  <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-12 gap-3">
+                      {/* Target Warehouse Selector */}
+                      <div className="md:col-span-3">
+                          <select 
+                            value={scanTargetId} 
+                            onChange={(e) => setScanTargetId(e.target.value)}
+                            className="w-full bg-slate-800 text-white font-bold p-3 rounded-xl border border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+                          >
+                             {warehouses?.map(w => (
+                                 <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>
+                             ))}
+                          </select>
+                      </div>
+
+                      {/* Smart Input */}
+                      <div className="md:col-span-6 relative">
+                          {/* Ghost Text */}
+                          <div className="absolute inset-0 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center">
+                              <span className="text-transparent">{scanSku}</span>
+                              <span className="text-slate-600">
+                                  {scanSuggestion.startsWith(scanSku) ? scanSuggestion.substring(scanSku.length) : ''}
+                              </span>
+                          </div>
+                          
+                          <input 
+                              ref={inputRef}
+                              type="text" 
+                              value={scanSku}
+                              onChange={handleScanInput}
+                              onKeyDown={handleScanKeyDown}
+                              placeholder="Πληκτρολογήστε Κωδικό (π.χ. XR...)"
+                              className="w-full p-3 bg-white text-slate-900 font-mono text-lg font-bold rounded-xl outline-none focus:ring-4 focus:ring-amber-500/50 uppercase tracking-wider placeholder-slate-400"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
+                             {scanSuggestion && scanSku !== scanSuggestion && (
+                                 <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">Right Arrow ➜</span>
+                             )}
+                          </div>
+                      </div>
+
+                      {/* Quantity & Button */}
+                      <div className="md:col-span-3 flex gap-2">
+                          <input 
+                              type="number" 
+                              min="1" 
+                              value={scanQty} 
+                              onChange={(e) => setScanQty(parseInt(e.target.value) || 1)}
+                              className="w-20 p-3 text-center font-bold rounded-xl outline-none bg-slate-800 text-white border border-slate-700 focus:ring-2 focus:ring-amber-500"
+                          />
+                          <button 
+                             onClick={executeQuickAdd}
+                             className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-900/20"
+                          >
+                              <Plus size={20} /> Προσθήκη
+                          </button>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Search Filter */}
               <div className="relative max-w-md">
                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                  <input 
                    type="text" 
-                   placeholder="Αναζήτηση σε στοκ..." 
+                   placeholder="Φίλτρο λίστας..." 
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
                    className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
@@ -214,11 +349,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                    {Object.entries(product.location_stock || {}).map(([whId, qty]) => {
                                        if (qty <= 0) return null;
                                        const whObj = warehouses?.find(w => w.id === whId);
-                                       const whName = whObj ? getWarehouseName(whObj) : 'Unknown';
+                                       const whName = whObj ? getWarehouseNameClean(whObj) : 'Unknown';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
                                        return (
                                            <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
-                                               <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 8)}..</span>
+                                               <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 10)}</span>
                                                <span className="text-base">{qty}</span>
                                            </div>
                                        );
@@ -263,10 +398,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       {activeTab === 'warehouses' && (
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-right duration-300">
                {warehouses?.map(wh => (
-                   <div key={wh.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform">
-                       <div className="flex justify-between items-start mb-4">
-                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${wh.is_system ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
-                               <Store size={24} />
+                   <div key={wh.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform">
+                       <div className="flex justify-between items-start mb-6">
+                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wh.is_system ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'} shadow-lg`}>
+                               <Store size={28} />
                            </div>
                            {!wh.is_system && (
                                <div className="flex gap-2">
@@ -275,17 +410,19 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                </div>
                            )}
                        </div>
-                       <h3 className="text-xl font-bold text-slate-800">{getWarehouseName(wh)}</h3>
-                       <p className="text-slate-500 text-sm mt-1">{getWarehouseTypeLabel(wh.type, wh.id)}</p>
                        
-                       {/* Only show ID for non-system warehouses */}
+                       <h3 className="text-2xl font-black text-slate-800 tracking-tight">{getWarehouseNameClean(wh)}</h3>
+                       
+                       {/* Simplified: Removed subtitle as requested, just showing ID if custom */}
                        {!wh.is_system && (
-                           <div className="mt-4 text-xs font-mono text-slate-400">{wh.id.split('-')[0]}...</div>
+                           <div className="mt-2 text-xs font-mono text-slate-400 bg-slate-50 inline-block px-2 py-1 rounded">ID: {wh.id.split('-')[0]}</div>
                        )}
                    </div>
                ))}
-               <button onClick={handleCreateWarehouse} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-400 hover:border-slate-300 hover:bg-slate-50 transition-all min-h-[200px]">
-                   <Plus size={32} className="mb-2"/>
+               <button onClick={handleCreateWarehouse} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-400 hover:border-slate-300 hover:bg-slate-50 transition-all min-h-[200px] group">
+                   <div className="w-16 h-16 rounded-full bg-slate-50 group-hover:bg-white flex items-center justify-center mb-4 transition-colors">
+                       <Plus size={32} className="text-slate-300 group-hover:text-slate-500"/>
+                   </div>
                    <span className="font-bold">Νέος Χώρος</span>
                </button>
            </div>
@@ -302,7 +439,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   <div className="space-y-4">
                       <input className="w-full p-3 border rounded-xl" value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} placeholder="Όνομασία"/>
                       <select className="w-full p-3 border rounded-xl bg-white" value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})}>
-                          <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Samples</option>
+                          <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Δειγματολόγιο</option>
                       </select>
                       <button onClick={saveWarehouse} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800">Αποθήκευση</button>
                   </div>
@@ -322,9 +459,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   </div>
                   <div className="p-8 space-y-6">
                       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{getWarehouseName(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{getWarehouseNameClean(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
                           <ArrowRight className="text-slate-300 hidden md:block" />
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{getWarehouseName(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{getWarehouseNameClean(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-between">
                           <span className="font-bold text-slate-600">Ποσότητα</span>
