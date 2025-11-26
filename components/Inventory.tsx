@@ -198,8 +198,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               const displayStock = { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: p.stock_qty, [SYSTEM_IDS.SHOWROOM]: p.sample_qty };
 
               // Always show if it exists, or if demand exists
-              // (Or if we want to show all products, remove the check. Keeping check for cleaner view)
-               if (totalStock >= 0 || demand > 0) {
+              // Changed >= 0 to > 0 to hide cleared items per user request
+               if (totalStock > 0 || demand > 0) {
                   items.push({
                       id: p.sku,
                       masterSku: p.sku,
@@ -241,26 +241,86 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   // --- ACTIONS ---
 
   const handleDeleteItem = async (item: InventoryItem) => {
-      const confirmMsg = item.variantRef && !item.isSingleVariantMode
-        ? `Διαγραφή παραλλαγής ${item.masterSku}${item.suffix};`
-        : `Διαγραφή προϊόντος ${item.masterSku};`;
+      // Determine scope based on current view
+      const isSpecificView = viewWarehouseId !== 'ALL';
+      const warehouseName = warehouses?.find(w => w.id === viewWarehouseId)?.name;
+      
+      const title = isSpecificView 
+        ? 'Αφαίρεση από Αποθήκη' 
+        : 'Μηδενισμός Αποθέματος';
+        
+      const message = isSpecificView
+        ? `Θέλετε να μηδενίσετε το απόθεμα για το "${item.masterSku}${item.suffix ? '-'+item.suffix : ''}" στον χώρο "${warehouseName}"; Ο κωδικός SKU θα παραμείνει στο Μητρώο.`
+        : `ΠΡΟΣΟΧΗ: Θα μηδενιστεί το απόθεμα σε ΟΛΕΣ τις αποθήκες για το ${item.masterSku}${item.suffix ? '-'+item.suffix : ''}. Ο κωδικός SKU θα παραμείνει στο Μητρώο.`;
 
-      if (!await confirm({ title: 'Διαγραφή Αποθέματος', message: confirmMsg, isDestructive: true })) return;
+      if (!await confirm({ title, message, isDestructive: true, confirmText: 'Εκκαθάριση' })) return;
 
       try {
-          if (item.variantRef && !item.isSingleVariantMode) {
-             // Delete specific variant
-             const { error } = await supabase.from('product_variants').delete().match({ product_sku: item.masterSku, suffix: item.suffix });
-             if (error) throw error;
+          const sku = item.masterSku;
+          const suffix = item.suffix;
+
+          // Helper to clear custom stock
+          const clearCustomStock = async (whId?: string) => {
+              let query = supabase.from('product_stock').delete().eq('product_sku', sku);
+              if (suffix) query = query.eq('variant_suffix', suffix);
+              else query = query.is('variant_suffix', null);
+              
+              if (whId) query = query.eq('warehouse_id', whId);
+              
+              await query;
+          };
+
+          if (isSpecificView) {
+              // --- SINGLE WAREHOUSE CLEAR ---
+              let movementAmount = 0;
+
+              if (viewWarehouseId === SYSTEM_IDS.CENTRAL) {
+                  movementAmount = item.locationStock[SYSTEM_IDS.CENTRAL] || 0;
+                  if (suffix && !item.isSingleVariantMode) {
+                      await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                  } else {
+                      await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+                  }
+              } else if (viewWarehouseId === SYSTEM_IDS.SHOWROOM) {
+                   // Showroom is generally on Master Product level in this schema
+                   movementAmount = item.locationStock[SYSTEM_IDS.SHOWROOM] || 0;
+                   await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
+              } else {
+                   movementAmount = item.locationStock[viewWarehouseId] || 0;
+                   await clearCustomStock(viewWarehouseId);
+              }
+              
+              if (movementAmount > 0) {
+                  await recordStockMovement(sku, -movementAmount, `Εκκαθάριση: ${warehouseName}`, suffix);
+              }
+
           } else {
-             // Delete master product (Single variant mode or master item)
-             const res = await deleteProduct(item.masterSku, item.imageUrl);
-             if (!res.success) throw new Error(res.error);
+              // --- GLOBAL CLEAR (ALL WAREHOUSES) ---
+              
+              // 1. Clear Central
+              if (suffix && !item.isSingleVariantMode) {
+                  await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+              } else {
+                  await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+              }
+
+              // 2. Clear Showroom (Only on master usually, but let's be safe)
+              if (!suffix || item.isSingleVariantMode) {
+                 await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
+              }
+
+              // 3. Clear All Custom Stocks
+              await clearCustomStock();
+              
+              if (item.totalStock > 0) {
+                await recordStockMovement(sku, -item.totalStock, 'Μαζική Εκκαθάριση', suffix);
+              }
           }
+
           queryClient.invalidateQueries({ queryKey: ['products'] });
-          showToast('Το στοιχείο διαγράφηκε.', 'success');
+          showToast('Το απόθεμα μηδενίστηκε.', 'success');
       } catch (err: any) {
-          showToast(err.message || 'Σφάλμα διαγραφής', 'error');
+          showToast(err.message || 'Σφάλμα ενημέρωσης', 'error');
       }
   };
 
@@ -618,11 +678,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                        const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
                                        const isSelected = viewWarehouseId === whId;
-                                       
-                                       // If filtered and this is NOT the selected warehouse, we could hide it or dim it?
-                                       // User request: "cannot know which products exist in which αποθήκη".
-                                       // Filtering the LIST solves this. The badges provide extra context.
-                                       // We'll keep showing all non-zero locations for context, maybe highlight selected.
                                        
                                        return (
                                            <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
