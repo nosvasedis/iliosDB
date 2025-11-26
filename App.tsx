@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -22,10 +21,13 @@ import {
   Sparkles
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
-import { api } from './lib/supabase';
+import { api, isConfigured } from './lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Product, ProductVariant } from './types';
 import { UIProvider } from './components/UIProvider';
+import { AuthProvider, useAuth } from './components/AuthContext';
+import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
+import SetupScreen from './components/SetupScreen';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -45,14 +47,39 @@ import AiStudio from './components/AiStudio';
 
 type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
+// --- AUTH GUARD COMPONENT ---
+function AuthGuard({ children }: { children?: React.ReactNode }) {
+    const { session, loading, profile, signOut } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+                <Loader2 size={40} className="animate-spin text-amber-500" />
+            </div>
+        );
+    }
+
+    if (!session) {
+        return <AuthScreen />;
+    }
+
+    // Check approval status
+    if (profile && !profile.is_approved) {
+        return <PendingApprovalScreen onLogout={signOut} />;
+    }
+
+    return <>{children}</>;
+}
+
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number}[]>([]);
-  const queryClient = useQueryClient();
-
+  const { signOut, profile } = useAuth();
+  
   // --- React Query Data Fetching ---
+  // Only runs if AuthGuard passes
   const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -167,6 +194,19 @@ function AppContent() {
 
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            {/* User Profile Snippet */}
+            <div className={`mb-6 px-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-500 flex items-center justify-center text-white font-bold shadow-lg">
+                    {profile?.full_name?.charAt(0) || 'U'}
+                </div>
+                {!isCollapsed && (
+                    <div className="overflow-hidden">
+                        <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
+                        <button onClick={signOut} className="text-xs text-slate-400 hover:text-white transition-colors">Αποσύνδεση</button>
+                    </div>
+                )}
+            </div>
+
             <NavItem 
               icon={<LayoutDashboard size={22} />} 
               label="Πίνακας Ελέγχου" 
@@ -296,7 +336,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v0.0.5 (AI Enabled)</p>
+                  <p className="opacity-50 mt-1">v1.0.0 (Secure)</p>
                 </div>
             )}
           </div>
@@ -363,9 +403,17 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
 );
 
 export default function App() {
+  if (!isConfigured) {
+      return <SetupScreen />;
+  }
+
   return (
     <UIProvider>
-      <AppContent />
+      <AuthProvider>
+        <AuthGuard>
+          <AppContent />
+        </AuthGuard>
+      </AuthProvider>
     </UIProvider>
   );
 }

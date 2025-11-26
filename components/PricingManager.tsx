@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material } from '../types';
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent } from 'lucide-react';
@@ -45,16 +46,12 @@ export default function PricingManager({ products, settings, materials }: Props)
         showToast("Το νέο κόστος υπολογίστηκε βάσει τιμής ασημιού.", 'info');
     } else {
         // Recalculate SELLING PRICE based on Markup %
-        if (markupPercent === 0) {
-            showToast("Εισάγετε ποσοστό αναπροσαρμογής.", 'error');
-            return;
-        }
+        // We use draft_price to store the NEW TARGET selling price
         const multiplier = 1 + (markupPercent / 100);
         updatedProducts = products.map(p => {
-             // If selling price is 0, we can't markup, unless we base it on cost? 
-             // Requirement: Raise all prices. Assume based on existing selling price.
+             // Calculate new selling price based on CURRENT selling price
              const newSelling = p.selling_price * multiplier;
-             return { ...p, draft_price: parseFloat(newSelling.toFixed(2)) }; // We hijack draft_price to store new Selling Price for preview
+             return { ...p, draft_price: parseFloat(newSelling.toFixed(2)) }; 
         });
         showToast(`Υπολογίστηκε νέα τιμή πώλησης (${markupPercent > 0 ? '+' : ''}${markupPercent}%).`, 'info');
     }
@@ -78,26 +75,24 @@ export default function PricingManager({ products, settings, materials }: Props)
     setIsCommitting(true);
     
     try {
-        const updates = previewProducts.map(p => {
+        // BATCH UPDATE using Promise.all
+        // We use UPDATE instead of UPSERT to avoid "null value in column prefix" errors.
+        // We are strictly modifying existing rows.
+        const promises = previewProducts.map(p => {
+            const updates: any = {};
+            
             if (mode === 'cost') {
-                return {
-                    sku: p.sku,
-                    active_price: p.draft_price,
-                    draft_price: p.draft_price
-                };
+                updates.active_price = p.draft_price;
+                updates.draft_price = p.draft_price; // Sync draft
             } else {
-                return {
-                    sku: p.sku,
-                    selling_price: p.draft_price // In 'selling' mode, draft_price holds the new Selling Price
-                };
+                // In selling mode, 'draft_price' holds our calculated Selling Price
+                updates.selling_price = p.draft_price;
             }
+            
+            return supabase.from('products').update(updates).eq('sku', p.sku);
         });
 
-        // Batch update using upsert. 
-        // Note: Upsert needs all required fields if creating, but we are updating existing SKUs.
-        // Supabase upsert updates rows with matching Primary Key (sku).
-        const { error } = await supabase.from('products').upsert(updates);
-        if (error) throw error;
+        await Promise.all(promises);
         
         queryClient.invalidateQueries({ queryKey: ['products'] });
         setIsCalculated(false);
@@ -111,7 +106,12 @@ export default function PricingManager({ products, settings, materials }: Props)
     }
   };
 
-  const productsToList = isCalculated ? previewProducts : products;
+  // If we haven't calculated yet, we show the original products list
+  // IMPORTANT: For the table, if not calculated, we map draft_price to current price so diff is 0
+  const productsToList = isCalculated ? previewProducts : products.map(p => ({
+      ...p,
+      draft_price: mode === 'cost' ? p.active_price : p.selling_price
+  }));
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto h-[calc(100vh-100px)] flex flex-col">
@@ -176,7 +176,7 @@ export default function PricingManager({ products, settings, materials }: Props)
              </button>
           ) : (
             <div className="flex gap-3">
-                <button onClick={() => setIsCalculated(false)} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">
+                <button onClick={() => { setIsCalculated(false); setPreviewProducts([]); }} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">
                     Ακύρωση
                 </button>
                 <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
@@ -228,17 +228,22 @@ export default function PricingManager({ products, settings, materials }: Props)
 
                   if (mode === 'cost') {
                       oldVal = p.active_price;
-                      newVal = p.draft_price; // draft_price is New Cost
+                      newVal = p.draft_price; // draft_price is either active (if not calc) or new calc
+                      
                       const profit = p.selling_price - newVal;
                       margin = p.selling_price > 0 ? (profit / p.selling_price) * 100 : 0;
                   } else {
                       oldVal = p.selling_price;
-                      newVal = p.draft_price; // draft_price is New Selling Price here
+                      newVal = p.draft_price; // draft_price is either selling (if not calc) or new calc
+                      
                       const profit = newVal - p.active_price;
                       margin = newVal > 0 ? (profit / newVal) * 100 : 0;
                   }
 
                   const diff = newVal - oldVal;
+                  
+                  // Only show rows with changes if we are in calculated mode? 
+                  // No, show all, but highlight changes.
                   
                   return (
                     <tr key={p.sku} className="hover:bg-slate-50/80 transition-colors">
@@ -246,8 +251,8 @@ export default function PricingManager({ products, settings, materials }: Props)
                       <td className="p-4 text-right text-slate-500 font-mono">{oldVal.toFixed(2)}€</td>
                       <td className="p-4 text-center text-slate-300"><ArrowRight size={14}/></td>
                       <td className="p-4 text-right font-black font-mono text-slate-800">{newVal.toFixed(2)}€</td>
-                      <td className={`p-4 text-right font-bold ${diff > 0 ? (mode === 'cost' ? 'text-rose-500' : 'text-emerald-500') : (mode === 'cost' ? 'text-emerald-500' : 'text-rose-500')}`}>
-                          {diff > 0 ? '+' : ''}{diff.toFixed(2)}€
+                      <td className={`p-4 text-right font-bold ${Math.abs(diff) > 0.001 ? (diff > 0 ? (mode === 'cost' ? 'text-rose-500' : 'text-emerald-500') : (mode === 'cost' ? 'text-emerald-500' : 'text-rose-500')) : 'text-slate-300'}`}>
+                          {Math.abs(diff) > 0.001 ? `${diff > 0 ? '+' : ''}${diff.toFixed(2)}€` : '-'}
                       </td>
                       {mode === 'cost' && <td className="p-4 text-right text-slate-800 font-bold">{p.selling_price.toFixed(2)}€</td>}
                       <td className={`p-4 pr-6 text-right font-black ${margin < 30 ? 'text-rose-500' : 'text-emerald-600'}`}>{margin.toFixed(1)}%</td>

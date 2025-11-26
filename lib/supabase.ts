@@ -6,14 +6,42 @@ import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
 export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
-export const AUTH_KEY_SECRET = '2112Aris101!';
-// --- END CONFIGURATION ---
 
-// Credentials provided by user
-const SUPABASE_URL = 'https://mtwkkzwveuskdcjkaiag.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_wCP1B81ATC-jjMx99mq14A_3J18p_dO';
+// --- SECURE INITIALIZATION STRATEGY ---
+// 1. Try Environment Variables (Production / Local Dev)
+// 2. Try Local Storage (Browser Preview / No-Env environments)
+const getEnv = (key: string) => {
+    // @ts-ignore
+    return import.meta.env?.[key] || localStorage.getItem(key) || '';
+};
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
+const SUPABASE_KEY = getEnv('VITE_SUPABASE_ANON_KEY');
+export const AUTH_KEY_SECRET = getEnv('VITE_WORKER_AUTH_KEY');
+
+export const isConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
+
+// Initialize with real keys or valid-looking placeholders to prevent crash on startup
+// If isConfigured is false, the UI will block access anyway via SetupScreen.
+export const supabase = createClient(
+    SUPABASE_URL || 'https://placeholder.supabase.co', 
+    SUPABASE_KEY || 'placeholder'
+);
+
+export const saveConfiguration = (url: string, key: string, workerKey: string) => {
+    localStorage.setItem('VITE_SUPABASE_URL', url);
+    localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
+    localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
+    window.location.reload();
+};
+
+export const clearConfiguration = () => {
+    localStorage.removeItem('VITE_SUPABASE_URL');
+    localStorage.removeItem('VITE_SUPABASE_ANON_KEY');
+    localStorage.removeItem('VITE_WORKER_AUTH_KEY');
+    window.location.reload();
+};
+
 
 // System Warehouse IDs (Must match SQL Insert)
 export const SYSTEM_IDS = {
