@@ -38,6 +38,24 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [transferQty, setTransferQty] = useState(1);
   const [isTransferring, setIsTransferring] = useState(false);
 
+  // Helper to display warehouse types nicely
+  const getWarehouseTypeLabel = (type: string, id?: string) => {
+      if (id === SYSTEM_IDS.SHOWROOM) return 'Samples'; 
+      switch (type) {
+          case 'Central': return 'Κεντρική Διάθεση';
+          case 'Showroom': return 'Samples';
+          case 'Store': return 'Κατάστημα';
+          case 'Warehouse': return 'Αποθήκη';
+          default: return type;
+      }
+  };
+
+  // Helper to get warehouse name (overriding system default if needed)
+  const getWarehouseName = (w: Warehouse) => {
+      if (w.id === SYSTEM_IDS.SHOWROOM && (w.name === 'Showroom' || w.name === 'Δειγματολόγιο')) return 'Samples';
+      return w.name;
+  };
+
   // --- LOGIC: Compute Demand & Stock Status ---
   const productsWithStockOrDemand = useMemo(() => {
       if (!orders) return [];
@@ -61,8 +79,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
       // Filter products: Must have stock somewhere OR be in demand
       return products.map(p => {
-          const totalStock = p.stock_qty + (p.sample_qty || 0) + Object.values(p.location_stock || {}).reduce((a,b) => a+b, 0) - p.stock_qty - (p.sample_qty||0); // Simplified: re-summing from unified map is better, but this works based on `getProducts` logic
-          // Note: `location_stock` in `getProducts` includes central and sample.
+          const totalStock = p.stock_qty + (p.sample_qty || 0) + Object.values(p.location_stock || {}).reduce((a,b) => a+b, 0) - p.stock_qty - (p.sample_qty||0); 
           const realTotalStock = Object.values(p.location_stock || {}).reduce((acc, val) => acc + val, 0);
 
           const demand = demandMap[p.sku];
@@ -196,7 +213,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2">
                                    {Object.entries(product.location_stock || {}).map(([whId, qty]) => {
                                        if (qty <= 0) return null;
-                                       const whName = warehouses?.find(w => w.id === whId)?.name || 'Unknown';
+                                       const whObj = warehouses?.find(w => w.id === whId);
+                                       const whName = whObj ? getWarehouseName(whObj) : 'Unknown';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
                                        return (
                                            <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
@@ -257,9 +275,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                </div>
                            )}
                        </div>
-                       <h3 className="text-xl font-bold text-slate-800">{wh.name}</h3>
-                       <p className="text-slate-500 text-sm mt-1">{wh.type}</p>
-                       <div className="mt-4 text-xs font-mono text-slate-400">{wh.id.split('-')[0]}...</div>
+                       <h3 className="text-xl font-bold text-slate-800">{getWarehouseName(wh)}</h3>
+                       <p className="text-slate-500 text-sm mt-1">{getWarehouseTypeLabel(wh.type, wh.id)}</p>
+                       
+                       {/* Only show ID for non-system warehouses */}
+                       {!wh.is_system && (
+                           <div className="mt-4 text-xs font-mono text-slate-400">{wh.id.split('-')[0]}...</div>
+                       )}
                    </div>
                ))}
                <button onClick={handleCreateWarehouse} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-400 hover:border-slate-300 hover:bg-slate-50 transition-all min-h-[200px]">
@@ -280,7 +302,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   <div className="space-y-4">
                       <input className="w-full p-3 border rounded-xl" value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} placeholder="Όνομασία"/>
                       <select className="w-full p-3 border rounded-xl bg-white" value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})}>
-                          <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Δειγματολόγιο</option>
+                          <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Samples</option>
                       </select>
                       <button onClick={saveWarehouse} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800">Αποθήκευση</button>
                   </div>
@@ -300,9 +322,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   </div>
                   <div className="p-8 space-y-6">
                       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{w.name} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{getWarehouseName(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
                           <ArrowRight className="text-slate-300 hidden md:block" />
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{w.name} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{getWarehouseName(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-between">
                           <span className="font-bold text-slate-600">Ποσότητα</span>
