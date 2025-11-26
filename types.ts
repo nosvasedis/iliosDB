@@ -68,9 +68,9 @@ export interface Product {
   plating_type: PlatingType;
   
   // Pricing
-  active_price: number; // Cost Price
+  active_price: number; // Cost Price (Silver + Labor + Materials)
   draft_price: number;
-  selling_price: number; // Commercial Selling Price
+  selling_price: number; // Wholesale Price (Τιμή Χονδρικής) - Retail is x3
   
   // Inventory (Legacy System Columns)
   stock_qty: number; // Central
@@ -126,7 +126,7 @@ export interface OrderItem {
   sku: string;
   variant_suffix?: string;
   quantity: number;
-  price_at_order: number;
+  price_at_order: number; // Wholesale price snapshot
   product_details?: Product; // Populated for UI
 }
 

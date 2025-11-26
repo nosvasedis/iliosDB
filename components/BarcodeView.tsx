@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useMemo } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariant } from '../types';
@@ -18,6 +19,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
     const baseSku = product?.sku || '';
     const suffix = variant?.suffix || '';
     const finalSku = `${baseSku}${suffix}`;
+
+    // --- PRICE DISPLAY: WHOLESALE ONLY ---
+    // As per instruction: "The barcode shows the WHOLESALE price."
+    const wholesalePrice = product.selling_price;
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
@@ -97,8 +102,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
     // 4. Stone
     const stoneFontSize = Math.min(height * 0.09, width * 0.16);
     
-    // Formatted Price
-    const priceDisplay = product.selling_price > 0 ? `${product.selling_price.toFixed(0)}€` : '';
+    // Formatted Price - WHOLESALE
+    const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(0)}€` : '';
 
     return (
         <div

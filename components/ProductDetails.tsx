@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw } from 'lucide-react';
+import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag } from 'lucide-react';
 import { uploadProductImage, supabase, recordStockMovement, deleteProduct, api } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -116,12 +116,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const profit = editedProduct.selling_price - cost.total;
   const margin = editedProduct.selling_price > 0 ? ((profit / editedProduct.selling_price) * 100) : 0;
+  
+  // Retail Logic
+  const retailPrice = editedProduct.selling_price * 3;
 
   // ... (Keep existing handlers: suggestSellingPrice, handleSave, requestDelete, handleStockChange, handleImageUpdate, etc.)
-  // For brevity, I am assuming the logic remains the same, but I will wrap the Stock inputs conditionally.
-
   const handleStockChange = async (newQty: number, variantIndex: number = -1) => {
-    // ... existing logic ...
       let diff = 0;
       let reason = 'Manual Adjustment';
       let variantSuffix = undefined;
@@ -149,7 +149,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const suggestSellingPrice = () => {
       const suggested = cost.total * 2.5; 
       setEditedProduct(prev => ({...prev, selling_price: parseFloat(suggested.toFixed(2))}));
-      showToast("Προτάθηκε νέα τιμή πώλησης με markup 2.5x", "info");
+      showToast("Προτάθηκε νέα τιμή χονδρικής με markup 2.5x", "info");
   };
 
   const handleSave = async () => {
@@ -354,10 +354,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <div className="flex items-center gap-2"><TrendingUp size={18} className="text-amber-600"/>Εμπορική Διαχείριση</div>
                            <button onClick={suggestSellingPrice} className="text-xs bg-white/60 hover:bg-white text-amber-700 px-2 py-1 rounded-lg border border-amber-200 transition-colors flex items-center gap-1"><RefreshCcw size={12}/> Πρόταση Τιμής</button>
                        </h3>
-                       <div><label className="text-[10px] font-bold text-amber-700/60 uppercase">Τιμή Πώλησης (€)</label><input type="number" step="0.1" value={editedProduct.selling_price} onChange={(e) => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value)})} className="w-full p-4 border border-amber-300/50 rounded-xl bg-white text-slate-900 font-black text-2xl focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm"/></div>
-                       <div className="grid grid-cols-2 gap-4 pt-2">
-                           <div className="bg-white/60 p-4 rounded-xl border border-amber-100/50"><span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Κέρδος</span><span className={`block text-xl font-black mt-1 ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{profit.toFixed(2)}€</span></div>
-                           <div className="bg-white/60 p-4 rounded-xl border border-amber-100/50"><span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Margin</span><span className={`block text-xl font-black mt-1 ${margin >= 40 ? 'text-emerald-600' : (margin >= 20 ? 'text-orange-500' : 'text-red-500')}`}>{margin.toFixed(1)}%</span></div>
+                       <div><label className="text-[10px] font-bold text-amber-700/60 uppercase">Τιμή Χονδρικής (€)</label><input type="number" step="0.1" value={editedProduct.selling_price} onChange={(e) => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value)})} className="w-full p-4 border border-amber-300/50 rounded-xl bg-white text-slate-900 font-black text-2xl focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm"/></div>
+                       
+                       {/* Subtle Internal Retail Reference */}
+                       <div className="flex justify-between items-center text-xs px-2 text-amber-800/50 font-medium">
+                           <span>Internal Ref: Suggested Retail (x3):</span>
+                           <span>{retailPrice.toFixed(2)}€</span>
+                       </div>
+
+                       <div className="bg-white/60 p-4 rounded-xl border border-amber-100/50 flex justify-between items-center">
+                           <div className="flex items-center gap-2">
+                               <div className="bg-amber-100 p-2 rounded-lg text-amber-600"><Tag size={16} /></div>
+                               <div>
+                                   <span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Margin</span>
+                                   <span className={`block text-sm font-black ${margin >= 40 ? 'text-emerald-600' : 'text-orange-500'}`}>{margin.toFixed(1)}%</span>
+                               </div>
+                           </div>
                        </div>
                    </div>)}
                    

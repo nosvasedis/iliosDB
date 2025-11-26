@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material } from '../types';
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent } from 'lucide-react';
@@ -53,7 +54,7 @@ export default function PricingManager({ products, settings, materials }: Props)
              const newSelling = p.selling_price * multiplier;
              return { ...p, draft_price: parseFloat(newSelling.toFixed(2)) }; 
         });
-        showToast(`Υπολογίστηκε νέα τιμή πώλησης (${markupPercent > 0 ? '+' : ''}${markupPercent}%).`, 'info');
+        showToast(`Υπολογίστηκε νέα τιμή χονδρικής (${markupPercent > 0 ? '+' : ''}${markupPercent}%).`, 'info');
     }
 
     setPreviewProducts(updatedProducts);
@@ -62,10 +63,10 @@ export default function PricingManager({ products, settings, materials }: Props)
 
   const commitPrices = async () => {
     const yes = await confirm({
-        title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Πώλησης',
+        title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Χονδρικής',
         message: mode === 'cost' 
             ? 'Θα ενημερωθεί η Τιμή Κόστους (Active Price) για όλα τα προϊόντα.' 
-            : `Θα αλλάξει η Τιμή Πώλησης για ${previewProducts.length} προϊόντα. Είστε σίγουροι;`,
+            : `Θα αλλάξει η Τιμή Χονδρικής για ${previewProducts.length} προϊόντα. Είστε σίγουροι;`,
         confirmText: 'Ενημέρωση',
         isDestructive: false
     });
@@ -210,13 +211,13 @@ export default function PricingManager({ products, settings, materials }: Props)
                        </>
                    ) : (
                        <>
-                        <th className="p-4 text-right">Παλια Τιμη</th>
+                        <th className="p-4 text-right">Παλια Χονδρικη</th>
                         <th className="p-4 w-10"></th>
-                        <th className="p-4 text-right">Νεα Τιμη</th>
+                        <th className="p-4 text-right">Νεα Χονδρικη</th>
                        </>
                    )}
                    <th className="p-4 text-right">Διαφορα</th>
-                   {mode === 'cost' && <th className="p-4 text-right">Τιμη Πωλησης</th>}
+                   {mode === 'cost' && <th className="p-4 text-right">Τιμη Χονδρικης</th>}
                    <th className="p-4 pr-6 text-right">Νεο Margin</th>
                 </tr>
               </thead>
@@ -241,9 +242,6 @@ export default function PricingManager({ products, settings, materials }: Props)
                   }
 
                   const diff = newVal - oldVal;
-                  
-                  // Only show rows with changes if we are in calculated mode? 
-                  // No, show all, but highlight changes.
                   
                   return (
                     <tr key={p.sku} className="hover:bg-slate-50/80 transition-colors">

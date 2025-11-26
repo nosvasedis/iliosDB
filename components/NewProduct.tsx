@@ -1,7 +1,9 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Calculator, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, MapPin } from 'lucide-react';
+import { Plus, Trash2, Camera, Calculator, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, MapPin, Tag } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -34,7 +36,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
   
   const [weight, setWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
-  const [sellingPrice, setSellingPrice] = useState(0);
+  const [sellingPrice, setSellingPrice] = useState(0); // Wholesale
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
   const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0, setter_cost: 0, technician_cost: 0, plating_cost: 0 });
@@ -113,6 +115,9 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
   // Derived Profit Calculations
   const profit = sellingPrice - estimatedCost;
   const margin = sellingPrice > 0 ? ((profit / sellingPrice) * 100) : 0;
+  
+  // Retail
+  const retailPrice = sellingPrice * 3;
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -514,10 +519,16 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                     
                     {!isSTX && (
                         <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 shadow-sm flex flex-col justify-center">
-                            <label className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-2 block">Τιμή Πώλησης</label>
+                            <label className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-2 block">Τιμή Χονδρικής</label>
                             <div className="relative">
                                 <input type="number" step="0.1" value={sellingPrice} onChange={(e) => setSellingPrice(parseFloat(e.target.value))} className="w-full bg-white p-4 rounded-xl border border-amber-200 font-black text-3xl text-amber-600 outline-none focus:ring-4 focus:ring-amber-500/20 text-center"/>
                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-300 font-bold text-xl">€</span>
+                            </div>
+                            
+                            {/* Subtle Retail Reference */}
+                            <div className="mt-3 flex items-center justify-between text-[10px] text-amber-800/40 px-2 font-medium">
+                                <span>Ref: Suggested Retail (x3)</span>
+                                <span>{retailPrice.toFixed(2)}€</span>
                             </div>
                         </div>
                     )}

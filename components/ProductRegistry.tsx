@@ -118,7 +118,7 @@ export default function ProductRegistry() {
                                 </div>
                             </div>
                             <div className="text-right">
-                                <span className="text-[10px] uppercase font-bold text-slate-400">Λιανικη</span>
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Χονδρικη</span>
                                 <div className="text-lg font-black text-indigo-600">
                                     {product.selling_price > 0 ? product.selling_price.toFixed(2) + '€' : '-'}
                                 </div>

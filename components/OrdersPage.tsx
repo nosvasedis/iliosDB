@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, MaterialType, Customer } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users } from 'lucide-react';
@@ -234,7 +236,7 @@ export default function OrdersPage({ products }: Props) {
                       
                       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
                           <div className="flex justify-between items-center mb-4">
-                             <span className="font-bold text-indigo-900 text-sm uppercase">Σύνολο Παραγγελίας</span>
+                             <span className="font-bold text-indigo-900 text-sm uppercase">Σύνολο (Χονδρ.)</span>
                              <span className="font-black text-3xl text-indigo-700">{calculateTotal().toFixed(2)}€</span>
                           </div>
                           <button onClick={handleCreateOrder} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5 active:scale-95">
@@ -260,7 +262,7 @@ export default function OrdersPage({ products }: Props) {
                                       <div key={p.sku} className="p-3 hover:bg-slate-50 cursor-pointer">
                                           <div className="flex justify-between font-bold text-slate-800" onClick={() => handleAddItem(p)}>
                                               <span>{p.sku}</span>
-                                              <span>{p.selling_price}€</span>
+                                              <span>{p.selling_price}€ <span className="text-[10px] text-slate-400">(Χονδρ.)</span></span>
                                           </div>
                                           {p.variants && p.variants.length > 0 && (
                                               <div className="mt-2 flex flex-wrap gap-2">
