@@ -13,67 +13,63 @@ export default function BarcodeView({ product, variant, width, height }: Props) 
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const finalSku = variant ? `${product.sku}${variant.suffix}` : product.sku;
-    const description = variant ? variant.description : product.category;
 
     useEffect(() => {
         if (canvasRef.current) {
             try {
                 JsBarcode(canvasRef.current, finalSku, {
                     format: 'CODE128',
-                    displayValue: false, // We will render the value ourselves for better styling
-                    height: Math.max(10, height * 1.5), // Heuristic for pixel height
-                    width: Math.max(0.5, width / 40), // Heuristic for bar width
+                    displayValue: false, // The SKU is rendered separately and is more prominent
+                    height: Math.max(15, height * 2.5), // Smaller barcode height, scales with label
+                    width: 1, // Use thin bars for compact barcodes
                     margin: 0,
                 });
             } catch (e) {
                 console.error("JsBarcode error:", e);
-                // Fallback text if barcode generation fails (e.g., invalid characters)
+                // Fallback text if barcode generation fails
                 const ctx = canvasRef.current.getContext('2d');
                 if (ctx) {
                     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
                     ctx.fillStyle = 'red';
-                    ctx.font = '12px Arial';
-                    ctx.fillText('Invalid Barcode', 10, 20);
+                    ctx.font = '10px Arial';
+                    ctx.fillText('Error', 5, 10);
                 }
             }
         }
     }, [finalSku, width, height]);
 
-    // Dynamic font size calculation based on label height for optimal readability
-    const baseFontSize = height / 8;
+    // Dynamic font size calculation based on label height for optimal readability on small tags
+    const skuFontSize = Math.max(2, height / 4);
+    const priceFontSize = Math.max(1.8, height / 5);
+    const detailsFontSize = Math.max(1.2, height / 8);
 
     return (
         <div
-            className="bg-white text-black flex flex-col items-center justify-between p-1 box-border"
+            className="bg-white text-black flex flex-col items-center justify-between p-1 box-border overflow-hidden"
             style={{
                 width: `${width}mm`,
                 height: `${height}mm`,
-                fontFamily: 'Arial, sans-serif',
-                marginBottom: '1mm',
-                marginRight: '1mm',
+                fontFamily: `'Segoe UI', 'Arial', sans-serif`,
             }}
         >
-            {/* Top row: Brand and Price */}
-            <div className="w-full flex justify-between items-center px-1">
-                <span className="font-bold tracking-wider" style={{ fontSize: `${Math.max(4, baseFontSize * 0.9)}px` }}>ILIOS KOSMIMA</span>
-                <span className="font-extrabold" style={{ fontSize: `${Math.max(6, baseFontSize * 1.5)}px` }}>
-                    {product.selling_price > 0 ? `${product.selling_price.toFixed(2)}€` : ''}
+            {/* Top Row: SKU and Price are the most important elements */}
+            <div className="w-full flex justify-between items-baseline" style={{ padding: '0 0.5mm' }}>
+                <span className="font-bold" style={{ fontSize: `${skuFontSize}mm`, lineHeight: '1.1' }}>
+                    {finalSku}
+                </span>
+                <span className="font-bold" style={{ fontSize: `${priceFontSize}mm`, lineHeight: '1.1' }}>
+                    {product.selling_price > 0 ? `${product.selling_price.toFixed(0)}€` : ''}
                 </span>
             </div>
 
-            {/* Middle: Barcode and SKU Text */}
-            <div className="w-full flex-grow flex flex-col items-center justify-center py-1">
-                <canvas ref={canvasRef} style={{ width: '95%', height: 'auto', maxHeight: `${height * 0.4}mm` }} />
-                <p className="font-mono font-bold tracking-widest" style={{ fontSize: `${Math.max(5, baseFontSize * 1.1)}px`, marginTop: '0.5mm' }}>
-                    {finalSku}
-                </p>
+            {/* Middle: A smaller, cleaner barcode */}
+            <div className="w-full" style={{ minHeight: `${height * 0.25}mm`, padding: '0.5mm 0' }}>
+                <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
             </div>
-
-            {/* Bottom Row: Details */}
-            <div className="w-full flex justify-between items-center px-1 border-t border-black pt-1" style={{ fontSize: `${Math.max(4, baseFontSize * 0.8)}px` }}>
-                <span className="font-medium">Ag925</span>
-                <span className="uppercase font-medium text-center truncate px-1">{description}</span>
-                <span className="font-medium">{product.weight_g}g</span>
+            
+            {/* Bottom Row: Minimalist details */}
+            <div className="w-full text-center" style={{ fontSize: `${detailsFontSize}mm`, lineHeight: '1', color: '#333' }}>
+                <span>Ag925 - {product.weight_g}g</span>
             </div>
         </div>
     );
