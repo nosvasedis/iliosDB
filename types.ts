@@ -50,6 +50,7 @@ export interface ProductVariant {
   suffix: string; // e.g. 'PKR', 'P', 'X'
   description: string; // e.g. 'Κορνεόλη', 'Πατίνα'
   stock_qty: number;
+  location_stock?: Record<string, number>; // New: Warehouse specific stock for this variant
 }
 
 export interface Collection {
@@ -109,6 +110,7 @@ export interface Warehouse {
 export interface WarehouseStock {
     warehouse_id: string;
     product_sku: string;
+    variant_suffix?: string; // New: Support for variant specific stock in custom warehouses
     quantity: number;
 }
 

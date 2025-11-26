@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info } from 'lucide-react';
@@ -17,7 +18,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   if (!settings) {
-    return <div className="p-8 text-center text-slate-400">Loading settings...</div>;
+    return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
   }
 
   // FETCH LIVE PRICE AND SAVE TO DB

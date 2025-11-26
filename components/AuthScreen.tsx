@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { APP_LOGO } from '../constants';
@@ -142,7 +143,7 @@ export default function AuthScreen() {
 
           <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
               <ShieldCheck size={14} className="text-emerald-500"/>
-              <span>Secure Connection • Private Access Only</span>
+              <span>Ασφαλής Σύνδεση • Ιδιωτική Πρόσβαση</span>
           </div>
        </div>
     </div>

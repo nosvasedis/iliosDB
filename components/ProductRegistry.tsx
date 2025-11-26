@@ -1,4 +1,7 @@
 
+
+
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material } from '../types';
 import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen } from 'lucide-react';
@@ -7,7 +10,11 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { calculateProductCost } from '../utils/pricingEngine';
 
-export default function ProductRegistry() {
+interface Props {
+    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
+}
+
+export default function ProductRegistry({ setPrintItems }: Props) {
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
@@ -143,7 +150,7 @@ export default function ProductRegistry() {
           allProducts={products}
           allMaterials={materials}
           onClose={() => setSelectedProduct(null)}
-          setPrintItems={() => {}} // No printing from registry needed usually, or add if wanted
+          setPrintItems={setPrintItems || (() => {})} // Pass the prop function
           settings={settings}
           collections={collections}
           viewMode="registry" // Hides stock

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
@@ -308,7 +309,7 @@ export default function AiStudio() {
                                 </button>
                                 <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all gap-2 cursor-pointer">
                                     <Camera size={24}/>
-                                    <span className="text-xs font-bold">Upload</span>
+                                    <span className="text-xs font-bold">Μεταφόρτωση</span>
                                     <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                                 </label>
                             </div>
@@ -316,7 +317,7 @@ export default function AiStudio() {
 
                         {selectedProduct && mode === 'copywriting' && (
                              <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <strong>Context:</strong> {selectedProduct.category}, {selectedProduct.gender}, {selectedProduct.weight_g}g.
+                                <strong>Πλαίσιο:</strong> {selectedProduct.category}, {selectedProduct.gender}, {selectedProduct.weight_g}g.
                              </div>
                         )}
                         {selectedProduct && mode === 'virtual-model' && (

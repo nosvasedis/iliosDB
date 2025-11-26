@@ -1,6 +1,8 @@
 
 
 
+
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -266,13 +268,37 @@ export const api = {
             const { data: stockData } = await supabase.from('product_stock').select('*');
 
             const assembledProducts: Product[] = prodData.map((p: any) => {
+                
+                // Map custom stock for Master (where variant_suffix is null/empty)
+                const customStock: Record<string, number> = {};
+                stockData?.filter((s: any) => s.product_sku === p.sku && !s.variant_suffix).forEach((s: any) => {
+                    customStock[s.warehouse_id] = s.quantity;
+                });
+                // Add System Stocks to the map for uniform access (Master)
+                customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
+                customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
+
                 const pVariants: ProductVariant[] = varData
                   ?.filter((v: any) => v.product_sku === p.sku)
-                  .map((v: any) => ({
-                    suffix: v.suffix,
-                    description: v.description,
-                    stock_qty: v.stock_qty
-                  })) || [];
+                  .map((v: any) => {
+                    // Map custom stock for this variant
+                    const vCustomStock: Record<string, number> = {};
+                    stockData?.filter((s: any) => s.product_sku === p.sku && s.variant_suffix === v.suffix).forEach((s: any) => {
+                        vCustomStock[s.warehouse_id] = s.quantity;
+                    });
+                    
+                    // Add System Stocks for Variant (Assuming stock_qty in variants table is Central)
+                    vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
+                    // Note: Sample quantity for variants is not strictly defined in schema but can be extended. 
+                    // For now, variants only track Central in 'stock_qty' column of 'product_variants' table.
+
+                    return {
+                        suffix: v.suffix,
+                        description: v.description,
+                        stock_qty: v.stock_qty,
+                        location_stock: vCustomStock
+                    };
+                  }) || [];
 
                 const pRecipeRaw = recData?.filter((r: any) => r.parent_sku === p.sku) || [];
                 const pRecipe: RecipeItem[] = pRecipeRaw.map((r: any) => {
@@ -291,18 +317,6 @@ export const api = {
                     ?.filter((pc: any) => pc.product_sku === p.sku)
                     .map((pc: any) => pc.collection_id) || [];
 
-                // Map custom stock
-                const customStock: Record<string, number> = {};
-                if (stockData) {
-                    stockData.filter((s: any) => s.product_sku === p.sku).forEach((s: any) => {
-                        customStock[s.warehouse_id] = s.quantity;
-                    });
-                }
-                
-                // Add System Stocks to the map for uniform access
-                customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
-                customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
-
                 return {
                   sku: p.sku,
                   prefix: p.prefix,
@@ -314,9 +328,9 @@ export const api = {
                   active_price: Number(p.active_price),
                   draft_price: Number(p.draft_price),
                   selling_price: Number(p.selling_price || 0),
-                  stock_qty: p.stock_qty, // Keep for backward compat
-                  sample_qty: p.sample_qty, // Keep for backward compat
-                  location_stock: customStock, // Unified stock map
+                  stock_qty: p.stock_qty, // Master Central
+                  sample_qty: p.sample_qty, // Master Showroom
+                  location_stock: customStock, // Master Custom Stocks
                   molds: pMolds,
                   is_component: p.is_component,
                   variants: pVariants,
@@ -346,7 +360,7 @@ export const api = {
                 console.warn("Warehouses table might not exist yet:", error);
                 return [
                     { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
-                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true } // Default to Δειγματολόγιο
+                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true } 
                 ];
             }
             return data as Warehouse[];

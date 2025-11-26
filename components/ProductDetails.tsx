@@ -1,4 +1,7 @@
 
+
+
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
@@ -16,11 +19,24 @@ interface PrintModalProps {
 }
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
-    // ... same implementation ...
+    // Include Master in the list if it has no variants or just as an option
+    // Actually, usually master is printed if no variants exist. 
+    // If variants exist, we usually print specific variants.
+    // Let's offer Master as an option always, labeled "(Master)"
+    
     const allVariants = [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }, ...(product.variants || [])];
+    
+    // Initialize with 0
     const [quantities, setQuantities] = useState<Record<string, number>>(
         allVariants.reduce((acc, v) => ({ ...acc, [v.suffix]: 0 }), {})
     );
+
+    // If no variants, default master to 1
+    React.useEffect(() => {
+        if (!product.variants || product.variants.length === 0) {
+            setQuantities(prev => ({...prev, '(Master)': 1}));
+        }
+    }, [product]);
 
     const handleQuantityChange = (suffix: string, qty: number) => {
         setQuantities(prev => ({ ...prev, [suffix]: Math.max(0, qty) }));
@@ -31,12 +47,15 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
         for (const suffix in quantities) {
             const qty = quantities[suffix];
             if (qty > 0) {
+                // If suffix is (Master), pass undefined variant
                 const variant = suffix === '(Master)' ? undefined : product.variants?.find(v => v.suffix === suffix);
                 itemsToPrint.push({ product, variant, quantity: qty });
             }
         }
+        
         if (itemsToPrint.length > 0) {
             onPrint(itemsToPrint);
+            onClose(); // Close modal after sending to print queue
         }
     };
 
@@ -123,7 +142,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   // ... (Keep existing handlers: suggestSellingPrice, handleSave, requestDelete, handleStockChange, handleImageUpdate, etc.)
   const handleStockChange = async (newQty: number, variantIndex: number = -1) => {
       let diff = 0;
-      let reason = 'Manual Adjustment';
+      let reason = 'Χειροκίνητη Διόρθωση';
       let variantSuffix = undefined;
 
       if (variantIndex === -1) { // Master Stock
@@ -229,7 +248,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
      const newVar: ProductVariant = { suffix, description, stock_qty: builderQty };
 
      await supabase.from('product_variants').insert({ product_sku: editedProduct.sku, ...newVar });
-     if (builderQty > 0) recordStockMovement(editedProduct.sku, builderQty, 'Initial Variant Stock', suffix);
+     if (builderQty > 0) recordStockMovement(editedProduct.sku, builderQty, 'Αρχικό Απόθεμα', suffix);
      setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVar] }));
      queryClient.invalidateQueries({ queryKey: ['products'] });
      setBuilderFinish(''); setBuilderStone(''); setBuilderQty(0);
@@ -302,7 +321,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 text-amber-900 px-3 py-1.5 rounded-lg shadow-sm"><MapPin size={14} /><span className="font-bold">Λάστιχο: {editedProduct.molds?.length ? editedProduct.molds.join(', ') : 'N/A'}</span></div>
                     <div className="flex items-center gap-2 text-slate-600 px-2">
                         <span className="font-mono font-bold text-lg">{cost.total.toFixed(2)}€</span>
-                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Live Κόστος</span>
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Τρέχον Κόστος</span>
                     </div>
                 </div>
               )}
@@ -358,7 +377,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        
                        {/* Subtle Internal Retail Reference */}
                        <div className="flex justify-between items-center text-xs px-2 text-amber-800/50 font-medium">
-                           <span>Internal Ref: Suggested Retail (x3):</span>
+                           <span>Εσωτερική Αναφορά: Προτ. Λιανική (x3):</span>
                            <span>{retailPrice.toFixed(2)}€</span>
                        </div>
 
@@ -366,7 +385,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <div className="flex items-center gap-2">
                                <div className="bg-amber-100 p-2 rounded-lg text-amber-600"><Tag size={16} /></div>
                                <div>
-                                   <span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Margin</span>
+                                   <span className="block text-xs font-bold text-amber-700/60 uppercase tracking-wide">Περιθώριο</span>
                                    <span className={`block text-sm font-black ${margin >= 40 ? 'text-emerald-600' : 'text-orange-500'}`}>{margin.toFixed(1)}%</span>
                                </div>
                            </div>
@@ -412,7 +431,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                             {/* In Registry, usually initial stock is 0, but allow it */}
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Αρχικό Stock</label>
+                                <label className="block text-xs font-bold text-amber-800/70 mb-1.5 uppercase">Αρχικό Απόθεμα</label>
                                 <input type="number" min="0" value={builderQty} onChange={(e) => setBuilderQty(parseInt(e.target.value) || 0)} className="w-full p-2.5 text-sm border border-amber-200 rounded-xl bg-white text-slate-900 outline-none focus:ring-2 focus:ring-amber-500 font-bold text-center"/>
                             </div>
                             <div className="md:col-span-3">
@@ -425,7 +444,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   <div>
                     <div className="flex justify-between items-center mb-4 px-2">
                         <h3 className="font-bold text-slate-700 text-lg">Λίστα Παραλλαγών</h3>
-                        {viewMode === 'registry' && <button onClick={addEmptyVariant} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"><Plus size={14} /> Custom Empty</button>}
+                        {viewMode === 'registry' && <button onClick={addEmptyVariant} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"><Plus size={14} /> Νέα Κενή</button>}
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                         <table className="w-full text-sm text-left">

@@ -1,7 +1,9 @@
 
+
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
@@ -12,6 +14,21 @@ interface Props {
   setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
   settings: any;
   collections: any[];
+}
+
+// Flattened Inventory Item Interface
+interface InventoryItem {
+    id: string; // Composite: SKU + Suffix
+    masterSku: string;
+    suffix: string;
+    description: string;
+    category: string;
+    imageUrl: string;
+    locationStock: Record<string, number>;
+    totalStock: number;
+    demandQty: number;
+    product: Product;
+    variantRef?: ProductVariant;
 }
 
 export default function Inventory({ products, setPrintItems, settings, collections }: Props) {
@@ -32,14 +49,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   
   // Transfer Logic State
   const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [transferProduct, setTransferProduct] = useState<Product | null>(null);
+  const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
   const [sourceId, setSourceId] = useState<string>(SYSTEM_IDS.CENTRAL);
   const [targetId, setTargetId] = useState<string>(SYSTEM_IDS.SHOWROOM);
   const [transferQty, setTransferQty] = useState(1);
   const [isTransferring, setIsTransferring] = useState(false);
 
   // --- SMART SCANNER STATE ---
-  const [scanSku, setScanSku] = useState('');
+  const [scanInput, setScanInput] = useState('');
   const [scanSuggestion, setScanSuggestion] = useState('');
   const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
   const [scanQty, setScanQty] = useState(1);
@@ -52,53 +69,105 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       return w.name;
   };
 
-  // --- LOGIC: Compute Demand & Stock Status ---
-  const productsWithStockOrDemand = useMemo(() => {
-      if (!orders) return [];
-
-      const pendingOrders = orders.filter(o => o.status === OrderStatus.Pending);
+  // --- FLATTENED INVENTORY LOGIC ---
+  const flattenedInventory = useMemo(() => {
+      if (!products) return [];
       
-      const demandMap: Record<string, { qty: number, orderIds: string[] }> = {};
+      const items: InventoryItem[] = [];
       
-      pendingOrders.forEach(o => {
-          o.items.forEach(item => {
-              if (!demandMap[item.sku]) {
-                  demandMap[item.sku] = { qty: 0, orderIds: [] };
-              }
-              demandMap[item.sku].qty += item.quantity;
-              if (!demandMap[item.sku].orderIds.includes(o.id)) {
-                  demandMap[item.sku].orderIds.push(o.id);
-              }
+      // Calculate Demand Map (Key: SKU+Suffix)
+      const demandMap: Record<string, number> = {};
+      if (orders) {
+          const pending = orders.filter(o => o.status === OrderStatus.Pending);
+          pending.forEach(o => {
+              o.items.forEach(i => {
+                  const key = i.sku + (i.variant_suffix || '');
+                  demandMap[key] = (demandMap[key] || 0) + i.quantity;
+              });
           });
+      }
+
+      products.forEach(p => {
+          // If product has variants, create an item for EACH variant
+          if (p.variants && p.variants.length > 0) {
+              p.variants.forEach(v => {
+                  const key = p.sku + v.suffix;
+                  const totalStock = Object.values(v.location_stock || {}).reduce((a, b) => a + b, 0);
+                  const demand = demandMap[key] || 0;
+                  
+                  // Only show if it exists in a warehouse OR has demand
+                  if (totalStock > 0 || demand > 0) {
+                      items.push({
+                          id: key,
+                          masterSku: p.sku,
+                          suffix: v.suffix,
+                          description: v.description,
+                          category: p.category,
+                          imageUrl: p.image_url,
+                          locationStock: v.location_stock || {},
+                          totalStock,
+                          demandQty: demand,
+                          product: p,
+                          variantRef: v
+                      });
+                  }
+              });
+          } else {
+              // No variants (Master Only)
+              const totalStock = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0);
+              const demand = demandMap[p.sku] || 0;
+               if (totalStock > 0 || demand > 0) {
+                  items.push({
+                      id: p.sku,
+                      masterSku: p.sku,
+                      suffix: '',
+                      description: 'Βασικό',
+                      category: p.category,
+                      imageUrl: p.image_url,
+                      locationStock: p.location_stock || {},
+                      totalStock,
+                      demandQty: demand,
+                      product: p
+                  });
+               }
+          }
       });
-
-      return products.map(p => {
-          const realTotalStock = Object.values(p.location_stock || {}).reduce((acc, val) => acc + val, 0);
-          const demand = demandMap[p.sku];
-          
-          return {
-              ...p,
-              total_stock: realTotalStock,
-              demand_qty: demand ? demand.qty : 0,
-              demand_orders: demand ? demand.orderIds : []
-          };
-      }).filter(p => p.total_stock > 0 || p.demand_qty > 0)
-        .filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()));
-
+      
+      // Filter by search
+      return items.filter(i => 
+          i.masterSku.includes(searchTerm.toUpperCase()) || 
+          i.suffix.includes(searchTerm.toUpperCase()) ||
+          i.category.toLowerCase().includes(searchTerm.toLowerCase())
+      );
   }, [products, orders, searchTerm]);
 
   // --- SMART SCANNER LOGIC ---
   const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value.toUpperCase();
-      setScanSku(val);
+      setScanInput(val);
       
       if (val.length > 0) {
-          // Find first matching SKU that starts with input
-          const match = products.find(p => p.sku.startsWith(val));
-          if (match) {
-              setScanSuggestion(match.sku);
+          // Find first matching Variant or Master
+          // Search Logic: Starts with input
+          let match = flattenedInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
+          
+          // If not found in already flattened (maybe stock is 0), search in raw products
+          if (!match) {
+             const prod = products.find(p => p.sku.startsWith(val));
+             if (prod) {
+                 if (prod.variants && prod.variants.length > 0) {
+                     // Try to match specific variant suffix
+                     const vMatch = prod.variants.find(v => (prod.sku + v.suffix).startsWith(val));
+                     if (vMatch) setScanSuggestion(prod.sku + vMatch.suffix);
+                     else setScanSuggestion(prod.sku); // Default to master if variant not specific enough yet
+                 } else {
+                     setScanSuggestion(prod.sku);
+                 }
+             } else {
+                 setScanSuggestion('');
+             }
           } else {
-              setScanSuggestion('');
+             setScanSuggestion(match.masterSku + match.suffix);
           }
       } else {
           setScanSuggestion('');
@@ -106,12 +175,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // Autocomplete on Right Arrow
       if (e.key === 'ArrowRight' && scanSuggestion) {
           e.preventDefault();
-          setScanSku(scanSuggestion);
+          setScanInput(scanSuggestion);
       }
-      // Submit on Enter
       if (e.key === 'Enter') {
           e.preventDefault();
           executeQuickAdd();
@@ -119,46 +186,80 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   const executeQuickAdd = async () => {
-      const targetSku = scanSuggestion || scanSku;
-      const product = products.find(p => p.sku === targetSku);
+      const targetCode = scanSuggestion || scanInput;
+      // We need to find the product and potentially the variant
+      const product = products.find(p => targetCode.startsWith(p.sku));
       
       if (!product) {
-          showToast(`Ο κωδικός ${targetSku} δεν βρέθηκε.`, "error");
+          showToast(`Ο κωδικός ${targetCode} δεν βρέθηκε.`, "error");
           return;
       }
+      
+      // Determine if it targets a variant
+      const variantSuffix = targetCode.replace(product.sku, '');
+      const variant = product.variants?.find(v => v.suffix === variantSuffix);
+      
+      if (product.variants && product.variants.length > 0 && !variant && variantSuffix) {
+           showToast(`Η παραλλαγή ${variantSuffix} δεν βρέθηκε.`, "error");
+           return;
+      }
+
+      // Check if trying to add to master when variants exist (policy check)
+      // Usually we allow it, but best to be specific.
       
       try {
           const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
           
-          if (scanTargetId === SYSTEM_IDS.CENTRAL) {
-              const newQty = product.stock_qty + scanQty;
-              await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
-          } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) {
-              const newQty = (product.sample_qty || 0) + scanQty;
-              await supabase.from('products').update({ sample_qty: newQty }).eq('sku', product.sku);
+          if (variant) {
+              // Update Variant Stock
+               const currentStock = variant.location_stock?.[scanTargetId] || 0;
+               const newQty = currentStock + scanQty;
+               
+               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                   // Update product_variants table
+                   await supabase.from('product_variants').update({ stock_qty: newQty }).match({ product_sku: product.sku, suffix: variant.suffix });
+               } else {
+                   // Custom Warehouse or Showroom for Variants: Store in product_stock with variant_suffix
+                   await supabase.from('product_stock').upsert({ 
+                      product_sku: product.sku, 
+                      variant_suffix: variant.suffix,
+                      warehouse_id: scanTargetId, 
+                      quantity: newQty 
+                   }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+               }
+               await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
+
           } else {
-              // Custom Warehouse
-              const currentStock = product.location_stock?.[scanTargetId] || 0;
-              const newQty = currentStock + scanQty;
-              await supabase.from('product_stock').upsert({ 
-                  product_sku: product.sku, 
-                  warehouse_id: scanTargetId, 
-                  quantity: newQty 
-              });
+              // Update Master Stock
+              if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                  const newQty = product.stock_qty + scanQty;
+                  await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
+              } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) {
+                  const newQty = (product.sample_qty || 0) + scanQty;
+                  await supabase.from('products').update({ sample_qty: newQty }).eq('sku', product.sku);
+              } else {
+                  // Custom Warehouse
+                  const currentStock = product.location_stock?.[scanTargetId] || 0;
+                  const newQty = currentStock + scanQty;
+                  await supabase.from('product_stock').upsert({ 
+                      product_sku: product.sku, 
+                      warehouse_id: scanTargetId, 
+                      quantity: newQty 
+                  });
+              }
+              await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`);
           }
 
-          await recordStockMovement(product.sku, scanQty, `Quick Add: ${whName}`);
           queryClient.invalidateQueries({ queryKey: ['products'] });
+          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${targetCode}`, "success");
           
-          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${product.sku}`, "success");
-          
-          // Reset but keep focus
-          setScanSku('');
+          setScanInput('');
           setScanSuggestion('');
           setScanQty(1);
           inputRef.current?.focus();
 
       } catch (err) {
+          console.error(err);
           showToast("Σφάλμα ενημέρωσης.", "error");
       }
   };
@@ -188,25 +289,57 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   // --- TRANSFER ACTIONS ---
-  const openTransfer = (p: Product) => {
-      setTransferProduct(p);
+  const openTransfer = (item: InventoryItem) => {
+      setTransferItem(item);
       setSourceId(SYSTEM_IDS.CENTRAL);
       setTargetId(SYSTEM_IDS.SHOWROOM);
       setTransferQty(1);
       setTransferModalOpen(true);
   };
 
-  const getStockFor = (locationId: string): number => {
-      if (!transferProduct) return 0;
-      return transferProduct.location_stock?.[locationId] || 0;
-  };
-
   const executeTransfer = async () => {
-      if (!transferProduct || sourceId === targetId) return;
-      if (transferQty > getStockFor(sourceId)) { showToast("Ανεπαρκές απόθεμα.", "error"); return; }
+      if (!transferItem || sourceId === targetId) return;
+      const currentSourceQty = transferItem.locationStock[sourceId] || 0;
+      
+      if (transferQty > currentSourceQty) { showToast("Ανεπαρκές απόθεμα.", "error"); return; }
+      
       setIsTransferring(true);
       try {
-          await api.transferStock(transferProduct.sku, sourceId, targetId, transferQty);
+          // We need to implement a smarter transfer function or handle the manual logic here for variants
+          // The api.transferStock logic currently assumes Master SKU mostly or simple product_stock table.
+          // Let's implement robust logic right here for variants support.
+          
+          const variantSuffix = transferItem.suffix;
+          const sku = transferItem.masterSku;
+
+          // 1. Decrement Source
+          const newSourceQty = currentSourceQty - transferQty;
+          // 2. Increment Target
+          const currentTargetQty = transferItem.locationStock[targetId] || 0;
+          const newTargetQty = currentTargetQty + transferQty;
+
+          const updateStock = async (whId: string, qty: number) => {
+               if (whId === SYSTEM_IDS.CENTRAL) {
+                   if (variantSuffix) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: variantSuffix });
+                   else await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku);
+               } else if (whId === SYSTEM_IDS.SHOWROOM && !variantSuffix) {
+                   await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
+               } else {
+                   // Custom Warehouse OR Showroom with Variant
+                    await supabase.from('product_stock').upsert({ 
+                      product_sku: sku, 
+                      variant_suffix: variantSuffix || null,
+                      warehouse_id: whId, 
+                      quantity: qty 
+                   }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+               }
+          };
+
+          await updateStock(sourceId, newSourceQty);
+          await updateStock(targetId, newTargetQty);
+          
+          await recordStockMovement(sku, transferQty, `Transfer: ${getWarehouseNameClean(warehouses!.find(w=>w.id===sourceId)!)} -> ${getWarehouseNameClean(warehouses!.find(w=>w.id===targetId)!)}`, variantSuffix);
+
           queryClient.invalidateQueries({ queryKey: ['products'] });
           showToast("Η μεταφορά ολοκληρώθηκε.", "success");
           setTransferModalOpen(false);
@@ -266,24 +399,24 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       <div className="md:col-span-6 relative">
                           {/* Ghost Text */}
                           <div className="absolute inset-0 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center">
-                              <span className="text-transparent">{scanSku}</span>
+                              <span className="text-transparent">{scanInput}</span>
                               <span className="text-slate-600">
-                                  {scanSuggestion.startsWith(scanSku) ? scanSuggestion.substring(scanSku.length) : ''}
+                                  {scanSuggestion.startsWith(scanInput) ? scanSuggestion.substring(scanInput.length) : ''}
                               </span>
                           </div>
                           
                           <input 
                               ref={inputRef}
                               type="text" 
-                              value={scanSku}
+                              value={scanInput}
                               onChange={handleScanInput}
                               onKeyDown={handleScanKeyDown}
                               placeholder="Πληκτρολογήστε Κωδικό (π.χ. XR...)"
                               className="w-full p-3 bg-white text-slate-900 font-mono text-lg font-bold rounded-xl outline-none focus:ring-4 focus:ring-amber-500/50 uppercase tracking-wider placeholder-slate-400"
                           />
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
-                             {scanSuggestion && scanSku !== scanSuggestion && (
-                                 <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">Right Arrow ➜</span>
+                             {scanSuggestion && scanInput !== scanSuggestion && (
+                                 <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">Δεξί Βέλος ➜</span>
                              )}
                           </div>
                       </div>
@@ -312,52 +445,55 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                  <input 
                    type="text" 
-                   placeholder="Φίλτρο λίστας..." 
+                   placeholder="Φίλτρο λίστας (Κωδικός, Κατηγορία)..." 
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
                    className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
                  />
               </div>
 
-              {/* Enhanced Stock Table/Cards */}
+              {/* Enhanced Flattened Stock Table/Cards */}
               <div className="grid grid-cols-1 gap-4">
-                  {productsWithStockOrDemand.map(product => {
-                      const hasDemand = product.demand_qty > 0;
-                      const inStock = product.total_stock > 0;
-                      const canFulfill = inStock && product.total_stock >= product.demand_qty;
+                  {flattenedInventory.map(item => {
+                      const hasDemand = item.demandQty > 0;
+                      const inStock = item.totalStock > 0;
+                      const canFulfill = inStock && item.totalStock >= item.demandQty;
+                      const displayName = item.suffix ? `${item.masterSku}-${item.suffix}` : item.masterSku;
                       
                       return (
-                          <div key={product.sku} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group">
+                          <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden">
+                              {/* Left Border Status Indicator */}
+                              <div className={`absolute left-0 top-0 bottom-0 w-1 ${inStock ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+
                               {/* Product Info */}
-                              <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
-                                  <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 relative">
-                                      <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover"/>
-                                      {hasDemand && (
-                                          <div className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-bl-lg shadow-sm">
-                                              <ShoppingBag size={12} fill="currentColor" />
-                                          </div>
-                                      )}
+                              <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
+                                  <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 relative border border-slate-100">
+                                      <img src={item.imageUrl} alt={item.id} className="w-full h-full object-cover"/>
                                   </div>
                                   <div>
-                                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer" onClick={() => setSelectedProduct(product)}>{product.sku}</h3>
-                                      <p className="text-xs text-slate-500 font-medium">{product.category}</p>
+                                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2" onClick={() => setSelectedProduct(item.product)}>
+                                          {displayName}
+                                          {item.suffix && <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">{item.description}</span>}
+                                      </h3>
+                                      <p className="text-xs text-slate-500 font-medium">{item.category}</p>
                                   </div>
                               </div>
 
                               {/* Stock Distribution Visualization */}
-                              <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2">
-                                   {Object.entries(product.location_stock || {}).map(([whId, qty]) => {
+                              <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">
+                                   {Object.entries(item.locationStock).map(([whId, qty]) => {
                                        if (qty <= 0) return null;
                                        const whObj = warehouses?.find(w => w.id === whId);
-                                       const whName = whObj ? getWarehouseNameClean(whObj) : 'Unknown';
+                                       const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
                                        return (
-                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
-                                               <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 10)}</span>
+                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                                               <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 15)}</span>
                                                <span className="text-base">{qty}</span>
                                            </div>
                                        );
                                    })}
+                                   {item.totalStock === 0 && <span className="text-slate-400 text-sm italic">Εξαντλημένο</span>}
                               </div>
 
                               {/* Demand Alert Logic */}
@@ -367,7 +503,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                       <div className="text-xs font-bold">
                                           <div className="uppercase tracking-wide opacity-70">Ζητηση</div>
                                           <div className="text-sm">
-                                              {canFulfill ? 'Έτοιμο για αποστολή' : 'Έλλειψη στοκ'} ({product.demand_qty} τεμ)
+                                              {canFulfill ? 'Έτοιμο για αποστολή' : 'Έλλειψη στοκ'} ({item.demandQty} τεμ)
                                           </div>
                                       </div>
                                   </div>
@@ -375,20 +511,20 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
                               {/* Actions */}
                               <div className="flex items-center gap-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 mt-3 md:mt-0">
-                                  <button onClick={() => openTransfer(product)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm transition-colors">
+                                  <button onClick={() => openTransfer(item)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm transition-colors">
                                       <ArrowLeftRight size={16}/> Μεταφορά
                                   </button>
-                                  <button onClick={() => setSelectedProduct(product)} className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-slate-800 transition-colors">
+                                  <button onClick={() => setSelectedProduct(item.product)} className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-slate-800 transition-colors">
                                       <Edit2 size={16}/>
                                   </button>
                               </div>
                           </div>
                       );
                   })}
-                  {productsWithStockOrDemand.length === 0 && (
+                  {flattenedInventory.length === 0 && (
                       <div className="text-center py-20 text-slate-400">
                           <Package size={48} className="mx-auto mb-4 opacity-20"/>
-                          <p className="font-medium">Η αποθήκη είναι άδεια ή δεν υπάρχουν ενεργές παραγγελίες.</p>
+                          <p className="font-medium">Δεν βρέθηκαν αποθέματα ή παραγγελίες.</p>
                       </div>
                   )}
               </div>
@@ -413,7 +549,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                        
                        <h3 className="text-2xl font-black text-slate-800 tracking-tight">{getWarehouseNameClean(wh)}</h3>
                        
-                       {/* Simplified: Removed subtitle as requested, just showing ID if custom */}
                        {!wh.is_system && (
                            <div className="mt-2 text-xs font-mono text-slate-400 bg-slate-50 inline-block px-2 py-1 rounded">ID: {wh.id.split('-')[0]}</div>
                        )}
@@ -437,7 +572,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       <button onClick={() => setIsEditingWarehouse(false)}><X size={20}/></button>
                   </div>
                   <div className="space-y-4">
-                      <input className="w-full p-3 border rounded-xl" value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} placeholder="Όνομασία"/>
+                      <input className="w-full p-3 border rounded-xl" value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm,name: e.target.value})} placeholder="Όνομασία"/>
                       <select className="w-full p-3 border rounded-xl bg-white" value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})}>
                           <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Δειγματολόγιο</option>
                       </select>
@@ -447,25 +582,28 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           </div>
       )}
 
-      {transferModalOpen && transferProduct && (
+      {transferModalOpen && transferItem && (
           <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 border border-slate-100 flex flex-col">
                   <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
                       <div className="flex items-center gap-4">
-                           <img src={transferProduct.image_url} className="w-16 h-16 rounded-xl object-cover bg-white border border-slate-200" alt="thumb"/>
-                           <div><h3 className="text-xl font-bold text-slate-800">{transferProduct.sku}</h3><p className="text-slate-500 text-sm">Μεταφορά Αποθέματος</p></div>
+                           <img src={transferItem.imageUrl} className="w-16 h-16 rounded-xl object-cover bg-white border border-slate-200" alt="thumb"/>
+                           <div>
+                               <h3 className="text-xl font-bold text-slate-800">{transferItem.masterSku}{transferItem.suffix ? `-${transferItem.suffix}` : ''}</h3>
+                               <p className="text-slate-500 text-sm">Μεταφορά Αποθέματος</p>
+                           </div>
                       </div>
                       <button onClick={() => setTransferModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600"><X size={20}/></button>
                   </div>
                   <div className="p-8 space-y-6">
                       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{getWarehouseNameClean(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Από</label><select className="w-full p-3 border rounded-xl font-bold" value={sourceId} onChange={e => setSourceId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===targetId}>{getWarehouseNameClean(w)} ({transferItem.locationStock[w.id] || 0})</option>)}</select></div>
                           <ArrowRight className="text-slate-300 hidden md:block" />
-                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{getWarehouseNameClean(w)} ({transferProduct.location_stock?.[w.id] || 0})</option>)}</select></div>
+                          <div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 uppercase">Προς</label><select className="w-full p-3 border rounded-xl font-bold" value={targetId} onChange={e => setTargetId(e.target.value)}>{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id===sourceId}>{getWarehouseNameClean(w)} ({transferItem.locationStock[w.id] || 0})</option>)}</select></div>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-between">
                           <span className="font-bold text-slate-600">Ποσότητα</span>
-                          <input type="number" min="1" max={getStockFor(sourceId)} value={transferQty} onChange={e => setTransferQty(parseInt(e.target.value))} className="w-24 text-center p-2 rounded-lg border font-bold text-lg"/>
+                          <input type="number" min="1" max={transferItem.locationStock[sourceId] || 0} value={transferQty} onChange={e => setTransferQty(parseInt(e.target.value))} className="w-24 text-center p-2 rounded-lg border font-bold text-lg"/>
                       </div>
                       <button onClick={executeTransfer} disabled={isTransferring} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all">{isTransferring ? 'Μεταφορά...' : 'Επιβεβαίωση'}</button>
                   </div>

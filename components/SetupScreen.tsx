@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight } from 'lucide-react';
 import { saveConfiguration } from '../lib/supabase';
@@ -23,7 +24,7 @@ export default function SetupScreen() {
                      <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg mb-4 border border-slate-700">
                          <img src={APP_LOGO} alt="Logo" className="w-10 h-10 object-contain"/>
                      </div>
-                     <h1 className="text-2xl font-black text-slate-800">System Setup</h1>
+                     <h1 className="text-2xl font-black text-slate-800">Ρύθμιση Συστήματος</h1>
                      <p className="text-slate-500 text-sm mt-1">Απαιτείται ρύθμιση σύνδεσης</p>
                 </div>
 
@@ -68,7 +69,7 @@ export default function SetupScreen() {
                 </form>
                 
                 <div className="mt-6 flex justify-center gap-2 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                    <ShieldCheck size={14} className="text-emerald-500"/> Local Storage Encrypted
+                    <ShieldCheck size={14} className="text-emerald-500"/> Κρυπτογράφηση Τοπικής Αποθήκευσης
                 </div>
             </div>
         </div>

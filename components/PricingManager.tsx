@@ -148,7 +148,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                 <label className="block text-sm font-bold text-slate-600 mb-2 uppercase tracking-wide">Τιμή Βάσης (Ασήμι)</label>
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                     <span className="font-mono text-2xl font-black text-slate-800">{settings.silver_price_gram} €/g</span>
-                    <span className="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded border border-slate-100">Live</span>
+                    <span className="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded border border-slate-100">Ζωντανά</span>
                 </div>
               </>
           ) : (
@@ -205,20 +205,20 @@ export default function PricingManager({ products, settings, materials }: Props)
                    <th className="p-4 pl-6">SKU</th>
                    {mode === 'cost' ? (
                        <>
-                        <th className="p-4 text-right">Παλιο Κοστος</th>
+                        <th className="p-4 text-right">Παλιό Κόστος</th>
                         <th className="p-4 w-10"></th>
-                        <th className="p-4 text-right">Νεο Κοστος</th>
+                        <th className="p-4 text-right">Νέο Κόστος</th>
                        </>
                    ) : (
                        <>
-                        <th className="p-4 text-right">Παλια Χονδρικη</th>
+                        <th className="p-4 text-right">Παλιά Χονδρική</th>
                         <th className="p-4 w-10"></th>
-                        <th className="p-4 text-right">Νεα Χονδρικη</th>
+                        <th className="p-4 text-right">Νέα Χονδρική</th>
                        </>
                    )}
-                   <th className="p-4 text-right">Διαφορα</th>
-                   {mode === 'cost' && <th className="p-4 text-right">Τιμη Χονδρικης</th>}
-                   <th className="p-4 pr-6 text-right">Νεο Margin</th>
+                   <th className="p-4 text-right">Διαφορά</th>
+                   {mode === 'cost' && <th className="p-4 text-right">Τιμή Χονδρικής</th>}
+                   <th className="p-4 pr-6 text-right">Νέο Περιθώριο</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">

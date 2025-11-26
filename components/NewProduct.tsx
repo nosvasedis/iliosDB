@@ -336,7 +336,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                                 </div>
                             )}
                             <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50"/>
-                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-sm pointer-events-none z-40 backdrop-blur-sm"><Upload size={18} className="mr-2" /> Αλλαγή</div>
+                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-sm pointer-events-none z-40 backdrop-blur-sm"><Upload size={18} className="mr-2" /> Μεταφόρτωση</div>
                         </div>
                     </div>
 
@@ -349,7 +349,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                                   <Lightbulb size={18} className="mt-0.5 shrink-0 text-blue-600" />
                                   <div>
                                     <span className="font-bold block text-blue-700 mb-1">Αυτόματη Αναγνώριση</span>
-                                    Master SKU: <strong className="font-mono bg-white/50 px-1 rounded">{detectedMasterSku}</strong><br/>
+                                    Κύριος Κωδικός: <strong className="font-mono bg-white/50 px-1 rounded">{detectedMasterSku}</strong><br/>
                                     Παραλλαγή: <strong className="font-mono bg-white/50 px-1 rounded">{detectedSuffix}</strong> ({detectedVariantDesc})
                                   </div>
                               </div>
@@ -395,7 +395,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                     <div className="flex justify-between items-end mb-3">
                         <label className="block text-sm font-bold text-slate-700">Ανάθεση Λάστιχων</label>
                         <div className="relative w-48">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input 
                                 type="text" 
                                 placeholder="Αναζήτηση..." 
@@ -512,8 +512,8 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                         <span className="text-sm font-bold text-slate-500 uppercase tracking-wide">Εκτιμώμενο Κόστος</span>
                         <p className="text-4xl font-black text-slate-800 mt-2">{estimatedCost.toFixed(2)}€</p>
                         <div className="mt-4 pt-4 border-t border-slate-200/60 text-sm space-y-1 text-slate-500">
-                            <p>Silver: {(estimatedCost * 0.4).toFixed(2)}€ (approx)</p>
-                            <p>Labor: {(labor.casting_cost + labor.setter_cost + labor.technician_cost + labor.plating_cost).toFixed(2)}€</p>
+                            <p>Ασήμι: {(estimatedCost * 0.4).toFixed(2)}€ (εκτίμηση)</p>
+                            <p>Εργατικά: {(labor.casting_cost + labor.setter_cost + labor.technician_cost + labor.plating_cost).toFixed(2)}€</p>
                         </div>
                     </div>
                     
@@ -527,7 +527,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                             
                             {/* Subtle Retail Reference */}
                             <div className="mt-3 flex items-center justify-between text-[10px] text-amber-800/40 px-2 font-medium">
-                                <span>Ref: Suggested Retail (x3)</span>
+                                <span>Αναφορά: Προτ. Λιανική (x3)</span>
                                 <span>{retailPrice.toFixed(2)}€</span>
                             </div>
                         </div>
@@ -541,7 +541,7 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                             <p className="font-black text-2xl mt-1">{profit.toFixed(2)}€</p>
                         </div>
                         <div className={`flex-1 p-4 rounded-xl text-center border transition-colors ${margin > 30 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-orange-50 border-orange-100 text-orange-800'}`}>
-                            <span className="text-xs uppercase font-bold opacity-70 flex items-center justify-center gap-1"><Percent size={10} /> Margin</span>
+                            <span className="text-xs uppercase font-bold opacity-70 flex items-center justify-center gap-1"><Percent size={10} /> Περιθώριο</span>
                             <p className="font-black text-2xl mt-1">{margin.toFixed(1)}%</p>
                         </div>
                     </div>
@@ -549,8 +549,8 @@ export default function NewProduct({ products, materials, molds = [] }: Props) {
                  
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm text-sm space-y-2 text-slate-600">
                     <p className="flex justify-between"><span className="font-bold text-slate-400">SKU</span> <span className="font-mono font-bold text-slate-800">{detectedMasterSku || sku} {detectedSuffix ? `(${detectedSuffix})` : ''}</span></p>
-                    <p className="flex justify-between"><span className="font-bold text-slate-400">Category</span> <span className="font-bold text-slate-800">{category}</span></p>
-                    <p className="flex justify-between"><span className="font-bold text-slate-400">Components</span> <span className="font-bold text-slate-800">{recipe.length} items</span></p>
+                    <p className="flex justify-between"><span className="font-bold text-slate-400">Κατηγορία</span> <span className="font-bold text-slate-800">{category}</span></p>
+                    <p className="flex justify-between"><span className="font-bold text-slate-400">Συστατικά</span> <span className="font-bold text-slate-800">{recipe.length} είδη</span></p>
                  </div>
              </div>
           )}
