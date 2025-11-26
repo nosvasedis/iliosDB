@@ -8,16 +8,18 @@ export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.de
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
 // --- SECURE INITIALIZATION STRATEGY ---
-// 1. Try Environment Variables (Production / Local Dev)
-// 2. Try Local Storage (Browser Preview / No-Env environments)
-const getEnv = (key: string) => {
-    // @ts-ignore
-    return import.meta.env?.[key] || localStorage.getItem(key) || '';
-};
+// VITE IMPORTANT: We must access import.meta.env.VARIABLE_NAME explicitly 
+// for the build tool to replace it with the Vercel Env Var.
+// Do not use dynamic property access (e.g. env[key]) for build variables.
 
-const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
-const SUPABASE_KEY = getEnv('VITE_SUPABASE_ANON_KEY');
-export const AUTH_KEY_SECRET = getEnv('VITE_WORKER_AUTH_KEY');
+const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
+
+// Logic: 1. Try Build Env (Vercel) -> 2. Try Local Storage (Preview/Fallback) -> 3. Empty
+const SUPABASE_URL = envUrl || localStorage.getItem('VITE_SUPABASE_URL') || '';
+const SUPABASE_KEY = envKey || localStorage.getItem('VITE_SUPABASE_ANON_KEY') || '';
+export const AUTH_KEY_SECRET = envWorkerKey || localStorage.getItem('VITE_WORKER_AUTH_KEY') || '';
 
 export const isConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
 
