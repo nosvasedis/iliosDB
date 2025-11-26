@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariant } from '../types';
@@ -10,7 +9,7 @@ interface Props {
     height: number;
 }
 
-export default function BarcodeView({ product, variant, width, height }: Props) {
+const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const finalSku = variant ? `${product.sku}${variant.suffix}` : product.sku;
@@ -80,4 +79,6 @@ export default function BarcodeView({ product, variant, width, height }: Props) 
             </div>
         </div>
     );
-}
+};
+
+export default BarcodeView;

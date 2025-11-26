@@ -1,9 +1,12 @@
-
-
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
+
+// --- CONFIGURATION FOR R2 IMAGE STORAGE ---
+const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
+const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
+const AUTH_KEY_SECRET = '2112Aris101!';
+// --- END CONFIGURATION ---
 
 // Credentials provided by user
 const SUPABASE_URL = 'https://mtwkkzwveuskdcjkaiag.supabase.co';
@@ -12,41 +15,52 @@ const SUPABASE_KEY = 'sb_publishable_wCP1B81ATC-jjMx99mq14A_3J18p_dO';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /**
- * Uploads a product image to Supabase Storage with a UNIQUE filename.
+ * [NEW] Uploads a product image to Cloudflare R2 via a secure worker.
  * Naming Convention: {SKU}_{TIMESTAMP}_{RANDOM}.jpg
  */
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
-    // Generate unique ID to prevent caching issues
+    // Sanitize SKU to prevent URL malformation. 
+    // Allow alphanumerics, Greek characters, dashes.
+    const safeSku = sku
+        .replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-') // Replace non-alphanumeric/non-greek with dash
+        .replace(/-+/g, '-') // Remove duplicate dashes
+        .replace(/^-|-$/g, ''); // Trim dashes
+
     const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const fileName = `${sku.toUpperCase()}_${uniqueId}.jpg`;
+    const fileName = `${safeSku.toUpperCase()}_${uniqueId}.jpg`;
     
-    // 1. Upload
-    const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file, {
-            cacheControl: '31536000', // Cache forever, we use unique names now
-            contentType: 'image/jpeg'
+    // We encode the filename for the URL
+    const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
+
+    try {
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            mode: 'cors', // Explicitly allow CORS
+            credentials: 'omit', // Important: Do not send cookies/auth headers that conflict with wildcard CORS
+            headers: {
+                'Content-Type': 'image/jpeg',
+                'Authorization': AUTH_KEY_SECRET,
+            },
+            body: file,
         });
 
-    if (error) {
-        console.error("Supabase Upload Error:", error);
-        return null;
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Worker responded with ${response.status}: ${errorText}`);
+        }
+
+        // Return the Public R2 URL
+        return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
+
+    } catch (error) {
+        console.error("Cloudflare R2 Upload Error:", error);
+        // Throwing error allows the UI to catch it and alert the user
+        throw error;
     }
-
-    // 2. Get Public URL
-    const { data: publicData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-    return publicData.publicUrl;
 };
 
 /**
- * Robust Product Deletion
- * 1. Checks if product is used as a component in OTHER recipes (blocks delete if true).
- * 2. Deletes the image from Storage.
- * 3. Deletes related DB entries (variants, recipe, molds, stock logs).
- * 4. Deletes the Product row.
+ * [UPDATED] Robust Product Deletion
  */
 export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -66,42 +80,37 @@ export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ s
             };
         }
 
-        // 2. STORAGE CLEANUP: Delete image if exists
-        if (imageUrl && imageUrl.includes('product-images')) {
+        // 2. STORAGE CLEANUP: Delete image from R2 via worker
+        if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) {
             try {
-                // Extract filename from URL
-                // URL format: .../product-images/FILENAME.jpg
                 const urlParts = imageUrl.split('/');
-                const fileName = urlParts[urlParts.length - 1];
+                const encodedFileName = urlParts[urlParts.length - 1];
                 
-                if (fileName) {
-                    await supabase.storage.from('product-images').remove([fileName]);
+                if (encodedFileName) {
+                    const deleteUrl = `${CLOUDFLARE_WORKER_URL}/${encodedFileName}`;
+                    await fetch(deleteUrl, {
+                        method: 'DELETE',
+                        mode: 'cors',
+                        credentials: 'omit',
+                        headers: {
+                            'Authorization': AUTH_KEY_SECRET,
+                        }
+                    });
                 }
             } catch (storageErr) {
-                console.warn("Could not delete image file, proceeding with DB delete.", storageErr);
+                console.warn("Could not delete image file from R2, proceeding with DB delete.", storageErr);
             }
         }
 
-        // 3. DATABASE CLEANUP (Manual Cascade to be safe)
-        
-        // Delete Variants
+        // 3. DATABASE CLEANUP
         await supabase.from('product_variants').delete().eq('product_sku', sku);
-        
-        // Delete ITS Own Recipe (where it is the parent)
         await supabase.from('recipes').delete().eq('parent_sku', sku);
-        
-        // Delete Mold Associations
         await supabase.from('product_molds').delete().eq('product_sku', sku);
-
-        // Delete Collection Associations
         await supabase.from('product_collections').delete().eq('product_sku', sku);
-        
-        // Delete Stock History
         await supabase.from('stock_movements').delete().eq('product_sku', sku);
 
         // 4. DELETE PRODUCT
         const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
-        
         if (deleteError) throw deleteError;
 
         return { success: true };
@@ -112,9 +121,6 @@ export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ s
     }
 };
 
-/**
- * Records a stock movement (Audit Log)
- */
 export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {
     try {
         await supabase.from('stock_movements').insert({
@@ -180,11 +186,9 @@ export const api = {
     },
 
     setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
-        // 1. Delete existing associations
         const { error: deleteError } = await supabase.from('product_collections').delete().eq('product_sku', sku);
         if (deleteError) throw deleteError;
         
-        // 2. Insert new ones if any
         if (collectionIds.length > 0) {
             const newLinks = collectionIds.map(id => ({ product_sku: sku, collection_id: id }));
             const { error: insertError } = await supabase.from('product_collections').insert(newLinks);
@@ -194,17 +198,14 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         const { data: prodData, error } = await supabase.from('products').select('*');
-        
         if (error || !prodData) return MOCK_PRODUCTS;
 
-        // Fetch relations in parallel for performance (simplified for this example)
         const { data: varData } = await supabase.from('product_variants').select('*');
         const { data: recData } = await supabase.from('recipes').select('*');
         const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
         const { data: prodCollData } = await supabase.from('product_collections').select('*');
 
         const assembledProducts: Product[] = prodData.map((p: any) => {
-            // Find Variants
             const pVariants: ProductVariant[] = varData
               ?.filter((v: any) => v.product_sku === p.sku)
               .map((v: any) => ({
@@ -213,7 +214,6 @@ export const api = {
                 stock_qty: v.stock_qty
               })) || [];
 
-            // Find Recipe
             const pRecipeRaw = recData?.filter((r: any) => r.parent_sku === p.sku) || [];
             const pRecipe: RecipeItem[] = pRecipeRaw.map((r: any) => {
                if (r.type === 'raw') {
@@ -223,12 +223,10 @@ export const api = {
                }
             });
             
-            // Find Molds
             const pMolds = prodMoldsData
                 ?.filter((pm: any) => pm.product_sku === p.sku)
                 .map((pm: any) => pm.mold_code) || [];
 
-            // Find Collections
             const pCollections = prodCollData
                 ?.filter((pc: any) => pc.product_sku === p.sku)
                 .map((pc: any) => pc.collection_id) || [];
