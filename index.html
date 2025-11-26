@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="el">
   <head>
-    <meta charset="utf-8" />
+    <meta charset="utf-t" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ILIOS KOSMIMA ERP</title>
     <meta name="description" content="Jewelry Manufacturing Management System" />
@@ -21,10 +21,31 @@
         background-color: #f3f4f6;
       }
       @media print {
-        .no-print { display: none !important; }
-        .print-only { display: block !important; }
+        body > #root > *:not(.print-view) {
+          display: none !important;
+        }
+        .print-view {
+          display: block !important;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          background: white;
+        }
+        .print-area {
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 0;
+        }
+        @page {
+          size: A4;
+          margin: 10mm; 
+        }
       }
-      .print-only { display: none; }
+      .print-view { 
+        display: none; 
+      }
     </style>
   <script type="importmap">
 {

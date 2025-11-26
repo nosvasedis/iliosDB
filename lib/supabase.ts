@@ -1,6 +1,8 @@
 
+
+
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // Credentials provided by user
@@ -90,6 +92,9 @@ export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ s
         
         // Delete Mold Associations
         await supabase.from('product_molds').delete().eq('product_sku', sku);
+
+        // Delete Collection Associations
+        await supabase.from('product_collections').delete().eq('product_sku', sku);
         
         // Delete Stock History
         await supabase.from('stock_movements').delete().eq('product_sku', sku);
@@ -130,10 +135,16 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         const { data, error } = await supabase.from('global_settings').select('*').single();
-        if (error || !data) return INITIAL_SETTINGS;
+        if (error || !data) return { 
+            ...INITIAL_SETTINGS, 
+            barcode_width_mm: 50, 
+            barcode_height_mm: 30 
+        };
         return {
             silver_price_gram: Number(data.silver_price_gram),
-            loss_percentage: Number(data.loss_percentage)
+            loss_percentage: Number(data.loss_percentage),
+            barcode_width_mm: Number(data.barcode_width_mm) || 50,
+            barcode_height_mm: Number(data.barcode_height_mm) || 30
         };
     },
 
@@ -159,6 +170,28 @@ export const api = {
         }));
     },
 
+    getCollections: async (): Promise<Collection[]> => {
+        const { data, error } = await supabase.from('collections').select('*').order('name');
+        if (error) {
+            console.error("Error fetching collections", error);
+            throw error;
+        }
+        return data || [];
+    },
+
+    setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
+        // 1. Delete existing associations
+        const { error: deleteError } = await supabase.from('product_collections').delete().eq('product_sku', sku);
+        if (deleteError) throw deleteError;
+        
+        // 2. Insert new ones if any
+        if (collectionIds.length > 0) {
+            const newLinks = collectionIds.map(id => ({ product_sku: sku, collection_id: id }));
+            const { error: insertError } = await supabase.from('product_collections').insert(newLinks);
+            if (insertError) throw insertError;
+        }
+    },
+
     getProducts: async (): Promise<Product[]> => {
         const { data: prodData, error } = await supabase.from('products').select('*');
         
@@ -168,6 +201,7 @@ export const api = {
         const { data: varData } = await supabase.from('product_variants').select('*');
         const { data: recData } = await supabase.from('recipes').select('*');
         const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
+        const { data: prodCollData } = await supabase.from('product_collections').select('*');
 
         const assembledProducts: Product[] = prodData.map((p: any) => {
             // Find Variants
@@ -194,6 +228,11 @@ export const api = {
                 ?.filter((pm: any) => pm.product_sku === p.sku)
                 .map((pm: any) => pm.mold_code) || [];
 
+            // Find Collections
+            const pCollections = prodCollData
+                ?.filter((pc: any) => pc.product_sku === p.sku)
+                .map((pc: any) => pc.collection_id) || [];
+
             return {
               sku: p.sku,
               prefix: p.prefix,
@@ -211,6 +250,7 @@ export const api = {
               is_component: p.is_component,
               variants: pVariants,
               recipe: pRecipe,
+              collections: pCollections,
               labor: {
                 casting_cost: Number(p.labor_casting),
                 setter_cost: Number(p.labor_setter),

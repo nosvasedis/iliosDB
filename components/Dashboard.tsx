@@ -65,7 +65,7 @@ export default function Dashboard({ products, settings }: Props) {
                 <XAxis dataKey="name" tick={{fontSize: 12}} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" name="Πλήθος" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

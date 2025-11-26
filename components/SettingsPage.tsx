@@ -2,15 +2,21 @@ import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
 import { Save, TrendingUp, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 
-interface Props {
-  settings: GlobalSettings;
-  setSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>;
-}
-
-export default function SettingsPage({ settings, setSettings }: Props) {
+export default function SettingsPage() {
+  const queryClient = useQueryClient();
+  const settingsData = queryClient.getQueryData<GlobalSettings>(['settings']);
+  
+  // Local state for editing, initialized from query cache
+  const [settings, setSettings] = useState<GlobalSettings | null>(settingsData || null);
+  
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  if (!settings) {
+    return <div>Loading settings...</div>;
+  }
 
   // FETCH LIVE PRICE AND SAVE TO DB
   const fetchLivePrice = async () => {
@@ -27,14 +33,19 @@ export default function SettingsPage({ settings, setSettings }: Props) {
         const finalPrice = parseFloat(silverPricePerGram.toFixed(3));
         
         const newSettings = { ...settings, silver_price_gram: finalPrice };
-        setSettings(newSettings);
         
         // Persist
         const { error } = await supabase
           .from('global_settings')
-          .upsert({ id: 1, silver_price_gram: finalPrice, loss_percentage: settings.loss_percentage });
+          .update({ silver_price_gram: finalPrice })
+          .eq('id', 1);
 
         if (error) throw error;
+        
+        // Update local and query cache
+        setSettings(newSettings);
+        queryClient.setQueryData(['settings'], newSettings);
+
         alert(`Η τιμή ενημερώθηκε και αποθηκεύτηκε: ${finalPrice} €/g`);
       }
     } catch (error) {
@@ -50,9 +61,19 @@ export default function SettingsPage({ settings, setSettings }: Props) {
     try {
         const { error } = await supabase
           .from('global_settings')
-          .upsert({ id: 1, silver_price_gram: settings.silver_price_gram, loss_percentage: settings.loss_percentage });
+          .update({ 
+              silver_price_gram: settings.silver_price_gram, 
+              loss_percentage: settings.loss_percentage,
+              barcode_width_mm: settings.barcode_width_mm,
+              barcode_height_mm: settings.barcode_height_mm
+            })
+          .eq('id', 1);
 
         if (error) throw error;
+
+        // Update query cache
+        queryClient.setQueryData(['settings'], settings);
+
         alert("Οι ρυθμίσεις αποθηκεύτηκαν.");
     } catch(err) {
         alert("Σφάλμα κατά την αποθήκευση.");
@@ -110,6 +131,30 @@ export default function SettingsPage({ settings, setSettings }: Props) {
             <p className="text-xs text-slate-400 mt-1">Πρόσθετη επιβάρυνση βάρους λόγω χασίματος (φύρας).</p>
           </div>
         </div>
+      </div>
+       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+        <h2 className="text-lg font-semibold text-slate-700">Ρυθμίσεις Εκτύπωσης Ετικετών</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Πλάτος Ετικέτας (mm)</label>
+            <input 
+              type="number" step="1"
+              value={settings.barcode_width_mm}
+              onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})}
+              className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Ύψος Ετικέτας (mm)</label>
+            <input 
+              type="number" step="1"
+              value={settings.barcode_height_mm}
+              onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})}
+              className="w-full p-2 border border-slate-300 rounded-md bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 mt-2">Καθορίστε τις διαστάσεις για τις ετικέτες που εκτυπώνετε.</p>
       </div>
     </div>
   );

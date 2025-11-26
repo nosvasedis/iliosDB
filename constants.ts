@@ -8,7 +8,10 @@ export const APP_ICON_ONLY = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='htt
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {
   silver_price_gram: 0.82,
-  loss_percentage: 10.0
+  loss_percentage: 10.0,
+  // FIX: Added missing properties to conform to GlobalSettings type
+  barcode_width_mm: 50,
+  barcode_height_mm: 30,
 };
 
 // Stone Codes Dictionaries

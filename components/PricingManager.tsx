@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { calculateProductCost } from '../utils/pricingEngine';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
 
 interface Props {
   products: Product[];
-  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   settings: GlobalSettings;
-  setSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>;
   materials: Material[];
 }
 
-export default function PricingManager({ products, setProducts, settings, setSettings, materials }: Props) {
+export default function PricingManager({ products, settings, materials }: Props) {
   const [isCalculated, setIsCalculated] = useState(false);
+  const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const queryClient = useQueryClient();
 
   const handleRecalculate = () => {
     // Pass 'products' as the 4th argument for recursion
@@ -22,19 +25,35 @@ export default function PricingManager({ products, setProducts, settings, setSet
       return { ...p, draft_price: cost.total };
     });
 
-    setProducts(updatedProducts);
+    setPreviewProducts(updatedProducts);
     setIsCalculated(true);
   };
 
-  const commitPrices = () => {
-    const updatedProducts = products.map(p => ({
-      ...p,
-      active_price: p.draft_price
+  const commitPrices = async () => {
+    setIsCommitting(true);
+    const updates = previewProducts.map(p => ({
+        sku: p.sku,
+        active_price: p.draft_price,
+        draft_price: p.draft_price
     }));
-    setProducts(updatedProducts);
-    setIsCalculated(false);
-    alert("Οι νέες τιμές ενημερώθηκαν επιτυχώς!");
+
+    try {
+        const { error } = await supabase.from('products').upsert(updates);
+        if (error) throw error;
+        
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        setIsCalculated(false);
+        setPreviewProducts([]);
+        alert("Οι νέες τιμές ενημερώθηκαν επιτυχώς!");
+    } catch(err) {
+        console.error(err);
+        alert("Σφάλμα κατά την ενημέρωση των τιμών.");
+    } finally {
+        setIsCommitting(false);
+    }
   };
+
+  const productsToList = isCalculated ? previewProducts : products;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -57,8 +76,9 @@ export default function PricingManager({ products, setProducts, settings, setSet
               <RefreshCw size={18} /> Υπολογισμός
             </button>
             {isCalculated && (
-              <button onClick={commitPrices} className="px-6 py-3 rounded-lg font-medium flex items-center gap-2 bg-green-600 text-white shadow-lg shadow-green-200">
-                <CheckCircle size={18} /> Ενημέρωση
+              <button onClick={commitPrices} disabled={isCommitting} className="px-6 py-3 rounded-lg font-medium flex items-center gap-2 bg-green-600 text-white shadow-lg shadow-green-200 disabled:opacity-50">
+                {isCommitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                {isCommitting ? 'Ενημέρωση...' : 'Ενημέρωση'}
               </button>
             )}
           </div>
@@ -84,7 +104,7 @@ export default function PricingManager({ products, setProducts, settings, setSet
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {products.filter(p => !p.is_component).map(p => {
+                {productsToList.filter(p => !p.is_component).map(p => {
                   const diff = p.draft_price - p.active_price;
                   const profit = p.selling_price - p.draft_price;
                   const margin = p.selling_price > 0 ? (profit / p.selling_price) * 100 : 0;

@@ -1,4 +1,4 @@
-import { Product, GlobalSettings, Material, PlatingType } from '../types';
+import { Product, GlobalSettings, Material, PlatingType, Gender } from '../types';
 
 export const calculateProductCost = (
   product: Product,
@@ -76,22 +76,47 @@ export const calculateProductCost = (
 export const parseSku = (sku: string) => {
   const prefix = sku.substring(0, 2).toUpperCase();
   const triPrefix = sku.substring(0, 3).toUpperCase();
+  const numPartStr = sku.replace(/[A-Z-]/g, '');
+  const numPart = parseInt(numPartStr, 10);
 
   // STX Logic (Components)
   if (triPrefix === 'STX') {
-    return { gender: 'Unisex', category: 'Εξάρτημα (STX)' };
+    return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
+  }
+  
+  // NEW: Advanced XR Logic
+  if (prefix === 'XR' && !isNaN(numPart)) {
+    if (numPart >= 1 && numPart <= 99) {
+      return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
+    }
+    if (numPart >= 100 && numPart <= 199) {
+      return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
+    }
+    if (numPart >= 200 && numPart <= 700) {
+      return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ με Πέτρες' };
+    }
+    if (numPart >= 1101 && numPart < 1150) {
+      return { gender: Gender.Unisex, category: 'Βραχιόλι Θρησκευτικό Μακραμέ' };
+    }
+    if (numPart >= 1150 && numPart < 1200) {
+      return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ' };
+    }
+    if (numPart >= 1200 && numPart <= 1299) {
+        return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο' };
+    }
+    // Fallback for other XR numbers if they don't fit the ranges
+    return { gender: Gender.Men, category: 'Βραχιόλι' };
   }
   
   // Men's Prefixes
-  // XR (Bracelets), CR (Cross), RN (Ring), PN (Pendant)
-  if (['XR', 'CR', 'RN', 'PN'].includes(prefix)) {
+  // CR (Cross), RN (Ring), PN (Pendant)
+  if (['CR', 'RN', 'PN'].includes(prefix)) {
     const map: Record<string, string> = {
-        'XR': 'Βραχιόλι', 
         'CR': 'Σταυρός', 
         'RN': 'Δαχτυλίδι', 
         'PN': 'Μενταγιόν'
     };
-    return { gender: 'Men', category: map[prefix] || 'Άλλο' };
+    return { gender: Gender.Men, category: map[prefix] || 'Άλλο' };
   }
   
   // Women's Prefixes
@@ -103,15 +128,15 @@ export const parseSku = (sku: string) => {
         'MN': 'Μενταγιόν', 
         'BR': 'Βραχιόλι'
     };
-    return { gender: 'Women', category: map[prefix] || 'Άλλο' };
+    return { gender: Gender.Women, category: map[prefix] || 'Άλλο' };
   }
 
   // Ambiguous (ST) - User specified ST is Crosses for both. Classifying as Unisex Cross.
   if (prefix === 'ST') {
-      return { gender: 'Unisex', category: 'Σταυρός' };
+      return { gender: Gender.Unisex, category: 'Σταυρός' };
   }
 
-  return { gender: 'Unisex', category: 'Γενικό' };
+  return { gender: Gender.Unisex, category: 'Γενικό' };
 };
 
 /**

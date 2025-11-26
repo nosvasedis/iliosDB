@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   PackagePlus, 
@@ -11,11 +11,13 @@ import {
   ChevronRight,
   Loader2,
   Gem,
-  MapPin
+  MapPin,
+  FolderKanban
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api } from './lib/supabase';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Product, ProductVariant } from './types';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -25,32 +27,39 @@ import PricingManager from './components/PricingManager';
 import SettingsPage from './components/SettingsPage';
 import MaterialsPage from './components/MaterialsPage';
 import MoldsPage from './components/MoldsPage';
+import CollectionsPage from './components/CollectionsPage';
+import BarcodeView from './components/BarcodeView';
 
-type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds';
+type Page = 'dashboard' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant}[]>([]);
+  const queryClient = useQueryClient();
 
   // --- React Query Data Fetching ---
-  const { data: settings, isLoading: loadingSettings, refetch: refetchSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: materials, isLoading: loadingMaterials, refetch: refetchMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-  const { data: molds, isLoading: loadingMolds, refetch: refetchMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-  const { data: products, isLoading: loadingProducts, refetch: refetchProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+  const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+  const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+  const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
-  const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts;
 
-  // Optimistic/Local updaters to pass down (for MVP compatibility)
-  // In a full implementation, these would be replace by useMutation
-  const setProducts = (newProds: any) => { 
-     // This is a mock function to satisfy prop types for now, 
-     // real updates should invalidate queries
-     refetchProducts(); 
-  }; 
-  const setSettings = (newSettings: any) => { refetchSettings(); };
-  const setMaterials = (newMats: any) => { refetchMaterials(); };
-  const setMolds = (newMolds: any) => { refetchMolds(); };
+  const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
+
+  // Print effect
+  useEffect(() => {
+    if (printItems.length > 0) {
+      // Allow react to render the print view before dialog opens
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintItems([]);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [printItems]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -71,10 +80,25 @@ export default function App() {
   }
 
   // Safe fallback
-  if (!settings || !products || !materials || !molds) return null;
+  if (!settings || !products || !materials || !molds || !collections) return null;
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-800 bg-slate-100">
+      
+      {/* Print View (Hidden by default) */}
+      <div className="print-view">
+        <div className="print-area">
+          {printItems.map((item, index) => (
+            <BarcodeView 
+              key={index} 
+              product={item.product} 
+              variant={item.variant}
+              width={settings.barcode_width_mm}
+              height={settings.barcode_height_mm}
+            />
+          ))}
+        </div>
+      </div>
       
       {/* Mobile Overlay */}
       {isSidebarOpen && (
@@ -100,8 +124,15 @@ export default function App() {
                 alt="Ilios Kosmima" 
                 className="h-14 w-auto object-contain" 
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement!.innerText = 'ILIOS KOSMIMA';
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.app-title')) {
+                     const title = document.createElement('div');
+                     title.className = 'app-title text-white font-bold text-center';
+                     title.innerText = 'ILIOS KOSMIMA';
+                     parent.appendChild(title);
+                  }
                 }}
               />
             </div>
@@ -145,6 +176,13 @@ export default function App() {
             isCollapsed={isCollapsed}
             onClick={() => handleNav('molds')} 
           />
+           <NavItem 
+            icon={<FolderKanban size={22} />} 
+            label="Συλλογές" 
+            isActive={activePage === 'collections'} 
+            isCollapsed={isCollapsed}
+            onClick={() => handleNav('collections')} 
+          />
           <NavItem 
             icon={<PackagePlus size={22} />} 
             label="Νέο Προϊόν" 
@@ -182,7 +220,7 @@ export default function App() {
            {!isCollapsed && (
               <div className="mt-4 text-xs text-slate-500 text-center">
                 <p>Ag925: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                <p>v1.3.0</p>
+                <p>v1.4.0</p>
               </div>
            )}
         </div>
@@ -205,12 +243,13 @@ export default function App() {
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative">
           <div className="max-w-7xl mx-auto">
             {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
-            {activePage === 'inventory' && <Inventory products={products} materials={materials} />}
-            {activePage === 'materials' && <MaterialsPage materials={materials} setMaterials={setMaterials} />}
-            {activePage === 'molds' && <MoldsPage molds={molds} setMolds={setMolds} />}
-            {activePage === 'new-product' && <NewProduct products={products} materials={materials} setProducts={setProducts} molds={molds} />}
-            {activePage === 'pricing' && <PricingManager products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} materials={materials} />}
-            {activePage === 'settings' && <SettingsPage settings={settings} setSettings={setSettings} />}
+            {activePage === 'inventory' && <Inventory products={products} materials={materials} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
+            {activePage === 'materials' && <MaterialsPage />}
+            {activePage === 'molds' && <MoldsPage />}
+            {activePage === 'collections' && <CollectionsPage />}
+            {activePage === 'new-product' && <NewProduct products={products} materials={materials} molds={molds} />}
+            {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
+            {activePage === 'settings' && <SettingsPage />}
           </div>
         </div>
       </main>

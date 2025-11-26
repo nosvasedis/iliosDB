@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { Product, Gender, Material } from '../types';
+import { Product, Gender, Material, GlobalSettings, Collection } from '../types';
 import { Search, Filter, MapPin, Box } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 
 interface Props {
   products: Product[];
-  materials?: Material[]; // Optional for now until passed from App
+  materials?: Material[];
+  setPrintItems: (items: { product: Product; variant?: any }[]) => void;
+  settings: GlobalSettings;
+  collections: Collection[];
 }
 
-export default function Inventory({ products, materials = [] }: Props) {
+export default function Inventory({ products, materials = [], setPrintItems, settings, collections }: Props) {
   const [filterType, setFilterType] = useState<string>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -67,7 +70,7 @@ export default function Inventory({ products, materials = [] }: Props) {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 no-print">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {filteredProducts.map(product => {
           // Calculate Total Stock (Master + Variants)
           const variantStock = product.variants?.reduce((acc, v) => acc + v.stock_qty, 0) || 0;
@@ -140,11 +143,10 @@ export default function Inventory({ products, materials = [] }: Props) {
           allProducts={products}
           allMaterials={materials}
           onClose={() => setSelectedProduct(null)}
-          onSave={(updated) => {
-             // Logic to update state in parent would go here
-             console.log("Updated:", updated);
-             setSelectedProduct(null);
-          }}
+          onSave={() => setSelectedProduct(null)}
+          setPrintItems={setPrintItems}
+          settings={settings}
+          collections={collections}
         />
       )}
     </div>

@@ -51,6 +51,12 @@ export interface ProductVariant {
   stock_qty: number;
 }
 
+export interface Collection {
+  id: number;
+  name: string;
+  description?: string;
+}
+
 export interface Product {
   sku: string; // Primary Key
   prefix: string;
@@ -75,9 +81,14 @@ export interface Product {
   variants?: ProductVariant[]; // Specific versions (Stones, Patina, etc)
   recipe: RecipeItem[]; 
   labor: LaborCost;
+
+  // Organization
+  collections?: number[]; // Array of collection IDs
 }
 
 export interface GlobalSettings {
   silver_price_gram: number;
   loss_percentage: number;
+  barcode_width_mm: number;
+  barcode_height_mm: number;
 }
