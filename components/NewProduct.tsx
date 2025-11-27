@@ -207,8 +207,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
     try {
         // 2. Check for existing product to preserve stock
-        // If we upsert with stock_qty: 0 on an existing product, we wipe its stock. 
-        // We must fetch it first.
         let existingStockQty = 0;
         let existingSampleQty = 0;
         
@@ -235,8 +233,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 finalImageUrl = uploadedUrl;
             }
         } else if (!finalImageUrl && imagePreview) {
-             // If we have a preview but no file (maybe passed in props later?), keep it. 
-             // But for now, we rely on finalImageUrl being set from existing or upload.
+             // Keep existing or empty
         }
 
         const newProduct: Product = {
@@ -266,7 +263,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         };
         
         // 4. Persist to DB (Master Product)
-        // Using upsert with .select() to verify persistence
         const { error: prodError } = await supabase.from('products').upsert({
             sku: newProduct.sku,
             prefix: newProduct.prefix,
@@ -291,15 +287,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         if (prodError) throw prodError;
 
         // 5. Create Variant if detected
-        // Use UPSERT instead of INSERT to handle case where variant exists
         if (detectedSuffix) {
-            // Check existing variant stock first? Variants might track their own stock.
-            // For simplicity in creation mode, we assume 0 or keep what DB has if we don't send stock_qty
-            // But upsert needs all fields or it merges.
-            // We'll insert with 0 if new, or update description if exists. 
-            // Ideally we shouldn't wipe stock.
-            
-            // Check if variant exists
             const { data: existVar } = await supabase.from('product_variants').select('stock_qty').match({ product_sku: newProduct.sku, suffix: detectedSuffix }).single();
             const varStock = existVar ? existVar.stock_qty : 0;
 
@@ -307,15 +295,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 product_sku: newProduct.sku,
                 suffix: detectedSuffix,
                 description: detectedVariantDesc,
-                stock_qty: varStock // Preserve
+                stock_qty: varStock
             }, { onConflict: 'product_sku, suffix' });
 
             if (varError) throw varError;
         }
         
-        // 6. Handle Recipes (Delete Old -> Insert New)
-        // Only delete if we are actually saving a recipe, otherwise we might wipe existing recipe on a partial edit? 
-        // But this is "NewProduct" screen, so we assume full definition.
+        // 6. Handle Recipes
         const { error: recDelError } = await supabase.from('recipes').delete().eq('parent_sku', newProduct.sku);
         if (recDelError) throw recDelError;
 
@@ -347,11 +333,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
         showToast(`Το προϊόν αποθηκεύτηκε ως ${finalMasterSku}${detectedSuffix ? ` με παραλλαγή ${detectedSuffix}` : ''}!`, "success");
         
-        // Return to registry list if callback exists
         if (onCancel) {
             onCancel();
         } else {
-             // Reset Form
             setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setCurrentStep(1);
         }
 
@@ -383,7 +367,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             </h1>
           </div>
           
-          {/* Progress Indicators */}
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
              {STEPS.map(s => (
                  <div key={s.id} className="flex items-center">

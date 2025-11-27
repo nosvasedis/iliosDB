@@ -74,8 +74,8 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
     <UIContext.Provider value={{ showToast, confirm }}>
       {children}
       
-      {/* Toast Container */}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3 pointer-events-none">
+      {/* Toast Container - Added print:hidden to prevent printing */}
+      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div
             key={toast.id}
@@ -100,9 +100,9 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
         ))}
       </div>
 
-      {/* Custom Confirm Modal */}
+      {/* Custom Confirm Modal - Added print:hidden */}
       {confirmState.isOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
             <div className={`flex items-center gap-3 mb-4 ${confirmState.options.isDestructive ? 'text-red-600' : 'text-slate-800'}`}>
               <div className={`p-3 rounded-full ${confirmState.options.isDestructive ? 'bg-red-100' : 'bg-slate-100'}`}>

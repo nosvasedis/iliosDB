@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
@@ -162,6 +163,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const handleSave = async () => {
     try {
+        // Calculate latest cost to update snapshot
+        const currentCost = calculateProductCost(editedProduct, settings, allMaterials, allProducts).total;
+
         // 1. Update Master Product
         await supabase.from('products').update({
             weight_g: editedProduct.weight_g,
@@ -170,7 +174,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_setter: editedProduct.labor.setter_cost,
             labor_technician: editedProduct.labor.technician_cost,
             labor_plating: editedProduct.labor.plating_cost,
-            labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override
+            labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
+            active_price: currentCost, // UPDATING SNAPSHOT
+            draft_price: currentCost   // UPDATING SNAPSHOT
         }).eq('sku', editedProduct.sku);
 
         // 2. Sync Variants (Delete and Re-insert)
