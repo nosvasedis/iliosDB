@@ -98,7 +98,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 };
 
 /**
- * [UPDATED] Robust Product Deletion
+ * [UPDATED & ROBUST] Product Deletion with explicit error checking.
  */
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -107,9 +107,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
             .from('recipes')
             .select('parent_sku')
             .eq('component_sku', sku);
-
         if (checkError) throw checkError;
-
         if (usedInRecipes && usedInRecipes.length > 0) {
             const parentSkus = usedInRecipes.map(r => r.parent_sku).join(', ');
             return { 
@@ -123,34 +121,37 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
             try {
                 const urlParts = imageUrl.split('/');
                 const encodedFileName = urlParts[urlParts.length - 1];
-                
                 if (encodedFileName) {
                     const deleteUrl = `${CLOUDFLARE_WORKER_URL}/${encodedFileName}`;
-                    await fetch(deleteUrl, {
-                        method: 'DELETE',
-                        mode: 'cors',
-                        credentials: 'omit',
-                        headers: {
-                            'Authorization': AUTH_KEY_SECRET,
-                        }
-                    });
+                    await fetch(deleteUrl, { method: 'DELETE', mode: 'cors', credentials: 'omit', headers: { 'Authorization': AUTH_KEY_SECRET } });
                 }
             } catch (storageErr) {
                 console.warn("Could not delete image file from R2, proceeding with DB delete.", storageErr);
             }
         }
 
-        // 3. DATABASE CLEANUP
-        await supabase.from('product_variants').delete().eq('product_sku', sku);
-        await supabase.from('recipes').delete().eq('parent_sku', sku);
-        await supabase.from('product_molds').delete().eq('product_sku', sku);
-        await supabase.from('product_collections').delete().eq('product_sku', sku);
-        await supabase.from('stock_movements').delete().eq('product_sku', sku);
-        await supabase.from('product_stock').delete().eq('product_sku', sku); // New table
+        // 3. DATABASE CLEANUP (Fail-fast with explicit checks)
+        const { error: variantsError } = await supabase.from('product_variants').delete().eq('product_sku', sku);
+        if (variantsError) throw new Error(`Failed to delete variants: ${variantsError.message}`);
 
-        // 4. DELETE PRODUCT
+        const { error: recipesError } = await supabase.from('recipes').delete().eq('parent_sku', sku);
+        if (recipesError) throw new Error(`Failed to delete recipes: ${recipesError.message}`);
+
+        const { error: moldsError } = await supabase.from('product_molds').delete().eq('product_sku', sku);
+        if (moldsError) throw new Error(`Failed to delete mold links: ${moldsError.message}`);
+
+        const { error: collectionsError } = await supabase.from('product_collections').delete().eq('product_sku', sku);
+        if (collectionsError) throw new Error(`Failed to delete collection links: ${collectionsError.message}`);
+        
+        const { error: movementsError } = await supabase.from('stock_movements').delete().eq('product_sku', sku);
+        if (movementsError) throw new Error(`Failed to delete stock movements: ${movementsError.message}`);
+
+        const { error: stockError } = await supabase.from('product_stock').delete().eq('product_sku', sku);
+        if (stockError) throw new Error(`Failed to delete warehouse stock: ${stockError.message}`);
+
+        // 4. FINALLY, DELETE THE MASTER PRODUCT
         const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
-        if (deleteError) throw deleteError;
+        if (deleteError) throw new Error(`Failed to delete main product: ${deleteError.message}`);
 
         return { success: true };
 
@@ -159,6 +160,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         return { success: false, error: error.message || 'Άγνωστο σφάλμα κατά τη διαγραφή.' };
     }
 };
+
 
 export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {
     try {

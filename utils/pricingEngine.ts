@@ -242,3 +242,50 @@ export const analyzeSku = (rawSku: string) => {
         variantDescription: ''
     };
 };
+
+/**
+ * NEW: Intelligent Suffix-only Analyzer
+ * Parses a suffix string (e.g. "PKR") and returns its description.
+ */
+export const analyzeSuffix = (suffix: string): string | null => {
+    const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+    const stoneKeys = Object.keys(allStones).sort((a, b) => b.length - a.length);
+    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
+
+    let detectedStoneCode = '';
+    let detectedFinishCode = '';
+    let remainder = suffix.toUpperCase();
+
+    // Check for Stone Suffix first
+    for (const sCode of stoneKeys) {
+        if (remainder.endsWith(sCode)) {
+            detectedStoneCode = sCode;
+            remainder = remainder.slice(0, -sCode.length);
+            break; 
+        }
+    }
+
+    // Check for Finish Suffix on the remainder
+    for (const fCode of finishKeys) {
+        if (remainder.endsWith(fCode)) {
+            detectedFinishCode = fCode;
+            remainder = remainder.slice(0, -fCode.length);
+            break;
+        }
+    }
+    
+    // If the entire suffix was consumed, we have a valid analysis
+    if (remainder === '' && (detectedStoneCode || detectedFinishCode)) {
+        const finishDesc = FINISH_CODES[detectedFinishCode] || '';
+        const stoneDesc = allStones[detectedStoneCode] || '';
+        
+        let fullDesc = '';
+        if (finishDesc && stoneDesc) fullDesc = `${finishDesc} - ${stoneDesc}`;
+        else if (finishDesc) fullDesc = finishDesc;
+        else if (stoneDesc) fullDesc = stoneDesc;
+
+        return fullDesc;
+    }
+    
+    return null;
+};

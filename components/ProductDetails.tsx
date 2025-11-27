@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock } from 'lucide-react';
 import { uploadProductImage, supabase, recordStockMovement, deleteProduct, api } from '../lib/supabase';
@@ -128,6 +128,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [smartAddSku, setSmartAddSku] = useState('');
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
+  const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
 
   // Auto-recalculate technician cost if weight changes and override is OFF
   useEffect(() => {
@@ -139,6 +140,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }));
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
+
+  // NEW: Smart Suffix Analysis for Manual Add
+  useEffect(() => {
+    if (newVariantSuffix) {
+        const desc = analyzeSuffix(newVariantSuffix);
+        setManualSuffixAnalysis(desc);
+        // Auto-populate description if it's empty and we found a match
+        if (desc && !newVariantDesc) {
+            setNewVariantDesc(desc);
+        }
+    } else {
+        setManualSuffixAnalysis(null);
+    }
+  }, [newVariantSuffix]);
 
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const profit = editedProduct.selling_price - cost.total;
@@ -248,7 +263,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       if (editedProduct.variants.some(v => v.suffix === newVariantSuffix.toUpperCase())) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
       const newVariant: ProductVariant = {
         suffix: newVariantSuffix.toUpperCase(),
-        description: newVariantDesc,
+        description: newVariantDesc || manualSuffixAnalysis || '', // Use analysis if description is empty
         stock_qty: 0
       };
       setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
@@ -382,6 +397,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                       <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"/>
                       <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"><Plus size={16}/></button>
                     </div>
+                    {manualSuffixAnalysis && (
+                        <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 text-sm text-blue-800 animate-in fade-in slide-in-from-top-2">
+                            <Wand2 size={18} className="mt-0.5 shrink-0 text-blue-600" />
+                            <div>
+                                <span className="font-bold block text-blue-700">Αυτόματη Αναγνώριση</span>
+                                Προτεινόμενη περιγραφή: <strong>{manualSuffixAnalysis}</strong>
+                            </div>
+                        </div>
+                    )}
                   </div>
                   <div>
                       <h4 className="font-bold text-sm text-slate-600 mb-2 uppercase tracking-wide">Λίστα Παραλλαγών ({editedProduct.variants.length})</h4>
@@ -395,7 +419,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                   onChange={e => updateVariant(index, 'description', e.target.value)}
                                   className="flex-1 p-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                 />
-                                <div className="text-xs text-slate-400 font-medium w-20 text-center">Qty: {variant.stock_qty}</div>
                                 <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
                               </div>
                           ))}
