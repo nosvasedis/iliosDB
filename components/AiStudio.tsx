@@ -1,16 +1,8 @@
 
-
-
-
-
-
-
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
-import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle } from 'lucide-react';
+import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle, Crown } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -132,7 +124,7 @@ export default function AiStudio() {
     // --- ACTION HANDLERS ---
 
     const handleCopywriting = async () => {
-        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
+        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -186,7 +178,7 @@ export default function AiStudio() {
     };
 
     const handleVirtualModel = async () => {
-        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
+        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -239,14 +231,29 @@ export default function AiStudio() {
 
         } catch (error: any) {
             console.error(error);
-            showToast(`${error.message}`, "error");
+            // Handle Free Tier 429 Error specifically
+            if (error.message.includes("limit: 0") || error.message.includes("quota")) {
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'model',
+                    text: '⚠️ **Περιορισμός Πακέτου**: Η δημιουργία εικόνων απαιτεί χρεώσιμο API Key (Paid Tier). Το τρέχον κλειδί είναι Free Tier και υποστηρίζει μόνο κείμενο (Copywriting/Trends).'
+                }]);
+                showToast("Απαιτείται αναβάθμιση API Key για εικόνες.", "error");
+            } else {
+                showToast(`Σφάλμα: ${error.message}`, "error");
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'model',
+                    text: `Παρουσιάστηκε σφάλμα: ${error.message}`
+                }]);
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleTrends = async () => {
-        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
+        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         if (!inputValue.trim()) return;
         
         const query = inputValue;
@@ -300,7 +307,11 @@ export default function AiStudio() {
                         <Feather size={20} className={mode === 'copywriting' ? 'text-indigo-600' : ''}/> Έξυπνη Περιγραφή
                     </button>
                     <button onClick={() => setMode('virtual-model')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'virtual-model' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> Εικονικό Μοντέλο
+                        <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> 
+                        <div className="flex flex-col items-start">
+                            <span>Εικονικό Μοντέλο</span>
+                            <span className="text-[9px] text-amber-500 font-normal flex items-center gap-0.5"><Crown size={10}/> Απαιτείται Paid API</span>
+                        </div>
                     </button>
                     <button onClick={() => setMode('trends')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'trends' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
                         <TrendingUp size={20} className={mode === 'trends' ? 'text-emerald-600' : ''}/> Τάσεις Αγοράς
@@ -311,7 +322,7 @@ export default function AiStudio() {
                 {!GEMINI_API_KEY && (
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl animate-pulse">
                         <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-1">
-                            <AlertTriangle size={16} /> API Key Missing
+                            <AlertTriangle size={16} /> Λείπει το Κλειδί API
                         </div>
                         <p className="text-xs text-amber-700">
                             Προσθέστε το κλειδί Gemini στις Ρυθμίσεις για να ενεργοποιήσετε το AI.
@@ -330,7 +341,7 @@ export default function AiStudio() {
                                     <Zap size={18} className={useProModel ? 'fill-current' : ''} />
                                 </div>
                                 <div>
-                                    <div className={`font-bold text-sm ${useProModel ? 'text-slate-800' : 'text-slate-500'}`}>High Quality (Pro)</div>
+                                    <div className={`font-bold text-sm ${useProModel ? 'text-slate-800' : 'text-slate-500'}`}>Υψηλή Ποιότητα (Pro)</div>
                                     <div className="text-[10px] text-slate-400 font-medium">{useProModel ? 'Nano Banana Pro' : 'Nano Banana Flash'}</div>
                                 </div>
                             </div>
@@ -349,6 +360,9 @@ export default function AiStudio() {
                         {getActiveImage() ? (
                             <div className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square">
                                 <img src={getActiveImage()!} alt="Selected" className="w-full h-full object-cover" />
+                                <button onClick={() => { setShowProductSearch(true); /* Keep search active to switch */ }} className="absolute top-2 left-2 bg-white/80 p-1.5 rounded-full hover:bg-blue-500 hover:text-white transition-colors shadow-sm text-slate-700">
+                                    <Search size={16}/>
+                                </button>
                                 <button onClick={() => { setSelectedProduct(null); setUploadedImage(null); }} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition-colors shadow-sm">
                                     <X size={16}/>
                                 </button>
@@ -360,7 +374,7 @@ export default function AiStudio() {
                             <div className="grid grid-cols-2 gap-2">
                                 <button onClick={() => setShowProductSearch(true)} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all gap-2">
                                     <Search size={24}/>
-                                    <span className="text-xs font-bold">Αναζήτηση DB</span>
+                                    <span className="text-xs font-bold">Αναζήτηση</span>
                                 </button>
                                 <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all gap-2 cursor-pointer">
                                     <Camera size={24}/>
@@ -439,7 +453,7 @@ export default function AiStudio() {
                             </div>
                             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 flex items-center gap-2 text-slate-500 text-sm shadow-sm">
                                 <Loader2 size={16} className="animate-spin" /> 
-                                {mode === 'virtual-model' ? (useProModel ? 'Nano Banana Pro (Gemini 3) εργάζεται...' : 'Nano Banana (Flash) εργάζεται...') : 'Επεξεργασία...'}
+                                {mode === 'virtual-model' ? (useProModel ? 'To Nano Banana Pro επεξεργάζεται...' : 'To Nano Banana (Flash) επεξεργάζεται...') : 'Επεξεργασία...'}
                             </div>
                         </div>
                     )}

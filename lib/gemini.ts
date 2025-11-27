@@ -1,7 +1,4 @@
 
-
-
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
@@ -21,7 +18,7 @@ export const generateMarketingCopy = async (
     mimeType: string = 'image/jpeg'
 ): Promise<string> => {
   if (!GEMINI_API_KEY) {
-      throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+      throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
   }
 
   try {
@@ -73,7 +70,7 @@ export const generateVirtualModel = async (
 ): Promise<string | null> => {
   
   if (!GEMINI_API_KEY) {
-      throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+      throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
   }
 
   // Construct the Prompt
@@ -148,7 +145,7 @@ export const generateVirtualModel = async (
  */
 export const generateTrendAnalysis = async (query: string): Promise<string> => {
     if (!GEMINI_API_KEY) {
-        throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+        throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
     }
 
     try {

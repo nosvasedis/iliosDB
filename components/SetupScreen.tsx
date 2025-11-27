@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight, Zap } from 'lucide-react';
 import { saveConfiguration } from '../lib/supabase';
@@ -68,8 +65,8 @@ export default function SetupScreen() {
 
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex justify-between">
-                            <span>Gemini API Key</span>
-                            <span className="text-xs text-amber-500 lowercase font-normal">(optional for AI)</span>
+                            <span>Κλειδί API Gemini</span>
+                            <span className="text-xs text-amber-500 lowercase font-normal">(προαιρετικό για AI)</span>
                         </label>
                         <div className="relative">
                             <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" size={18}/>
