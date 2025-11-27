@@ -1,4 +1,5 @@
 
+
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -207,4 +208,25 @@ export interface UserProfile {
   full_name: string;
   is_approved: boolean;
   role: 'admin' | 'user';
+}
+
+// --- GLOBAL WINDOW TYPES FOR AI STUDIO & PUTER ---
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface PuterAI {
+      txt2img: (prompt: string, options?: any) => Promise<HTMLImageElement>;
+  }
+
+  interface Puter {
+      ai: PuterAI;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+    puter?: Puter;
+  }
 }
