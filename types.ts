@@ -1,5 +1,4 @@
 
-
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -52,6 +51,10 @@ export interface ProductVariant {
   description: string; // e.g. 'Κορνεόλη', 'Πατίνα'
   stock_qty: number;
   location_stock?: Record<string, number>; // New: Warehouse specific stock for this variant
+  
+  // Pricing Overrides (Optional - falls back to Master if null)
+  active_price?: number | null; // Variant specific Cost
+  selling_price?: number | null; // Variant specific Wholesale
 }
 
 export interface Collection {

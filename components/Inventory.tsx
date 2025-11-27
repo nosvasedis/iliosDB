@@ -1,5 +1,8 @@
 
 
+
+
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon } from 'lucide-react';
@@ -664,6 +667,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       const canFulfill = inStock && item.totalStock >= item.demandQty;
                       const displayName = (item.isSingleVariantMode || !item.suffix) ? item.masterSku : `${item.masterSku}-${item.suffix}`;
                       
+                      // Price display logic: Variant Price > Master Price
+                      const displayPrice = item.variantRef?.selling_price ?? item.product.selling_price;
+                      const displayRetail = displayPrice * 3;
+
                       return (
                           <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden">
                               {/* Left Border Status Indicator */}
@@ -686,7 +693,15 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                           {item.suffix && <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">{item.description}</span>}
                                           {item.isSingleVariantMode && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="Μοναδική Παραλλαγή">1 Var</span>}
                                       </h3>
-                                      <p className="text-xs text-slate-500 font-medium">{item.category}</p>
+                                      <div className="flex items-center gap-3 mt-0.5">
+                                          <p className="text-xs text-slate-500 font-medium">{item.category}</p>
+                                          {displayPrice > 0 && (
+                                              <div className="flex items-baseline gap-1.5">
+                                                  <span className="text-xs font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{displayPrice.toFixed(2)}€</span>
+                                                  <span className="text-[10px] text-slate-400 font-medium">Λιαν: {displayRetail.toFixed(0)}€</span>
+                                              </div>
+                                          )}
+                                      </div>
                                   </div>
                               </div>
 

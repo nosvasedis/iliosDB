@@ -1,5 +1,6 @@
 
 
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -295,7 +296,10 @@ export const api = {
                         suffix: v.suffix,
                         description: v.description,
                         stock_qty: v.stock_qty,
-                        location_stock: vCustomStock
+                        location_stock: vCustomStock,
+                        // NEW: Pricing Overrides
+                        active_price: v.active_price ? Number(v.active_price) : null,
+                        selling_price: v.selling_price ? Number(v.selling_price) : null
                     };
                   }) || [];
 

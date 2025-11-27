@@ -1,4 +1,7 @@
 
+
+
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
@@ -179,14 +182,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             draft_price: currentCost   // UPDATING SNAPSHOT
         }).eq('sku', editedProduct.sku);
 
-        // 2. Sync Variants (Delete and Re-insert)
+        // 2. Sync Variants (Upsert via delete-insert or intelligent upsert)
+        // To handle the new pricing columns, we need to include them.
+        // We delete first to handle removals, then insert all current.
+        
         await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.variants && editedProduct.variants.length > 0) {
             const newVariantsForDB = editedProduct.variants.map(v => ({
                 product_sku: editedProduct.sku,
                 suffix: v.suffix,
                 description: v.description,
-                stock_qty: v.stock_qty || 0 // Use existing stock or default to 0
+                stock_qty: v.stock_qty || 0,
+                active_price: v.active_price || null,
+                selling_price: v.selling_price || null
             }));
             await supabase.from('product_variants').insert(newVariantsForDB);
         }
@@ -257,7 +265,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const newVariant: ProductVariant = {
       suffix: analysis.suffix,
       description: analysis.variantDescription,
-      stock_qty: 0
+      stock_qty: 0,
+      active_price: null,
+      selling_price: null
     };
     setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
     setSmartAddSku('');
@@ -268,17 +278,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       if (editedProduct.variants.some(v => v.suffix === newVariantSuffix.toUpperCase())) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
       const newVariant: ProductVariant = {
         suffix: newVariantSuffix.toUpperCase(),
-        description: newVariantDesc || manualSuffixAnalysis || '', // Use analysis if description is empty
-        stock_qty: 0
+        description: newVariantDesc || manualSuffixAnalysis || '',
+        stock_qty: 0,
+        active_price: null,
+        selling_price: null
       };
       setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
       setNewVariantSuffix('');
       setNewVariantDesc('');
   };
   
-  const updateVariant = (index: number, field: 'description', value: string) => {
+  const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
       const newVariants = [...editedProduct.variants];
-      newVariants[index][field] = value;
+      newVariants[index] = { ...newVariants[index], [field]: value };
       setEditedProduct(prev => ({ ...prev, variants: newVariants }));
   };
 
@@ -322,12 +334,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
              {viewMode === 'registry' && (
                 <div className="w-full mt-6 space-y-4">
                     <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center">
-                        <span className="text-xs font-bold text-slate-500 uppercase">Κόστος</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase">Κόστος (Master)</span>
                         <p className="text-2xl font-black text-slate-800 mt-1">{cost.total.toFixed(2)}€</p>
                     </div>
                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
-                        <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική</span>
+                        <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική (Master)</span>
                         <p className="text-2xl font-black text-amber-600 mt-1">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
+                        {editedProduct.selling_price > 0 && (
+                             <p className="text-[10px] font-bold text-amber-700/50 mt-1">
+                                Λιανική: {(editedProduct.selling_price * 3).toFixed(2)}€
+                             </p>
+                        )}
                     </div>
                 </div>
              )}
@@ -338,7 +355,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
                 {viewMode === 'registry' && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
                 {viewMode === 'registry' && <TabButton name="labor" label="Εργατικά" activeTab={activeTab} setActiveTab={setActiveTab} />}
-                <TabButton name="variants" label="Παραλλαγές" activeTab={activeTab} setActiveTab={setActiveTab} />
+                <TabButton name="variants" label="Παραλλαγές & Τιμές" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
             
             {activeTab === 'overview' && (
@@ -400,52 +417,93 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             )}
             {activeTab === 'variants' && (
               <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-indigo-500"/> Έξυπνη Προσθήκη</h4>
-                      <div className="flex gap-2">
-                          <input 
-                              type="text" 
-                              placeholder={`π.χ. ${editedProduct.sku}P, ${editedProduct.sku}XLA`}
-                              value={smartAddSku} 
-                              onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
-                              className="flex-1 p-2 border border-slate-200 rounded-lg font-mono text-sm"
-                          />
-                          <button onClick={handleSmartAdd} className="bg-indigo-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-indigo-600 transition-colors">Προσθήκη</button>
-                      </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
-                    <div className="flex gap-2">
-                      <input type="text" placeholder="Suffix (π.χ. P)" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-28 p-2 border border-slate-200 rounded-lg font-mono text-sm"/>
-                      <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"/>
-                      <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"><Plus size={16}/></button>
-                    </div>
-                    {manualSuffixAnalysis && (
-                        <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 text-sm text-blue-800 animate-in fade-in slide-in-from-top-2">
-                            <Wand2 size={18} className="mt-0.5 shrink-0 text-blue-600" />
-                            <div>
-                                <span className="font-bold block text-blue-700">Αυτόματη Αναγνώριση</span>
-                                Προτεινόμενη περιγραφή: <strong>{manualSuffixAnalysis}</strong>
+                  {/* Quick Add Area */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-indigo-500"/> Έξυπνη Προσθήκη</h4>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder={`π.χ. ${editedProduct.sku}P`}
+                                    value={smartAddSku} 
+                                    onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
+                                    className="flex-1 p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"
+                                />
+                                <button onClick={handleSmartAdd} className="bg-indigo-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-indigo-600 transition-colors">Προσθήκη</button>
                             </div>
                         </div>
-                    )}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
+                            <div className="flex gap-2">
+                                <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-20 p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
+                                <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"/>
+                                <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"><Plus size={16}/></button>
+                            </div>
+                            {manualSuffixAnalysis && (
+                                <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
+                                    <Wand2 size={12}/> {manualSuffixAnalysis}
+                                </div>
+                            )}
+                        </div>
                   </div>
+
+                  {/* Variants List / Table */}
                   <div>
-                      <h4 className="font-bold text-sm text-slate-600 mb-2 uppercase tracking-wide">Λίστα Παραλλαγών ({editedProduct.variants.length})</h4>
-                      <div className="space-y-2">
-                          {editedProduct.variants.map((variant, index) => (
-                              <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                <div className="font-mono font-bold text-indigo-600 w-24">{variant.suffix}</div>
-                                <input 
-                                  type="text" 
-                                  value={variant.description}
-                                  onChange={e => updateVariant(index, 'description', e.target.value)}
-                                  className="flex-1 p-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
-                                />
-                                <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                      <h4 className="font-bold text-sm text-slate-600 mb-3 uppercase tracking-wide">Λίστα Παραλλαγών ({editedProduct.variants.length})</h4>
+                      <div className="space-y-3">
+                          {editedProduct.variants.map((variant, index) => {
+                              const wholesale = variant.selling_price ?? editedProduct.selling_price;
+                              const retail = wholesale * 3;
+                              
+                              return (
+                              <div key={index} className="flex flex-col md:flex-row md:items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all">
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <div className="font-mono font-bold text-lg text-indigo-600 w-16 text-center bg-indigo-50 rounded-lg py-2">{variant.suffix}</div>
+                                    <input 
+                                        type="text" 
+                                        value={variant.description}
+                                        onChange={e => updateVariant(index, 'description', e.target.value)}
+                                        placeholder="Περιγραφή"
+                                        className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"
+                                    />
+                                </div>
+                                
+                                <div className="flex items-center gap-2 flex-1 w-full border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+                                     {/* Override Price Inputs */}
+                                     <div className="flex flex-col w-1/2 md:w-auto relative">
+                                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
+                                        <input 
+                                            type="number"
+                                            step="0.01"
+                                            placeholder={editedProduct.active_price.toFixed(2)}
+                                            value={variant.active_price === null ? '' : variant.active_price}
+                                            onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none ${variant.active_price !== null ? 'border-amber-400 bg-amber-50 text-amber-900' : 'border-slate-200 text-slate-500'}`}
+                                        />
+                                     </div>
+                                     <div className="flex flex-col w-1/2 md:w-auto relative">
+                                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
+                                        <input 
+                                            type="number"
+                                            step="0.01"
+                                            placeholder={editedProduct.selling_price.toFixed(2)}
+                                            value={variant.selling_price === null ? '' : variant.selling_price}
+                                            onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none ${variant.selling_price !== null ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-500'}`}
+                                        />
+                                        <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap">
+                                            Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
+                                        </div>
+                                     </div>
+                                     
+                                     <button onClick={() => deleteVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto">
+                                         <Trash2 size={18}/>
+                                     </button>
+                                </div>
                               </div>
-                          ))}
-                          {editedProduct.variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές για αυτό το προϊόν.</div>}
+                              );
+                          })}
+                          {editedProduct.variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές.</div>}
                       </div>
                   </div>
               </div>
