@@ -275,7 +275,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              await supabase.from('product_molds').insert({ product_sku: newProduct.sku, mold_code: m });
         }
 
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        // Force a refetch to ensure data is fresh before navigating away
+        await queryClient.refetchQueries({ queryKey: ['products'] });
+
         showToast(`Το προϊόν αποθηκεύτηκε ως ${finalMasterSku}${detectedSuffix ? ` με παραλλαγή ${detectedSuffix}` : ''}!`, "success");
         
         // Return to registry list if callback exists

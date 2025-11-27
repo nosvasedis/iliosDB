@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
-import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
+import { INITIAL_SETTINGS } from '../constants'; 
 import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock } from 'lucide-react';
-import { uploadProductImage, supabase, recordStockMovement, deleteProduct, api } from '../lib/supabase';
+import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
@@ -141,7 +141,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
 
-  // NEW: Smart Suffix Analysis for Manual Add
+  // Smart Suffix Analysis for Manual Add
   useEffect(() => {
     if (newVariantSuffix) {
         const desc = analyzeSuffix(newVariantSuffix);
@@ -153,13 +153,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     } else {
         setManualSuffixAnalysis(null);
     }
-  }, [newVariantSuffix]);
+  }, [newVariantSuffix, newVariantDesc]);
 
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-  const profit = editedProduct.selling_price - cost.total;
-  const margin = editedProduct.selling_price > 0 ? ((profit / editedProduct.selling_price) * 100) : 0;
   
-  const retailPrice = editedProduct.selling_price * 3;
   const lossMultiplier = 1 + (settings.loss_percentage / 100);
   const silverTotalCost = editedProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
 
@@ -188,7 +185,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await supabase.from('product_variants').insert(newVariantsForDB);
         }
         
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        await queryClient.refetchQueries({ queryKey: ['products'] });
+
         if (onSave) onSave(editedProduct);
         showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
         onClose();
@@ -200,21 +198,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const requestDelete = async () => {
       const confirmed = await confirm({
           title: 'Διαγραφή Προϊόντος',
-          message: `Διαγραφή οριστικά ${editedProduct.sku};`,
+          message: `Διαγραφή οριστικά ${editedProduct.sku}; Αυτή η ενέργεια θα διαγράψει και όλες τις παραλλαγές του.`,
           confirmText: 'Διαγραφή',
           isDestructive: true
       });
       if (!confirmed) return;
       setIsDeleting(true);
       const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
-      setIsDeleting(false);
+      
       if (result.success) {
-          queryClient.invalidateQueries({ queryKey: ['products'] });
+          await queryClient.refetchQueries({ queryKey: ['products'] });
           onClose(); 
           showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
       } else {
           showToast(`Σφάλμα: ${result.error}`, "error");
       }
+      setIsDeleting(false);
   };
 
   const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,38 +313,51 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate}/>
                 </label>
              </div>
-             {/* Cost Summary in Sidebar */}
-             <div className="w-full mt-6 space-y-4">
-                <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Κόστος</span>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{cost.total.toFixed(2)}€</p>
+             {viewMode === 'registry' && (
+                <div className="w-full mt-6 space-y-4">
+                    <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center">
+                        <span className="text-xs font-bold text-slate-500 uppercase">Κόστος</span>
+                        <p className="text-2xl font-black text-slate-800 mt-1">{cost.total.toFixed(2)}€</p>
+                    </div>
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
+                        <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική</span>
+                        <p className="text-2xl font-black text-amber-600 mt-1">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
+                    </div>
                 </div>
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
-                    <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική</span>
-                    <p className="text-2xl font-black text-amber-600 mt-1">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
-                </div>
-             </div>
+             )}
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto">
             <div className="flex gap-2 border-b border-slate-200 mb-6">
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
-                <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />
-                <TabButton name="labor" label="Εργατικά" activeTab={activeTab} setActiveTab={setActiveTab} />
+                {viewMode === 'registry' && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {viewMode === 'registry' && <TabButton name="labor" label="Εργατικά" activeTab={activeTab} setActiveTab={setActiveTab} />}
                 <TabButton name="variants" label="Παραλλαγές" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
             
             {activeTab === 'overview' && (
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <InfoCard label="Βάρος" value={editedProduct.weight_g} unit="g" editable onChange={val => setEditedProduct({...editedProduct, weight_g: parseFloat(val) || 0})} />
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος</label>
+                            <div className="flex items-baseline gap-2 mt-1">
+                                <input 
+                                    type="number"
+                                    step="0.01"
+                                    value={editedProduct.weight_g}
+                                    onChange={e => setEditedProduct(prev => ({ ...prev, weight_g: parseFloat(e.target.value) || 0 }))}
+                                    className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"
+                                />
+                                <span className="text-sm font-medium text-slate-500">g</span>
+                            </div>
+                        </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         <InfoCard label="Φύλο" value={editedProduct.gender} />
                         <InfoCard label="Επιμετάλλωση" value={editedProduct.plating_type} />
                     </div>
                 </div>
             )}
-            {activeTab === 'recipe' && (
+            {activeTab === 'recipe' && viewMode === 'registry' && (
                 <div className="space-y-3">
                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
                        <div className="p-2 rounded-lg bg-slate-100 text-slate-600"><Coins size={20} /></div>
@@ -358,10 +370,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <div className="text-xs text-slate-400">{editedProduct.weight_g}g @ {settings.silver_price_gram}€/g (+{settings.loss_percentage}%)</div>
                        </div>
                    </div>
-                   {/* Recipe Items Here */}
+                   {/* Full recipe items would be listed here if needed */}
+                   {editedProduct.recipe.length === 0 && (
+                       <div className="text-center italic text-slate-400 py-4 text-sm">
+                           {/* Intentionally blank to avoid "Κενή Συνταγή" message when only silver exists */}
+                       </div>
+                   )}
                 </div>
             )}
-            {activeTab === 'labor' && (
+            {activeTab === 'labor' && viewMode === 'registry' && (
                 <div className="grid grid-cols-2 gap-4">
                     <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: val}})} />
                     <LaborInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
@@ -443,15 +460,11 @@ const TabButton = ({ name, label, activeTab, setActiveTab }: any) => (
     </button>
 );
 
-const InfoCard = ({ label, value, unit, editable, onChange }: any) => (
+const InfoCard = ({ label, value, unit }: any) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200">
         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</label>
         <div className="flex items-baseline gap-2 mt-1">
-            {editable ? (
-                <input type="number" step="0.01" value={value} onChange={e => onChange(e.target.value)} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"/>
-            ) : (
-                <p className="font-bold text-slate-800 text-lg">{value}</p>
-            )}
+            <p className="font-bold text-slate-800 text-lg">{value}</p>
             {unit && <span className="text-sm font-medium text-slate-500">{unit}</span>}
         </div>
     </div>
