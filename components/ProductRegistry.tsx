@@ -1,12 +1,10 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
-import { Search, Filter, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus, ImageIcon, User, Users as UsersIcon, Calculator, X, Save, TrendingUp } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase } from '../lib/supabase';
+import { api } from '../lib/supabase';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
@@ -23,7 +21,6 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
 
 export default function ProductRegistry({ setPrintItems }: Props) {
   const queryClient = useQueryClient();
-  const { showToast } = useUI();
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -36,11 +33,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Smart Reprice Modal State
-  const [repriceProduct, setRepriceProduct] = useState<Product | null>(null);
-  const [targetMargin, setTargetMargin] = useState(50); // Default 50% Margin
-  const [calculatedPrice, setCalculatedPrice] = useState(0);
-
   // Derive Categories
   const categories = useMemo(() => {
     if (!products) return [];
@@ -88,54 +80,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
   }, [products, searchTerm, filterCategory, filterGender]);
 
-  // Handle opening Reprice Modal
-  const openReprice = (p: Product) => {
-      // Calculate current margin to preset the input
-      if (!settings || !materials || !products) return;
-      const cost = calculateProductCost(p, settings, materials, products).total;
-      const profit = p.selling_price - cost;
-      const currentMargin = p.selling_price > 0 ? (profit / p.selling_price) * 100 : 0;
-      
-      setRepriceProduct(p);
-      setTargetMargin(Math.max(20, Math.floor(currentMargin || 50))); // Default at least 20, or current
-      updateCalculatedPrice(p, Math.max(20, Math.floor(currentMargin || 50)));
-  };
-
-  const updateCalculatedPrice = (p: Product, marginPercent: number) => {
-       if (!settings || !materials || !products) return;
-       const cost = calculateProductCost(p, settings, materials, products).total;
-       // Margin Formula: Margin = (Price - Cost) / Price
-       // Price * Margin = Price - Cost
-       // Price - (Price * Margin) = Cost
-       // Price * (1 - Margin) = Cost
-       // Price = Cost / (1 - Margin)
-       
-       const marginDecimal = marginPercent / 100;
-       if (marginDecimal >= 1) {
-           setCalculatedPrice(0); // Invalid
-           return;
-       }
-       
-       const price = cost / (1 - marginDecimal);
-       setCalculatedPrice(price);
-  };
-  
-  const saveReprice = async () => {
-      if (!repriceProduct || calculatedPrice <= 0) return;
-      
-      try {
-          // Update database
-          await supabase.from('products').update({ selling_price: calculatedPrice }).eq('sku', repriceProduct.sku);
-          // Invalidate cache
-          await queryClient.invalidateQueries({ queryKey: ['products'] });
-          showToast(`Η τιμή του ${repriceProduct.sku} ενημερώθηκε σε ${calculatedPrice.toFixed(2)}€`, 'success');
-          setRepriceProduct(null);
-      } catch (e) {
-          console.error(e);
-          showToast("Σφάλμα ενημέρωσης.", 'error');
-      }
-  };
-
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
   }
@@ -170,7 +114,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
          </button>
       </div>
       
-      {/* NEW FILTER BAR */}
+      {/* FILTER BAR */}
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
           <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide ml-1 mb-2 block">Φύλο</label>
@@ -241,22 +185,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm border border-slate-200">
                             {product.category}
                         </div>
-                        {/* Quick Reprice Button Overlay */}
-                        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); openReprice(product); }}
-                                className="bg-white p-2 rounded-lg shadow-md border border-slate-200 hover:bg-slate-50 text-indigo-600"
-                                title="Πρόταση Τιμής (Smart Reprice)"
-                            >
-                                <Calculator size={16} />
-                            </button>
-                        </div>
                     </div>
                     
                     <div className="p-5 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-2">
                             <h3 className="font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">{product.sku}</h3>
-                            <button className="text-slate-300 hover:text-indigo-600 transition-colors"><Edit3 size={16}/></button>
                         </div>
                         
                         <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-4">
@@ -320,54 +253,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           collections={collections}
           viewMode="registry" // Hides stock
         />
-      )}
-
-      {/* SMART REPRICE MODAL */}
-      {repriceProduct && (
-          <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95 border border-slate-100">
-                  <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
-                      <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calculator size={20} className="text-indigo-600"/> Πρόταση Τιμής</h3>
-                      <button onClick={() => setRepriceProduct(null)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
-                  </div>
-                  
-                  <div className="bg-slate-50 p-3 rounded-xl mb-4 text-center">
-                      <span className="text-xs font-bold text-slate-500 uppercase">Τρεχον Κοστος</span>
-                      <p className="font-mono font-black text-xl text-slate-700">
-                          {calculateProductCost(repriceProduct, settings, materials, products).total.toFixed(2)}€
-                      </p>
-                  </div>
-
-                  <div className="space-y-4 mb-6">
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Στοχος Περιθωριου (Margin %)</label>
-                          <div className="flex items-center gap-2">
-                              <input 
-                                  type="range" min="10" max="90" step="5" 
-                                  value={targetMargin} 
-                                  onChange={e => {
-                                      const val = parseInt(e.target.value);
-                                      setTargetMargin(val);
-                                      updateCalculatedPrice(repriceProduct, val);
-                                  }}
-                                  className="flex-1 accent-indigo-600"
-                              />
-                              <span className="font-bold text-indigo-600 w-12 text-right">{targetMargin}%</span>
-                          </div>
-                      </div>
-                      
-                      <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-center">
-                          <span className="text-xs font-bold text-indigo-800 uppercase">Νεα Τιμη Χονδρικης</span>
-                          <p className="font-black text-3xl text-indigo-700 mt-1">{calculatedPrice.toFixed(2)}€</p>
-                          <p className="text-[10px] text-indigo-400 font-bold mt-1">Λιανική: {(calculatedPrice * 3).toFixed(2)}€</p>
-                      </div>
-                  </div>
-
-                  <button onClick={saveReprice} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
-                      <Save size={18} /> Ενημέρωση Τιμής
-                  </button>
-              </div>
-          </div>
       )}
     </div>
   );

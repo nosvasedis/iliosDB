@@ -1,12 +1,8 @@
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
-import { INITIAL_SETTINGS } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock } from 'lucide-react';
+import { FINISH_CODES } from '../constants'; 
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -116,6 +112,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       collections: product.collections || []
   });
   
+  // Smart Reprice State
+  const [showRepriceTool, setShowRepriceTool] = useState(false);
+  const [targetMargin, setTargetMargin] = useState(50);
+  const [calculatedPrice, setCalculatedPrice] = useState(0);
+
   useEffect(() => {
     setEditedProduct({ 
       ...product,
@@ -159,10 +160,54 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [newVariantSuffix, newVariantDesc]);
 
+  // Smart Plating Logic
+  const displayPlating = React.useMemo(() => {
+      // If ONLY ONE variant exists, use its suffix to determine visual plating type text
+      if (editedProduct.variants && editedProduct.variants.length === 1) {
+          const suffix = editedProduct.variants[0].suffix;
+          const finishCode = suffix.replace(/[^A-Z]/g, '').split('').find(char => FINISH_CODES[char]);
+          if (finishCode && FINISH_CODES[finishCode]) {
+              return FINISH_CODES[finishCode];
+          }
+      }
+      return editedProduct.plating_type;
+  }, [editedProduct.variants, editedProduct.plating_type]);
+
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   
   const lossMultiplier = 1 + (settings.loss_percentage / 100);
   const silverTotalCost = editedProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
+
+  // Profit & Margin Calc
+  const profit = editedProduct.selling_price - cost.total;
+  const margin = editedProduct.selling_price > 0 ? (profit / editedProduct.selling_price) * 100 : 0;
+
+  // Reprice Logic
+  const updateCalculatedPrice = (marginPercent: number) => {
+       const marginDecimal = marginPercent / 100;
+       if (marginDecimal >= 1) {
+           setCalculatedPrice(0);
+           return;
+       }
+       const price = cost.total / (1 - marginDecimal);
+       setCalculatedPrice(price);
+  };
+
+  const applyReprice = async () => {
+      if (calculatedPrice <= 0) return;
+      
+      const confirmed = await confirm({
+          title: 'Ενημέρωση Τιμής',
+          message: `Είστε σίγουροι ότι θέλετε να αλλάξετε την τιμή από ${editedProduct.selling_price.toFixed(2)}€ σε ${calculatedPrice.toFixed(2)}€;`,
+          confirmText: 'Εφαρμογή'
+      });
+
+      if (confirmed) {
+          setEditedProduct(prev => ({...prev, selling_price: parseFloat(calculatedPrice.toFixed(2))}));
+          setShowRepriceTool(false);
+          showToast('Η νέα τιμή εφαρμόστηκε. Πατήστε Αποθήκευση για οριστικοποίηση.', 'info');
+      }
+  };
 
   const handleSave = async () => {
     try {
@@ -183,9 +228,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }).eq('sku', editedProduct.sku);
 
         // 2. Sync Variants (Upsert via delete-insert or intelligent upsert)
-        // To handle the new pricing columns, we need to include them.
-        // We delete first to handle removals, then insert all current.
-        
         await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.variants && editedProduct.variants.length > 0) {
             const newVariantsForDB = editedProduct.variants.map(v => ({
@@ -316,8 +358,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         {/* Body */}
         <main className="flex-1 flex overflow-hidden">
-          <div className="w-1/3 bg-white border-r border-slate-200 p-6 flex flex-col items-center">
-             <div className="w-full aspect-square rounded-2xl bg-slate-100 relative group overflow-hidden border border-slate-200 shadow-sm">
+          <div className="w-1/3 bg-white border-r border-slate-200 p-6 flex flex-col overflow-y-auto">
+             <div className="w-full aspect-square rounded-2xl bg-slate-100 relative group overflow-hidden border border-slate-200 shadow-sm shrink-0">
                 {editedProduct.image_url ? (
                     <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover"/>
                 ) : (
@@ -337,13 +379,49 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <span className="text-xs font-bold text-slate-500 uppercase">Κόστος (Master)</span>
                         <p className="text-2xl font-black text-slate-800 mt-1">{cost.total.toFixed(2)}€</p>
                     </div>
-                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
-                        <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική (Master)</span>
-                        <p className="text-2xl font-black text-amber-600 mt-1">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
-                        {editedProduct.selling_price > 0 && (
-                             <p className="text-[10px] font-bold text-amber-700/50 mt-1">
-                                Λιανική: {(editedProduct.selling_price * 3).toFixed(2)}€
-                             </p>
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                        <div className="text-center relative">
+                            <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική (Master)</span>
+                            <div className="flex items-center justify-center gap-2 mt-1">
+                                <p className="text-2xl font-black text-amber-600">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
+                                <button onClick={() => { setShowRepriceTool(!showRepriceTool); updateCalculatedPrice(targetMargin); }} className="bg-white p-1 rounded-full text-amber-600 hover:bg-amber-100 shadow-sm border border-amber-200"><Calculator size={14}/></button>
+                            </div>
+                            
+                            {/* PROFIT & MARGIN DISPLAY */}
+                            {editedProduct.selling_price > 0 && (
+                                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-amber-200/50">
+                                    <div className="text-center">
+                                        <div className="text-[9px] font-bold text-amber-800/60 uppercase">Κερδος</div>
+                                        <div className="text-sm font-bold text-emerald-600">{profit.toFixed(2)}€</div>
+                                    </div>
+                                    <div className="text-center border-l border-amber-200/50">
+                                        <div className="text-[9px] font-bold text-amber-800/60 uppercase">Margin</div>
+                                        <div className="text-sm font-bold text-blue-600">{margin.toFixed(0)}%</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* SMART REPRICE TOOL */}
+                        {showRepriceTool && (
+                            <div className="mt-4 pt-4 border-t border-amber-200 animate-in fade-in slide-in-from-top-2">
+                                <label className="block text-[10px] font-bold text-amber-800 uppercase mb-1">Νεο Margin: {targetMargin}%</label>
+                                <input 
+                                    type="range" min="10" max="90" step="5" 
+                                    value={targetMargin} 
+                                    onChange={e => {
+                                        const val = parseInt(e.target.value);
+                                        setTargetMargin(val);
+                                        updateCalculatedPrice(val);
+                                    }}
+                                    className="w-full accent-amber-600 mb-2 h-1.5 bg-amber-200 rounded-lg appearance-none cursor-pointer"
+                                />
+                                <div className="bg-white p-2 rounded-lg text-center border border-amber-100 mb-2">
+                                    <span className="text-xs font-bold text-slate-500">Πρόταση:</span> 
+                                    <span className="font-bold text-indigo-600 ml-1 text-sm">{calculatedPrice.toFixed(2)}€</span>
+                                </div>
+                                <button onClick={applyReprice} className="w-full bg-amber-600 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-amber-700">Εφαρμογή</button>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -376,7 +454,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         <InfoCard label="Φύλο" value={editedProduct.gender} />
-                        <InfoCard label="Επιμετάλλωση" value={editedProduct.plating_type} />
+                        <InfoCard label="Επιμετάλλωση" value={displayPlating} />
                     </div>
                 </div>
             )}
