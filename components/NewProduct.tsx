@@ -40,7 +40,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [sellingPrice, setSellingPrice] = useState(0); // Wholesale
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
-  const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0, setter_cost: 0, technician_cost: 0, plating_cost: 0, technician_cost_manual_override: false });
+  // Updated default Casting Cost to 0.20
+  const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0.20, setter_cost: 0, technician_cost: 0, plating_cost: 0, technician_cost_manual_override: false });
   
   // Image State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);

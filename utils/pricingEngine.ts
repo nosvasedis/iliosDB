@@ -3,14 +3,15 @@ import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 export const calculateTechnicianCost = (weight_g: number): number => {
   let cost = 0;
+  // New Logic based on specific weight ranges
   if (weight_g <= 2.2) {
-    cost = weight_g * 1.5;
+    cost = weight_g * 1.30;
   } else if (weight_g <= 4.2) { // 2.3 to 4.2
-    cost = weight_g * 1.1;
+    cost = weight_g * 0.90;
   } else if (weight_g <= 8.2) { // 4.3 to 8.2
-    cost = weight_g * 0.9;
+    cost = weight_g * 0.70;
   } else { // 8.3 and up
-    cost = weight_g * 0.7;
+    cost = weight_g * 0.50;
   }
   return parseFloat(cost.toFixed(2));
 };
@@ -75,8 +76,12 @@ export const calculateProductCost = (
     ? (labor.technician_cost || 0)
     : calculateTechnicianCost(product.weight_g);
 
+  // Casting cost defaults to 0.20 if 0 or undefined, unless explicitly 0'd by user input in a context where 0 is valid. 
+  // For calculation safety, we use the value on the object, but we assume the input sets it to 0.20 default.
+  const castingCost = labor.casting_cost;
+
   const laborTotal = 
-    (labor.casting_cost || 0) + 
+    (castingCost || 0) + 
     (labor.setter_cost || 0) + 
     technicianCost +
     (labor.plating_cost || 0);
