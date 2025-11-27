@@ -1,9 +1,10 @@
 
+
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, AlertCircle, Clock, Siren, CheckCircle, ListFilter } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, AlertCircle, Clock, Siren, CheckCircle, ListFilter, ImageIcon } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -164,7 +165,11 @@ export default function ProductionPage({ products, materials }: Props) {
                             <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
                                 {batch.product_image ? (
                                     <img src={batch.product_image} className="w-full h-full object-cover" alt="prod"/>
-                                ) : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={20}/></div>}
+                                ) : (
+                                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                                        <ImageIcon size={20} className="text-slate-300"/>
+                                    </div>
+                                )}
                             </div>
                             <div className="min-w-0">
                                 <div className="font-black text-slate-800 text-lg leading-none truncate">{batch.sku}</div>

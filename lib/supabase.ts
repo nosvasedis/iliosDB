@@ -3,6 +3,7 @@
 
 
 
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -103,7 +104,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 /**
  * [UPDATED] Robust Product Deletion
  */
-export const deleteProduct = async (sku: string, imageUrl?: string): Promise<{ success: boolean; error?: string }> => {
+export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
         // 1. SAFETY CHECK: Is this product used as a component in another product's recipe?
         const { data: usedInRecipes, error: checkError } = await supabase
@@ -322,7 +323,7 @@ export const api = {
                   prefix: p.prefix,
                   category: p.category,
                   gender: p.gender as Gender,
-                  image_url: p.image_url || 'https://picsum.photos/300/300',
+                  image_url: p.image_url,
                   weight_g: Number(p.weight_g),
                   plating_type: p.plating_type as PlatingType,
                   active_price: Number(p.active_price),

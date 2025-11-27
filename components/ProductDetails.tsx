@@ -4,11 +4,14 @@
 
 
 
+
+
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag } from 'lucide-react';
+import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins } from 'lucide-react';
 import { uploadProductImage, supabase, recordStockMovement, deleteProduct, api } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -143,6 +146,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   // Retail Logic
   const retailPrice = editedProduct.selling_price * 3;
+  
+  // Silver Cost for display
+  const lossMultiplier = 1 + (settings.loss_percentage / 100);
+  const silverTotalCost = editedProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
+
 
   // ... (Keep existing handlers: suggestSellingPrice, handleSave, requestDelete, handleStockChange, handleImageUpdate, etc.)
   const handleStockChange = async (newQty: number, variantIndex: number = -1) => {
@@ -305,7 +313,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
           <div className="flex gap-5">
             <div className="group relative w-28 h-28 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex-shrink-0 cursor-pointer">
-               <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" />
+               {editedProduct.image_url ? (
+                    <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" />
+               ) : (
+                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                        <ImageIcon size={40} className="text-slate-300" />
+                    </div>
+               )}
                <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold pointer-events-none z-40 backdrop-blur-sm">
                   {isUploadingImage ? <Loader2 className="animate-spin mb-1" size={20} /> : <Camera size={20} className="mb-1" />} {isUploadingImage ? 'Uploading...' : 'Αλλαγή'}
                </div>
@@ -483,6 +497,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                  <table className="w-full text-sm text-left">
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100"><tr><th className="p-4 text-center w-16">#</th><th className="p-4">Περιγραφή / SKU</th><th className="p-4 text-right">Ποσότητα</th><th className="p-4 text-right">Κόστος Μον.</th><th className="p-4 text-right">Σύνολο</th></tr></thead>
                     <tbody className="divide-y divide-slate-50">
+                       <tr className="bg-amber-50/40 font-medium italic">
+                          <td className="p-4"><div className="flex justify-center bg-white p-2 rounded-lg border border-slate-200 shadow-sm"><Coins size={18} className="text-amber-500" /></div></td>
+                          <td className="p-4 text-slate-700">Ασήμι 925 (Βάση)</td>
+                          <td className="p-4 text-right font-mono text-slate-600">{editedProduct.weight_g.toFixed(2)}g</td>
+                          <td className="p-4 text-right text-slate-500 font-mono">{settings.silver_price_gram.toFixed(3)}€</td>
+                          <td className="p-4 text-right font-bold text-slate-800 font-mono">{cost.breakdown.silver.toFixed(2)}€</td>
+                       </tr>
                        {editedProduct.recipe.map((item, idx) => {
                           let name = 'Άγνωστο', unitCost = 0, icon = <Box size={18} />;
                           if (item.type === 'raw') {

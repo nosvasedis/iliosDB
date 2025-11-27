@@ -64,7 +64,7 @@ export interface Product {
   prefix: string;
   category: string;
   gender: Gender;
-  image_url: string;
+  image_url: string | null;
   weight_g: number;
   plating_type: PlatingType;
   
@@ -177,7 +177,7 @@ export interface ProductionBatch {
   notes?: string;
   
   // Computed helpers for UI
-  product_image?: string;
+  product_image?: string | null;
   requires_setting?: boolean; // Does it have stones?
   
   // UI Logic helpers

@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
@@ -21,7 +22,7 @@ interface InventoryItem {
     suffix: string;
     description: string;
     category: string;
-    imageUrl: string;
+    imageUrl: string | null;
     locationStock: Record<string, number>;
     totalStock: number;
     demandQty: number;
@@ -671,7 +672,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               {/* Product Info */}
                               <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
                                   <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 relative border border-slate-100">
-                                      <img src={item.imageUrl} alt={item.id} className="w-full h-full object-cover"/>
+                                      {item.imageUrl ? (
+                                        <img src={item.imageUrl} alt={item.id} className="w-full h-full object-cover"/>
+                                      ) : (
+                                        <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                                            <ImageIcon size={24} className="text-slate-300" />
+                                        </div>
+                                      )}
                                   </div>
                                   <div>
                                       <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2" onClick={() => setSelectedProduct(item.product)}>
@@ -686,7 +693,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               {/* Stock Distribution Visualization */}
                               <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">
                                    {Object.entries(item.locationStock).map(([whId, qty]) => {
-                                       if ((qty as number) <= 0) return null;
+                                       if (Number(qty) <= 0) return null;
                                        // If filtering by warehouse, maybe visually emphasize the selected one, or just show all relevant.
                                        const whObj = warehouses?.find(w => w.id === whId);
                                        const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
@@ -696,7 +703,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                        return (
                                            <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
                                                <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 15)}</span>
-                                               <span className="text-base">{qty as number}</span>
+                                               <span className="text-base">{Number(qty)}</span>
                                            </div>
                                        );
                                    })}
@@ -797,7 +804,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 border border-slate-100 flex flex-col">
                   <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
                       <div className="flex items-center gap-4">
-                           <img src={transferItem.imageUrl} className="w-16 h-16 rounded-xl object-cover bg-white border border-slate-200" alt="thumb"/>
+                           <div className="w-16 h-16 rounded-xl object-cover bg-white border border-slate-200">
+                             {transferItem.imageUrl ? <img src={transferItem.imageUrl} className="w-full h-full object-cover rounded-xl" alt="thumb"/> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={24} className="text-slate-300"/></div>}
+                           </div>
                            <div>
                                <h3 className="text-xl font-bold text-slate-800">{transferItem.masterSku}{transferItem.suffix ? `-${transferItem.suffix}` : ''}</h3>
                                <p className="text-slate-500 text-sm">Μεταφορά Αποθέματος</p>

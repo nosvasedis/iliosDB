@@ -1,8 +1,9 @@
 
 
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold } from '../types';
-import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus } from 'lucide-react';
+import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus, ImageIcon } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery } from '@tanstack/react-query';
@@ -111,7 +112,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1.5"
                 >
                     <div className="aspect-square relative overflow-hidden bg-slate-50">
-                        <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                        {product.image_url ? (
+                            <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                        ) : (
+                            <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                                <ImageIcon size={40} className="text-slate-300" />
+                            </div>
+                        )}
                         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm border border-slate-200">
                             {product.category}
                         </div>

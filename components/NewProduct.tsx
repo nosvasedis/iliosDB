@@ -1,9 +1,11 @@
 
 
+
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -184,7 +186,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
     
     setIsUploading(true);
-    let finalImageUrl = 'https://picsum.photos/300/300'; 
+    let finalImageUrl: string | null = null; 
     const finalMasterSku = detectedMasterSku || sku;
 
     try {
@@ -209,7 +211,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           draft_price: estimatedCost,
           selling_price: sellingPrice,
           stock_qty: 0,
-          sample_qty: 1,
+          sample_qty: 0,
           molds: selectedMolds,
           is_component: isSTX,
           variants: [],
@@ -235,7 +237,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             draft_price: newProduct.draft_price,
             selling_price: newProduct.selling_price,
             stock_qty: 0,
-            sample_qty: 1,
+            sample_qty: 0,
             is_component: newProduct.is_component,
             labor_casting: newProduct.labor.casting_cost,
             labor_setter: newProduct.labor.setter_cost,
@@ -341,7 +343,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 pointer-events-none">
                                     <div className="p-4 bg-white rounded-full shadow-sm mb-3">
-                                        <Camera size={32} className="opacity-50 text-slate-600" />
+                                        <ImageIcon size={32} className="opacity-50 text-slate-500" />
                                     </div>
                                     <span className="text-xs font-bold uppercase tracking-wide opacity-70">Επιλογή Φωτό</span>
                                 </div>
