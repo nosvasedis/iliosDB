@@ -7,6 +7,8 @@
 
 
 
+
+
 import React, { useState } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
@@ -515,7 +517,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                           }
                           return (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="p-4"><div className="flex justify-center bg-slate-50 p-2 rounded-lg">{icon}</div></td><td className="p-4 font-bold text-slate-700">{name}</td><td className="p-4 text-right font-mono font-medium">{item.quantity}</td><td className="p-4 text-right text-slate-500">{unitCost.toFixed(2)}€</td><td className="p-4 text-right font-bold text-slate-900">{(unitCost * item.quantity).toFixed(2)}€</td></tr>)
                        })}
-                       {editedProduct.recipe.length === 0 && (<tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">Κενή συνταγή.</td></tr>)}
                     </tbody>
                  </table>
               </div>

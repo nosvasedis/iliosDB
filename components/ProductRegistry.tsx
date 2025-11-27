@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold } from '../types';
 import { Search, Filter, ArrowRight, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus, ImageIcon } from 'lucide-react';
@@ -71,9 +72,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             <p className="text-slate-500 mt-1 ml-14">Αποκλειστική διαχείριση προδιαγραφών και κοστολόγησης.</p>
          </div>
          
-         <div className="flex gap-3 w-full md:w-auto">
-             <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
-                <PackagePlus size={20}/> <span className="hidden sm:inline">Νέο Προϊόν</span>
+         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+             <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο Προϊόν</span>
              </button>
              
              <div className="relative group flex-1 md:flex-none">
@@ -83,15 +84,15 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                   placeholder="Αναζήτηση Κωδικού..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full md:w-80 bg-slate-50 focus:bg-white transition-all text-slate-900"
+                  className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full md:w-64 bg-slate-50 focus:bg-white transition-all text-slate-900"
                 />
             </div>
             <div className="relative group flex-1 md:flex-none">
-                <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <select 
                    value={filterCategory}
                    onChange={(e) => setFilterCategory(e.target.value)}
-                   className="pl-12 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full md:w-48 bg-white appearance-none cursor-pointer"
+                   className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full md:w-48 bg-white appearance-none cursor-pointer"
                 >
                     <option value="All">Όλες οι Κατηγορίες</option>
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
