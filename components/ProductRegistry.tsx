@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
 import { Search, Filter, Layers, Tag, Database, Plus, Edit3, Coins, Weight, BookOpen, PackagePlus, ImageIcon, User, Users as UsersIcon } from 'lucide-react';
@@ -41,13 +42,42 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
   const filteredProducts = useMemo(() => {
     if (!products) return [];
-    return products.filter(p => {
+    
+    const filtered = products.filter(p => {
         const matchesGender = filterGender === 'All' || p.gender === filterGender;
         const matchesCat = filterCategory === 'All' || p.category === filterCategory;
         const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
         
         return matchesGender && matchesCat && matchesSearch;
     });
+
+    // Natural sort for SKUs (e.g., RN1, RN2, RN10)
+    const naturalSort = (a: Product, b: Product) => {
+        const regex = /^([A-Z-]+)(\d+)$/i;
+
+        const matchA = a.sku.match(regex);
+        const matchB = b.sku.match(regex);
+
+        if (!matchA || !matchB) {
+            return a.sku.localeCompare(b.sku);
+        }
+
+        const [, prefixA, numStrA] = matchA;
+        const [, prefixB, numStrB] = matchB;
+
+        const numA = parseInt(numStrA, 10);
+        const numB = parseInt(numStrB, 10);
+
+        const prefixCompare = prefixA.localeCompare(prefixB);
+        if (prefixCompare !== 0) {
+            return prefixCompare;
+        }
+
+        return numA - numB;
+    };
+    
+    return filtered.sort(naturalSort);
+
   }, [products, searchTerm, filterCategory, filterGender]);
 
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
