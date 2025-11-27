@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost } from '../utils/pricingEngine';
@@ -62,8 +63,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     if (sku.length >= 2) {
       // 1. Analyze Category/Gender
       const meta = parseSku(sku);
-      if (meta.category !== 'Γενικό') {
+      if (meta.category !== 'Γενικό' && !category) {
          setCategory(meta.category);
+      }
+      if (meta.gender && !gender) {
          setGender(meta.gender as Gender);
       }
       if (sku.startsWith('STX')) setIsSTX(true);
@@ -184,53 +187,87 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   );
 
   const handleSubmit = async () => {
+    // 1. Validation
     if (!sku) {
         showToast("Το SKU είναι υποχρεωτικό", "error");
         return;
     }
-    
+    if (!category) {
+        showToast("Η Κατηγορία είναι υποχρεωτική", "error");
+        return;
+    }
+    if (!gender) {
+        showToast("Το Φύλο είναι υποχρεωτικό", "error");
+        return;
+    }
+
     setIsUploading(true);
     let finalImageUrl: string | null = null; 
-    const finalMasterSku = detectedMasterSku || sku;
+    const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
 
     try {
-        // 1. Handle Image Upload (Always attached to Master SKU)
+        // 2. Check for existing product to preserve stock
+        // If we upsert with stock_qty: 0 on an existing product, we wipe its stock. 
+        // We must fetch it first.
+        let existingStockQty = 0;
+        let existingSampleQty = 0;
+        
+        const { data: existingProd } = await supabase
+            .from('products')
+            .select('stock_qty, sample_qty, image_url')
+            .eq('sku', finalMasterSku)
+            .single();
+
+        if (existingProd) {
+            existingStockQty = existingProd.stock_qty || 0;
+            existingSampleQty = existingProd.sample_qty || 0;
+            // Use existing image if no new one is selected
+            if (!selectedImage && existingProd.image_url) {
+                finalImageUrl = existingProd.image_url;
+            }
+        }
+
+        // 3. Handle Image Upload (Always attached to Master SKU)
         if (selectedImage) {
             const compressedBlob = await compressImage(selectedImage);
             const uploadedUrl = await uploadProductImage(compressedBlob, finalMasterSku);
             if (uploadedUrl) {
                 finalImageUrl = uploadedUrl;
             }
+        } else if (!finalImageUrl && imagePreview) {
+             // If we have a preview but no file (maybe passed in props later?), keep it. 
+             // But for now, we rely on finalImageUrl being set from existing or upload.
         }
 
         const newProduct: Product = {
-          sku: finalMasterSku.toUpperCase(),
-          prefix: finalMasterSku.substring(0, 2).toUpperCase(),
+          sku: finalMasterSku,
+          prefix: finalMasterSku.substring(0, 2),
           category: category,
           gender: gender as Gender,
           image_url: finalImageUrl,
-          weight_g: Number(weight),
+          weight_g: Number(weight) || 0,
           plating_type: plating,
           active_price: estimatedCost,
           draft_price: estimatedCost,
           selling_price: sellingPrice,
-          stock_qty: 0,
-          sample_qty: 0,
+          stock_qty: existingStockQty, // PRESERVE EXISTING
+          sample_qty: existingSampleQty, // PRESERVE EXISTING
           molds: selectedMolds,
           is_component: isSTX,
           variants: [],
           recipe: recipe,
           labor: {
-              casting_cost: Number(labor.casting_cost),
-              setter_cost: Number(labor.setter_cost),
-              technician_cost: Number(labor.technician_cost),
-              plating_cost: Number(labor.plating_cost),
+              casting_cost: Number(labor.casting_cost) || 0,
+              setter_cost: Number(labor.setter_cost) || 0,
+              technician_cost: Number(labor.technician_cost) || 0,
+              plating_cost: Number(labor.plating_cost) || 0,
               technician_cost_manual_override: labor.technician_cost_manual_override
           }
         };
         
-        // 2. Persist to DB (Master Product)
-        await supabase.from('products').upsert({
+        // 4. Persist to DB (Master Product)
+        // Using upsert with .select() to verify persistence
+        const { error: prodError } = await supabase.from('products').upsert({
             sku: newProduct.sku,
             prefix: newProduct.prefix,
             category: newProduct.category,
@@ -241,41 +278,71 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             active_price: newProduct.active_price,
             draft_price: newProduct.draft_price,
             selling_price: newProduct.selling_price,
-            stock_qty: 0,
-            sample_qty: 0,
+            stock_qty: newProduct.stock_qty,
+            sample_qty: newProduct.sample_qty,
             is_component: newProduct.is_component,
             labor_casting: newProduct.labor.casting_cost,
             labor_setter: newProduct.labor.setter_cost,
             labor_technician: newProduct.labor.technician_cost,
             labor_plating: newProduct.labor.plating_cost,
             labor_technician_manual_override: newProduct.labor.technician_cost_manual_override
-        });
+        }).select();
 
-        // 3. Create Variant if detected
+        if (prodError) throw prodError;
+
+        // 5. Create Variant if detected
+        // Use UPSERT instead of INSERT to handle case where variant exists
         if (detectedSuffix) {
-            await supabase.from('product_variants').insert({
+            // Check existing variant stock first? Variants might track their own stock.
+            // For simplicity in creation mode, we assume 0 or keep what DB has if we don't send stock_qty
+            // But upsert needs all fields or it merges.
+            // We'll insert with 0 if new, or update description if exists. 
+            // Ideally we shouldn't wipe stock.
+            
+            // Check if variant exists
+            const { data: existVar } = await supabase.from('product_variants').select('stock_qty').match({ product_sku: newProduct.sku, suffix: detectedSuffix }).single();
+            const varStock = existVar ? existVar.stock_qty : 0;
+
+            const { error: varError } = await supabase.from('product_variants').upsert({
                 product_sku: newProduct.sku,
                 suffix: detectedSuffix,
                 description: detectedVariantDesc,
-                stock_qty: 0 // Initial stock 0
-            });
+                stock_qty: varStock // Preserve
+            }, { onConflict: 'product_sku, suffix' });
+
+            if (varError) throw varError;
         }
         
-        await supabase.from('recipes').delete().eq('parent_sku', newProduct.sku);
-        for (const r of recipe) {
-             if (r.type === 'raw') {
-                 await supabase.from('recipes').insert({ parent_sku: newProduct.sku, type: 'raw', material_id: r.id, quantity: r.quantity });
-             } else {
-                 await supabase.from('recipes').insert({ parent_sku: newProduct.sku, type: 'component', component_sku: r.sku, quantity: r.quantity });
-             }
+        // 6. Handle Recipes (Delete Old -> Insert New)
+        // Only delete if we are actually saving a recipe, otherwise we might wipe existing recipe on a partial edit? 
+        // But this is "NewProduct" screen, so we assume full definition.
+        const { error: recDelError } = await supabase.from('recipes').delete().eq('parent_sku', newProduct.sku);
+        if (recDelError) throw recDelError;
+
+        if (recipe.length > 0) {
+            const recipeInserts = recipe.map(r => ({
+                parent_sku: newProduct.sku,
+                type: r.type,
+                material_id: r.type === 'raw' ? r.id : null,
+                component_sku: r.type === 'component' ? r.sku : null,
+                quantity: r.quantity
+            }));
+             const { error: recInsError } = await supabase.from('recipes').insert(recipeInserts);
+             if (recInsError) throw recInsError;
         }
         
-        await supabase.from('product_molds').delete().eq('product_sku', newProduct.sku);
-        for (const m of selectedMolds) {
-             await supabase.from('product_molds').insert({ product_sku: newProduct.sku, mold_code: m });
+        // 7. Handle Molds
+        const { error: moldDelError } = await supabase.from('product_molds').delete().eq('product_sku', newProduct.sku);
+        if (moldDelError) throw moldDelError;
+
+        if (selectedMolds.length > 0) {
+             const moldInserts = selectedMolds.map(m => ({ product_sku: newProduct.sku, mold_code: m }));
+             const { error: moldInsError } = await supabase.from('product_molds').insert(moldInserts);
+             if (moldInsError) throw moldInsError;
         }
 
-        // Force a refetch to ensure data is fresh before navigating away
+        // 8. Force Cache Refresh
+        await queryClient.invalidateQueries({ queryKey: ['products'] });
         await queryClient.refetchQueries({ queryKey: ['products'] });
 
         showToast(`Το προϊόν αποθηκεύτηκε ως ${finalMasterSku}${detectedSuffix ? ` με παραλλαγή ${detectedSuffix}` : ''}!`, "success");
@@ -285,12 +352,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             onCancel();
         } else {
              // Reset Form
-            setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setCurrentStep(1); setCategory(''); setGender('');
+            setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setCurrentStep(1);
         }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Save error:", error);
-        showToast("Σφάλμα κατά την αποθήκευση.", "error");
+        showToast(`Σφάλμα κατά την αποθήκευση: ${error.message || error.details || 'Άγνωστο σφάλμα'}`, "error");
     } finally {
         setIsUploading(false);
     }
@@ -363,7 +430,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
                     <div className="flex-1 space-y-5">
                         <div className="relative">
-                          <label className="block text-sm font-bold text-slate-700 mb-1.5">SKU Εισαγωγής</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-1.5">SKU Εισαγωγής *</label>
                           <input type="text" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} className="w-full p-3 border border-slate-200 rounded-xl font-mono uppercase bg-slate-50 text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all text-lg tracking-wider placeholder:text-slate-300" placeholder="π.χ. XR2050P"/>
                           {detectedSuffix && (
                               <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 text-sm text-blue-800 animate-in fade-in slide-in-from-top-2">
@@ -378,7 +445,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                         <div className="grid grid-cols-2 gap-5">
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1.5">Φύλο</label>
+                                <label className="block text-sm font-bold text-slate-700 mb-1.5">Φύλο *</label>
                                 <select value={gender} onChange={(e) => setGender(e.target.value as Gender)} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all appearance-none cursor-pointer">
                                     <option value="" disabled>Επιλέξτε</option>
                                     <option value={Gender.Women}>Γυναικείο</option>
@@ -387,7 +454,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1.5">Κατηγορία</label>
+                                <label className="block text-sm font-bold text-slate-700 mb-1.5">Κατηγορία *</label>
                                 <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all" />
                             </div>
                         </div>
