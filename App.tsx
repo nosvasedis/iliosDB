@@ -1,8 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
-  PackagePlus, 
   Warehouse, 
   DollarSign, 
   Settings as SettingsIcon,
@@ -19,12 +19,13 @@ import {
   Factory,
   Users,
   Sparkles,
-  Database
+  Database,
+  Layers
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant } from './types';
+import { useQuery } from '@tanstack/react-query';
+import { Product, ProductVariant, GlobalSettings } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -33,8 +34,7 @@ import SetupScreen from './components/SetupScreen';
 // Pages
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
-import ProductRegistry from './components/ProductRegistry'; // New Import
-import NewProduct from './components/NewProduct';
+import ProductRegistry from './components/ProductRegistry'; 
 import PricingManager from './components/PricingManager';
 import SettingsPage from './components/SettingsPage';
 import MaterialsPage from './components/MaterialsPage';
@@ -47,7 +47,7 @@ import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
 import AiStudio from './components/AiStudio';
 
-type Page = 'dashboard' | 'registry' | 'inventory' | 'new-product' | 'pricing' | 'settings' | 'materials' | 'molds' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
@@ -79,9 +79,12 @@ function AppContent() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number}[]>([]);
   const { signOut, profile } = useAuth();
+
+  // Resource Page Tab State
+  const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
   // --- React Query Data Fetching ---
-  const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: settings, isLoading: loadingSettings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -91,10 +94,11 @@ function AppContent() {
 
   useEffect(() => {
     if (printItems.length > 0) {
+      // Increased delay to 500ms to ensure BarcodeView canvas renders completely before print dialog interrupts
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
-      }, 100);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [printItems]);
@@ -278,27 +282,14 @@ function AppContent() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('inventory')} 
             />
-            <NavItem 
-              icon={<PackagePlus size={22} />} 
-              label="Νέο Προϊόν" 
-              isActive={activePage === 'new-product'} 
-              isCollapsed={isCollapsed}
-              onClick={() => handleNav('new-product')} 
-            />
+            
              <div className="my-2 border-t border-slate-800/50 mx-2"></div>
             <NavItem 
-              icon={<Gem size={22} />} 
-              label="Υλικά" 
-              isActive={activePage === 'materials'} 
+              icon={<Layers size={22} />} 
+              label="Υλικά & Λάστιχα" 
+              isActive={activePage === 'resources'} 
               isCollapsed={isCollapsed}
-              onClick={() => handleNav('materials')} 
-            />
-            <NavItem 
-              icon={<MapPin size={22} />} 
-              label="Λάστιχα" 
-              isActive={activePage === 'molds'} 
-              isCollapsed={isCollapsed}
-              onClick={() => handleNav('molds')} 
+              onClick={() => handleNav('resources')} 
             />
             <NavItem 
               icon={<FolderKanban size={22} />} 
@@ -344,8 +335,8 @@ function AppContent() {
             
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
-                  <p>Silver Price: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.1.0 (Split View)</p>
+                  <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
+                  <p className="opacity-50 mt-1">v1.2.0 (Unified Resources)</p>
                 </div>
             )}
           </div>
@@ -368,15 +359,28 @@ function AppContent() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
-              {activePage === 'registry' && <ProductRegistry />}
+              {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
               {activePage === 'orders' && <OrdersPage products={products} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
-              {activePage === 'materials' && <MaterialsPage />}
-              {activePage === 'molds' && <MoldsPage />}
+              
+              {activePage === 'resources' && (
+                <div className="space-y-6">
+                    <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0">
+                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'materials' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <Gem size={18} /> Υλικά
+                        </button>
+                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <MapPin size={18} /> Λάστιχα
+                        </button>
+                    </div>
+                    {resourceTab === 'materials' && <MaterialsPage />}
+                    {resourceTab === 'molds' && <MoldsPage />}
+                </div>
+              )}
+
               {activePage === 'collections' && <CollectionsPage />}
-              {activePage === 'new-product' && <NewProduct products={products} materials={materials} molds={molds} />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
               {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} />}
               {activePage === 'settings' && <SettingsPage />}
