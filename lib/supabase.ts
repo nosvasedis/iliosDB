@@ -1,6 +1,8 @@
 
 
 
+
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -17,11 +19,13 @@ export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.worker
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
 const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
+const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
 // Logic: 1. Try Build Env (Vercel) -> 2. Try Local Storage (Preview/Fallback) -> 3. Empty
 const SUPABASE_URL = envUrl || localStorage.getItem('VITE_SUPABASE_URL') || '';
 const SUPABASE_KEY = envKey || localStorage.getItem('VITE_SUPABASE_ANON_KEY') || '';
 export const AUTH_KEY_SECRET = envWorkerKey || localStorage.getItem('VITE_WORKER_AUTH_KEY') || '';
+export const GEMINI_API_KEY = envGeminiKey || localStorage.getItem('VITE_GEMINI_API_KEY') || '';
 
 export const isConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
 
@@ -32,10 +36,11 @@ export const supabase = createClient(
     SUPABASE_KEY || 'placeholder'
 );
 
-export const saveConfiguration = (url: string, key: string, workerKey: string) => {
+export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
     localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
+    localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
     window.location.reload();
 };
 
@@ -43,6 +48,7 @@ export const clearConfiguration = () => {
     localStorage.removeItem('VITE_SUPABASE_URL');
     localStorage.removeItem('VITE_SUPABASE_ANON_KEY');
     localStorage.removeItem('VITE_WORKER_AUTH_KEY');
+    localStorage.removeItem('VITE_GEMINI_API_KEY');
     window.location.reload();
 };
 

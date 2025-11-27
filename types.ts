@@ -210,23 +210,14 @@ export interface UserProfile {
   role: 'admin' | 'user';
 }
 
-// --- GLOBAL WINDOW TYPES FOR AI STUDIO & PUTER ---
+// --- GLOBAL WINDOW TYPES FOR AI STUDIO (Native Google Flow) ---
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
 
-  interface PuterAI {
-      txt2img: (prompt: string, options?: any) => Promise<HTMLImageElement>;
-  }
-
-  interface Puter {
-      ai: PuterAI;
-  }
-
   interface Window {
     aistudio?: AIStudio;
-    puter?: Puter;
   }
 }

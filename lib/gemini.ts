@@ -1,10 +1,12 @@
 
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-// Base client for standard operations
-// Note: We use a let variable or create instances dynamically to support User-Pays flow
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GEMINI_API_KEY } from "./supabase";
+
+// Initialize client with stored key
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -18,6 +20,10 @@ export const generateMarketingCopy = async (
     imageBase64?: string, 
     mimeType: string = 'image/jpeg'
 ): Promise<string> => {
+  if (!GEMINI_API_KEY) {
+      throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+  }
+
   try {
     const parts: any[] = [];
 
@@ -45,63 +51,31 @@ export const generateMarketingCopy = async (
 
     return response.text || "Δεν υπήρξε απάντηση από το AI.";
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Copywriting Error:", error);
-    throw new Error("Αποτυχία δημιουργίας περιγραφής.");
+    throw new Error(`Αποτυχία δημιουργίας περιγραφής: ${error.message || 'Unknown error'}`);
   }
 };
 
 /**
- * Helper to generate image via Puter.js (Client-side User-Pays)
- */
-export const generateImageViaPuter = async (
-    prompt: string,
-    model: 'gemini-3-pro' | 'gemini-flash' = 'gemini-flash',
-    inputImageBase64?: string
-): Promise<string> => {
-    if (!window.puter) {
-        throw new Error("Puter.js library not loaded. Check internet connection.");
-    }
-
-    const modelName = model === 'gemini-3-pro' ? 'google/gemini-3-pro-image' : 'gemini-2.5-flash-image-preview';
-    
-    const options: any = {
-        model: modelName,
-        provider: 'together-ai', // Often required for the Pro model via Puter
-        disable_safety_checker: true
-    };
-
-    // If input image exists (Image-to-Image)
-    if (inputImageBase64) {
-        options.input_image = cleanBase64(inputImageBase64);
-        options.input_image_mime_type = 'image/jpeg';
-    }
-
-    try {
-        const imgElement = await window.puter.ai.txt2img(prompt, options);
-        return imgElement.src;
-    } catch (error: any) {
-        console.error("Puter Generation Error:", error);
-        throw new Error(`Puter Generation Failed: ${error.message || 'Unknown error'}`);
-    }
-};
-
-/**
- * Generates a Virtual Model image.
+ * Generates a Virtual Model image using Google Gemini Models.
  * 
  * Supports:
- * 1. Standard Flash (API Key)
- * 2. Pro/Flash via Puter (User-Pays/Free for Dev)
+ * 1. Nano Banana (gemini-2.5-flash-image) - Standard/Fast
+ * 2. Nano Banana Pro (gemini-3-pro-image-preview) - High Quality
  */
 export const generateVirtualModel = async (
     imageBase64: string, 
     gender: 'Men' | 'Women' | 'Unisex',
     category: string,
     userInstructions?: string,
-    useProModel: boolean = false,
-    usePuter: boolean = false
+    useProModel: boolean = false
 ): Promise<string | null> => {
   
+  if (!GEMINI_API_KEY) {
+      throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+  }
+
   // Construct the Prompt
   const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : (gender === 'Women' ? 'beautiful Greek female model' : 'fashion model');
   let framingPrompt = "Lifestyle fashion shot.";
@@ -135,33 +109,17 @@ export const generateVirtualModel = async (
       promptText += `\n\nINSTRUCTIONS: ${userInstructions}`;
   }
 
-  // --- PATH 1: PUTER.JS (User Pays / Free for Dev) ---
-  if (usePuter) {
-      return await generateImageViaPuter(
-          promptText, 
-          useProModel ? 'gemini-3-pro' : 'gemini-flash',
-          imageBase64
-      );
-  }
-
-  // --- PATH 2: STANDARD GOOGLE SDK (Requires Env Key or Window Wrapper) ---
   try {
-    let modelName = 'gemini-2.5-flash-image';
-    let currentAiClient = ai;
-    let config: any = {};
-
+    // Select Model based on Pro flag
+    const modelName = useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+    
+    // Pro model supports explicit image configuration
+    const config: any = {};
     if (useProModel) {
-        modelName = 'gemini-3-pro-image-preview';
-        // User-Pays Flow for SDK
-        if (typeof window !== 'undefined' && window.aistudio) {
-            const hasKey = await window.aistudio.hasSelectedApiKey();
-            if (!hasKey) await window.aistudio.openSelectKey();
-            currentAiClient = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-        }
         config.imageConfig = { aspectRatio: "1:1", imageSize: "1K" };
     }
 
-    const response = await currentAiClient.models.generateContent({
+    const response = await ai.models.generateContent({
       model: modelName,
       contents: {
         parts: [
@@ -181,13 +139,7 @@ export const generateVirtualModel = async (
 
   } catch (error: any) {
     console.error("Gemini Model Gen Error:", error);
-    if (error.message && error.message.includes("Requested entity was not found")) {
-         if (typeof window !== 'undefined' && window.aistudio) {
-             try { await window.aistudio.openSelectKey(); } catch(e) {}
-         }
-         throw new Error("Απαιτείται επιλογή ενεργού κλειδιού. Παρακαλώ δοκιμάστε ξανά.");
-    }
-    throw new Error("Αποτυχία δημιουργίας εικόνας μοντέλου.");
+    throw new Error(`Αποτυχία δημιουργίας εικόνας: ${error.message || 'Unknown error'}`);
   }
 };
 
@@ -195,6 +147,10 @@ export const generateVirtualModel = async (
  * Trend Analysis using Google Search Grounding
  */
 export const generateTrendAnalysis = async (query: string): Promise<string> => {
+    if (!GEMINI_API_KEY) {
+        throw new Error("Missing API Key. Please add your Gemini API Key in Settings.");
+    }
+
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
@@ -220,8 +176,8 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
             }
         }
         return finalText;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Gemini Trends Error:", error);
-        throw new Error("Αποτυχία ανάλυσης τάσεων.");
+        throw new Error(`Αποτυχία ανάλυσης τάσεων: ${error.message}`);
     }
 };

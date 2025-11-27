@@ -1,8 +1,10 @@
 
+
+
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info } from 'lucide-react';
-import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key } from 'lucide-react';
+import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
 
@@ -13,6 +15,9 @@ export default function SettingsPage() {
   
   // Local state for editing, initialized from query cache
   const [settings, setSettings] = useState<GlobalSettings | null>(settingsData || null);
+  
+  // Local Config State (Client-side keys)
+  const [localGeminiKey, setLocalGeminiKey] = useState(GEMINI_API_KEY);
   
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,6 +74,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
+        // 1. Save Global Settings to DB
         const { error } = await supabase
           .from('global_settings')
           .update({ 
@@ -80,6 +86,16 @@ export default function SettingsPage() {
           .eq('id', 1);
 
         if (error) throw error;
+
+        // 2. Save Local Keys to LocalStorage
+        if (localGeminiKey !== GEMINI_API_KEY) {
+            localStorage.setItem('VITE_GEMINI_API_KEY', localGeminiKey);
+            // We need to reload to apply the new key to the module constant, 
+            // or the user can just refresh. A reload is safer.
+            setTimeout(() => window.location.reload(), 1000);
+            showToast("Το Gemini Key ενημερώθηκε. Επανεκκίνηση...", 'info');
+            return;
+        }
 
         // Update query cache
         queryClient.setQueryData(['settings'], settings);
@@ -94,7 +110,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 pb-10">
       <div>
           <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
               <div className="p-2 bg-slate-200 text-slate-700 rounded-xl">
@@ -149,29 +165,54 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-                Εκτύπωση Ετικετών
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Πλάτος Ετικέτας (mm)</label>
-                <input 
-                  type="number" step="1"
-                  value={settings.barcode_width_mm}
-                  onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})}
-                  className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Ύψος Ετικέτας (mm)</label>
-                <input 
-                  type="number" step="1"
-                  value={settings.barcode_height_mm}
-                  onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})}
-                  className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
-                />
-              </div>
+          <div className="space-y-8">
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
+                    Εκτύπωση Ετικετών
+                </h2>
+                <div className="space-y-6">
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Πλάτος Ετικέτας (mm)</label>
+                    <input 
+                    type="number" step="1"
+                    value={settings.barcode_width_mm}
+                    onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})}
+                    className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Ύψος Ετικέτας (mm)</label>
+                    <input 
+                    type="number" step="1"
+                    value={settings.barcode_height_mm}
+                    onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})}
+                    className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
+                    />
+                </div>
+                </div>
+            </div>
+
+            {/* Client Configuration Section */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
+                    <Shield className="text-emerald-500" size={20}/>
+                    Τοπική Ρύθμιση (Browser)
+                </h2>
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <Key size={14} className="text-slate-400"/> Gemini API Key
+                    </label>
+                    <input 
+                        type="password" 
+                        value={localGeminiKey}
+                        onChange={(e) => setLocalGeminiKey(e.target.value)}
+                        placeholder="Εισάγετε το κλειδί σας (AIzaSy...)"
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-400 mt-2 ml-1">
+                        Το κλειδί αποθηκεύεται μόνο σε αυτόν τον περιηγητή (LocalStorage).
+                    </p>
+                </div>
             </div>
           </div>
       </div>

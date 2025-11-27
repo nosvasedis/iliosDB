@@ -5,12 +5,14 @@
 
 
 
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
-import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, Cpu } from 'lucide-react';
+import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle } from 'lucide-react';
 import { useUI } from './UIProvider';
-import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
+import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { compressImage } from '../utils/imageHelpers';
 
@@ -30,9 +32,8 @@ export default function AiStudio() {
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     
-    // Pro/Puter Settings
+    // Pro Settings
     const [useProModel, setUseProModel] = useState(false); // Default to Flash
-    const [usePuter, setUsePuter] = useState(true); // Default to Puter for Vercel/Free Usage
     
     // Product Search Modal
     const [showProductSearch, setShowProductSearch] = useState(false);
@@ -131,6 +132,7 @@ export default function AiStudio() {
     // --- ACTION HANDLERS ---
 
     const handleCopywriting = async () => {
+        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -184,6 +186,7 @@ export default function AiStudio() {
     };
 
     const handleVirtualModel = async () => {
+        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -196,12 +199,11 @@ export default function AiStudio() {
         const instructions = inputValue; // Capture user instructions
 
         const modelUsed = useProModel ? 'Nano Banana Pro (Gemini 3)' : 'Nano Banana (Flash)';
-        const method = usePuter ? 'Puter.js (Free)' : 'Standard API';
 
         setMessages(prev => [...prev, {
             id: msgId,
             role: 'user',
-            text: `Δημιουργία εικονικού μοντέλου (${gender}) - ${modelUsed} via ${method}. ${instructions ? `Οδηγίες: ${instructions}` : ''}`,
+            text: `Δημιουργία εικονικού μοντέλου (${gender}) - ${modelUsed}. ${instructions ? `Οδηγίες: ${instructions}` : ''}`,
             image: image
         }]);
         setInputValue('');
@@ -211,14 +213,13 @@ export default function AiStudio() {
             // Fetch Base64 safely
             const base64Image = await fetchImageAsBase64(image);
 
-            // Pass instructions to Gemini with PRO toggle & Puter flag
+            // Pass instructions to Gemini with PRO toggle
             const generatedImage = await generateVirtualModel(
                 base64Image, 
                 gender === 'Unisex' ? 'Women' : gender, 
                 category, 
                 instructions,
-                useProModel,
-                usePuter
+                useProModel
             );
             
             if (generatedImage) {
@@ -245,6 +246,7 @@ export default function AiStudio() {
     };
 
     const handleTrends = async () => {
+        if (!GEMINI_API_KEY) { showToast("Missing API Key. Check Settings.", "error"); return; }
         if (!inputValue.trim()) return;
         
         const query = inputValue;
@@ -305,29 +307,23 @@ export default function AiStudio() {
                     </button>
                 </div>
                 
-                {/* Pro Toggle - Only in Virtual Model mode */}
-                {mode === 'virtual-model' && (
+                {/* Check if key is missing */}
+                {!GEMINI_API_KEY && (
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl animate-pulse">
+                        <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-1">
+                            <AlertTriangle size={16} /> API Key Missing
+                        </div>
+                        <p className="text-xs text-amber-700">
+                            Προσθέστε το κλειδί Gemini στις Ρυθμίσεις για να ενεργοποιήσετε το AI.
+                        </p>
+                    </div>
+                )}
+
+                {/* Pro Toggle - Only in Virtual Model mode and if Key is present */}
+                {mode === 'virtual-model' && GEMINI_API_KEY && (
                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 animate-in fade-in slide-in-from-top-2 space-y-4">
                         
-                        {/* 1. Puter Toggle (Free for Developer) */}
-                        <div className="border-b border-slate-100 pb-3">
-                            <label className="flex items-center justify-between cursor-pointer group select-none">
-                                <div className="flex items-center gap-2">
-                                    <div className={`p-2 rounded-lg transition-colors ${usePuter ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'}`}>
-                                        <Cpu size={18} />
-                                    </div>
-                                    <div>
-                                        <div className={`font-bold text-sm ${usePuter ? 'text-slate-800' : 'text-slate-500'}`}>Puter Engine</div>
-                                        <div className="text-[10px] text-slate-400 font-medium">Free / User-Pays</div>
-                                    </div>
-                                </div>
-                                <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 ${usePuter ? 'bg-purple-500' : 'bg-slate-200'}`} onClick={() => setUsePuter(!usePuter)}>
-                                    <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${usePuter ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </div>
-                            </label>
-                        </div>
-
-                        {/* 2. High Quality Toggle */}
+                        {/* High Quality Toggle */}
                         <label className="flex items-center justify-between cursor-pointer group select-none">
                             <div className="flex items-center gap-2">
                                 <div className={`p-2 rounded-lg transition-colors ${useProModel ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
@@ -342,12 +338,6 @@ export default function AiStudio() {
                                 <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${useProModel ? 'translate-x-5' : 'translate-x-0'}`} />
                             </div>
                         </label>
-                        
-                        <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-2 text-center font-medium leading-tight">
-                            {usePuter 
-                                ? "Χρησιμοποιεί το Puter.js για δωρεάν παραγωγή (User-Pays) χωρίς API Key στον κώδικα." 
-                                : "Χρησιμοποιεί το κλειδί της εφαρμογής ή AI Studio Key."}
-                        </div>
                     </div>
                 )}
                 

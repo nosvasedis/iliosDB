@@ -1,7 +1,9 @@
 
 
+
+
 import React, { useState } from 'react';
-import { ShieldCheck, Server, Key, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Server, Key, ArrowRight, Zap } from 'lucide-react';
 import { saveConfiguration } from '../lib/supabase';
 import { APP_LOGO } from '../constants';
 
@@ -9,11 +11,12 @@ export default function SetupScreen() {
     const [url, setUrl] = useState('');
     const [key, setKey] = useState('');
     const [workerKey, setWorkerKey] = useState('2112Aris101!'); // Default worker key
+    const [geminiKey, setGeminiKey] = useState('');
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         if(url && key) {
-            saveConfiguration(url, key, workerKey);
+            saveConfiguration(url, key, workerKey, geminiKey);
         }
     };
 
@@ -59,6 +62,23 @@ export default function SetupScreen() {
                                 onChange={e => setKey(e.target.value)}
                                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
                                 className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex justify-between">
+                            <span>Gemini API Key</span>
+                            <span className="text-xs text-amber-500 lowercase font-normal">(optional for AI)</span>
+                        </label>
+                        <div className="relative">
+                            <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" size={18}/>
+                            <input 
+                                type="password" 
+                                value={geminiKey}
+                                onChange={e => setGeminiKey(e.target.value)}
+                                placeholder="AIzaSy..."
+                                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-all font-mono text-sm"
                             />
                         </div>
                     </div>
