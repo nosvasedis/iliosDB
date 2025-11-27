@@ -686,7 +686,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               {/* Stock Distribution Visualization */}
                               <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">
                                    {Object.entries(item.locationStock).map(([whId, qty]) => {
-                                       if (qty <= 0) return null;
+                                       if ((qty as number) <= 0) return null;
                                        // If filtering by warehouse, maybe visually emphasize the selected one, or just show all relevant.
                                        const whObj = warehouses?.find(w => w.id === whId);
                                        const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
@@ -696,7 +696,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                        return (
                                            <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
                                                <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 15)}</span>
-                                               <span className="text-base">{qty}</span>
+                                               <span className="text-base">{qty as number}</span>
                                            </div>
                                        );
                                    })}
