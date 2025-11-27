@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
-  PackagePlus, 
   Warehouse, 
   DollarSign, 
   Settings as SettingsIcon,
@@ -25,7 +24,7 @@ import {
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Product, ProductVariant, GlobalSettings } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
