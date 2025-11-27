@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
-import { calculateProductCost, calculateTechnicianCost } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku } from '../utils/pricingEngine';
 import { INITIAL_SETTINGS, STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Edit2, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock } from 'lucide-react';
 import { uploadProductImage, supabase, recordStockMovement, deleteProduct, api } from '../lib/supabase';
@@ -111,8 +111,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || []
   });
+  
+  useEffect(() => {
+    setEditedProduct({ 
+      ...product,
+      variants: product.variants || [],
+      selling_price: product.selling_price || 0,
+      molds: product.molds || [],
+      collections: product.collections || []
+    });
+  }, [product]);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
+  // Variant form states
+  const [smartAddSku, setSmartAddSku] = useState('');
+  const [newVariantSuffix, setNewVariantSuffix] = useState('');
+  const [newVariantDesc, setNewVariantDesc] = useState('');
 
   // Auto-recalculate technician cost if weight changes and override is OFF
   useEffect(() => {
@@ -134,20 +149,37 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const silverTotalCost = editedProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
 
   const handleSave = async () => {
-    await supabase.from('products').update({
-        weight_g: editedProduct.weight_g,
-        selling_price: editedProduct.selling_price,
-        labor_casting: editedProduct.labor.casting_cost,
-        labor_setter: editedProduct.labor.setter_cost,
-        labor_technician: editedProduct.labor.technician_cost,
-        labor_plating: editedProduct.labor.plating_cost,
-        labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override
-    }).eq('sku', editedProduct.sku);
-    
-    queryClient.invalidateQueries({ queryKey: ['products'] });
-    if (onSave) onSave(editedProduct);
-    showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
-    onClose();
+    try {
+        // 1. Update Master Product
+        await supabase.from('products').update({
+            weight_g: editedProduct.weight_g,
+            selling_price: editedProduct.selling_price,
+            labor_casting: editedProduct.labor.casting_cost,
+            labor_setter: editedProduct.labor.setter_cost,
+            labor_technician: editedProduct.labor.technician_cost,
+            labor_plating: editedProduct.labor.plating_cost,
+            labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override
+        }).eq('sku', editedProduct.sku);
+
+        // 2. Sync Variants (Delete and Re-insert)
+        await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
+        if (editedProduct.variants && editedProduct.variants.length > 0) {
+            const newVariantsForDB = editedProduct.variants.map(v => ({
+                product_sku: editedProduct.sku,
+                suffix: v.suffix,
+                description: v.description,
+                stock_qty: v.stock_qty || 0 // Use existing stock or default to 0
+            }));
+            await supabase.from('product_variants').insert(newVariantsForDB);
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        if (onSave) onSave(editedProduct);
+        showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
+        onClose();
+    } catch (err: any) {
+        showToast(`Σφάλμα αποθήκευσης: ${err.message}`, "error");
+    }
   };
 
   const requestDelete = async () => {
@@ -190,6 +222,48 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
               setIsUploadingImage(false);
           }
       }
+  };
+
+  const handleSmartAdd = () => {
+    const analysis = analyzeSku(smartAddSku);
+    if (!analysis.isVariant || analysis.masterSku !== editedProduct.sku) {
+      showToast('Μη έγκυρος κωδικός παραλλαγής για αυτό το προϊόν.', 'error');
+      return;
+    }
+    if (editedProduct.variants.some(v => v.suffix === analysis.suffix)) {
+      showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
+      return;
+    }
+    const newVariant: ProductVariant = {
+      suffix: analysis.suffix,
+      description: analysis.variantDescription,
+      stock_qty: 0
+    };
+    setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
+    setSmartAddSku('');
+  };
+
+  const handleManualAdd = () => {
+      if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", 'error'); return; }
+      if (editedProduct.variants.some(v => v.suffix === newVariantSuffix.toUpperCase())) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
+      const newVariant: ProductVariant = {
+        suffix: newVariantSuffix.toUpperCase(),
+        description: newVariantDesc,
+        stock_qty: 0
+      };
+      setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
+      setNewVariantSuffix('');
+      setNewVariantDesc('');
+  };
+  
+  const updateVariant = (index: number, field: 'description', value: string) => {
+      const newVariants = [...editedProduct.variants];
+      newVariants[index][field] = value;
+      setEditedProduct(prev => ({ ...prev, variants: newVariants }));
+  };
+
+  const deleteVariant = (index: number) => {
+      setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
   };
   
   return (
@@ -249,7 +323,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             {activeTab === 'overview' && (
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <InfoCard label="Βάρος" value={`${editedProduct.weight_g}g`} editable onChange={val => setEditedProduct({...editedProduct, weight_g: parseFloat(val) || 0})} />
+                        <InfoCard label="Βάρος" value={editedProduct.weight_g} unit="g" editable onChange={val => setEditedProduct({...editedProduct, weight_g: parseFloat(val) || 0})} />
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         <InfoCard label="Φύλο" value={editedProduct.gender} />
                         <InfoCard label="Επιμετάλλωση" value={editedProduct.plating_type} />
@@ -286,7 +360,50 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     <LaborInput label="Επιμετάλλωση" value={editedProduct.labor.plating_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost: val}})} />
                 </div>
             )}
-            {activeTab === 'variants' && <div>Variants Management UI</div>}
+            {activeTab === 'variants' && (
+              <div className="space-y-6">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-indigo-500"/> Έξυπνη Προσθήκη</h4>
+                      <div className="flex gap-2">
+                          <input 
+                              type="text" 
+                              placeholder={`π.χ. ${editedProduct.sku}P, ${editedProduct.sku}XLA`}
+                              value={smartAddSku} 
+                              onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
+                              className="flex-1 p-2 border border-slate-200 rounded-lg font-mono text-sm"
+                          />
+                          <button onClick={handleSmartAdd} className="bg-indigo-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-indigo-600 transition-colors">Προσθήκη</button>
+                      </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Suffix (π.χ. P)" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-28 p-2 border border-slate-200 rounded-lg font-mono text-sm"/>
+                      <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"/>
+                      <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"><Plus size={16}/></button>
+                    </div>
+                  </div>
+                  <div>
+                      <h4 className="font-bold text-sm text-slate-600 mb-2 uppercase tracking-wide">Λίστα Παραλλαγών ({editedProduct.variants.length})</h4>
+                      <div className="space-y-2">
+                          {editedProduct.variants.map((variant, index) => (
+                              <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                <div className="font-mono font-bold text-indigo-600 w-24">{variant.suffix}</div>
+                                <input 
+                                  type="text" 
+                                  value={variant.description}
+                                  onChange={e => updateVariant(index, 'description', e.target.value)}
+                                  className="flex-1 p-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
+                                />
+                                <div className="text-xs text-slate-400 font-medium w-20 text-center">Qty: {variant.stock_qty}</div>
+                                <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                              </div>
+                          ))}
+                          {editedProduct.variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές για αυτό το προϊόν.</div>}
+                      </div>
+                  </div>
+              </div>
+            )}
 
           </div>
         </main>
@@ -303,14 +420,17 @@ const TabButton = ({ name, label, activeTab, setActiveTab }: any) => (
     </button>
 );
 
-const InfoCard = ({ label, value, editable, onChange }: any) => (
+const InfoCard = ({ label, value, unit, editable, onChange }: any) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200">
         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</label>
-        {editable ? (
-            <input type="number" step="0.01" value={value} onChange={e => onChange(e.target.value)} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none mt-1"/>
-        ) : (
-            <p className="font-bold text-slate-800 text-lg mt-1">{value}</p>
-        )}
+        <div className="flex items-baseline gap-2 mt-1">
+            {editable ? (
+                <input type="number" step="0.01" value={value} onChange={e => onChange(e.target.value)} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"/>
+            ) : (
+                <p className="font-bold text-slate-800 text-lg">{value}</p>
+            )}
+            {unit && <span className="text-sm font-medium text-slate-500">{unit}</span>}
+        </div>
     </div>
 );
 
