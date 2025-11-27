@@ -375,7 +375,7 @@ function AppContent() {
                             <MapPin size={18} /> Λάστιχα
                         </button>
                     </div>
-                    {resourceTab === 'materials' && <MaterialsPage />}
+                    {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
                     {resourceTab === 'molds' && <MoldsPage />}
                 </div>
               )}

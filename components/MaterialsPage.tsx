@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Material, MaterialType } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box } from 'lucide-react';
+import { Material, MaterialType, GlobalSettings } from '../types';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -13,7 +13,11 @@ const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Component]: 'Εξάρτημα'
 };
 
-export default function MaterialsPage() {
+interface Props {
+    settings: GlobalSettings;
+}
+
+export default function MaterialsPage({ settings }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: materials, isLoading } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -100,6 +104,26 @@ export default function MaterialsPage() {
         <button onClick={handleAddMaterial} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-slate-800 font-bold transition-all hover:shadow-lg hover:-translate-y-0.5">
             <Plus size={20} /> Νέο Υλικό
         </button>
+      </div>
+
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-3xl shadow-lg border border-slate-700 flex flex-col md:flex-row justify-between items-start gap-4">
+          <div>
+              <div className="flex items-center gap-3">
+                  <div className="bg-white/10 p-2 rounded-lg">
+                      <Coins size={20} />
+                  </div>
+                  <h2 className="font-bold text-lg">Βασική Πρώτη Ύλη: Ασήμι 925</h2>
+              </div>
+              <p className="text-sm text-slate-300 mt-2 max-w-md">
+                  Το ασήμι δεν προστίθεται χειροκίνητα. Το κόστος του υπολογίζεται αυτόματα σε κάθε προϊόν βάσει του βάρους του και της τρέχουσας τιμής αγοράς.
+              </p>
+          </div>
+          <div className="bg-white/5 p-4 rounded-xl text-center border border-white/10 w-full md:w-auto mt-2 md:mt-0">
+              <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Τρεχουσα Τιμη</span>
+              <div className="font-mono font-black text-3xl text-amber-400 mt-1">
+                  {settings.silver_price_gram}€<span className="text-lg text-slate-400">/g</span>
+              </div>
+          </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
