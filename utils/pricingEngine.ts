@@ -1,6 +1,20 @@
 import { Product, GlobalSettings, Material, PlatingType, Gender } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
+export const calculateTechnicianCost = (weight_g: number): number => {
+  let cost = 0;
+  if (weight_g <= 2.2) {
+    cost = weight_g * 1.5;
+  } else if (weight_g <= 4.2) { // 2.3 to 4.2
+    cost = weight_g * 1.1;
+  } else if (weight_g <= 8.2) { // 4.3 to 8.2
+    cost = weight_g * 0.9;
+  } else { // 8.3 and up
+    cost = weight_g * 0.7;
+  }
+  return parseFloat(cost.toFixed(2));
+};
+
 export const calculateProductCost = (
   product: Product,
   settings: GlobalSettings,
@@ -55,10 +69,16 @@ export const calculateProductCost = (
 
   // 4. Labor Costs
   const labor = product.labor;
+  
+  // NEW LOGIC: Check for manual override. If false, calculate dynamically.
+  const technicianCost = product.labor.technician_cost_manual_override
+    ? (labor.technician_cost || 0)
+    : calculateTechnicianCost(product.weight_g);
+
   const laborTotal = 
     (labor.casting_cost || 0) + 
     (labor.setter_cost || 0) + 
-    (labor.technician_cost || 0) + 
+    technicianCost +
     (labor.plating_cost || 0);
 
   const totalCost = silverBaseCost + materialsCost + laborTotal;
@@ -69,7 +89,10 @@ export const calculateProductCost = (
       silver: parseFloat(silverBaseCost.toFixed(2)),
       materials: parseFloat(materialsCost.toFixed(2)),
       labor: parseFloat(laborTotal.toFixed(2)),
-      details: labor
+      details: {
+        ...labor,
+        technician_cost: technicianCost // Return the correct breakdown detail
+      }
     }
   };
 };

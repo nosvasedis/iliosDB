@@ -1,9 +1,5 @@
 
 
-
-
-
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -341,7 +337,8 @@ export const api = {
                     casting_cost: Number(p.labor_casting),
                     setter_cost: Number(p.labor_setter),
                     technician_cost: Number(p.labor_technician),
-                    plating_cost: Number(p.labor_plating)
+                    plating_cost: Number(p.labor_plating),
+                    technician_cost_manual_override: p.labor_technician_manual_override
                   }
                 };
             });

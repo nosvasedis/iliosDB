@@ -44,6 +44,7 @@ export interface LaborCost {
   setter_cost: number;
   technician_cost: number;
   plating_cost: number;
+  technician_cost_manual_override?: boolean;
 }
 
 export interface ProductVariant {

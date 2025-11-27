@@ -1,11 +1,7 @@
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
-import { parseSku, calculateProductCost, analyzeSku } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon } from 'lucide-react';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost } from '../utils/pricingEngine';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -42,7 +38,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [sellingPrice, setSellingPrice] = useState(0); // Wholesale
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
-  const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0, setter_cost: 0, technician_cost: 0, plating_cost: 0 });
+  const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0, setter_cost: 0, technician_cost: 0, plating_cost: 0, technician_cost_manual_override: false });
   
   // Image State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -89,6 +85,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         setDetectedSuffix('');
     }
   }, [sku]);
+
+  // Dynamic Technician Cost Calculation
+  useEffect(() => {
+    if (!labor.technician_cost_manual_override) {
+      const techCost = calculateTechnicianCost(weight);
+      setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
+    }
+  }, [weight, labor.technician_cost_manual_override]);
 
   // Cost Calculator Effect
   useEffect(() => {
@@ -220,7 +224,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
               casting_cost: Number(labor.casting_cost),
               setter_cost: Number(labor.setter_cost),
               technician_cost: Number(labor.technician_cost),
-              plating_cost: Number(labor.plating_cost)
+              plating_cost: Number(labor.plating_cost),
+              technician_cost_manual_override: labor.technician_cost_manual_override
           }
         };
         
@@ -242,7 +247,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_casting: newProduct.labor.casting_cost,
             labor_setter: newProduct.labor.setter_cost,
             labor_technician: newProduct.labor.technician_cost,
-            labor_plating: newProduct.labor.plating_cost
+            labor_plating: newProduct.labor.plating_cost,
+            labor_technician_manual_override: newProduct.labor.technician_cost_manual_override
         });
 
         // 3. Create Variant if detected
@@ -490,7 +496,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                  <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm">
                     <label className="block text-sm font-bold text-amber-800 mb-2 uppercase tracking-wide">Βάρος Ασημιού (γραμμάρια)</label>
                     <div className="relative">
-                        <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value))} className="w-full p-4 border border-amber-200 rounded-xl bg-white text-slate-900 text-3xl font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm transition-all text-center"/>
+                        <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-4 border border-amber-200 rounded-xl bg-white text-slate-900 text-3xl font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none shadow-sm transition-all text-center"/>
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">gr</span>
                     </div>
                  </div>
@@ -498,19 +504,40 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                  <div className="grid grid-cols-2 gap-6">
                      <div className="space-y-1">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide pl-1">Χύτευση €</label>
-                        <input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
+                        <input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
                      </div>
                      <div className="space-y-1">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide pl-1">Καρφωτικό €</label>
-                        <input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
+                        <input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
                      </div>
                      <div className="space-y-1">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide pl-1">Τεχνίτης €</label>
-                        <input type="number" step="0.01" value={labor.technician_cost} onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            readOnly={!labor.technician_cost_manual_override} 
+                            value={labor.technician_cost} 
+                            onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value) || 0})} 
+                            className={`w-full p-3 border rounded-xl font-mono transition-all
+                              ${labor.technician_cost_manual_override 
+                                ? 'bg-white text-slate-900 border-slate-200 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none' 
+                                : 'bg-slate-100 text-slate-600 border-slate-200 outline-none'}`
+                            }
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))}
+                            title="Εναλλαγή χειροκίνητης εισαγωγής"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                          >
+                            {labor.technician_cost_manual_override ? <Unlock size={14} /> : <Lock size={14} />}
+                          </button>
+                        </div>
                      </div>
                      <div className="space-y-1">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide pl-1">Επιμετάλλωση €</label>
-                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
+                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
                      </div>
                  </div>
              </div>
