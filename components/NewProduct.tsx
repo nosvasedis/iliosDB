@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -46,9 +47,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
-  // Molds Multi-Select
+  // Molds Multi-Select & Creation State
   const [selectedMolds, setSelectedMolds] = useState<string[]>([]);
-  const [moldSearch, setMoldSearch] = useState(''); // Mold Search State
+  const [moldSearch, setMoldSearch] = useState('');
+  
+  // New Mold Creator State
+  const [newMoldCode, setNewMoldCode] = useState('');
+  const [newMoldLoc, setNewMoldLoc] = useState('');
+  const [newMoldDesc, setNewMoldDesc] = useState('');
+  const [isCreatingMold, setIsCreatingMold] = useState(false);
   
   const [isSTX, setIsSTX] = useState(false);
   const [estimatedCost, setEstimatedCost] = useState(0);
@@ -178,6 +185,42 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           setSelectedMolds(selectedMolds.filter(m => m !== code));
       } else {
           setSelectedMolds([...selectedMolds, code]);
+      }
+  };
+
+  const handleQuickCreateMold = async () => {
+      if (!newMoldCode) {
+          showToast("Ο Κωδικός λάστιχου είναι υποχρεωτικός.", "error");
+          return;
+      }
+      setIsCreatingMold(true);
+      try {
+          const newMold: Mold = {
+              code: newMoldCode.toUpperCase(),
+              location: newMoldLoc,
+              description: newMoldDesc
+          };
+          
+          const { error } = await supabase.from('molds').insert(newMold);
+          if (error) throw error;
+          
+          // Refresh molds list
+          await queryClient.invalidateQueries({ queryKey: ['molds'] });
+          
+          // Auto-select the new mold
+          setSelectedMolds(prev => [...prev, newMold.code]);
+          
+          // Reset form
+          setNewMoldCode('');
+          setNewMoldLoc('');
+          setNewMoldDesc('');
+          
+          showToast(`Το λάστιχο ${newMold.code} δημιουργήθηκε και επιλέχθηκε!`, "success");
+      } catch (err: any) {
+          console.error(err);
+          showToast("Σφάλμα δημιουργίας. Πιθανώς ο κωδικός υπάρχει ήδη.", "error");
+      } finally {
+          setIsCreatingMold(false);
       }
   };
 
@@ -463,28 +506,78 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
 
                 <div className="pt-4 border-t border-slate-100">
-                    <div className="flex justify-between items-end mb-3">
-                        <label className="block text-sm font-bold text-slate-700">Ανάθεση Λάστιχων</label>
-                        <div className="relative w-48">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input 
-                                type="text" 
-                                placeholder="Αναζήτηση..." 
-                                value={moldSearch}
-                                onChange={(e) => setMoldSearch(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 focus:bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                        {filteredMolds.length > 0 ? filteredMolds.map(m => (
-                            <div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer select-none transition-all border ${selectedMolds.includes(m.code) ? 'bg-amber-50 border-amber-200 text-amber-900 font-bold shadow-sm' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}>
-                                <div className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-500 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                    <CheckCircle size={14} />
-                                </div>
-                                <span>{m.code}</span>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">Διαχείριση Λάστιχων</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        {/* LEFT COLUMN: List & Search */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div className="relative mb-3">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Αναζήτηση λάστιχου..." 
+                                    value={moldSearch}
+                                    onChange={(e) => setMoldSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                />
                             </div>
-                        )) : (<span className="text-slate-400 text-sm col-span-4 italic text-center py-2">Δεν βρέθηκαν λάστιχα.</span>)}
+                            <div className="h-48 overflow-y-auto pr-1 custom-scrollbar space-y-1">
+                                {filteredMolds.length > 0 ? filteredMolds.map(m => (
+                                    <div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer select-none transition-all border ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white text-slate-600'}`}>
+                                        <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-500 text-white' : 'bg-slate-300 text-transparent'}`}>
+                                            <CheckCircle size={10} />
+                                        </div>
+                                        <span className="font-mono">{m.code}</span>
+                                        <span className="text-xs text-slate-400 truncate ml-auto">{m.description}</span>
+                                    </div>
+                                )) : (<div className="text-center text-slate-400 text-xs py-4">Δεν βρέθηκαν.</div>)}
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: Quick Creator */}
+                        <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 flex flex-col justify-center">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1"><Plus size={14}/> Νέο Λάστιχο</h4>
+                            <div className="space-y-3">
+                                <div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Κωδικός (π.χ. A-99)" 
+                                        value={newMoldCode}
+                                        onChange={e => setNewMoldCode(e.target.value.toUpperCase())}
+                                        className="w-full p-2 text-sm border border-slate-200 rounded-lg font-mono uppercase focus:border-amber-500 outline-none"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                     <div className="relative">
+                                         <MapPin size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"/>
+                                         <input 
+                                            type="text" 
+                                            placeholder="Τοποθεσία" 
+                                            value={newMoldLoc}
+                                            onChange={e => setNewMoldLoc(e.target.value)}
+                                            className="w-full pl-7 p-2 text-sm border border-slate-200 rounded-lg focus:border-amber-500 outline-none"
+                                        />
+                                     </div>
+                                     <div className="relative">
+                                         <Tag size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"/>
+                                         <input 
+                                            type="text" 
+                                            placeholder="Περιγραφή" 
+                                            value={newMoldDesc}
+                                            onChange={e => setNewMoldDesc(e.target.value)}
+                                            className="w-full pl-7 p-2 text-sm border border-slate-200 rounded-lg focus:border-amber-500 outline-none"
+                                        />
+                                     </div>
+                                </div>
+                                <button 
+                                    onClick={handleQuickCreateMold}
+                                    disabled={isCreatingMold || !newMoldCode}
+                                    className="w-full bg-slate-900 text-white py-2 rounded-lg text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {isCreatingMold ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>} Δημιουργία & Επιλογή
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
              </div>
