@@ -1,4 +1,3 @@
-
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender } from './types';
 
 // Points to logo.png which MUST be in the 'public' folder for Vercel/Vite
@@ -48,7 +47,8 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'RSU': 'Κόκκινος Σουλεμάνης',
   'MA': 'Μαλαχίτης',
   'FI': 'Φίλντισι',
-  'OP': 'Οπάλιο'
+  'OP': 'Οπάλιο',
+  'NF': 'Νεφρίτης'
 };
 
 export const FINISH_CODES: Record<string, string> = {
