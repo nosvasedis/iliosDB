@@ -25,7 +25,7 @@ export default function AiStudio() {
     const [isLoading, setIsLoading] = useState(false);
     
     // Pro Settings
-    const [useProModel, setUseProModel] = useState(false); // Default to Flash
+    const [useProModel, setUseProModel] = useState(false); // Default to Nano Banana (Flash)
     
     // Product Search Modal
     const [showProductSearch, setShowProductSearch] = useState(false);
@@ -124,7 +124,6 @@ export default function AiStudio() {
     // --- ACTION HANDLERS ---
 
     const handleCopywriting = async () => {
-        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -178,7 +177,6 @@ export default function AiStudio() {
     };
 
     const handleVirtualModel = async () => {
-        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         const image = getActiveImage();
         if (!image) {
             showToast("Παρακαλώ επιλέξτε προϊόν ή ανεβάστε φωτογραφία.", "error");
@@ -190,7 +188,7 @@ export default function AiStudio() {
         const category = selectedProduct?.category || 'jewelry';
         const instructions = inputValue; // Capture user instructions
 
-        const modelUsed = useProModel ? 'Nano Banana Pro (Gemini 3)' : 'Nano Banana (Flash)';
+        const modelUsed = useProModel ? 'Nano Banana Pro' : 'Nano Banana';
 
         setMessages(prev => [...prev, {
             id: msgId,
@@ -253,7 +251,6 @@ export default function AiStudio() {
     };
 
     const handleTrends = async () => {
-        if (!GEMINI_API_KEY) { showToast("Λείπει το κλειδί API. Ελέγξτε τις Ρυθμίσεις.", "error"); return; }
         if (!inputValue.trim()) return;
         
         const query = inputValue;
@@ -310,7 +307,6 @@ export default function AiStudio() {
                         <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> 
                         <div className="flex flex-col items-start">
                             <span>Εικονικό Μοντέλο</span>
-                            <span className="text-[9px] text-amber-500 font-normal flex items-center gap-0.5"><Crown size={10}/> Απαιτείται Paid API</span>
                         </div>
                     </button>
                     <button onClick={() => setMode('trends')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'trends' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
@@ -318,20 +314,8 @@ export default function AiStudio() {
                     </button>
                 </div>
                 
-                {/* Check if key is missing */}
-                {!GEMINI_API_KEY && (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl animate-pulse">
-                        <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-1">
-                            <AlertTriangle size={16} /> Λείπει το Κλειδί API
-                        </div>
-                        <p className="text-xs text-amber-700">
-                            Προσθέστε το κλειδί Gemini στις Ρυθμίσεις για να ενεργοποιήσετε το AI.
-                        </p>
-                    </div>
-                )}
-
-                {/* Pro Toggle - Only in Virtual Model mode and if Key is present */}
-                {mode === 'virtual-model' && GEMINI_API_KEY && (
+                {/* Model Selector Toggle - Nano Banana / Nano Banana Pro */}
+                {mode === 'virtual-model' && (
                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 animate-in fade-in slide-in-from-top-2 space-y-4">
                         
                         {/* High Quality Toggle */}
@@ -341,8 +325,10 @@ export default function AiStudio() {
                                     <Zap size={18} className={useProModel ? 'fill-current' : ''} />
                                 </div>
                                 <div>
-                                    <div className={`font-bold text-sm ${useProModel ? 'text-slate-800' : 'text-slate-500'}`}>Υψηλή Ποιότητα (Pro)</div>
-                                    <div className="text-[10px] text-slate-400 font-medium">{useProModel ? 'Nano Banana Pro' : 'Nano Banana Flash'}</div>
+                                    <div className={`font-bold text-sm ${useProModel ? 'text-slate-800' : 'text-slate-500'}`}>
+                                        {useProModel ? 'Nano Banana Pro' : 'Nano Banana'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium">{useProModel ? 'Gemini 3 Pro (HQ)' : 'Gemini 2.5 (Fast)'}</div>
                                 </div>
                             </div>
                             <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 ${useProModel ? 'bg-amber-500' : 'bg-slate-200'}`} onClick={() => setUseProModel(!useProModel)}>

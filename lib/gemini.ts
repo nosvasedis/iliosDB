@@ -2,8 +2,8 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
-// Initialize client with stored key
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+// Initialize client with stored key or a fallback for environment-proxy usage
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY || 'provided-by-environment' });
 
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -17,10 +17,6 @@ export const generateMarketingCopy = async (
     imageBase64?: string, 
     mimeType: string = 'image/jpeg'
 ): Promise<string> => {
-  if (!GEMINI_API_KEY) {
-      throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
-  }
-
   try {
     const parts: any[] = [];
 
@@ -69,10 +65,6 @@ export const generateVirtualModel = async (
     useProModel: boolean = false
 ): Promise<string | null> => {
   
-  if (!GEMINI_API_KEY) {
-      throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
-  }
-
   // Construct the Prompt
   const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : (gender === 'Women' ? 'beautiful Greek female model' : 'fashion model');
   let framingPrompt = "Lifestyle fashion shot.";
@@ -108,6 +100,8 @@ export const generateVirtualModel = async (
 
   try {
     // Select Model based on Pro flag
+    // Nano Banana Pro = gemini-3-pro-image-preview
+    // Nano Banana = gemini-2.5-flash-image
     const modelName = useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     // Pro model supports explicit image configuration
@@ -144,10 +138,6 @@ export const generateVirtualModel = async (
  * Trend Analysis using Google Search Grounding
  */
 export const generateTrendAnalysis = async (query: string): Promise<string> => {
-    if (!GEMINI_API_KEY) {
-        throw new Error("Λείπει το κλειδί API. Παρακαλώ προσθέστε το κλειδί Gemini στις Ρυθμίσεις.");
-    }
-
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
