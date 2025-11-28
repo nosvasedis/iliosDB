@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
@@ -6,7 +7,7 @@ import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -30,16 +31,13 @@ const ProductCard: React.FC<{
 }> = ({ product, onClick, settings, materials, allProducts }) => {
     const [viewIndex, setViewIndex] = useState(0); 
     // ViewIndex 0 corresponds to the PREVALENT variant if variants exist, or master if not.
-    // However, to support rotation, we map indices to the variants array sorted by relevance.
-
+    
     const variants = product.variants || [];
     const hasVariants = variants.length > 0;
     const variantCount = variants.length;
 
     // PREVALENT LOGIC:
     // If variants exist, we prioritize showing P, then X, then others.
-    // We sort the variants list for display purposes here to ensure "Best" is first.
-    // Note: We don't mutate prop, just local sorting.
     const sortedVariants = useMemo(() => {
         if (!hasVariants) return [];
         return [...variants].sort((a, b) => {
@@ -68,7 +66,14 @@ const ProductCard: React.FC<{
     let displayLabel = 'Βασικό';
 
     if (currentVariant) {
-        displaySku = `${product.sku}-${currentVariant.suffix}`;
+        // UPDATED LOGIC FOR REGISTRY DISPLAY: 
+        // 1. Remove hyphen.
+        // 2. Only show Finish Code (P, X, etc), ignore Stone Code.
+        // e.g. RN033PQN -> RN033P. RN060TG -> RN060.
+        // If finish.code is empty (Lustre), it becomes just SKU (RN060).
+        const { finish } = getVariantComponents(currentVariant.suffix, product.gender);
+        displaySku = `${product.sku}${finish.code}`;
+        
         displayLabel = currentVariant.description || currentVariant.suffix;
         if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
         if (currentVariant.active_price) displayCost = currentVariant.active_price;

@@ -9,7 +9,7 @@ interface Props {
     variant?: ProductVariant;
     width: number;
     height: number;
-    format?: 'standard' | 'simple'; // New Prop
+    format?: 'standard' | 'simple';
 }
 
 const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard' }) => {
@@ -54,11 +54,12 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         if (canvasRef.current && finalSku) {
             try {
                 // Adjust barcode settings based on format
+                // For simple format, we make the barcode area larger/taller
                 const isSimple = format === 'simple';
                 JsBarcode(canvasRef.current, finalSku, {
                     format: 'CODE128',
                     displayValue: false, 
-                    height: isSimple ? 60 : 50, // Taller barcode for simple view
+                    height: isSimple ? 65 : 50, 
                     width: 2, 
                     margin: 0,
                     background: '#ffffff'
@@ -80,7 +81,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(0)}€` : '';
 
-    // --- RENDER SIMPLE FORMAT ---
+    // --- RENDER SIMPLE FORMAT (Requested for individual print) ---
     if (format === 'simple') {
         return (
             <div
@@ -91,14 +92,14 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     padding: '2mm', 
                     fontFamily: `'Inter', sans-serif`,
                     boxSizing: 'border-box',
-                    border: '1px solid #eee' // Helper border for screen
+                    border: '1px solid #eee' 
                 }}
             >
                 <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
                     <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                 </div>
                 <div className="w-full text-center leading-none mt-[1mm]" style={{ flex: '0 0 auto' }}>
-                    <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize * 0.9}mm` }}>
+                    <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize * 0.8}mm` }}>
                         {finalSku}
                     </span>
                 </div>
@@ -106,7 +107,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         );
     }
 
-    // --- RENDER STANDARD FORMAT ---
+    // --- RENDER STANDARD FORMAT (Default for mass print) ---
     return (
         <div
             className="bg-white text-black flex flex-col items-center justify-between overflow-hidden relative break-inside-avoid page-break-inside-avoid"

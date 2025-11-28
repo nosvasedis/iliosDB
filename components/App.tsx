@@ -49,6 +49,29 @@ import AiStudio from './components/AiStudio';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+  <button
+    onClick={onClick}
+    title={isCollapsed ? label : ''}
+    className={`
+      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
+      ${isActive 
+        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
+        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+    `}
+  >
+    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
+      {icon}
+    </div>
+    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {isCollapsed && (
+      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
+        {label}
+      </div>
+    )}
+  </button>
+);
+
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
     const { session, loading, profile, signOut } = useAuth();
@@ -77,7 +100,7 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // UPDATED STATE TYPE TO INCLUDE OPTIONAL FORMAT
+  // UPDATED STATE TYPE TO INCLUDE FORMAT
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const { signOut, profile } = useAuth();
 
@@ -140,7 +163,7 @@ function AppContent() {
               variant={item.variant}
               width={settings.barcode_width_mm}
               height={settings.barcode_height_mm}
-              format={item.format} // Pass format
+              format={item.format} // Pass Format
             />
           ))}
         </div>
@@ -394,29 +417,6 @@ function AppContent() {
     </>
   );
 }
-
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
-  <button
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive 
-        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
-        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
-    `}
-  >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
-      {icon}
-    </div>
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
-    {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
-        {label}
-      </div>
-    )}
-  </button>
-);
 
 export default function App() {
   if (!isConfigured) {

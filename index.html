@@ -22,25 +22,32 @@
         margin: 0;
       }
       @media print {
-        /* HIDE EVERYTHING IN THE BACKGROUND */
-        body * {
-          visibility: hidden;
-        }
-        
-        #app-container, #root {
-          display: none !important;
+        body {
+          margin: 0;
+          padding: 0;
+          background: white;
         }
 
-        /* Hide any portals/modals (Common classes for overlays) */
-        .fixed.inset-0 {
+        /* Hide all direct children of body (Modals/Portals) except the React Root */
+        body > *:not(#root) {
             display: none !important;
         }
 
-        /* SHOW ONLY THE PRINT VIEW */
-        .print-view, .print-view * {
-          visibility: visible;
+        /* Inside Root: Hide the App Interface */
+        #app-container {
+            display: none !important;
         }
 
+        /* Ensure Root is visible for Print View content */
+        #root {
+            display: block !important;
+            visibility: visible !important;
+            width: 100%;
+            height: auto;
+            position: static;
+        }
+
+        /* Show the Print View */
         .print-view {
           display: block !important;
           position: absolute;
@@ -49,6 +56,7 @@
           width: 100%;
           background: white;
           z-index: 9999;
+          visibility: visible !important;
         }
 
         .print-area {
@@ -66,12 +74,6 @@
         @page {
           size: auto;
           margin: 0;
-        }
-
-        body {
-          background-color: white;
-          margin: 0;
-          overflow: visible !important;
         }
       }
       .print-view { 

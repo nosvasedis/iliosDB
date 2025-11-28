@@ -28,6 +28,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
     // Only show variants in the list if they exist. Don't show Master generic row if variants exist.
     const hasVariants = product.variants && product.variants.length > 0;
     
+    // If variants exist, filter out Master. If no variants, only show Master.
     const displayItems = hasVariants 
         ? product.variants!.map(v => ({ suffix: v.suffix, description: v.description, stock_qty: v.stock_qty }))
         : [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }];
@@ -46,7 +47,8 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
             const qty = quantities[suffix];
             if (qty > 0) {
                 const variant = suffix === '(Master)' ? undefined : product.variants?.find(v => v.suffix === suffix);
-                itemsToPrint.push({ product, variant, quantity: qty, format: 'standard' }); // Standard full format for mass print
+                // Standard layout for mass print from modal
+                itemsToPrint.push({ product, variant, quantity: qty, format: 'standard' });
             }
         }
         
