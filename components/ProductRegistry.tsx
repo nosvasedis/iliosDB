@@ -6,7 +6,7 @@ import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { calculateProductCost } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -28,33 +28,48 @@ const ProductCard: React.FC<{
     materials: Material[];
     allProducts: Product[];
 }> = ({ product, onClick, settings, materials, allProducts }) => {
-    const [viewIndex, setViewIndex] = useState(0); // 0 = Master, 1..n = Variants
+    const [viewIndex, setViewIndex] = useState(0); 
+    // ViewIndex 0 corresponds to the PREVALENT variant if variants exist, or master if not.
+    // However, to support rotation, we map indices to the variants array sorted by relevance.
 
     const variants = product.variants || [];
     const hasVariants = variants.length > 0;
     const variantCount = variants.length;
 
-    // Determine what to display based on viewIndex
-    const isMasterView = viewIndex === 0;
-    const currentVariant = !isMasterView ? variants[viewIndex - 1] : null;
+    // PREVALENT LOGIC:
+    // If variants exist, we prioritize showing P, then X, then others.
+    // We sort the variants list for display purposes here to ensure "Best" is first.
+    // Note: We don't mutate prop, just local sorting.
+    const sortedVariants = useMemo(() => {
+        if (!hasVariants) return [];
+        return [...variants].sort((a, b) => {
+            const priority = (suffix: string) => {
+                if (suffix.includes('P')) return 1;
+                if (suffix.includes('X')) return 2;
+                return 3;
+            };
+            return priority(a.suffix) - priority(b.suffix);
+        });
+    }, [variants]);
 
-    // --- Costing Logic ---
+    // Determine current display based on viewIndex
+    let currentVariant: ProductVariant | null = null;
+    if (hasVariants) {
+        currentVariant = sortedVariants[viewIndex % variantCount];
+    }
+
+    // Resolve Price & Cost
     const masterCostCalc = calculateProductCost(product, settings, materials, allProducts);
     const masterCost = masterCostCalc.total;
 
-    // Resolve Price & Cost
-    // If Variant has override, use it. Else fall back to Master.
     let displayPrice = product.selling_price;
     let displayCost = masterCost;
-    
-    // Resolve Identity
     let displaySku = product.sku;
     let displayLabel = 'Βασικό';
-    
+
     if (currentVariant) {
         displaySku = `${product.sku}-${currentVariant.suffix}`;
         displayLabel = currentVariant.description || currentVariant.suffix;
-        
         if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
         if (currentVariant.active_price) displayCost = currentVariant.active_price;
     }
@@ -65,12 +80,12 @@ const ProductCard: React.FC<{
     // Navigation Handlers
     const nextView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setViewIndex(prev => (prev + 1) % (variantCount + 1));
+        if (hasVariants) setViewIndex(prev => (prev + 1) % variantCount);
     };
 
     const prevView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setViewIndex(prev => (prev - 1 + (variantCount + 1)) % (variantCount + 1));
+        if (hasVariants) setViewIndex(prev => (prev - 1 + variantCount) % variantCount);
     };
 
     return (
@@ -106,8 +121,8 @@ const ProductCard: React.FC<{
                 )}
                 
                 {/* Variant Overlay (when viewing variant) */}
-                {!isMasterView && (
-                    <div className="absolute inset-0 bg-indigo-900/10 pointer-events-none border-4 border-indigo-500/30" />
+                {hasVariants && (
+                    <div className="absolute inset-0 bg-indigo-900/0 pointer-events-none group-hover:bg-indigo-900/5 transition-colors" />
                 )}
             </div>
 
@@ -117,16 +132,16 @@ const ProductCard: React.FC<{
                 {/* Header Row: SKU & Smart Switcher */}
                 <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
-                        <h3 className={`font-black text-lg leading-none truncate ${!isMasterView ? 'text-indigo-700' : 'text-slate-800'}`}>
+                        <h3 className={`font-black text-lg leading-none truncate ${hasVariants ? 'text-indigo-700' : 'text-slate-800'}`}>
                             {displaySku}
                         </h3>
                         <div className="text-xs font-bold text-slate-400 mt-1 truncate flex items-center gap-1">
-                            {!isMasterView && <Tag size={10} />} {displayLabel}
+                            {hasVariants && <Tag size={10} />} {displayLabel}
                         </div>
                     </div>
 
                     {/* Smart Arrows */}
-                    {hasVariants && (
+                    {hasVariants && variantCount > 1 && (
                         <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                             <button onClick={prevView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
                                 <ChevronLeft size={16} />
@@ -144,7 +159,6 @@ const ProductCard: React.FC<{
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
                         <Weight size={10}/> {product.weight_g}g
                     </div>
-                    {/* Updated to include silver as +1 material visually */}
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
                         <BookOpen size={10}/> {product.recipe.length + 1} υλικά
                     </div>

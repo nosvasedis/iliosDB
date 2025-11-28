@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
@@ -16,17 +16,16 @@ interface PrintModalProps {
 }
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
-    const allVariants = [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }, ...(product.variants || [])];
+    // Only show variants in the list if they exist. Don't show Master generic row if variants exist.
+    const hasVariants = product.variants && product.variants.length > 0;
+    
+    const displayItems = hasVariants 
+        ? product.variants!.map(v => ({ suffix: v.suffix, description: v.description, stock_qty: v.stock_qty }))
+        : [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }];
     
     const [quantities, setQuantities] = useState<Record<string, number>>(
-        allVariants.reduce((acc, v) => ({ ...acc, [v.suffix]: 0 }), {})
+        displayItems.reduce((acc, v) => ({ ...acc, [v.suffix]: 0 }), {})
     );
-
-    React.useEffect(() => {
-        if (!product.variants || product.variants.length === 0) {
-            setQuantities(prev => ({...prev, '(Master)': 1}));
-        }
-    }, [product]);
 
     const handleQuantityChange = (suffix: string, qty: number) => {
         setQuantities(prev => ({ ...prev, [suffix]: Math.max(0, qty) }));
@@ -60,7 +59,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
                 <p className="text-sm text-slate-500 mb-6 font-medium">{product.sku}</p>
                 
                 <div className="max-h-72 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    {allVariants.map((v) => (
+                    {displayItems.map((v) => (
                         <div key={v.suffix} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
                             <div>
                                 <span className="font-mono font-bold text-slate-800">{product.sku}{v.suffix !== '(Master)' ? v.suffix : ''}</span>
@@ -105,7 +104,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // VIEW INDEX for Left Sidebar (0 = Master, 1...n = Variants)
+  // VIEW INDEX for Left Sidebar
+  // Logic: 
+  // If variants exist, we iterate through them (0...n-1). 
+  // If no variants, we show the Master (0).
   const [viewIndex, setViewIndex] = useState(0);
 
   const [editedProduct, setEditedProduct] = useState<Product>({ 
@@ -129,7 +131,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || []
     });
-    // Reset view to Master when product prop changes
+    // Reset view to 0 when product changes
     setViewIndex(0);
   }, [product]);
 
@@ -157,7 +159,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     if (newVariantSuffix) {
         const desc = analyzeSuffix(newVariantSuffix);
         setManualSuffixAnalysis(desc);
-        // Auto-populate description if it's empty and we found a match
         if (desc && !newVariantDesc) {
             setNewVariantDesc(desc);
         }
@@ -167,26 +168,42 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [newVariantSuffix, newVariantDesc]);
 
   // --- DERIVED DATA FOR LEFT SIDEBAR ---
-  const variantCount = editedProduct.variants?.length || 0;
+  const variants = editedProduct.variants || [];
+  const hasVariants = variants.length > 0;
   
+  // Sorting for display logic: P > X > Rest
+  const displayVariants = useMemo(() => {
+      if (!hasVariants) return [];
+      return [...variants].sort((a, b) => {
+          const priority = (suffix: string) => {
+              if (suffix.includes('P')) return 1;
+              if (suffix.includes('X')) return 2;
+              return 3;
+          };
+          return priority(a.suffix) - priority(b.suffix);
+      });
+  }, [variants]);
+
+  const maxViews = hasVariants ? displayVariants.length : 1;
+
   // Handlers for switching views
-  const nextView = () => setViewIndex(prev => (prev + 1) % (variantCount + 1));
-  const prevView = () => setViewIndex(prev => (prev - 1 + (variantCount + 1)) % (variantCount + 1));
+  const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
+  const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
 
   // Determine displayed Cost & Price based on ViewIndex
   const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const masterCost = currentCostCalc.total;
   
-  const currentViewVariant = viewIndex > 0 && editedProduct.variants ? editedProduct.variants[viewIndex - 1] : null;
+  // If variants exist, we pick from the sorted list. If not, currentViewVariant is null (showing master)
+  const currentViewVariant = hasVariants ? displayVariants[viewIndex % maxViews] : null;
   
   let displayedSku = editedProduct.sku;
-  let displayedLabel = 'Βασικό (Master)';
+  let displayedLabel = 'Βασικό';
   let displayedCost = masterCost;
   let displayedPrice = editedProduct.selling_price;
-  let isVariantView = false;
+  let isVariantView = !!currentViewVariant;
 
   if (currentViewVariant) {
-      isVariantView = true;
       displayedSku = `${editedProduct.sku}-${currentViewVariant.suffix}`;
       displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
       
@@ -252,9 +269,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           if (isVariantView && currentViewVariant) {
               // Update Variant Price
               const variantsCopy = [...editedProduct.variants];
-              const idx = viewIndex - 1;
-              variantsCopy[idx] = { ...variantsCopy[idx], selling_price: parseFloat(calculatedPrice.toFixed(2)) };
-              setEditedProduct(prev => ({ ...prev, variants: variantsCopy }));
+              // Find index in original array
+              const originalIdx = variantsCopy.findIndex(v => v.suffix === currentViewVariant!.suffix);
+              if (originalIdx >= 0) {
+                  variantsCopy[originalIdx] = { ...variantsCopy[originalIdx], selling_price: parseFloat(calculatedPrice.toFixed(2)) };
+                  setEditedProduct(prev => ({ ...prev, variants: variantsCopy }));
+              }
           } else {
               // Update Master Price
               setEditedProduct(prev => ({...prev, selling_price: parseFloat(calculatedPrice.toFixed(2))}));
@@ -360,8 +380,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       return;
     }
 
-    // SMART COST ESTIMATION
-    const estimatedCost = estimateVariantCost(editedProduct, analysis.suffix, settings, allMaterials, allProducts);
+    // SMART COST ESTIMATION (Uses Manual Plating Cost from current labor)
+    const estimatedCost = estimateVariantCost(
+        editedProduct, 
+        analysis.suffix, 
+        settings, 
+        allMaterials, 
+        allProducts, 
+        editedProduct.labor.plating_cost
+    );
 
     const newVariant: ProductVariant = {
       suffix: analysis.suffix,
@@ -381,8 +408,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       const upperSuffix = newVariantSuffix.toUpperCase();
       if (editedProduct.variants.some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
       
-      // SMART COST ESTIMATION
-      const estimatedCost = estimateVariantCost(editedProduct, upperSuffix, settings, allMaterials, allProducts);
+      // SMART COST ESTIMATION (Uses Manual Plating Cost from current labor)
+      const estimatedCost = estimateVariantCost(
+          editedProduct, 
+          upperSuffix, 
+          settings, 
+          allMaterials, 
+          allProducts,
+          editedProduct.labor.plating_cost
+      );
 
       const newVariant: ProductVariant = {
         suffix: upperSuffix,
@@ -405,9 +439,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const deleteVariant = (index: number) => {
       setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
-      // Adjust view index if we deleted the currently viewed variant
-      if (viewIndex === index + 1) setViewIndex(0);
-      else if (viewIndex > index + 1) setViewIndex(prev => prev - 1);
+      // Adjust view index
+      setViewIndex(0); // Reset to first/prevalent
   };
   
   return (
@@ -442,7 +475,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                          {displayedLabel}
                      </div>
                  </div>
-                 {variantCount > 0 && (
+                 {/* Navigation Arrows: Only show if we have variants */}
+                 {hasVariants && maxViews > 1 && (
                      <div className="flex items-center bg-slate-100 rounded-lg p-1 shrink-0 ml-2">
                          <button onClick={prevView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
                              <ChevronLeft size={18} />
@@ -463,20 +497,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <ImageIcon size={40} className="text-slate-300"/>
                     </div>
                 )}
-                {/* Image Overlay Controls - Only active for Master currently unless we support variant images later */}
-                {!isVariantView && (
-                    <label className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-sm">
-                        {isUploadingImage ? <Loader2 className="animate-spin"/> : <Camera/>}
-                        <span className="text-sm font-bold mt-1">Αλλαγή Φωτογραφίας</span>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate}/>
-                    </label>
-                )}
-                {/* Variant Indication Overlay */}
-                {isVariantView && (
-                    <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm opacity-90">
-                        Variant View
-                    </div>
-                )}
+                {/* Image Overlay Controls - Allow update if viewing Master (which is fallback for variant images) */}
+                <label className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-sm">
+                    {isUploadingImage ? <Loader2 className="animate-spin"/> : <Camera/>}
+                    <span className="text-sm font-bold mt-1">Αλλαγή Φωτογραφίας</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate}/>
+                </label>
              </div>
 
              {viewMode === 'registry' && (
@@ -600,12 +626,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         isOverridden={editedProduct.labor.technician_cost_manual_override}
                         onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}}))}
                     />
-                    <LaborInput label="Επιμετάλλωση" value={editedProduct.labor.plating_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost: val}})} />
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση (Manual)</label>
+                        <div className="relative mt-1">
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={editedProduct.labor.plating_cost}
+                                onChange={e => setEditedProduct(prev => ({...prev, labor: {...prev.labor, plating_cost: parseFloat(e.target.value) || 0}}))}
+                                className="w-full bg-transparent font-mono font-bold text-slate-800 text-lg outline-none"
+                            />
+                        </div>
+                        <p className="text-[10px] text-amber-600 mt-2">Το ποσό αυτό θα προστεθεί αυτόματα στο κόστος των παραλλαγών X, D, H.</p>
+                    </div>
                 </div>
             )}
             {activeTab === 'variants' && (
               <div className="space-y-6">
-                  {/* Quick Add Area - Using Grid to fix overflow */}
+                  {/* Quick Add Area */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-indigo-500"/> Έξυπνη Προσθήκη</h4>

@@ -1,5 +1,5 @@
 
-import { Product, GlobalSettings, Material, PlatingType, Gender } from '../types';
+import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 export const calculateTechnicianCost = (weight_g: number): number => {
@@ -120,34 +120,60 @@ export const calculateProductCost = (
 
 /**
  * Estimates the cost of a variant based on the master product and the suffix.
- * Useful for smart-adding variants (e.g. adding plating cost for 'X').
+ * STRICT LOGIC: 
+ * - P (Plain) = Base Cost (No Plating).
+ * - X, D, H (Plated) = Base Cost + Manual Plating Cost.
  */
 export const estimateVariantCost = (
     masterProduct: Product, 
     variantSuffix: string,
     settings: GlobalSettings,
     allMaterials: Material[],
-    allProducts: Product[]
+    allProducts: Product[],
+    manualPlatingCost: number = 0 // NEW: Pass the manual cost from the form
 ): number => {
-    // 1. Calculate Base Cost first
-    const baseCost = calculateProductCost(masterProduct, settings, allMaterials, allProducts).total;
+    // 1. Calculate Full Master Cost (includes plating if master has it)
+    const masterCostCalc = calculateProductCost(masterProduct, settings, allMaterials, allProducts);
+    let calculatedCost = masterCostCalc.total;
     
-    // 2. Analyze Suffix for Plating changes
-    // If suffix contains X (Gold), D (TwoTone), H (Platinum) AND Master is None/Patina (P)
-    // We should add Plating Labor.
-    
-    const needsPlating = variantSuffix.includes('X') || variantSuffix.includes('D') || variantSuffix.includes('H');
-    const masterHasPlating = masterProduct.labor.plating_cost > 0;
-    
-    let estimatedCost = baseCost;
+    // The master product labor usually includes the plating cost if plating_type is set.
+    // We need to isolate the "Base Metal Cost" (Silver + Materials + Casting + Setter + Technician)
+    // without the plating cost.
+    const masterPlatingCost = masterProduct.labor.plating_cost || 0;
+    const baseMetalCost = calculatedCost - masterPlatingCost;
 
-    if (needsPlating && !masterHasPlating) {
-        // Use standard formula assuming Gold Plated as generic type for calculation
-        const estimatedPlatingLabor = calculatePlatingCost(masterProduct.weight_g, PlatingType.GoldPlated);
-        estimatedCost += estimatedPlatingLabor;
+    const suffix = variantSuffix.toUpperCase();
+    const isPlatedVariant = suffix.includes('X') || suffix.includes('D') || suffix.includes('H');
+    const isPlainVariant = suffix.includes('P') && !isPlatedVariant; // 'P' alone or with stone, but no plating code
+
+    if (isPlatedVariant) {
+        // If variant is plated, add the manual plating cost
+        // If manualPlatingCost is 0, it means user didn't enter it, so it's 0.
+        return parseFloat((baseMetalCost + manualPlatingCost).toFixed(2));
+    } else {
+        // If variant is Plain (P) or undefined, it's just the base metal cost
+        return parseFloat(baseMetalCost.toFixed(2));
     }
+};
 
-    return parseFloat(estimatedCost.toFixed(2));
+/**
+ * PREVALENT VARIANT LOGIC
+ * Determines which variant is the "Hero" or "Master" representation.
+ * Priority: P > X > First Available
+ */
+export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {
+    if (!variants || variants.length === 0) return null;
+
+    // 1. Look for 'P' (Plain/Patina)
+    const pVariant = variants.find(v => v.suffix.includes('P') && !v.suffix.includes('X') && !v.suffix.includes('D'));
+    if (pVariant) return pVariant;
+
+    // 2. Look for 'X' (Gold Plated) - Common Fallback
+    const xVariant = variants.find(v => v.suffix.includes('X'));
+    if (xVariant) return xVariant;
+
+    // 3. Fallback to the first one
+    return variants[0];
 };
 
 export const parseSku = (sku: string) => {

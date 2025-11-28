@@ -1,8 +1,4 @@
 
-
-
-
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon } from 'lucide-react';
@@ -176,26 +172,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   }
               });
 
-              // Optional: If Master has "Orphaned" stock not in variants
-              const masterCentral = p.stock_qty;
-              const masterCustomTotal = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0);
-              const masterDemand = demandMap[p.sku] || 0;
-
-              if ((masterCentral > 0 || masterCustomTotal > 0 || masterDemand > 0)) {
-                  items.push({
-                      id: p.sku,
-                      masterSku: p.sku,
-                      suffix: '', // No suffix
-                      description: 'Αταξινόμητο / Master',
-                      category: p.category,
-                      imageUrl: p.image_url,
-                      locationStock: { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: masterCentral, [SYSTEM_IDS.SHOWROOM]: p.sample_qty },
-                      totalStock: masterCentral + masterCustomTotal + p.sample_qty,
-                      demandQty: masterDemand,
-                      product: p
-                  });
-              }
-
+              // NOTE: We do NOT show the Master SKU row here if variants exist, 
+              // treating the master as a "Container" only.
+              
           } else {
               // --- NO VARIANTS (PURE MASTER) ---
               const totalStock = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0) + p.stock_qty + p.sample_qty;
@@ -205,7 +184,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               const displayStock = { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: p.stock_qty, [SYSTEM_IDS.SHOWROOM]: p.sample_qty };
 
               // Always show if it exists, or if demand exists
-              // Changed >= 0 to > 0 to hide cleared items per user request
                if (totalStock > 0 || demand > 0) {
                   items.push({
                       id: p.sku,
@@ -447,7 +425,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           }
 
           queryClient.invalidateQueries({ queryKey: ['products'] });
-          showToast(`Προστέθηκαν ${scanQty} τεμ. στον κωδικό ${product.sku}${variant ? variant.suffix : ''}`, "success");
+          showToast(`Προστέθηκε ${scanQty} τεμ. στον κωδικό ${product.sku}${variant ? variant.suffix : ''}`, "success");
           
           setScanInput('');
           setScanSuggestion('');

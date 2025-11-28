@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
@@ -121,11 +122,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, labor.technician_cost_manual_override]);
 
-  // SMART PLATING COST: Reset if None, Calculate if Plating, but allow manual override implicitly
+  // SMART PLATING COST: Calculate suggestion based on formula but don't force it continuously
+  // so user can override manually in Step 3.
   useEffect(() => {
-      // Calculate suggested cost based on formula
-      const suggestedCost = calculatePlatingCost(weight, plating);
-      setLabor(prev => ({ ...prev, plating_cost: suggestedCost }));
+      if (plating !== PlatingType.None && weight > 0 && labor.plating_cost === 0) {
+          const suggestedCost = calculatePlatingCost(weight, plating);
+          setLabor(prev => ({ ...prev, plating_cost: suggestedCost }));
+      } else if (plating === PlatingType.None) {
+          setLabor(prev => ({ ...prev, plating_cost: 0 }));
+      }
   }, [plating, weight]);
 
   // Cost Calculator Effect
@@ -250,24 +255,19 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           labor
       };
 
-      // Enhanced Smart Cost Logic
-      // 1. Get base estimate
-      let estimatedCost = estimateVariantCost(tempMaster, upperSuffix, settings!, materials, products);
+      // STRICT COST LOGIC:
+      // Pass the manual plating cost (labor.plating_cost) to the estimator.
+      // The estimator will add it ONLY if the suffix indicates Plating (X, D, H).
+      // If suffix is P, it uses base cost.
+      let estimatedCost = estimateVariantCost(
+          tempMaster, 
+          upperSuffix, 
+          settings!, 
+          materials, 
+          products, 
+          labor.plating_cost // PASS THE MANUAL PLATING COST
+      );
       
-      // 2. Refine logic: If Master has Plating, but Variant is Plain (P), we should SUBTRACT plating cost.
-      // The `estimateVariantCost` utility usually handles ADDING plating.
-      // Let's do a manual check for removal case.
-      const isPlainVariant = upperSuffix === 'P' || upperSuffix.startsWith('P-');
-      const masterHasPlating = labor.plating_cost > 0;
-
-      if (masterHasPlating && isPlainVariant) {
-          // If Master has plating cost, but variant is Plain, we assume variant cost is Base - Plating
-          // estimateVariantCost returns Master Cost if it doesn't detect X/D/H.
-          // So if Master Cost includes plating, estimateVariantCost returns cost WITH plating.
-          // We need to subtract it.
-          estimatedCost = estimatedCost - labor.plating_cost;
-      }
-
       const newV: ProductVariant = {
           suffix: upperSuffix,
           description: newVariantDesc,
@@ -344,13 +344,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
         if (prodError) throw prodError;
 
-        // Persist Variants
-        // Delete existing variants for this master first to avoid orphans if they were removed in UI? 
-        // Safer to upsert, but removing deleted ones is cleaner.
-        // For 'New Product' usually it's fresh, but if overwriting, better clear variants.
-        // However, we must preserve STOCK. 
-        // Logic: We will UPSERT based on SKU+Suffix.
-        
         if (variants.length > 0) {
             for (const v of variants) {
                 // Fetch existing stock to preserve it
@@ -546,9 +539,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <button onClick={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} className="absolute right-3 top-8 text-slate-400">{labor.technician_cost_manual_override ? <Unlock size={14}/> : <Lock size={14}/>}</button>
                      </div>
                      <div className="relative">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Επιμετάλλωση (Master) €</label>
-                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} className={`w-full p-3 border rounded-xl font-mono ${plating === PlatingType.None ? 'bg-slate-100 text-slate-400' : 'bg-white'}`}/>
-                        {plating === PlatingType.None && <Lock size={14} className="absolute right-3 top-8 text-slate-400"/>}
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Κόστος Επιμετάλλωσης €</label>
+                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border rounded-xl font-mono bg-white border-amber-300 ring-2 ring-amber-50"/>
+                        <p className="text-[10px] text-amber-600 mt-1">Αυτό το ποσό θα προστεθεί αυτόματα στο κόστος των παραλλαγών X, D, H.</p>
                      </div>
                  </div>
              </div>
@@ -572,7 +565,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                           </div>
                           <button onClick={handleAddVariant} className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 transition-all"><Plus size={18}/> Προσθήκη</button>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος υπολογίζεται αυτόματα. Για X, D, H προστίθεται επιμετάλλωση. Για P αφαιρείται (αν το Master έχει).</p>
+                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος υπολογίζεται αυτόματα. Για X, D, H προστίθεται το κόστος επιμετάλλωσης ({labor.plating_cost}€). Για P αφαιρείται.</p>
                   </div>
 
                   {/* Variant List - Fully Editable */}
@@ -636,38 +629,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                  <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">5. Σύνοψη & Τιμολόγηση</h3>
                  
-                 {/* MASTER CARD */}
+                 {/* MASTER CARD (Hidden Logic: If variants exist, master is container) */}
                  <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg flex flex-col md:flex-row gap-6 relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
                      
                      <div className="flex-1 relative z-10">
-                         <div className="text-xs font-bold text-slate-400 uppercase mb-1">Master SKU</div>
+                         <div className="text-xs font-bold text-slate-400 uppercase mb-1">Master SKU (Container)</div>
                          <div className="text-3xl font-black tracking-tight mb-2">{detectedMasterSku || sku}</div>
                          <div className="flex items-center gap-3 text-sm text-slate-300">
                              <span className="bg-white/10 px-2 py-1 rounded">{category}</span>
                              <span className="bg-white/10 px-2 py-1 rounded">{weight}g</span>
-                             <span className="bg-white/10 px-2 py-1 rounded">{plating}</span>
-                         </div>
-                     </div>
-
-                     <div className="flex gap-6 relative z-10">
-                         <div className="text-center">
-                             <div className="text-[10px] font-bold text-slate-400 uppercase">Κοστος</div>
-                             <div className="text-2xl font-mono font-bold text-amber-400">{masterEstimatedCost.toFixed(2)}€</div>
-                         </div>
-                         <div className="text-center bg-white/10 p-3 rounded-xl border border-white/10">
-                             <div className="text-[10px] font-bold text-slate-300 uppercase">Χονδρικη</div>
-                             <div className="flex items-center gap-1">
-                                 <input type="number" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="bg-transparent w-20 text-center font-bold text-2xl outline-none text-white border-b border-white/30 focus:border-white"/>
-                                 <span className="text-sm">€</span>
-                             </div>
                          </div>
                      </div>
                  </div>
 
                  {/* DETAILED VARIANTS TABLE */}
                  <div>
-                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2"><Layers size={14}/> Αναλυτικος Πινακας ({variants.length})</h4>
+                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2"><Layers size={14}/> Λίστα Κωδικών προς Δημιουργία ({variants.length})</h4>
                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                          <table className="w-full text-left text-sm">
                              <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
@@ -680,16 +658,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                  </tr>
                              </thead>
                              <tbody className="divide-y divide-slate-100">
-                                 {/* Master Row */}
-                                 <tr className="bg-slate-50/50">
-                                     <td className="p-4 pl-6 font-bold text-slate-700">{detectedMasterSku || sku} (M)</td>
-                                     <td className="p-4 text-slate-500">Βασικό Προϊόν</td>
-                                     <td className="p-4 text-right font-mono font-bold text-slate-600">{masterEstimatedCost.toFixed(2)}€</td>
-                                     <td className="p-4 text-right font-mono font-bold text-slate-800">{sellingPrice.toFixed(2)}€</td>
-                                     <td className="p-4 text-right pr-6 font-bold text-emerald-600">
-                                         {sellingPrice > 0 ? (((sellingPrice - masterEstimatedCost) / sellingPrice) * 100).toFixed(0) : 0}%
-                                     </td>
-                                 </tr>
+                                 {/* Only show Master row if no variants */}
+                                 {variants.length === 0 && (
+                                     <tr className="bg-slate-50/50">
+                                         <td className="p-4 pl-6 font-bold text-slate-700">{detectedMasterSku || sku}</td>
+                                         <td className="p-4 text-slate-500">Βασικό Προϊόν</td>
+                                         <td className="p-4 text-right font-mono font-bold text-slate-600">{masterEstimatedCost.toFixed(2)}€</td>
+                                         <td className="p-4 text-right font-mono font-bold text-slate-800">{sellingPrice.toFixed(2)}€</td>
+                                         <td className="p-4 text-right pr-6 font-bold text-emerald-600">
+                                             {sellingPrice > 0 ? (((sellingPrice - masterEstimatedCost) / sellingPrice) * 100).toFixed(0) : 0}%
+                                         </td>
+                                     </tr>
+                                 )}
                                  {/* Variant Rows */}
                                  {variants.map((v, idx) => {
                                      const vCost = v.active_price || 0;
