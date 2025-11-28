@@ -617,10 +617,33 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <div className="text-xs text-slate-400">{editedProduct.weight_g}g @ {settings.silver_price_gram}€/g (+{settings.loss_percentage}%)</div>
                        </div>
                    </div>
-                   {/* Full recipe items would be listed here if needed */}
+                   
+                   {/* Full Recipe Items Listing */}
+                   {editedProduct.recipe.map((r, idx) => {
+                       const mat = r.type === 'raw' ? allMaterials.find(m => m.id === r.id) : null;
+                       const comp = r.type === 'component' ? allProducts.find(p => p.sku === r.sku) : null;
+                       const name = mat?.name || comp?.sku || 'Άγνωστο';
+                       const unitCost = mat?.cost_per_unit || comp?.active_price || 0;
+                       const totalItemCost = unitCost * r.quantity;
+
+                       return (
+                           <div key={idx} className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
+                               <div className="p-2 rounded-lg bg-blue-50 text-blue-600"><Box size={20} /></div>
+                               <div className="flex-1">
+                                   <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{r.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
+                                   <span className="font-bold text-slate-800">{name}</span>
+                               </div>
+                               <div className="text-right">
+                                   <div className="font-mono font-bold">{totalItemCost.toFixed(2)}€</div>
+                                   <div className="text-xs text-slate-400">{r.quantity} x {unitCost.toFixed(2)}€</div>
+                               </div>
+                           </div>
+                       );
+                   })}
+
                    {editedProduct.recipe.length === 0 && (
-                       <div className="text-center italic text-slate-400 py-4 text-sm">
-                           {/* Intentionally blank to avoid "Κενή Συνταγή" message when only silver exists */}
+                       <div className="text-center italic text-slate-400 py-4 text-xs">
+                           Μόνο Υλικό Βάσης (Ασήμι)
                        </div>
                    )}
                 </div>

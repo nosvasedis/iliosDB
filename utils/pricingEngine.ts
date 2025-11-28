@@ -252,92 +252,9 @@ const PLATING_MAP: Record<string, PlatingType> = {
 };
 
 /**
- * Intelligent SKU Analyzer
- * Detects if the user typed a specific variant code (e.g. RN001P or XR2020BSU) and extracts the Master SKU.
- * Now supports both Finish codes AND Stone codes.
- */
-export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
-    const cleanSku = rawSku.trim().toUpperCase();
-    
-    // 1. Detect Gender from Prefix to guide suffix analysis (if not forced)
-    // This is crucial for distinguishing overlapping codes like PAX (Women) vs P-AX (Men)
-    let gender = forcedGender;
-    if (!gender) {
-        const meta = parseSku(cleanSku);
-        gender = meta.gender as Gender;
-    }
-
-    // 2. Prepare Dictionaries based on Gender
-    // If Men, use MEN dict. If Women, use WOMEN dict. If Unisex/Unknown, use both.
-    let relevantStones = {};
-    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
-    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
-    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-
-    // Sort keys by length descending to match longest suffix first (e.g. matching 'PBSU' correctly)
-    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
-    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
-
-    let detectedStoneCode = '';
-    let detectedFinishCode = '';
-    let remainder = cleanSku;
-
-    // 3. Check for Stone Suffix first (usually at the very end)
-    for (const sCode of stoneKeys) {
-        if (remainder.endsWith(sCode)) {
-            detectedStoneCode = sCode;
-            remainder = remainder.slice(0, -sCode.length);
-            break; 
-        }
-    }
-
-    // 4. Check for Finish Suffix (on the remainder)
-    // Example: XR2020PBSU -> Remainder became XR2020P -> Now detects P
-    for (const fCode of finishKeys) {
-        if (remainder.endsWith(fCode)) {
-            detectedFinishCode = fCode;
-            remainder = remainder.slice(0, -fCode.length);
-            break;
-        }
-    }
-
-    // 5. Construct Result
-    // Valid variant if we found either a stone or a finish code, and there is still a Master SKU left
-    const isVariant = (detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2;
-
-    if (isVariant) {
-        const finishDesc = detectedFinishCode ? FINISH_CODES[detectedFinishCode] : '';
-        // Use the selected dictionary for description
-        const stoneDesc = detectedStoneCode ? (relevantStones as any)[detectedStoneCode] : '';
-        
-        // Format description: "Finish - Stone" or just "Finish" or just "Stone"
-        let fullDesc = '';
-        if (finishDesc && stoneDesc) fullDesc = `${finishDesc} - ${stoneDesc}`;
-        else if (finishDesc) fullDesc = finishDesc;
-        else if (stoneDesc) fullDesc = stoneDesc;
-
-        return {
-            isVariant: true,
-            masterSku: remainder,
-            suffix: detectedFinishCode + detectedStoneCode,
-            detectedPlating: PLATING_MAP[detectedFinishCode] || PlatingType.None,
-            variantDescription: fullDesc
-        };
-    }
-
-    // Fallback: No recognized variant suffix
-    return {
-        isVariant: false,
-        masterSku: cleanSku,
-        suffix: '',
-        detectedPlating: PlatingType.None,
-        variantDescription: ''
-    };
-};
-
-/**
- * PARSES a suffix string (e.g. "PKR") and returns its isolated components.
+ * PARSES a suffix string (e.g. "PKR" or "PAX") and returns its isolated components.
  * This is crucial for separating Metal Finish from Stone Description.
+ * Gender-aware: 'PAX' in Women means 'Agate', 'PAX' in Men means 'Patina' + 'Agate' (AX)
  */
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
     // 1. Select Dictionary based on Gender
@@ -353,7 +270,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let detectedFinishCode = '';
     let remainder = suffix.toUpperCase();
 
-    // Check for Stone Suffix first
+    // Check for Stone Suffix first (usually at the end)
     for (const sCode of stoneKeys) {
         if (remainder.endsWith(sCode)) {
             detectedStoneCode = sCode;
@@ -371,9 +288,6 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
         }
     }
     
-    // If we have some remainder left that is NOT empty, it implies the suffix 
-    // wasn't fully parsed, but we return what we found.
-    
     const finishDesc = FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] /* Lustre */;
     const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
 
@@ -386,6 +300,82 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             code: detectedStoneCode,
             name: stoneDesc
         }
+    };
+};
+
+/**
+ * Intelligent SKU Analyzer
+ * Detects if the user typed a specific variant code (e.g. RN001P or XR2020BSU) and extracts the Master SKU.
+ * Now supports both Finish codes AND Stone codes.
+ */
+export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
+    const cleanSku = rawSku.trim().toUpperCase();
+    
+    // 1. Detect Gender from Prefix to guide suffix analysis (if not forced)
+    let gender = forcedGender;
+    if (!gender) {
+        const meta = parseSku(cleanSku);
+        gender = meta.gender as Gender;
+    }
+
+    // Use our robust component parser logic on the potential suffix area
+    // This is tricky because we don't know where the SKU ends and Suffix begins.
+    // Heuristic: Try to match from the end of the string.
+    
+    let relevantStones = {};
+    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
+    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
+    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+
+    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
+    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
+
+    let detectedStoneCode = '';
+    let detectedFinishCode = '';
+    let remainder = cleanSku;
+
+    // Check for Stone Suffix first
+    for (const sCode of stoneKeys) {
+        if (remainder.endsWith(sCode)) {
+            detectedStoneCode = sCode;
+            remainder = remainder.slice(0, -sCode.length);
+            break; 
+        }
+    }
+
+    // Check for Finish Suffix
+    for (const fCode of finishKeys) {
+        if (remainder.endsWith(fCode)) {
+            detectedFinishCode = fCode;
+            remainder = remainder.slice(0, -fCode.length);
+            break;
+        }
+    }
+
+    // Valid variant if we found either a stone or a finish code, and there is still a Master SKU left
+    // Master SKU must be at least 2 chars (e.g. DA...)
+    const isVariant = (detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2;
+
+    if (isVariant) {
+        const components = getVariantComponents(detectedFinishCode + detectedStoneCode, gender);
+        const fullDesc = analyzeSuffix(detectedFinishCode + detectedStoneCode, gender);
+
+        return {
+            isVariant: true,
+            masterSku: remainder,
+            suffix: detectedFinishCode + detectedStoneCode,
+            detectedPlating: PLATING_MAP[detectedFinishCode] || PlatingType.None,
+            variantDescription: fullDesc || ''
+        };
+    }
+
+    // Fallback: No recognized variant suffix
+    return {
+        isVariant: false,
+        masterSku: cleanSku,
+        suffix: '',
+        detectedPlating: PlatingType.None,
+        variantDescription: ''
     };
 };
 
