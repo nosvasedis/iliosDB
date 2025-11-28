@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -235,7 +235,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       if (variants.some(v => v.suffix === upperSuffix)) { showToast("Αυτή η παραλλαγή υπάρχει ήδη.", "error"); return; }
 
       // Calculate Estimated Cost
-      // We assume Master Product context
       const tempMaster: Product = {
           sku: detectedMasterSku || sku,
           prefix: sku.substring(0, 2),
@@ -257,8 +256,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
       // STRICT COST LOGIC:
       // Pass the manual plating cost (labor.plating_cost) to the estimator.
-      // The estimator will add it ONLY if the suffix indicates Plating (X, D, H).
-      // If suffix is P, it uses base cost.
       let estimatedCost = estimateVariantCost(
           tempMaster, 
           upperSuffix, 
@@ -291,6 +288,35 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const removeVariant = (index: number) => {
       setVariants(variants.filter((_, i) => i !== index));
   };
+
+  // --- PREVALENT VARIANT HELPER (Local for this view) ---
+  const getDisplayHero = () => {
+      if (variants.length === 0) {
+          return {
+              fullSku: detectedMasterSku || sku,
+              description: 'Βασικό Προϊόν (Master Only)',
+              cost: masterEstimatedCost,
+              price: sellingPrice,
+              isVariant: false
+          };
+      }
+
+      // Priority: P > X > First
+      const pVar = variants.find(v => v.suffix.includes('P') && !v.suffix.includes('X'));
+      const xVar = variants.find(v => v.suffix.includes('X'));
+      const hero = pVar || xVar || variants[0];
+
+      return {
+          fullSku: (detectedMasterSku || sku) + hero.suffix,
+          description: hero.description || hero.suffix,
+          cost: hero.active_price || 0,
+          price: hero.selling_price || 0,
+          isVariant: true,
+          suffix: hero.suffix
+      };
+  };
+
+  const hero = getDisplayHero();
 
   // --------------------------
 
@@ -482,8 +508,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             {filteredMolds.map(m => (<div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}><CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> {m.code} <span className="text-xs text-slate-400 ml-auto">{m.description}</span></div>))}
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 flex flex-col gap-2">
-                            <input type="text" placeholder="Νέος Κωδικός" value={newMoldCode} onChange={e => setNewMoldCode(e.target.value.toUpperCase())} className="p-2 border rounded text-sm"/>
-                            <button onClick={handleQuickCreateMold} className="bg-slate-900 text-white py-2 rounded text-sm font-bold">{isCreatingMold ? <Loader2 className="animate-spin"/> : 'Δημιουργία'}</button>
+                            <div className="text-xs font-bold text-slate-400 uppercase mb-1">Νέο Λάστιχο</div>
+                            <input type="text" placeholder="Κωδικός *" value={newMoldCode} onChange={e => setNewMoldCode(e.target.value.toUpperCase())} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
+                            <input type="text" placeholder="Τοποθεσία" value={newMoldLoc} onChange={e => setNewMoldLoc(e.target.value)} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
+                            <input type="text" placeholder="Περιγραφή" value={newMoldDesc} onChange={e => setNewMoldDesc(e.target.value)} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
+                            <button onClick={handleQuickCreateMold} className="bg-slate-900 text-white py-2 rounded text-sm font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 mt-1">
+                                {isCreatingMold ? <Loader2 className="animate-spin" size={16}/> : <Plus size={16} />}
+                                {isCreatingMold ? '...' : 'Δημιουργία'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -629,23 +661,41 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                  <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">5. Σύνοψη & Τιμολόγηση</h3>
                  
-                 {/* MASTER CARD (Hidden Logic: If variants exist, master is container) */}
-                 <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg flex flex-col md:flex-row gap-6 relative overflow-hidden">
+                 {/* HERO CARD - Shows the "Prevalent" Variant as the Face of the product */}
+                 <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row gap-6 relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
                      
                      <div className="flex-1 relative z-10">
-                         <div className="text-xs font-bold text-slate-400 uppercase mb-1">Master SKU (Container)</div>
-                         <div className="text-3xl font-black tracking-tight mb-2">{detectedMasterSku || sku}</div>
-                         <div className="flex items-center gap-3 text-sm text-slate-300">
-                             <span className="bg-white/10 px-2 py-1 rounded">{category}</span>
-                             <span className="bg-white/10 px-2 py-1 rounded">{weight}g</span>
+                         <div className="flex items-center gap-2 mb-2">
+                             <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider border border-amber-500/30 flex items-center gap-1">
+                                 <Crown size={10} className="fill-current"/> Βασικος Κωδικος
+                             </span>
+                         </div>
+                         <div className="text-4xl font-black tracking-tight mb-2 font-mono">{hero.fullSku}</div>
+                         <div className="flex items-center gap-4 text-sm text-slate-300 font-medium">
+                             <div className="flex items-center gap-1"><Tag size={14} className="text-indigo-400"/> {hero.description}</div>
+                             <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                             <div>{category}</div>
+                             <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                             <div>{weight}g</div>
+                         </div>
+                     </div>
+
+                     <div className="relative z-10 bg-white/10 p-4 rounded-xl border border-white/10 backdrop-blur-sm min-w-[180px]">
+                         <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Χονδρικη Τιμη</div>
+                         <div className="text-3xl font-black text-emerald-400">{hero.price.toFixed(2)}€</div>
+                         <div className="text-xs text-slate-400 mt-1 flex justify-between">
+                             <span>Κόστος:</span>
+                             <span className="font-mono text-white">{hero.cost.toFixed(2)}€</span>
                          </div>
                      </div>
                  </div>
 
-                 {/* DETAILED VARIANTS TABLE */}
+                 {/* VARIANT TABLE (Only showing variants if they exist, or Master if none) */}
                  <div>
-                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2"><Layers size={14}/> Λίστα Κωδικών προς Δημιουργία ({variants.length})</h4>
+                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2">
+                         <Layers size={14}/> Λίστα Κωδικών προς Δημιουργία ({variants.length > 0 ? variants.length : 1})
+                     </h4>
                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                          <table className="w-full text-left text-sm">
                              <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
@@ -658,7 +708,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                  </tr>
                              </thead>
                              <tbody className="divide-y divide-slate-100">
-                                 {/* Only show Master row if no variants */}
+                                 {/* Case 1: No Variants - Show Master Row */}
                                  {variants.length === 0 && (
                                      <tr className="bg-slate-50/50">
                                          <td className="p-4 pl-6 font-bold text-slate-700">{detectedMasterSku || sku}</td>
@@ -670,14 +720,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                          </td>
                                      </tr>
                                  )}
-                                 {/* Variant Rows */}
+                                 
+                                 {/* Case 2: Variants Exist - Show ONLY Variants */}
                                  {variants.map((v, idx) => {
                                      const vCost = v.active_price || 0;
                                      const vPrice = v.selling_price || 0;
                                      const margin = vPrice > 0 ? ((vPrice - vCost) / vPrice * 100) : 0;
+                                     const isPrevalent = v.suffix === hero.suffix; // Highlight hero in table too
+
                                      return (
-                                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                             <td className="p-4 pl-6 font-bold text-indigo-700">{(detectedMasterSku || sku) + v.suffix}</td>
+                                         <tr key={idx} className={`transition-colors ${isPrevalent ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}>
+                                             <td className={`p-4 pl-6 font-bold font-mono ${isPrevalent ? 'text-indigo-700' : 'text-slate-700'}`}>
+                                                 {(detectedMasterSku || sku) + v.suffix}
+                                                 {isPrevalent && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase font-bold">Hero</span>}
+                                             </td>
                                              <td className="p-4 text-slate-600">{v.description}</td>
                                              <td className="p-4 text-right font-mono text-slate-600">{vCost.toFixed(2)}€</td>
                                              <td className="p-4 text-right font-mono font-bold text-slate-800">{vPrice.toFixed(2)}€</td>
