@@ -1,3 +1,4 @@
+
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender } from './types';
 
 // Points to logo.png which MUST be in the 'public' folder for Vercel/Vite
@@ -37,7 +38,7 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'KR': 'Κορνεόλη',
   'LA': 'Λάπις',
   'LE': 'Χαολίτης',
-  'AX': 'Αχάτης',
+  'AX': 'Πράσινος Αχάτης', // Updated from 'Αχάτης' to specific Green Agate for Men
   'TG': 'Μάτι Τίγρης',
   'QN': 'Όνυχας',
   'TY': 'Τυρκουάζ',

@@ -256,21 +256,33 @@ const PLATING_MAP: Record<string, PlatingType> = {
  * Detects if the user typed a specific variant code (e.g. RN001P or XR2020BSU) and extracts the Master SKU.
  * Now supports both Finish codes AND Stone codes.
  */
-export const analyzeSku = (rawSku: string) => {
+export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
     
-    // 1. Prepare Dictionaries
-    // Merge men and women stones to check against all possibilities
-    const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+    // 1. Detect Gender from Prefix to guide suffix analysis (if not forced)
+    // This is crucial for distinguishing overlapping codes like PAX (Women) vs P-AX (Men)
+    let gender = forcedGender;
+    if (!gender) {
+        const meta = parseSku(cleanSku);
+        gender = meta.gender as Gender;
+    }
+
+    // 2. Prepare Dictionaries based on Gender
+    // If Men, use MEN dict. If Women, use WOMEN dict. If Unisex/Unknown, use both.
+    let relevantStones = {};
+    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
+    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
+    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+
     // Sort keys by length descending to match longest suffix first (e.g. matching 'PBSU' correctly)
-    const stoneKeys = Object.keys(allStones).sort((a, b) => b.length - a.length);
+    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
 
     let detectedStoneCode = '';
     let detectedFinishCode = '';
     let remainder = cleanSku;
 
-    // 2. Check for Stone Suffix first (usually at the very end)
+    // 3. Check for Stone Suffix first (usually at the very end)
     for (const sCode of stoneKeys) {
         if (remainder.endsWith(sCode)) {
             detectedStoneCode = sCode;
@@ -279,7 +291,7 @@ export const analyzeSku = (rawSku: string) => {
         }
     }
 
-    // 3. Check for Finish Suffix (on the remainder)
+    // 4. Check for Finish Suffix (on the remainder)
     // Example: XR2020PBSU -> Remainder became XR2020P -> Now detects P
     for (const fCode of finishKeys) {
         if (remainder.endsWith(fCode)) {
@@ -289,13 +301,14 @@ export const analyzeSku = (rawSku: string) => {
         }
     }
 
-    // 4. Construct Result
+    // 5. Construct Result
     // Valid variant if we found either a stone or a finish code, and there is still a Master SKU left
     const isVariant = (detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2;
 
     if (isVariant) {
         const finishDesc = detectedFinishCode ? FINISH_CODES[detectedFinishCode] : '';
-        const stoneDesc = detectedStoneCode ? allStones[detectedStoneCode] : '';
+        // Use the selected dictionary for description
+        const stoneDesc = detectedStoneCode ? (relevantStones as any)[detectedStoneCode] : '';
         
         // Format description: "Finish - Stone" or just "Finish" or just "Stone"
         let fullDesc = '';
@@ -325,10 +338,16 @@ export const analyzeSku = (rawSku: string) => {
 /**
  * NEW: Intelligent Suffix-only Analyzer
  * Parses a suffix string (e.g. "PKR") and returns its description.
+ * Accepts `gender` to resolve conflicts (e.g. PAX: Women=Green Agate, Men=Patina+Green Agate)
  */
-export const analyzeSuffix = (suffix: string): string | null => {
-    const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-    const stoneKeys = Object.keys(allStones).sort((a, b) => b.length - a.length);
+export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
+    // 1. Select Dictionary based on Gender
+    let relevantStones = {};
+    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
+    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
+    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+
+    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
 
     let detectedStoneCode = '';
@@ -356,7 +375,7 @@ export const analyzeSuffix = (suffix: string): string | null => {
     // If the entire suffix was consumed, we have a valid analysis
     if (remainder === '' && (detectedStoneCode || detectedFinishCode)) {
         const finishDesc = FINISH_CODES[detectedFinishCode] || '';
-        const stoneDesc = allStones[detectedStoneCode] || '';
+        const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
         
         let fullDesc = '';
         if (finishDesc && stoneDesc) fullDesc = `${finishDesc} - ${stoneDesc}`;

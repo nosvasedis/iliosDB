@@ -81,13 +81,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       if (meta.category !== 'Γενικό' && !category) {
          setCategory(meta.category);
       }
+      // Set gender if inferred and not manually set
+      let currentGender = gender;
       if (meta.gender && !gender) {
          setGender(meta.gender as Gender);
+         currentGender = meta.gender as Gender;
       }
       if (sku.startsWith('STX')) setIsSTX(true);
       
       // 2. Smart Suffix Analysis
-      const analysis = analyzeSku(sku);
+      // We pass the current gender to help analyzeSku distinguish between codes like PAX (Women) vs P-AX (Men)
+      const analysis = analyzeSku(sku, currentGender as Gender);
       if (analysis.isVariant) {
           setDetectedMasterSku(analysis.masterSku);
           setDetectedSuffix(analysis.suffix);
@@ -230,14 +234,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   // --- VARIANT MANAGEMENT ---
   
-  // Auto-analyze suffix for new variant - UPDATED LOGIC
+  // Auto-analyze suffix for new variant - UPDATED LOGIC with Gender Awareness
   useEffect(() => {
       if (newVariantSuffix) {
-          const desc = analyzeSuffix(newVariantSuffix);
+          const desc = analyzeSuffix(newVariantSuffix, gender as Gender);
           // Always update description if analysis finds a match, enabling dynamic updates as user types (e.g., P -> P-Code)
           if (desc) setNewVariantDesc(desc);
       }
-  }, [newVariantSuffix]);
+  }, [newVariantSuffix, gender]);
 
   const handleAddVariant = () => {
       if (!newVariantSuffix) { showToast("Η κατάληξη είναι υποχρεωτική.", "error"); return; }
