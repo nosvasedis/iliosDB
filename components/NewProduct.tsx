@@ -47,6 +47,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
+  const [newVariantPrice, setNewVariantPrice] = useState(0); // New: Pre-add price input
   
   // Image State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -106,13 +107,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   // Sync detected suffix to variants list initially
   useEffect(() => {
       if (detectedSuffix && variants.length === 0) {
-          // We don't auto-add it yet, we let the user confirm in Step 4, 
-          // OR we can auto-populate the inputs in Step 4.
-          // Let's auto-populate the inputs when entering Step 4.
           setNewVariantSuffix(detectedSuffix);
           setNewVariantDesc(detectedVariantDesc);
       }
   }, [detectedSuffix, currentStep]);
+
+  // Sync Variant Price with Master Price initially (if not manually changed yet)
+  useEffect(() => {
+      if (sellingPrice > 0 && newVariantPrice === 0) {
+          setNewVariantPrice(sellingPrice);
+      }
+  }, [sellingPrice]);
 
   // Dynamic Technician Cost Calculation
   useEffect(() => {
@@ -122,8 +127,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, labor.technician_cost_manual_override]);
 
-  // SMART PLATING COST: Calculate suggestion based on formula but don't force it continuously
-  // so user can override manually in Step 3.
+  // SMART PLATING COST
   useEffect(() => {
       if (plating !== PlatingType.None && weight > 0 && labor.plating_cost === 0) {
           const suggestedCost = calculatePlatingCost(weight, plating);
@@ -229,7 +233,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   }, [newVariantSuffix]);
 
   const handleAddVariant = () => {
-      if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", "error"); return; }
+      if (!newVariantSuffix) { showToast("Η κατάληξη είναι υποχρεωτική.", "error"); return; }
       
       const upperSuffix = newVariantSuffix.toUpperCase();
       if (variants.some(v => v.suffix === upperSuffix)) { showToast("Αυτή η παραλλαγή υπάρχει ήδη.", "error"); return; }
@@ -255,14 +259,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       };
 
       // STRICT COST LOGIC:
-      // Pass the manual plating cost (labor.plating_cost) to the estimator.
-      let estimatedCost = estimateVariantCost(
+      const estimatedCost = estimateVariantCost(
           tempMaster, 
           upperSuffix, 
           settings!, 
           materials, 
           products, 
-          labor.plating_cost // PASS THE MANUAL PLATING COST
+          labor.plating_cost 
       );
       
       const newV: ProductVariant = {
@@ -270,12 +273,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           description: newVariantDesc,
           stock_qty: 0,
           active_price: parseFloat(estimatedCost.toFixed(2)),
-          selling_price: sellingPrice // Default to master price
+          selling_price: newVariantPrice > 0 ? newVariantPrice : sellingPrice // Use input price
       };
 
       setVariants([...variants, newV]);
       setNewVariantSuffix('');
       setNewVariantDesc('');
+      // Keep price as is or reset? Usually nicer to keep if adding similar items
+      // setNewVariantPrice(sellingPrice); 
       showToast(`Προστέθηκε η παραλλαγή ${upperSuffix}`, "success");
   };
 
@@ -294,7 +299,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       if (variants.length === 0) {
           return {
               fullSku: detectedMasterSku || sku,
-              description: 'Βασικό Προϊόν (Master Only)',
+              description: 'Βασικό Προϊόν (Μόνο Master)',
               cost: masterEstimatedCost,
               price: sellingPrice,
               isVariant: false
@@ -498,7 +503,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <label className="block text-sm font-bold text-slate-700 mb-1.5">Βασική Επιμετάλλωση (Master)</label>
                             <select value={plating} onChange={(e) => setPlating(e.target.value as PlatingType)} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"><option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option><option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option><option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option><option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option></select>
                         </div>
-                        <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50 cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-amber-600 rounded" /><span className="font-bold text-slate-700">Είναι Εξάρτημα (STX);</span></label>
+                        <div className="flex gap-4">
+                            <label className="flex-1 flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50 cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-amber-600 rounded" /><span className="font-bold text-slate-700">Είναι Εξάρτημα (STX);</span></label>
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Χονδρική (Βασική)</label>
+                                <div className="flex items-center gap-1"><input type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="w-full p-2.5 border border-slate-200 rounded-xl font-bold"/><span className="text-slate-500 font-bold">€</span></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div className="pt-4 border-t border-slate-100">
@@ -619,12 +630,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                       <div className="flex gap-3 items-end">
                           <div className="w-24">
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Suffix</label>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Καταληξη (Suffix)</label>
                               <input type="text" placeholder="X" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-center uppercase font-bold outline-none focus:border-amber-500"/>
                           </div>
                           <div className="flex-1">
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Περιγραφή</label>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Περιγραφη</label>
                               <input type="text" placeholder="Επίχρυσο" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 outline-none focus:border-amber-500"/>
+                          </div>
+                          <div className="w-24">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Χονδρικη</label>
+                              <input type="number" step="0.01" value={newVariantPrice} onChange={e => setNewVariantPrice(parseFloat(e.target.value) || 0)} className="w-full p-2.5 rounded-xl border border-slate-300 font-bold text-center outline-none focus:border-emerald-500 text-emerald-700"/>
                           </div>
                           <button onClick={handleAddVariant} className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 transition-all"><Plus size={18}/> Προσθήκη</button>
                       </div>
@@ -652,7 +667,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                   </div>
                                   
                                   <div className="flex flex-col relative">
-                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Κοστος (Active)</label>
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Κοστος</label>
                                       <div className="flex items-center gap-1">
                                           <input 
                                             type="number" step="0.01" 
@@ -662,7 +677,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                           />
                                           <span className="text-xs text-slate-400">€</span>
                                       </div>
-                                      {isPlated && <span className="absolute -top-1 right-0 text-[9px] text-amber-600 bg-amber-50 px-1 rounded font-bold">Plated</span>}
+                                      {isPlated && <span className="absolute -top-1 right-0 text-[9px] text-amber-600 bg-amber-50 px-1 rounded font-bold">Επιμετ.</span>}
                                   </div>
 
                                   <div className="flex flex-col">
@@ -699,7 +714,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                      <div className="flex-1 relative z-10">
                          <div className="flex items-center gap-2 mb-2">
                              <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider border border-amber-500/30 flex items-center gap-1">
-                                 <Crown size={10} className="fill-current"/> Βασικος Κωδικος
+                                 <Crown size={10} className="fill-current"/> Κύριο Προϊόν
                              </span>
                          </div>
                          <div className="text-4xl font-black tracking-tight mb-2 font-mono">{hero.fullSku}</div>
@@ -763,7 +778,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                          <tr key={idx} className={`transition-colors ${isPrevalent ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}>
                                              <td className={`p-4 pl-6 font-bold font-mono ${isPrevalent ? 'text-indigo-700' : 'text-slate-700'}`}>
                                                  {(detectedMasterSku || sku) + v.suffix}
-                                                 {isPrevalent && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase font-bold">Hero</span>}
+                                                 {isPrevalent && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase font-bold">Κύριο</span>}
                                              </td>
                                              <td className="p-4 text-slate-600">{v.description}</td>
                                              <td className="p-4 text-right font-mono text-slate-600">{vCost.toFixed(2)}€</td>
