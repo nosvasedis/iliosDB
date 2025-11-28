@@ -104,19 +104,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [sku]);
 
-  // Sync detected suffix to variants list initially
+  // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
   useEffect(() => {
-      if (detectedSuffix && variants.length === 0) {
-          setNewVariantSuffix(detectedSuffix);
-          setNewVariantDesc(detectedVariantDesc);
+      if (detectedSuffix) {
+          // If the detected suffix is not already in the list, pre-fill the form
+          const exists = variants.some(v => v.suffix === detectedSuffix);
+          if (!exists) {
+              setNewVariantSuffix(detectedSuffix);
+              setNewVariantDesc(detectedVariantDesc);
+          }
       }
-  }, [detectedSuffix, currentStep]);
+  }, [detectedSuffix, detectedVariantDesc, variants]);
 
-  // Sync Variant Price with Master Price initially (if not manually changed yet)
+  // Sync Variant Price with Master Price (Interconnection Step 1 -> Step 4)
   useEffect(() => {
-      if (sellingPrice > 0 && newVariantPrice === 0) {
-          setNewVariantPrice(sellingPrice);
-      }
+      // Always keep the "New Variant Price" input in sync with Master Price 
+      // to save typing, assuming most variants share the base wholesale price.
+      setNewVariantPrice(sellingPrice);
   }, [sellingPrice]);
 
   // Dynamic Technician Cost Calculation
@@ -487,7 +491,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="relative">
                           <label className="block text-sm font-bold text-slate-700 mb-1.5">SKU *</label>
                           <input type="text" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} className="w-full p-3 border border-slate-200 rounded-xl font-mono uppercase bg-slate-50 focus:ring-4 focus:ring-amber-500/20 outline-none font-bold text-lg"/>
-                          {detectedSuffix && <div className="mt-2 text-xs bg-blue-50 text-blue-700 p-2 rounded flex items-center gap-1"><Lightbulb size={12}/> Θα δημιουργηθεί αυτόματα η παραλλαγή <strong>{detectedSuffix}</strong> ({detectedVariantDesc})</div>}
+                          {detectedSuffix && <div className="mt-2 text-xs bg-blue-50 text-blue-700 p-2 rounded flex items-center gap-1"><Lightbulb size={12}/> Η παραλλαγή <strong>{detectedSuffix}</strong> ({detectedVariantDesc}) έχει προετοιμαστεί για το Βήμα 4.</div>}
                         </div>
                         <div className="grid grid-cols-2 gap-5">
                             <div>
