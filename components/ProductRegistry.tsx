@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,154 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16} /> },
     { label: 'Unisex', value: Gender.Unisex, icon: <UsersIcon size={16} /> },
 ];
+
+interface ProductCardProps {
+    product: Product;
+    onClick: () => void;
+    settings: GlobalSettings;
+    materials: Material[];
+    allProducts: Product[];
+}
+
+// --- Sub-Component: Product Card with Variant Switching Logic ---
+const ProductCard: React.FC<ProductCardProps> = ({ 
+    product, 
+    onClick, 
+    settings, 
+    materials, 
+    allProducts 
+}) => {
+    const [viewIndex, setViewIndex] = useState(0); // 0 = Master, 1+ = Variants
+
+    // Flatten logic: [Master, ...Variants]
+    const variants = product.variants || [];
+    const hasVariants = variants.length > 0;
+    
+    // Calculate Master Cost (Base for everything unless we do deep variant costing)
+    const cost = calculateProductCost(product, settings, materials, allProducts);
+    const masterCostVal = cost.total;
+
+    // Determine current view data
+    const isMasterView = viewIndex === 0;
+    const currentVariant = !isMasterView ? variants[viewIndex - 1] : null;
+
+    // Resolve Price: Variant override -> Master price
+    const currentPrice = currentVariant 
+        ? (currentVariant.selling_price ?? product.selling_price) 
+        : product.selling_price;
+
+    const currentCost = currentVariant 
+        ? (currentVariant.active_price ?? masterCostVal) 
+        : masterCostVal;
+
+    const profit = currentPrice - currentCost;
+    const margin = currentPrice > 0 ? (profit / currentPrice) * 100 : 0;
+
+    const handleNext = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setViewIndex((prev) => (prev + 1) % (variants.length + 1));
+    };
+
+    const handlePrev = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setViewIndex((prev) => (prev - 1 + (variants.length + 1)) % (variants.length + 1));
+    };
+
+    const label = isMasterView ? 'ΒΑΣΙΚΟ' : (currentVariant?.suffix || 'VAR');
+    const description = isMasterView ? '' : currentVariant?.description;
+
+    return (
+        <div 
+            onClick={onClick}
+            className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1.5 flex flex-col relative"
+        >
+            {/* Variant Indicator Badge */}
+            {hasVariants && (
+                <div className="absolute top-3 left-3 z-10 bg-slate-900/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm border border-white/10">
+                    <Layers size={10} />
+                    {variants.length} {variants.length === 1 ? 'Παραλλαγή' : 'Παραλλαγές'}
+                </div>
+            )}
+
+            <div className="aspect-square relative overflow-hidden bg-slate-50">
+                {product.image_url ? (
+                    <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                ) : (
+                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                        <ImageIcon size={40} className="text-slate-300" />
+                    </div>
+                )}
+                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm border border-slate-200">
+                    {product.category}
+                </div>
+            </div>
+            
+            <div className="p-5 flex-1 flex flex-col">
+                <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
+                        {product.sku}
+                        {!isMasterView && <span className="text-indigo-500 ml-0.5">{currentVariant?.suffix}</span>}
+                    </h3>
+                </div>
+                
+                <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-4">
+                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
+                        <Weight size={12}/> {product.weight_g}g
+                    </div>
+                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
+                        <BookOpen size={12}/> {product.recipe.length + 1} υλικά
+                    </div>
+                </div>
+
+                <div className="mt-auto">
+                    <div className="pt-3 border-t border-slate-100 flex justify-between items-end mb-2">
+                        <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400">Κοστος</span>
+                            <div className="text-xs font-mono font-bold text-slate-600 flex items-center gap-1">
+                                <Coins size={10} className="text-slate-400"/> {currentCost.toFixed(2)}€
+                            </div>
+                        </div>
+                        
+                        {/* Smart Switcher for Price */}
+                        <div className="text-right flex flex-col items-end">
+                            <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                                {hasVariants && (
+                                    <button onClick={handlePrev} className="hover:bg-slate-100 p-0.5 rounded text-slate-500">
+                                        <ChevronLeft size={10}/>
+                                    </button>
+                                )}
+                                {label}
+                                {hasVariants && (
+                                    <button onClick={handleNext} className="hover:bg-slate-100 p-0.5 rounded text-slate-500">
+                                        <ChevronRight size={10}/>
+                                    </button>
+                                )}
+                            </span>
+                            <div className="text-lg font-black text-indigo-600 leading-none mt-0.5">
+                                {currentPrice > 0 ? currentPrice.toFixed(2) + '€' : '-'}
+                            </div>
+                            {description && (
+                                <span className="text-[9px] text-slate-400 truncate max-w-[80px] block mt-0.5">{description}</span>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* PROFIT & MARGIN INDICATORS */}
+                    {currentPrice > 0 && (
+                        <div className={`flex justify-between items-center text-xs rounded-lg p-2 transition-colors duration-300 ${!isMasterView ? 'bg-indigo-50' : 'bg-slate-50'}`}>
+                            <span className={`font-bold flex items-center gap-1 ${margin < 30 ? "text-red-500" : "text-emerald-600"}`}>
+                                <TrendingUp size={12}/> {margin.toFixed(0)}%
+                            </span>
+                            <span className="font-bold text-slate-500">
+                                Κέρδος: {profit.toFixed(2)}€
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function ProductRegistry({ setPrintItems }: Props) {
   const queryClient = useQueryClient();
@@ -163,76 +311,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {filteredProducts.map(product => {
-              const cost = calculateProductCost(product, settings, materials, products);
-              const profit = product.selling_price - cost.total;
-              const margin = product.selling_price > 0 ? (profit / product.selling_price) * 100 : 0;
-              
-              return (
-                <div 
-                    key={product.sku} 
-                    onClick={() => setSelectedProduct(product)}
-                    className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1.5 flex flex-col"
-                >
-                    <div className="aspect-square relative overflow-hidden bg-slate-50">
-                        {product.image_url ? (
-                            <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                        ) : (
-                            <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                                <ImageIcon size={40} className="text-slate-300" />
-                            </div>
-                        )}
-                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm border border-slate-200">
-                            {product.category}
-                        </div>
-                    </div>
-                    
-                    <div className="p-5 flex-1 flex flex-col">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">{product.sku}</h3>
-                        </div>
-                        
-                        <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-4">
-                            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
-                                <Weight size={12}/> {product.weight_g}g
-                            </div>
-                            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
-                                <BookOpen size={12}/> {product.recipe.length + 1} υλικά
-                            </div>
-                        </div>
-
-                        <div className="mt-auto">
-                            <div className="pt-3 border-t border-slate-100 flex justify-between items-end mb-2">
-                                <div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Κοστος</span>
-                                    <div className="text-sm font-mono font-bold text-slate-600 flex items-center gap-1">
-                                        <Coins size={12} className="text-slate-400"/> {cost.total.toFixed(2)}€
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Χονδρικη</span>
-                                    <div className="text-lg font-black text-indigo-600">
-                                        {product.selling_price > 0 ? product.selling_price.toFixed(2) + '€' : '-'}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* PROFIT & MARGIN INDICATORS */}
-                            {product.selling_price > 0 && (
-                                <div className="flex justify-between items-center text-xs bg-slate-50 rounded-lg p-2">
-                                    <span className={`font-bold flex items-center gap-1 ${margin < 30 ? "text-red-500" : "text-emerald-600"}`}>
-                                        <TrendingUp size={12}/> {margin.toFixed(0)}%
-                                    </span>
-                                    <span className="font-bold text-slate-500">
-                                        Κέρδος: {profit.toFixed(2)}€
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-              );
-          })}
+          {filteredProducts.map(product => (
+              <ProductCard 
+                  key={product.sku}
+                  product={product}
+                  settings={settings}
+                  materials={materials}
+                  allProducts={products}
+                  onClick={() => setSelectedProduct(product)}
+              />
+          ))}
       </div>
       
       {filteredProducts.length === 0 && (
