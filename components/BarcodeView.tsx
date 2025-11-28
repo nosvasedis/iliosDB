@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useMemo } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariant } from '../types';
@@ -54,12 +53,11 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         if (canvasRef.current && finalSku) {
             try {
                 // Adjust barcode settings based on format
-                // For simple format, we make the barcode area larger/taller
                 const isSimple = format === 'simple';
                 JsBarcode(canvasRef.current, finalSku, {
                     format: 'CODE128',
                     displayValue: false, 
-                    height: isSimple ? 65 : 50, 
+                    height: isSimple ? 80 : 50, // Taller barcode for simple mode
                     width: 2, 
                     margin: 0,
                     background: '#ffffff'
@@ -98,8 +96,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
                     <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                 </div>
-                <div className="w-full text-center leading-none mt-[1mm]" style={{ flex: '0 0 auto' }}>
-                    <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize * 0.8}mm` }}>
+                <div className="w-full text-center leading-none mt-[2px]" style={{ flex: '0 0 auto' }}>
+                    <span className="font-bold block uppercase" style={{ fontSize: '10px' }}>
                         {finalSku}
                     </span>
                 </div>

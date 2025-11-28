@@ -1,11 +1,9 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -386,6 +384,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         // 1. Update Master Product
         await supabase.from('products').update({
+            gender: editedProduct.gender, // Allow gender change
+            category: editedProduct.category, // Allow category change
             weight_g: editedProduct.weight_g,
             selling_price: editedProduct.selling_price,
             labor_casting: editedProduct.labor.casting_cost,
@@ -690,7 +690,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
-                        <InfoCard label="Φύλο" value={GENDER_MAP[editedProduct.gender] || editedProduct.gender} />
+                        
+                        {/* Editable Gender Field */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 relative group">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
+                            <div className="relative mt-1">
+                                <select 
+                                    value={editedProduct.gender}
+                                    onChange={(e) => setEditedProduct(prev => ({ ...prev, gender: e.target.value as Gender }))}
+                                    className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none appearance-none cursor-pointer pr-6"
+                                >
+                                    <option value={Gender.Women}>Γυναικεία</option>
+                                    <option value={Gender.Men}>Ανδρικά</option>
+                                    <option value={Gender.Unisex}>Unisex</option>
+                                </select>
+                                <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-slate-600" size={16} />
+                            </div>
+                        </div>
                         
                         {/* Enhanced Plating Display */}
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
