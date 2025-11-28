@@ -504,17 +504,48 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 <div className="pt-4 border-t border-slate-100">
                     <label className="block text-sm font-bold text-slate-700 mb-3">Λάστιχα</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-40 overflow-y-auto">
-                            {filteredMolds.map(m => (<div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}><CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> {m.code} <span className="text-xs text-slate-400 ml-auto">{m.description}</span></div>))}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 overflow-y-auto custom-scrollbar">
+                            {filteredMolds.map(m => (<div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border mb-1 transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}><CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> {m.code} <span className="text-xs text-slate-400 ml-auto">{m.description}</span></div>))}
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 flex flex-col gap-2">
-                            <div className="text-xs font-bold text-slate-400 uppercase mb-1">Νέο Λάστιχο</div>
-                            <input type="text" placeholder="Κωδικός *" value={newMoldCode} onChange={e => setNewMoldCode(e.target.value.toUpperCase())} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
-                            <input type="text" placeholder="Τοποθεσία" value={newMoldLoc} onChange={e => setNewMoldLoc(e.target.value)} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
-                            <input type="text" placeholder="Περιγραφή" value={newMoldDesc} onChange={e => setNewMoldDesc(e.target.value)} className="p-2 border border-slate-200 rounded text-sm outline-none focus:border-amber-500 transition-colors"/>
-                            <button onClick={handleQuickCreateMold} className="bg-slate-900 text-white py-2 rounded text-sm font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 mt-1">
+                        
+                        {/* Mini Mold Creator */}
+                        <div className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 hover:border-amber-300 transition-all group flex flex-col gap-3 h-full">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 group-hover:text-amber-500 uppercase tracking-wide transition-colors">
+                                <Plus size={14} /> Νέο Λάστιχο
+                            </div>
+                            
+                            <input 
+                                type="text" 
+                                placeholder="Κωδικός *" 
+                                value={newMoldCode} 
+                                onChange={e => setNewMoldCode(e.target.value.toUpperCase())} 
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all uppercase placeholder-slate-400"
+                            />
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <input 
+                                    type="text" 
+                                    placeholder="Τοποθεσία" 
+                                    value={newMoldLoc} 
+                                    onChange={e => setNewMoldLoc(e.target.value)} 
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
+                                />
+                                <input 
+                                    type="text" 
+                                    placeholder="Περιγραφή" 
+                                    value={newMoldDesc} 
+                                    onChange={e => setNewMoldDesc(e.target.value)} 
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
+                                />
+                            </div>
+
+                            <button 
+                                onClick={handleQuickCreateMold} 
+                                disabled={isCreatingMold || !newMoldCode}
+                                className="mt-auto bg-slate-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 hover:shadow-md hover:-translate-y-0.5 active:scale-95"
+                            >
                                 {isCreatingMold ? <Loader2 className="animate-spin" size={16}/> : <Plus size={16} />}
-                                {isCreatingMold ? '...' : 'Δημιουργία'}
+                                {isCreatingMold ? 'Δημιουργία...' : 'Προσθήκη Λάστιχου'}
                             </button>
                         </div>
                     </div>
