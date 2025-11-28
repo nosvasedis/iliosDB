@@ -2,11 +2,16 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
-// Initialize client with stored key or a fallback for environment-proxy usage
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY || 'provided-by-environment' });
-
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
+
+// Helper to get a fresh client instance
+const getClient = () => {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'provided-by-environment') {
+        throw new Error("Το κλειδί Gemini API λείπει. Παρακαλώ ρυθμίστε το στις Ρυθμίσεις.");
+    }
+    return new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+};
 
 /**
  * Generates marketing text description.
@@ -18,6 +23,7 @@ export const generateMarketingCopy = async (
     mimeType: string = 'image/jpeg'
 ): Promise<string> => {
   try {
+    const ai = getClient();
     const parts: any[] = [];
 
     // Add Image if present
@@ -46,16 +52,15 @@ export const generateMarketingCopy = async (
 
   } catch (error: any) {
     console.error("Gemini Copywriting Error:", error);
+    if (error.status === 403 || (error.message && error.message.includes('403'))) {
+        throw new Error("Άρνηση Πρόσβασης (403): Ελέγξτε ότι το API Key είναι έγκυρο και έχει ενεργοποιημένο το 'Generative Language API'.");
+    }
     throw new Error(`Αποτυχία δημιουργίας περιγραφής: ${error.message || 'Unknown error'}`);
   }
 };
 
 /**
  * Generates a Virtual Model image using Google Gemini Models.
- * 
- * Supports:
- * 1. Nano Banana (gemini-2.5-flash-image) - Standard/Fast
- * 2. Nano Banana Pro (gemini-3-pro-image-preview) - High Quality
  */
 export const generateVirtualModel = async (
     imageBase64: string, 
@@ -65,6 +70,8 @@ export const generateVirtualModel = async (
     useProModel: boolean = false
 ): Promise<string | null> => {
   
+  const ai = getClient();
+
   // Construct the Prompt
   const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : (gender === 'Women' ? 'beautiful Greek female model' : 'fashion model');
   let framingPrompt = "Lifestyle fashion shot.";
@@ -99,12 +106,8 @@ export const generateVirtualModel = async (
   }
 
   try {
-    // Select Model based on Pro flag
-    // Nano Banana Pro = gemini-3-pro-image-preview
-    // Nano Banana = gemini-2.5-flash-image
     const modelName = useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
-    // Pro model supports explicit image configuration
     const config: any = {};
     if (useProModel) {
         config.imageConfig = { aspectRatio: "1:1", imageSize: "1K" };
@@ -130,6 +133,15 @@ export const generateVirtualModel = async (
 
   } catch (error: any) {
     console.error("Gemini Model Gen Error:", error);
+    
+    if (error.status === 403 || (error.message && error.message.includes('403'))) {
+        throw new Error("Άρνηση Πρόσβασης (403): Το API Key δεν έχει πρόσβαση στο μοντέλο εικόνας. Δοκιμάστε να ενεργοποιήσετε το Paid Plan ή ελέγξτε τα δικαιώματα του Cloud Project.");
+    }
+    
+    if (error.status === 404 || (error.message && error.message.includes('404'))) {
+         throw new Error(`Το μοντέλο δεν βρέθηκε. Βεβαιωθείτε ότι έχετε πρόσβαση στα μοντέλα Gemini 2.5/3.0.`);
+    }
+
     throw new Error(`Αποτυχία δημιουργίας εικόνας: ${error.message || 'Unknown error'}`);
   }
 };
@@ -139,6 +151,7 @@ export const generateVirtualModel = async (
  */
 export const generateTrendAnalysis = async (query: string): Promise<string> => {
     try {
+        const ai = getClient();
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Ανάλυσε τις τρέχουσες τάσεις κοσμημάτων για: ${query}. Εστίασε στην Ευρωπαϊκή και Ελληνική αγορά.`,
@@ -165,6 +178,9 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
         return finalText;
     } catch (error: any) {
         console.error("Gemini Trends Error:", error);
+        if (error.status === 403) {
+             throw new Error("Άρνηση Πρόσβασης (403): Ελέγξτε το API Key και την ενεργοποίηση του Google Search tool.");
+        }
         throw new Error(`Αποτυχία ανάλυσης τάσεων: ${error.message}`);
     }
 };
