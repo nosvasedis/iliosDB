@@ -144,8 +144,9 @@ const ProductCard: React.FC<{
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
                         <Weight size={10}/> {product.weight_g}g
                     </div>
+                    {/* Updated to include silver as +1 material visually */}
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
-                        <BookOpen size={10}/> {product.recipe.length} υλικά
+                        <BookOpen size={10}/> {product.recipe.length + 1} υλικά
                     </div>
                 </div>
 

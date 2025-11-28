@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -250,13 +250,29 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           labor
       };
 
-      const estimatedCost = estimateVariantCost(tempMaster, upperSuffix, settings!, materials, products);
+      // Enhanced Smart Cost Logic
+      // 1. Get base estimate
+      let estimatedCost = estimateVariantCost(tempMaster, upperSuffix, settings!, materials, products);
+      
+      // 2. Refine logic: If Master has Plating, but Variant is Plain (P), we should SUBTRACT plating cost.
+      // The `estimateVariantCost` utility usually handles ADDING plating.
+      // Let's do a manual check for removal case.
+      const isPlainVariant = upperSuffix === 'P' || upperSuffix.startsWith('P-');
+      const masterHasPlating = labor.plating_cost > 0;
+
+      if (masterHasPlating && isPlainVariant) {
+          // If Master has plating cost, but variant is Plain, we assume variant cost is Base - Plating
+          // estimateVariantCost returns Master Cost if it doesn't detect X/D/H.
+          // So if Master Cost includes plating, estimateVariantCost returns cost WITH plating.
+          // We need to subtract it.
+          estimatedCost = estimatedCost - labor.plating_cost;
+      }
 
       const newV: ProductVariant = {
           suffix: upperSuffix,
           description: newVariantDesc,
           stock_qty: 0,
-          active_price: estimatedCost,
+          active_price: parseFloat(estimatedCost.toFixed(2)),
           selling_price: sellingPrice // Default to master price
       };
 
@@ -538,7 +554,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              </div>
           )}
 
-          {/* STEP 4: VARIANTS (NEW) */}
+          {/* STEP 4: VARIANTS (NEW - SMART) */}
           {currentStep === 4 && (
               <div className="space-y-6 animate-in slide-in-from-right duration-300 fade-in h-full flex flex-col">
                   <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">4. Διαχείριση Παραλλαγών</h3>
@@ -556,39 +572,61 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                           </div>
                           <button onClick={handleAddVariant} className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 transition-all"><Plus size={18}/> Προσθήκη</button>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος για X, D, H υπολογίζεται αυτόματα.</p>
+                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος υπολογίζεται αυτόματα. Για X, D, H προστίθεται επιμετάλλωση. Για P αφαιρείται (αν το Master έχει).</p>
                   </div>
 
-                  {/* Variant List */}
+                  {/* Variant List - Fully Editable */}
                   <div className="flex-1 overflow-y-auto space-y-3">
                       {variants.map((v, idx) => {
                           const isPlated = v.suffix.includes('X') || v.suffix.includes('D') || v.suffix.includes('H');
-                          const costDiff = (v.active_price || 0) - masterEstimatedCost;
+                          
                           return (
-                              <div key={idx} className="flex flex-col md:flex-row gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm items-center">
-                                  <div className="flex items-center gap-3 w-full md:w-auto">
-                                      <div className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded-lg font-mono font-bold text-slate-700">{v.suffix}</div>
-                                      <div className="flex-1 md:w-40"><span className="text-sm font-bold text-slate-800">{v.description}</span></div>
+                              <div key={idx} className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm items-center">
+                                  
+                                  <div className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded-lg font-mono font-bold text-slate-700">{v.suffix}</div>
+                                  
+                                  <div className="flex flex-col">
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Περιγραφη</label>
+                                      <input 
+                                        type="text" 
+                                        value={v.description} 
+                                        onChange={e => updateVariant(idx, 'description', e.target.value)}
+                                        className="w-full p-1 border-b border-transparent focus:border-slate-300 outline-none font-bold text-slate-800"
+                                      />
                                   </div>
                                   
-                                  <div className="flex items-center gap-4 flex-1 w-full justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-                                      <div className="flex flex-col">
-                                          <label className="text-[9px] font-bold text-slate-400 uppercase">Κοστος</label>
-                                          <div className="flex items-center gap-1">
-                                              <input type="number" step="0.01" value={v.active_price || 0} onChange={e => updateVariant(idx, 'active_price', parseFloat(e.target.value))} className="w-20 p-1 border-b border-slate-300 font-mono font-bold text-sm text-right outline-none focus:border-amber-500"/>
-                                              {isPlated && costDiff > 0 && <span className="text-[10px] text-amber-600 font-bold">+{costDiff.toFixed(2)}€</span>}
-                                          </div>
+                                  <div className="flex flex-col relative">
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Κοστος (Active)</label>
+                                      <div className="flex items-center gap-1">
+                                          <input 
+                                            type="number" step="0.01" 
+                                            value={v.active_price || 0} 
+                                            onChange={e => updateVariant(idx, 'active_price', parseFloat(e.target.value))}
+                                            className="w-full p-1 border-b border-slate-200 font-mono font-bold text-slate-700 outline-none focus:border-amber-500"
+                                          />
+                                          <span className="text-xs text-slate-400">€</span>
                                       </div>
-                                      <div className="flex flex-col">
-                                          <label className="text-[9px] font-bold text-slate-400 uppercase">Χονδρικη</label>
-                                          <input type="number" step="0.01" value={v.selling_price || 0} onChange={e => updateVariant(idx, 'selling_price', parseFloat(e.target.value))} className="w-20 p-1 border-b border-slate-300 font-mono font-bold text-sm text-right outline-none focus:border-emerald-500"/>
-                                      </div>
-                                      <button onClick={() => removeVariant(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                      {isPlated && <span className="absolute -top-1 right-0 text-[9px] text-amber-600 bg-amber-50 px-1 rounded font-bold">Plated</span>}
                                   </div>
+
+                                  <div className="flex flex-col">
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Χονδρικη</label>
+                                      <div className="flex items-center gap-1">
+                                          <input 
+                                            type="number" step="0.01" 
+                                            value={v.selling_price || 0} 
+                                            onChange={e => updateVariant(idx, 'selling_price', parseFloat(e.target.value))}
+                                            className="w-full p-1 border-b border-slate-200 font-mono font-bold text-emerald-700 outline-none focus:border-emerald-500"
+                                          />
+                                          <span className="text-xs text-slate-400">€</span>
+                                      </div>
+                                  </div>
+
+                                  <button onClick={() => removeVariant(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                               </div>
                           );
                       })}
-                      {variants.length === 0 && <div className="text-center text-slate-400 py-10 italic">Δεν έχουν προστεθεί παραλλαγές.</div>}
+                      {variants.length === 0 && <div className="text-center text-slate-400 py-10 italic">Δεν έχουν προστεθεί παραλλαγές. Θα δημιουργηθεί μόνο το βασικό προϊόν.</div>}
                   </div>
               </div>
           )}
@@ -627,33 +665,48 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                      </div>
                  </div>
 
-                 {/* VARIANTS GRID */}
+                 {/* DETAILED VARIANTS TABLE */}
                  <div>
-                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2"><Layers size={14}/> Παραλλαγες ({variants.length})</h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                         {variants.map((v, idx) => {
-                             const profit = (v.selling_price || sellingPrice) - (v.active_price || masterEstimatedCost);
-                             const margin = (v.selling_price || sellingPrice) > 0 ? (profit / (v.selling_price || sellingPrice) * 100) : 0;
-                             
-                             return (
-                                 <div key={idx} className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm hover:border-indigo-300 transition-colors relative overflow-hidden">
-                                     <div className="absolute top-0 right-0 bg-slate-100 px-2 py-1 rounded-bl-lg text-[10px] font-mono font-bold text-slate-500">{v.suffix}</div>
-                                     <div className="font-bold text-slate-800 text-lg mb-1">{v.description || v.suffix}</div>
-                                     <div className="flex justify-between items-end mt-4 pt-3 border-t border-slate-50">
-                                         <div>
-                                             <div className="text-[9px] text-slate-400 uppercase font-bold">Κοστος</div>
-                                             <div className="font-mono text-slate-600 font-bold">{(v.active_price || 0).toFixed(2)}€</div>
-                                         </div>
-                                         <div className="text-right">
-                                             <div className="text-[9px] text-slate-400 uppercase font-bold">Τιμη</div>
-                                             <div className="font-mono text-emerald-600 font-black text-lg">{(v.selling_price || 0).toFixed(2)}€</div>
-                                         </div>
-                                     </div>
-                                     <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-300 opacity-0 hover:opacity-100 transition-opacity">Margin: {margin.toFixed(0)}%</div>
-                                 </div>
-                             );
-                         })}
-                         {variants.length === 0 && <div className="col-span-full text-center text-slate-400 py-8 text-sm italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Καμία παραλλαγή. Θα δημιουργηθεί μόνο το βασικό προϊόν.</div>}
+                     <h4 className="font-bold text-slate-600 mb-3 uppercase tracking-wide text-xs flex items-center gap-2"><Layers size={14}/> Αναλυτικος Πινακας ({variants.length})</h4>
+                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                         <table className="w-full text-left text-sm">
+                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                 <tr>
+                                     <th className="p-4 pl-6">Κωδικός</th>
+                                     <th className="p-4">Περιγραφή</th>
+                                     <th className="p-4 text-right">Κόστος</th>
+                                     <th className="p-4 text-right">Χονδρική</th>
+                                     <th className="p-4 text-right pr-6">Margin</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="divide-y divide-slate-100">
+                                 {/* Master Row */}
+                                 <tr className="bg-slate-50/50">
+                                     <td className="p-4 pl-6 font-bold text-slate-700">{detectedMasterSku || sku} (M)</td>
+                                     <td className="p-4 text-slate-500">Βασικό Προϊόν</td>
+                                     <td className="p-4 text-right font-mono font-bold text-slate-600">{masterEstimatedCost.toFixed(2)}€</td>
+                                     <td className="p-4 text-right font-mono font-bold text-slate-800">{sellingPrice.toFixed(2)}€</td>
+                                     <td className="p-4 text-right pr-6 font-bold text-emerald-600">
+                                         {sellingPrice > 0 ? (((sellingPrice - masterEstimatedCost) / sellingPrice) * 100).toFixed(0) : 0}%
+                                     </td>
+                                 </tr>
+                                 {/* Variant Rows */}
+                                 {variants.map((v, idx) => {
+                                     const vCost = v.active_price || 0;
+                                     const vPrice = v.selling_price || 0;
+                                     const margin = vPrice > 0 ? ((vPrice - vCost) / vPrice * 100) : 0;
+                                     return (
+                                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                             <td className="p-4 pl-6 font-bold text-indigo-700">{(detectedMasterSku || sku) + v.suffix}</td>
+                                             <td className="p-4 text-slate-600">{v.description}</td>
+                                             <td className="p-4 text-right font-mono text-slate-600">{vCost.toFixed(2)}€</td>
+                                             <td className="p-4 text-right font-mono font-bold text-slate-800">{vPrice.toFixed(2)}€</td>
+                                             <td className={`p-4 text-right pr-6 font-bold ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{margin.toFixed(0)}%</td>
+                                         </tr>
+                                     );
+                                 })}
+                             </tbody>
+                         </table>
                      </div>
                  </div>
              </div>

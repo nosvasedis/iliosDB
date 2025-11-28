@@ -482,7 +482,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
              {viewMode === 'registry' && (
                 <div className="w-full mt-6 space-y-4">
                     <div className={`p-4 rounded-xl border text-center transition-colors ${isVariantView ? 'bg-white border-indigo-200' : 'bg-slate-100 border-slate-200'}`}>
-                        <span className={`text-xs font-bold uppercase ${isVariantView ? 'text-indigo-400' : 'text-slate-500'}`}>Κόστος {isVariantView ? '(Override)' : '(Master)'}</span>
+                        <span className={`text-xs font-bold uppercase ${isVariantView ? 'text-indigo-400' : 'text-slate-500'}`}>Κόστος</span>
                         <p className={`text-2xl font-black mt-1 ${isVariantView ? 'text-indigo-700' : 'text-slate-800'}`}>
                             {displayedCost.toFixed(2)}€
                         </p>
@@ -490,7 +490,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     
                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
                         <div className="text-center relative">
-                            <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική {isVariantView ? '(Override)' : '(Master)'}</span>
+                            <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική</span>
                             <div className="flex items-center justify-center gap-2 mt-1">
                                 <p className="text-2xl font-black text-amber-600">{displayedPrice > 0 ? displayedPrice.toFixed(2) + '€' : '-'}</p>
                                 <button onClick={() => { setShowRepriceTool(!showRepriceTool); updateCalculatedPrice(targetMargin); }} className="bg-white p-1 rounded-full text-amber-600 hover:bg-amber-100 shadow-sm border border-amber-200"><Calculator size={14}/></button>
