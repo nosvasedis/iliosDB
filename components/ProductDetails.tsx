@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -105,6 +105,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // VIEW INDEX for Left Sidebar (0 = Master, 1...n = Variants)
+  const [viewIndex, setViewIndex] = useState(0);
+
   const [editedProduct, setEditedProduct] = useState<Product>({ 
       ...product,
       variants: product.variants || [],
@@ -126,6 +129,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || []
     });
+    // Reset view to Master when product prop changes
+    setViewIndex(0);
   }, [product]);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -161,6 +166,39 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [newVariantSuffix, newVariantDesc]);
 
+  // --- DERIVED DATA FOR LEFT SIDEBAR ---
+  const variantCount = editedProduct.variants?.length || 0;
+  
+  // Handlers for switching views
+  const nextView = () => setViewIndex(prev => (prev + 1) % (variantCount + 1));
+  const prevView = () => setViewIndex(prev => (prev - 1 + (variantCount + 1)) % (variantCount + 1));
+
+  // Determine displayed Cost & Price based on ViewIndex
+  const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+  const masterCost = currentCostCalc.total;
+  
+  const currentViewVariant = viewIndex > 0 && editedProduct.variants ? editedProduct.variants[viewIndex - 1] : null;
+  
+  let displayedSku = editedProduct.sku;
+  let displayedLabel = 'Βασικό (Master)';
+  let displayedCost = masterCost;
+  let displayedPrice = editedProduct.selling_price;
+  let isVariantView = false;
+
+  if (currentViewVariant) {
+      isVariantView = true;
+      displayedSku = `${editedProduct.sku}-${currentViewVariant.suffix}`;
+      displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
+      
+      if (currentViewVariant.active_price) displayedCost = currentViewVariant.active_price;
+      if (currentViewVariant.selling_price) displayedPrice = currentViewVariant.selling_price;
+  }
+
+  const displayedProfit = displayedPrice - displayedCost;
+  const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
+
+  // --- End Derived Data ---
+
   // --- Smart Plating Logic ---
   const displayPlating = React.useMemo(() => {
       // 1. If no variants, fallback to master Plating
@@ -177,7 +215,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           // Check against known finish codes (P, X, D, H)
           Object.keys(FINISH_CODES).forEach(code => {
               // Only check valid non-empty codes.
-              // Suffix could be "PKR". P is in codes.
               if (code && suffix.includes(code)) {
                   finishes.add(FINISH_CODES[code]);
               }
@@ -188,15 +225,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       return Array.from(finishes).join(', ');
   }, [editedProduct.variants, editedProduct.plating_type]);
 
-  const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-  
-  const lossMultiplier = 1 + (settings.loss_percentage / 100);
-  const silverTotalCost = editedProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
-
-  // Profit & Margin Calc
-  const profit = editedProduct.selling_price - cost.total;
-  const margin = editedProduct.selling_price > 0 ? (profit / editedProduct.selling_price) * 100 : 0;
-
   // Reprice Logic
   const updateCalculatedPrice = (marginPercent: number) => {
        const marginDecimal = marginPercent / 100;
@@ -204,21 +232,33 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            setCalculatedPrice(0);
            return;
        }
-       const price = cost.total / (1 - marginDecimal);
+       // Use currently displayed cost (Master or Variant)
+       const price = displayedCost / (1 - marginDecimal);
        setCalculatedPrice(price);
   };
 
   const applyReprice = async () => {
       if (calculatedPrice <= 0) return;
       
+      const targetName = isVariantView ? `παραλλαγή ${currentViewVariant?.suffix}` : 'βασικό προϊόν';
+
       const confirmed = await confirm({
           title: 'Ενημέρωση Τιμής',
-          message: `Είστε σίγουροι ότι θέλετε να αλλάξετε την τιμή από ${editedProduct.selling_price.toFixed(2)}€ σε ${calculatedPrice.toFixed(2)}€;`,
+          message: `Θέλετε να αλλάξετε την τιμή για ${targetName} από ${displayedPrice.toFixed(2)}€ σε ${calculatedPrice.toFixed(2)}€;`,
           confirmText: 'Εφαρμογή'
       });
 
       if (confirmed) {
-          setEditedProduct(prev => ({...prev, selling_price: parseFloat(calculatedPrice.toFixed(2))}));
+          if (isVariantView && currentViewVariant) {
+              // Update Variant Price
+              const variantsCopy = [...editedProduct.variants];
+              const idx = viewIndex - 1;
+              variantsCopy[idx] = { ...variantsCopy[idx], selling_price: parseFloat(calculatedPrice.toFixed(2)) };
+              setEditedProduct(prev => ({ ...prev, variants: variantsCopy }));
+          } else {
+              // Update Master Price
+              setEditedProduct(prev => ({...prev, selling_price: parseFloat(calculatedPrice.toFixed(2))}));
+          }
           setShowRepriceTool(false);
           showToast('Η νέα τιμή εφαρμόστηκε. Πατήστε Αποθήκευση για οριστικοποίηση.', 'info');
       }
@@ -319,30 +359,42 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
       return;
     }
+
+    // SMART COST ESTIMATION
+    const estimatedCost = estimateVariantCost(editedProduct, analysis.suffix, settings, allMaterials, allProducts);
+
     const newVariant: ProductVariant = {
       suffix: analysis.suffix,
       description: analysis.variantDescription,
       stock_qty: 0,
-      active_price: null,
+      active_price: estimatedCost, // Auto-fill Estimated Cost
       selling_price: null
     };
+    
     setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
     setSmartAddSku('');
+    showToast(`Παραλλαγή ${analysis.suffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
   };
 
   const handleManualAdd = () => {
       if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", 'error'); return; }
-      if (editedProduct.variants.some(v => v.suffix === newVariantSuffix.toUpperCase())) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
+      const upperSuffix = newVariantSuffix.toUpperCase();
+      if (editedProduct.variants.some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
+      
+      // SMART COST ESTIMATION
+      const estimatedCost = estimateVariantCost(editedProduct, upperSuffix, settings, allMaterials, allProducts);
+
       const newVariant: ProductVariant = {
-        suffix: newVariantSuffix.toUpperCase(),
+        suffix: upperSuffix,
         description: newVariantDesc || manualSuffixAnalysis || '',
         stock_qty: 0,
-        active_price: null,
+        active_price: estimatedCost, // Auto-fill Estimated Cost
         selling_price: null
       };
       setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
       setNewVariantSuffix('');
       setNewVariantDesc('');
+      showToast(`Παραλλαγή ${upperSuffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
   };
   
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
@@ -353,6 +405,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const deleteVariant = (index: number) => {
       setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
+      // Adjust view index if we deleted the currently viewed variant
+      if (viewIndex === index + 1) setViewIndex(0);
+      else if (viewIndex > index + 1) setViewIndex(prev => prev - 1);
   };
   
   return (
@@ -373,8 +428,34 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         {/* Body */}
         <main className="flex-1 flex overflow-hidden">
-          <div className="w-1/3 bg-white border-r border-slate-200 p-6 flex flex-col overflow-y-auto">
-             <div className="w-full aspect-square rounded-2xl bg-slate-100 relative group overflow-hidden border border-slate-200 shadow-sm shrink-0">
+          {/* LEFT SIDEBAR: Smart Product Info & Variant Navigator */}
+          <div className={`w-1/3 border-r border-slate-200 p-6 flex flex-col overflow-y-auto transition-colors duration-300 ${isVariantView ? 'bg-indigo-50/30' : 'bg-white'}`}>
+             
+             {/* Dynamic Header with Navigation */}
+             <div className="flex items-center justify-between mb-4">
+                 <div className="min-w-0">
+                     <h3 className={`font-black text-xl truncate ${isVariantView ? 'text-indigo-700' : 'text-slate-800'}`}>
+                         {displayedSku}
+                     </h3>
+                     <div className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                         {isVariantView && <Tag size={12}/>}
+                         {displayedLabel}
+                     </div>
+                 </div>
+                 {variantCount > 0 && (
+                     <div className="flex items-center bg-slate-100 rounded-lg p-1 shrink-0 ml-2">
+                         <button onClick={prevView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
+                             <ChevronLeft size={18} />
+                         </button>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={nextView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
+                             <ChevronRight size={18} />
+                         </button>
+                     </div>
+                 )}
+             </div>
+
+             <div className={`w-full aspect-square rounded-2xl relative group overflow-hidden border shadow-sm shrink-0 transition-all duration-300 ${isVariantView ? 'border-indigo-200 shadow-indigo-100' : 'border-slate-200 bg-slate-100'}`}>
                 {editedProduct.image_url ? (
                     <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover"/>
                 ) : (
@@ -382,36 +463,49 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <ImageIcon size={40} className="text-slate-300"/>
                     </div>
                 )}
-                <label className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-sm">
-                    {isUploadingImage ? <Loader2 className="animate-spin"/> : <Camera/>}
-                    <span className="text-sm font-bold mt-1">Αλλαγή Φωτογραφίας</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate}/>
-                </label>
+                {/* Image Overlay Controls - Only active for Master currently unless we support variant images later */}
+                {!isVariantView && (
+                    <label className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-sm">
+                        {isUploadingImage ? <Loader2 className="animate-spin"/> : <Camera/>}
+                        <span className="text-sm font-bold mt-1">Αλλαγή Φωτογραφίας</span>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate}/>
+                    </label>
+                )}
+                {/* Variant Indication Overlay */}
+                {isVariantView && (
+                    <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm opacity-90">
+                        Variant View
+                    </div>
+                )}
              </div>
+
              {viewMode === 'registry' && (
                 <div className="w-full mt-6 space-y-4">
-                    <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center">
-                        <span className="text-xs font-bold text-slate-500 uppercase">Κόστος (Master)</span>
-                        <p className="text-2xl font-black text-slate-800 mt-1">{cost.total.toFixed(2)}€</p>
+                    <div className={`p-4 rounded-xl border text-center transition-colors ${isVariantView ? 'bg-white border-indigo-200' : 'bg-slate-100 border-slate-200'}`}>
+                        <span className={`text-xs font-bold uppercase ${isVariantView ? 'text-indigo-400' : 'text-slate-500'}`}>Κόστος {isVariantView ? '(Override)' : '(Master)'}</span>
+                        <p className={`text-2xl font-black mt-1 ${isVariantView ? 'text-indigo-700' : 'text-slate-800'}`}>
+                            {displayedCost.toFixed(2)}€
+                        </p>
                     </div>
+                    
                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
                         <div className="text-center relative">
-                            <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική (Master)</span>
+                            <span className="text-xs font-bold text-amber-700 uppercase">Χονδρική {isVariantView ? '(Override)' : '(Master)'}</span>
                             <div className="flex items-center justify-center gap-2 mt-1">
-                                <p className="text-2xl font-black text-amber-600">{editedProduct.selling_price > 0 ? editedProduct.selling_price.toFixed(2) + '€' : '-'}</p>
+                                <p className="text-2xl font-black text-amber-600">{displayedPrice > 0 ? displayedPrice.toFixed(2) + '€' : '-'}</p>
                                 <button onClick={() => { setShowRepriceTool(!showRepriceTool); updateCalculatedPrice(targetMargin); }} className="bg-white p-1 rounded-full text-amber-600 hover:bg-amber-100 shadow-sm border border-amber-200"><Calculator size={14}/></button>
                             </div>
                             
                             {/* PROFIT & MARGIN DISPLAY */}
-                            {editedProduct.selling_price > 0 && (
+                            {displayedPrice > 0 && (
                                 <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-amber-200/50">
                                     <div className="text-center">
                                         <div className="text-[9px] font-bold text-amber-800/60 uppercase">Κερδος</div>
-                                        <div className="text-sm font-bold text-emerald-600">{profit.toFixed(2)}€</div>
+                                        <div className="text-sm font-bold text-emerald-600">{displayedProfit.toFixed(2)}€</div>
                                     </div>
                                     <div className="text-center border-l border-amber-200/50">
                                         <div className="text-[9px] font-bold text-amber-800/60 uppercase">Margin</div>
-                                        <div className="text-sm font-bold text-blue-600">{margin.toFixed(0)}%</div>
+                                        <div className="text-sm font-bold text-blue-600">{displayedMargin.toFixed(0)}%</div>
                                     </div>
                                 </div>
                             )}
@@ -483,7 +577,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <span className="font-bold text-slate-800">Ασήμι 925 (Βάση)</span>
                        </div>
                        <div className="text-right">
-                           <div className="font-mono font-bold">{silverTotalCost.toFixed(2)}€</div>
+                           <div className="font-mono font-bold">{((editedProduct.weight_g * (settings.silver_price_gram * (1 + settings.loss_percentage/100)))).toFixed(2)}€</div>
                            <div className="text-xs text-slate-400">{editedProduct.weight_g}g @ {settings.silver_price_gram}€/g (+{settings.loss_percentage}%)</div>
                        </div>
                    </div>

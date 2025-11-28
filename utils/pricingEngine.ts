@@ -1,3 +1,4 @@
+
 import { Product, GlobalSettings, Material, PlatingType, Gender } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -100,6 +101,41 @@ export const calculateProductCost = (
       }
     }
   };
+};
+
+/**
+ * Estimates the cost of a variant based on the master product and the suffix.
+ * Useful for smart-adding variants (e.g. adding plating cost for 'X').
+ */
+export const estimateVariantCost = (
+    masterProduct: Product, 
+    variantSuffix: string,
+    settings: GlobalSettings,
+    allMaterials: Material[],
+    allProducts: Product[]
+): number => {
+    // 1. Calculate Base Cost first
+    const baseCost = calculateProductCost(masterProduct, settings, allMaterials, allProducts).total;
+    
+    // 2. Analyze Suffix for Plating changes
+    // If suffix contains X (Gold), D (TwoTone), H (Platinum) AND Master is None/Patina (P)
+    // We should add Plating Labor.
+    
+    // Simple heuristic: If suffix has plating code, and master doesn't have plating cost, add it.
+    // Estimated Plating Cost: ~0.80€ per gram + 0.50€ base? Or just a flat rate?
+    // Let's use a weight based heuristic: 0.40€ + (0.30 * weight)
+    
+    const needsPlating = variantSuffix.includes('X') || variantSuffix.includes('D') || variantSuffix.includes('H');
+    const masterHasPlating = masterProduct.labor.plating_cost > 0;
+    
+    let estimatedCost = baseCost;
+
+    if (needsPlating && !masterHasPlating) {
+        const estimatedPlatingLabor = 0.40 + (masterProduct.weight_g * 0.30);
+        estimatedCost += estimatedPlatingLabor;
+    }
+
+    return parseFloat(estimatedCost.toFixed(2));
 };
 
 export const parseSku = (sku: string) => {

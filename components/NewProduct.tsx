@@ -90,6 +90,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           setDetectedMasterSku(sku.trim().toUpperCase());
           setDetectedSuffix('');
           setDetectedVariantDesc('');
+          // Do NOT force reset plating to None here if user manually changed it, 
+          // but usually SKU analysis drives the default.
+          // We will let the user override if they want, but default to detected.
+          if (!plating || plating !== PlatingType.None) setPlating(PlatingType.None);
       }
     } else {
         setDetectedMasterSku(sku.trim().toUpperCase());
@@ -104,6 +108,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
     }
   }, [weight, labor.technician_cost_manual_override]);
+
+  // SMART LOCK: Reset Plating Cost if Plating Type is None
+  useEffect(() => {
+      if (plating === PlatingType.None) {
+          setLabor(prev => ({ ...prev, plating_cost: 0 }));
+      }
+  }, [plating]);
 
   // Cost Calculator Effect
   useEffect(() => {
@@ -681,9 +692,26 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                           </button>
                         </div>
                      </div>
-                     <div className="space-y-1">
+                     <div className="space-y-1 relative">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide pl-1">Επιμετάλλωση €</label>
-                        <input type="number" step="0.01" value={labor.plating_cost} onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-mono"/>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={labor.plating_cost} 
+                            disabled={plating === PlatingType.None}
+                            onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} 
+                            className={`w-full p-3 border rounded-xl font-mono transition-all outline-none 
+                                ${plating === PlatingType.None 
+                                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' 
+                                    : 'bg-white text-slate-900 border-slate-200 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500'
+                                }
+                            `}
+                        />
+                        {plating === PlatingType.None && (
+                            <div className="absolute right-3 top-9 text-slate-400" title="Η επιμετάλλωση είναι κλειδωμένη στο 0 για τύπο 'None' (Ασήμι).">
+                                <Lock size={14} />
+                            </div>
+                        )}
                      </div>
                  </div>
              </div>
