@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -66,6 +66,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   
   const [isSTX, setIsSTX] = useState(false);
   const [masterEstimatedCost, setMasterEstimatedCost] = useState(0);
+  const [costBreakdown, setCostBreakdown] = useState<{silver: number, materials: number, labor: number} | null>(null);
 
   // Smart SKU Detection State
   const [detectedMasterSku, setDetectedMasterSku] = useState('');
@@ -164,6 +165,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     };
     const cost = calculateProductCost(tempProduct, settings, materials, products);
     setMasterEstimatedCost(cost.total);
+    setCostBreakdown(cost.breakdown);
   }, [sku, detectedMasterSku, category, gender, weight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,11 +230,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   // --- VARIANT MANAGEMENT ---
   
-  // Auto-analyze suffix for new variant
+  // Auto-analyze suffix for new variant - UPDATED LOGIC
   useEffect(() => {
       if (newVariantSuffix) {
           const desc = analyzeSuffix(newVariantSuffix);
-          if (desc && !newVariantDesc) setNewVariantDesc(desc);
+          // Always update description if analysis finds a match, enabling dynamic updates as user types (e.g., P -> P-Code)
+          if (desc) setNewVariantDesc(desc);
       }
   }, [newVariantSuffix]);
 
@@ -712,7 +715,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                  <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">5. Σύνοψη & Τιμολόγηση</h3>
                  
-                 {/* HERO CARD - Shows the "Prevalent" Variant as the Face of the product */}
+                 {/* HERO CARD */}
                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row gap-6 relative overflow-hidden">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
                      
@@ -732,13 +735,32 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                          </div>
                      </div>
 
-                     <div className="relative z-10 bg-white/10 p-4 rounded-xl border border-white/10 backdrop-blur-sm min-w-[180px]">
+                     <div className="relative z-10 bg-white/10 p-4 rounded-xl border border-white/10 backdrop-blur-sm min-w-[200px]">
                          <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Χονδρικη Τιμη</div>
                          <div className="text-3xl font-black text-emerald-400">{hero.price.toFixed(2)}€</div>
-                         <div className="text-xs text-slate-400 mt-1 flex justify-between">
-                             <span>Κόστος:</span>
-                             <span className="font-mono text-white">{hero.cost.toFixed(2)}€</span>
+                         <div className="text-xs text-slate-400 mt-2 flex justify-between items-center border-b border-white/10 pb-1 mb-1">
+                             <span>Συνολικό Κόστος:</span>
+                             <span className="font-mono text-white font-bold">{hero.cost.toFixed(2)}€</span>
                          </div>
+                         
+                         {/* COST BREAKDOWN VISUALIZATION */}
+                         {costBreakdown && (
+                             <div className="space-y-1 mt-2">
+                                 <div className="flex justify-between text-[10px] text-slate-400">
+                                     <span className="flex items-center gap-1"><Coins size={10}/> Ασήμι</span>
+                                     <span>{costBreakdown.silver.toFixed(2)}€</span>
+                                 </div>
+                                 <div className="flex justify-between text-[10px] text-slate-400">
+                                     <span className="flex items-center gap-1"><Hammer size={10}/> Εργατικά</span>
+                                     {/* Hero cost minus materials/silver to deduce specific labor/plating for this variant */}
+                                     <span>{(hero.cost - costBreakdown.silver - costBreakdown.materials).toFixed(2)}€</span>
+                                 </div>
+                                 <div className={`flex justify-between text-[10px] font-bold ${costBreakdown.materials > 0 ? 'text-amber-300' : 'text-slate-500'}`}>
+                                     <span className="flex items-center gap-1"><Box size={10}/> Υλικά</span>
+                                     <span>{costBreakdown.materials.toFixed(2)}€</span>
+                                 </div>
+                             </div>
+                         )}
                      </div>
                  </div>
 
