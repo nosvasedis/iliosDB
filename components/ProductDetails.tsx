@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
@@ -105,9 +105,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [isDeleting, setIsDeleting] = useState(false);
   
   // VIEW INDEX for Left Sidebar
-  // Logic: 
-  // If variants exist, we iterate through them (0...n-1). 
-  // If no variants, we show the Master (0).
   const [viewIndex, setViewIndex] = useState(0);
 
   const [editedProduct, setEditedProduct] = useState<Product>({ 
@@ -157,7 +154,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   // Smart Suffix Analysis for Manual Add
   useEffect(() => {
     if (newVariantSuffix) {
-        const desc = analyzeSuffix(newVariantSuffix);
+        const desc = analyzeSuffix(newVariantSuffix, editedProduct.gender); // Use product gender
         setManualSuffixAnalysis(desc);
         if (desc && !newVariantDesc) {
             setNewVariantDesc(desc);
@@ -165,7 +162,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     } else {
         setManualSuffixAnalysis(null);
     }
-  }, [newVariantSuffix, newVariantDesc]);
+  }, [newVariantSuffix, newVariantDesc, editedProduct.gender]);
 
   // --- DERIVED DATA FOR LEFT SIDEBAR ---
   const variants = editedProduct.variants || [];
@@ -216,31 +213,33 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   // --- End Derived Data ---
 
-  // --- Smart Plating Logic ---
-  const displayPlating = React.useMemo(() => {
-      // 1. If no variants, fallback to master Plating
+  // --- Smart Plating & Stones Logic ---
+  const { displayPlating, displayStones } = React.useMemo(() => {
+      // 1. If no variants, fallback to master Plating and empty stones (or check recipe)
       if (!editedProduct.variants || editedProduct.variants.length === 0) {
-          return editedProduct.plating_type;
+          return { displayPlating: editedProduct.plating_type, displayStones: '' };
       }
 
-      // 2. Collect unique finishes from variants
+      // 2. Collect unique finishes and stones using the smart parser
       const finishes = new Set<string>();
+      const stones = new Set<string>();
       
-      // Analyze suffix of each variant
       editedProduct.variants.forEach(v => {
-          const suffix = v.suffix;
-          // Check against known finish codes (P, X, D, H)
-          Object.keys(FINISH_CODES).forEach(code => {
-              // Only check valid non-empty codes.
-              if (code && suffix.includes(code)) {
-                  finishes.add(FINISH_CODES[code]);
-              }
-          });
+          // Parse each variant suffix
+          const { finish, stone } = getVariantComponents(v.suffix, editedProduct.gender);
+          
+          if (finish.name) finishes.add(finish.name);
+          if (stone.name) stones.add(stone.name);
       });
 
-      if (finishes.size === 0) return editedProduct.plating_type;
-      return Array.from(finishes).join(', ');
-  }, [editedProduct.variants, editedProduct.plating_type]);
+      // Default finish fallback if none detected (e.g. Master plating)
+      if (finishes.size === 0) finishes.add(editedProduct.plating_type);
+
+      return {
+          displayPlating: Array.from(finishes).join(', '),
+          displayStones: Array.from(stones).join(', ')
+      };
+  }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
 
   // Reprice Logic
   const updateCalculatedPrice = (marginPercent: number) => {
@@ -370,7 +369,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
 
   const handleSmartAdd = () => {
-    const analysis = analyzeSku(smartAddSku);
+    const analysis = analyzeSku(smartAddSku, editedProduct.gender); // Pass gender
     if (!analysis.isVariant || analysis.masterSku !== editedProduct.sku) {
       showToast('Μη έγκυρος κωδικός παραλλαγής για αυτό το προϊόν.', 'error');
       return;
@@ -589,8 +588,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         <InfoCard label="Φύλο" value={editedProduct.gender} />
+                        
                         {/* Enhanced Plating Display */}
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
+                        
+                        {/* New Stones Display - Only if stones exist */}
+                        {displayStones && (
+                            <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2"><Gem size={14}/> Πέτρες</label>
+                                <div className="mt-1 font-bold text-slate-800 text-lg leading-snug">
+                                    {displayStones}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

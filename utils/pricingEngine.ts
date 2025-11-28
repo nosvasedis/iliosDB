@@ -336,11 +336,10 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
 };
 
 /**
- * NEW: Intelligent Suffix-only Analyzer
- * Parses a suffix string (e.g. "PKR") and returns its description.
- * Accepts `gender` to resolve conflicts (e.g. PAX: Women=Green Agate, Men=Patina+Green Agate)
+ * PARSES a suffix string (e.g. "PKR") and returns its isolated components.
+ * This is crucial for separating Metal Finish from Stone Description.
  */
-export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
+export const getVariantComponents = (suffix: string, gender?: Gender) => {
     // 1. Select Dictionary based on Gender
     let relevantStones = {};
     if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
@@ -372,18 +371,41 @@ export const analyzeSuffix = (suffix: string, gender?: Gender): string | null =>
         }
     }
     
-    // If the entire suffix was consumed, we have a valid analysis
-    if (remainder === '' && (detectedStoneCode || detectedFinishCode)) {
-        const finishDesc = FINISH_CODES[detectedFinishCode] || '';
-        const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
-        
-        let fullDesc = '';
-        if (finishDesc && stoneDesc) fullDesc = `${finishDesc} - ${stoneDesc}`;
-        else if (finishDesc) fullDesc = finishDesc;
-        else if (stoneDesc) fullDesc = stoneDesc;
-
-        return fullDesc;
-    }
+    // If we have some remainder left that is NOT empty, it implies the suffix 
+    // wasn't fully parsed, but we return what we found.
     
-    return null;
+    const finishDesc = FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] /* Lustre */;
+    const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
+
+    return {
+        finish: {
+            code: detectedFinishCode,
+            name: finishDesc
+        },
+        stone: {
+            code: detectedStoneCode,
+            name: stoneDesc
+        }
+    };
+};
+
+/**
+ * Returns the full description string for a suffix.
+ */
+export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    
+    // If nothing detected and suffix is not empty, it might be an unknown code
+    if (!finish.code && !stone.code && suffix) return null;
+
+    let fullDesc = '';
+    
+    // Only show finish if it's not default Lustre, OR if there's no stone (e.g. 'P' suffix needs 'Πατίνα')
+    const showFinish = finish.code !== '' || !stone.code;
+    
+    if (showFinish && stone.name) fullDesc = `${finish.name} - ${stone.name}`;
+    else if (showFinish) fullDesc = finish.name;
+    else if (stone.name) fullDesc = stone.name;
+
+    return fullDesc || null;
 };
