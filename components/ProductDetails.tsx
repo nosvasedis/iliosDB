@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
@@ -442,7 +443,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setViewIndex(0); // Reset to first/prevalent
   };
   
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[100] animate-in fade-in duration-200" onClick={onClose} />
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-5xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
@@ -785,7 +786,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
       </div>
       {showPrintModal && <PrintModal product={editedProduct} onClose={() => setShowPrintModal(false)} onPrint={setPrintItems} />}
-    </>
+    </>,
+    document.body
   );
 }
 
