@@ -890,8 +890,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
 
                     <div className="space-y-3">
-                        {/* Master Barcode Row */}
-                        <BarcodeRow product={editedProduct} onPrint={handleQuickPrint} />
+                        {/* Master Barcode Row - Show ONLY if no variants exist */}
+                        {editedProduct.variants.length === 0 && (
+                            <BarcodeRow product={editedProduct} onPrint={handleQuickPrint} />
+                        )}
                         
                         {/* Variant Rows */}
                         {editedProduct.variants.map((v, i) => (
