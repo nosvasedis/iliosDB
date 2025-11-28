@@ -330,9 +330,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   // --------------------------
 
   const handleSubmit = async () => {
-    if (!sku) { showToast("Το SKU είναι υποχρεωτικό", "error"); return; }
-    if (!category) { showToast("Η Κατηγορία είναι υποχρεωτική", "error"); return; }
-    if (!gender) { showToast("Το Φύλο είναι υποχρεωτικό", "error"); return; }
+    if (!sku) { showToast("Το SKU είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
+    if (!category) { showToast("Η Κατηγορία είναι υποχρεωτική", "error"); setCurrentStep(1); return; }
+    if (!gender) { showToast("Το Φύλο είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
+    if (!weight || weight <= 0) { showToast("Το Βάρος (g) είναι υποχρεωτικό.", "error"); setCurrentStep(3); return; }
 
     setIsUploading(true);
     let finalImageUrl: string | null = null; 
@@ -603,7 +604,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                  <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Κόστος & Εργατικά</h3>
                  <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between">
-                    <label className="text-sm font-bold text-amber-800 uppercase tracking-wide">Βάρος Ασημιού (g)</label>
+                    <label className="text-sm font-bold text-amber-800 uppercase tracking-wide">Βάρος Ασημιού (g) *</label>
                     <div className="relative w-40">
                         <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-amber-200 rounded-xl bg-white text-3xl font-mono font-bold text-center outline-none"/>
                     </div>
