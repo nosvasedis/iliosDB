@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
@@ -151,6 +150,46 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }));
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
+
+  // Dynamic Cost Recalculation Effect
+  useEffect(() => {
+      setEditedProduct(prev => {
+          if (!prev.variants || prev.variants.length === 0) return prev;
+
+          let hasChanges = false;
+          const updatedVariants = prev.variants.map(v => {
+              // Recalculate based on current editedProduct state (which holds latest labor/weight)
+              const estimated = estimateVariantCost(
+                  editedProduct, 
+                  v.suffix,
+                  settings,
+                  allMaterials,
+                  allProducts,
+                  editedProduct.labor.plating_cost
+              );
+              
+              if (Math.abs((v.active_price || 0) - estimated) > 0.005) {
+                  hasChanges = true;
+                  return { ...v, active_price: estimated };
+              }
+              return v;
+          });
+
+          if (hasChanges) {
+              return { ...prev, variants: updatedVariants };
+          }
+          return prev;
+      });
+  }, [
+      editedProduct.weight_g,
+      editedProduct.labor.casting_cost,
+      editedProduct.labor.setter_cost,
+      editedProduct.labor.technician_cost,
+      editedProduct.labor.plating_cost,
+      editedProduct.plating_type,
+      editedProduct.recipe,
+      editedProduct.variants?.length
+  ]);
 
   // Smart Suffix Analysis for Manual Add
   useEffect(() => {
@@ -445,7 +484,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   return createPortal(
     <>
-      <div className="fixed -inset-10 bg-slate-900/30 backdrop-blur-sm z-[100] animate-in fade-in duration-200" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[100] animate-in fade-in duration-200" onClick={onClose} />
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-5xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         
         {/* Header */}
