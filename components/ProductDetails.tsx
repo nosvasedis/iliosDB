@@ -1,14 +1,15 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
+import JsBarcode from 'jsbarcode';
 
 interface PrintModalProps {
     product: Product;
@@ -91,6 +92,51 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
     );
 };
 
+// Barcode Row Component
+const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant, onPrint: (p: Product, v?: ProductVariant) => void }> = ({ product, variant, onPrint }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const sku = variant ? `${product.sku}${variant.suffix}` : product.sku;
+    
+    useEffect(() => {
+        if (canvasRef.current) {
+            try {
+                JsBarcode(canvasRef.current, sku, {
+                    format: 'CODE128',
+                    width: 1.5,
+                    height: 40,
+                    displayValue: true,
+                    fontSize: 14,
+                    fontOptions: "bold",
+                    margin: 0,
+                    background: 'transparent'
+                });
+            } catch(e) {}
+        }
+    }, [sku]);
+
+    return (
+        <div className="flex flex-col md:flex-row items-center gap-6 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all">
+            <div className="flex-1">
+                <div className="font-black text-lg text-slate-800 tracking-tight">{sku}</div>
+                <div className="text-xs text-slate-500 font-medium mt-1">
+                    {variant ? variant.description : 'Βασικό Προϊόν (Master)'}
+                </div>
+            </div>
+            
+            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-center min-w-[200px]">
+                <canvas ref={canvasRef} className="max-w-full h-auto" />
+            </div>
+
+            <button 
+                onClick={() => onPrint(product, variant)}
+                className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 hover:shadow-lg transition-all flex items-center gap-2 text-sm font-bold active:scale-95"
+            >
+                <Printer size={16} /> Εκτύπωση
+            </button>
+        </div>
+    );
+};
+
 interface Props {
   product: Product;
   allProducts: Product[];
@@ -107,7 +153,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -488,6 +534,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       // Adjust view index
       setViewIndex(0); // Reset to first/prevalent
   };
+
+  const handleQuickPrint = (prod: Product, variant?: ProductVariant) => {
+      setPrintItems([{ product: prod, variant, quantity: 1 }]);
+      showToast('Εστάλη για εκτύπωση (1 τεμ).', 'success');
+  };
   
   return createPortal(
     <>
@@ -610,11 +661,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto">
-            <div className="flex gap-2 border-b border-slate-200 mb-6">
+            <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide">
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
                 {viewMode === 'registry' && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
                 {viewMode === 'registry' && <TabButton name="labor" label="Εργατικά" activeTab={activeTab} setActiveTab={setActiveTab} />}
                 <TabButton name="variants" label="Παραλλαγές & Τιμές" activeTab={activeTab} setActiveTab={setActiveTab} />
+                <TabButton name="barcodes" label="Barcodes" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
             
             {activeTab === 'overview' && (
@@ -826,6 +878,28 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   </div>
               </div>
             )}
+            
+            {activeTab === 'barcodes' && (
+                <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 mb-6">
+                        <ScanBarcode className="text-blue-600 mt-1" size={24} />
+                        <div>
+                            <h4 className="font-bold text-blue-900 text-sm">Διαχείριση Barcode</h4>
+                            <p className="text-xs text-blue-700 mt-1">Εδώ μπορείτε να δείτε και να εκτυπώσετε μεμονωμένα τα barcode για κάθε παραλλαγή.</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {/* Master Barcode Row */}
+                        <BarcodeRow product={editedProduct} onPrint={handleQuickPrint} />
+                        
+                        {/* Variant Rows */}
+                        {editedProduct.variants.map((v, i) => (
+                            <BarcodeRow key={i} product={editedProduct} variant={v} onPrint={handleQuickPrint} />
+                        ))}
+                    </div>
+                </div>
+            )}
 
           </div>
         </main>
@@ -838,7 +912,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 }
 
 const TabButton = ({ name, label, activeTab, setActiveTab }: any) => (
-    <button onClick={() => setActiveTab(name)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors ${activeTab === name ? 'bg-slate-50 border-x border-t border-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
+    <button onClick={() => setActiveTab(name)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === name ? 'bg-slate-50 border-x border-t border-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
         {label}
     </button>
 );

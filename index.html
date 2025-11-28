@@ -19,6 +19,7 @@
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f3f4f6;
+        margin: 0;
       }
       @media print {
         /* Hide the main application container when printing */
@@ -45,7 +46,7 @@
 
         @page {
           size: auto;
-          margin: 0mm; /* This removes default browser headers/footers */
+          margin: 0; /* This removes default browser headers/footers */
         }
 
         body {
@@ -71,7 +72,8 @@
     "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5?external=react,react-dom",
     "appwrite": "https://esm.sh/appwrite@14.0.0",
     "jsbarcode": "https://esm.sh/jsbarcode@3.11.5",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-zxing": "https://esm.sh/react-zxing@2.0.0?external=react"
   }
 }
 </script>

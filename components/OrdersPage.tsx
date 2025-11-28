@@ -1,11 +1,11 @@
 
-
 import React, { useState } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, MaterialType, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import BarcodeScanner from './BarcodeScanner';
 
 interface Props {
   products: Product[];
@@ -19,6 +19,7 @@ export default function OrdersPage({ products }: Props) {
 
   const [isCreating, setIsCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
   
   // New Order Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -68,6 +69,39 @@ export default function OrdersPage({ products }: Props) {
           setSelectedItems([...selectedItems, newItem]);
       }
       setProductSearch('');
+  };
+
+  // --- SCANNER HANDLER ---
+  const handleScanItem = (code: string) => {
+      // Find product
+      // Scanning codes can be "DA1005" (master) or "DA1005X" (variant)
+      // Logic: Find largest matching SKU prefix from code
+      
+      // 1. Try Exact Product Match (e.g. Master SKU scanned directly)
+      let product = products.find(p => p.sku === code);
+      let variant = undefined;
+
+      if (!product) {
+          // 2. Try Partial Match (Variant scanned)
+          // Find product where SKU is a prefix of the code
+          product = products.find(p => code.startsWith(p.sku));
+          
+          if (product) {
+              const suffix = code.replace(product.sku, '');
+              variant = product.variants?.find(v => v.suffix === suffix);
+              
+              // If variant suffix in code doesn't match a real variant, warn user?
+              // Or if master has only 1 variant and scanned master code?
+          }
+      }
+
+      if (!product) {
+          showToast(`Ο κωδικός ${code} δεν βρέθηκε`, 'error');
+          return;
+      }
+
+      handleAddItem(product, variant);
+      showToast(`Προστέθηκε: ${product.sku}${variant ? variant.suffix : ''}`, 'success');
   };
 
   const updateQuantity = (index: number, qty: number) => {
@@ -246,7 +280,12 @@ export default function OrdersPage({ products }: Props) {
                   </div>
 
                   <div className="lg:col-span-2 flex flex-col h-full">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Προϊόντα</label>
+                      <div className="flex justify-between items-center mb-2">
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Προϊόντα</label>
+                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200 shadow-sm">
+                              <Camera size={14}/> Scan
+                          </button>
+                      </div>
                       <div className="relative mb-4 z-20">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                           <input 
@@ -372,6 +411,15 @@ export default function OrdersPage({ products }: Props) {
                   </table>
               </div>
           </div>
+      )}
+
+      {/* Reusable Scanner Modal */}
+      {showScanner && (
+          <BarcodeScanner 
+            onScan={handleScanItem}
+            onClose={() => setShowScanner(false)}
+            continuous={true} // Allow multiple scans in quick succession
+          />
       )}
     </div>
   );

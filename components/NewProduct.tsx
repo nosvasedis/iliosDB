@@ -233,7 +233,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const filteredMolds = useMemo(() => {
       return molds
         .filter(m => m.code.includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase()))
-        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })); // Natural numeric sort (L2 < L10)
   }, [molds, moldSearch]);
 
   // --- VARIANT MANAGEMENT ---

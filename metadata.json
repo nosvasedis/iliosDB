@@ -1,5 +1,7 @@
 {
   "name": "ILIOS KOSMIMA ERP",
   "description": "A comprehensive Jewelry Manufacturing ERP designed for silver production management. Features dynamic pricing engines, SKU auto-classification, inventory management, and barcode generation, localized in Greek.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

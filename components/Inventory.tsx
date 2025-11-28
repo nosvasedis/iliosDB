@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import BarcodeScanner from './BarcodeScanner';
 
 interface Props {
   products: Product[];
@@ -35,6 +36,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
+  const [showScanner, setShowScanner] = useState(false);
   
   // Data Fetching
   const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
@@ -398,7 +400,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                    newQty = currentStock + scanQty;
                    await supabase.from('product_stock').upsert({ 
                       product_sku: product.sku, 
-                      variant_suffix: variant.suffix,
+                      variant_suffix: variant.suffix, 
                       warehouse_id: scanTargetId, 
                       quantity: newQty 
                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
@@ -435,6 +437,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       } catch (err) {
           console.error(err);
           showToast("Σφάλμα ενημέρωσης.", "error");
+      }
+  };
+
+  const handleGlobalScan = (code: string) => {
+      const product = products.find(p => code.startsWith(p.sku));
+      if (product) {
+          setSelectedProduct(product);
+          // Optional: You could scroll to it or highlight it in the list
+      } else {
+          showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
       }
   };
 
@@ -624,16 +636,25 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                      </select>
                  </div>
                  
-                 {/* Search Filter */}
-                 <div className="relative flex-1">
-                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                     <input 
-                       type="text" 
-                       placeholder="Φίλτρο λίστας (Κωδικός, Κατηγορία)..." 
-                       value={searchTerm}
-                       onChange={(e) => setSearchTerm(e.target.value)}
-                       className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
-                     />
+                 {/* Search Filter with Scanner */}
+                 <div className="relative flex-1 flex gap-2">
+                     <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input 
+                        type="text" 
+                        placeholder="Φίλτρο λίστας (Κωδικός, Κατηγορία)..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 outline-none w-full bg-white transition-all text-slate-900 shadow-sm"
+                        />
+                     </div>
+                     <button 
+                        onClick={() => setShowScanner(true)}
+                        className="bg-white p-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm flex items-center gap-2 font-bold"
+                        title="Σάρωση Barcode"
+                     >
+                         <Camera size={20} /> Scan
+                     </button>
                  </div>
               </div>
 
@@ -834,6 +855,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           collections={collections}
           viewMode="warehouse" // Hides Definitions/Costing
         />
+      )}
+
+      {showScanner && (
+          <BarcodeScanner 
+            onScan={handleGlobalScan} 
+            onClose={() => setShowScanner(false)} 
+          />
       )}
     </div>
   );

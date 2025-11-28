@@ -283,7 +283,7 @@ export default function AiStudio() {
         if (!products) return [];
         return products
             .filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.includes(searchTerm))
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })); // Natural Sort
     }, [products, searchTerm]);
 
     // Helper for placeholder text
