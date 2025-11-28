@@ -605,27 +605,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             )}
             {activeTab === 'variants' && (
               <div className="space-y-6">
-                  {/* Quick Add Area */}
+                  {/* Quick Add Area - Using Grid to fix overflow */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-indigo-500"/> Έξυπνη Προσθήκη</h4>
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-[1fr_auto] gap-2 w-full">
                                 <input 
                                     type="text" 
                                     placeholder={`π.χ. ${editedProduct.sku}P`}
                                     value={smartAddSku} 
                                     onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
-                                    className="flex-1 p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"
+                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0"
                                 />
-                                <button onClick={handleSmartAdd} className="bg-indigo-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-indigo-600 transition-colors">Προσθήκη</button>
+                                <button onClick={handleSmartAdd} className="bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-600 transition-colors whitespace-nowrap">Προσθήκη</button>
                             </div>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
-                            <div className="flex gap-2">
-                                <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-20 p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
-                                <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm"/>
-                                <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"><Plus size={16}/></button>
+                            <div className="grid grid-cols-[80px_1fr_auto] gap-2 w-full">
+                                <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0"/>
+                                <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0"/>
+                                <button onClick={handleManualAdd} className="bg-slate-800 text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors flex items-center justify-center"><Plus size={16}/></button>
                             </div>
                             {manualSuffixAnalysis && (
                                 <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">

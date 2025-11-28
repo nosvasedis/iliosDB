@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost } from '../utils/pricingEngine';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost } from '../utils/pricingEngine';
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -109,12 +108,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, labor.technician_cost_manual_override]);
 
-  // SMART LOCK: Reset Plating Cost if Plating Type is None
+  // SMART PLATING COST: Reset if None, Calculate if Plating, but allow manual override implicitly
   useEffect(() => {
-      if (plating === PlatingType.None) {
-          setLabor(prev => ({ ...prev, plating_cost: 0 }));
-      }
-  }, [plating]);
+      // Calculate suggested cost based on formula
+      const suggestedCost = calculatePlatingCost(weight, plating);
+      setLabor(prev => ({ ...prev, plating_cost: suggestedCost }));
+  }, [plating, weight]);
 
   // Cost Calculator Effect
   useEffect(() => {
@@ -698,17 +697,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             type="number" 
                             step="0.01" 
                             value={labor.plating_cost} 
-                            disabled={plating === PlatingType.None}
                             onChange={e => setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0})} 
                             className={`w-full p-3 border rounded-xl font-mono transition-all outline-none 
                                 ${plating === PlatingType.None 
-                                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' 
+                                    ? 'bg-slate-100 text-slate-600 border-slate-200' 
                                     : 'bg-white text-slate-900 border-slate-200 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500'
                                 }
                             `}
                         />
                         {plating === PlatingType.None && (
-                            <div className="absolute right-3 top-9 text-slate-400" title="Η επιμετάλλωση είναι κλειδωμένη στο 0 για τύπο 'None' (Ασήμι).">
+                            <div className="absolute right-3 top-9 text-slate-400" title="Τύπος: None (Ασήμι/Πατίνα)">
                                 <Lock size={14} />
                             </div>
                         )}

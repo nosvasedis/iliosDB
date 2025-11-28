@@ -17,6 +17,21 @@ export const calculateTechnicianCost = (weight_g: number): number => {
   return parseFloat(cost.toFixed(2));
 };
 
+/**
+ * Calculates Plating/Epimetallosi Cost based on real-world logic.
+ * Formula: Base Fee (0.50€) + (Weight * 0.75€)
+ * Returns 0 if PlatingType is None.
+ */
+export const calculatePlatingCost = (weight_g: number, type: PlatingType): number => {
+    if (type === PlatingType.None) return 0;
+    
+    const baseFee = 0.50;
+    const costPerGram = 0.75;
+    
+    const total = baseFee + (weight_g * costPerGram);
+    return parseFloat(total.toFixed(2));
+};
+
 export const calculateProductCost = (
   product: Product,
   settings: GlobalSettings,
@@ -121,17 +136,14 @@ export const estimateVariantCost = (
     // If suffix contains X (Gold), D (TwoTone), H (Platinum) AND Master is None/Patina (P)
     // We should add Plating Labor.
     
-    // Simple heuristic: If suffix has plating code, and master doesn't have plating cost, add it.
-    // Estimated Plating Cost: ~0.80€ per gram + 0.50€ base? Or just a flat rate?
-    // Let's use a weight based heuristic: 0.40€ + (0.30 * weight)
-    
     const needsPlating = variantSuffix.includes('X') || variantSuffix.includes('D') || variantSuffix.includes('H');
     const masterHasPlating = masterProduct.labor.plating_cost > 0;
     
     let estimatedCost = baseCost;
 
     if (needsPlating && !masterHasPlating) {
-        const estimatedPlatingLabor = 0.40 + (masterProduct.weight_g * 0.30);
+        // Use standard formula assuming Gold Plated as generic type for calculation
+        const estimatedPlatingLabor = calculatePlatingCost(masterProduct.weight_g, PlatingType.GoldPlated);
         estimatedCost += estimatedPlatingLabor;
     }
 
