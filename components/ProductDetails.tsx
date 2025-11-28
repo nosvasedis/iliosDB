@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
@@ -160,17 +161,31 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [newVariantSuffix, newVariantDesc]);
 
-  // Smart Plating Logic
+  // --- Smart Plating Logic ---
   const displayPlating = React.useMemo(() => {
-      // If ONLY ONE variant exists, use its suffix to determine visual plating type text
-      if (editedProduct.variants && editedProduct.variants.length === 1) {
-          const suffix = editedProduct.variants[0].suffix;
-          const finishCode = suffix.replace(/[^A-Z]/g, '').split('').find(char => FINISH_CODES[char]);
-          if (finishCode && FINISH_CODES[finishCode]) {
-              return FINISH_CODES[finishCode];
-          }
+      // 1. If no variants, fallback to master Plating
+      if (!editedProduct.variants || editedProduct.variants.length === 0) {
+          return editedProduct.plating_type;
       }
-      return editedProduct.plating_type;
+
+      // 2. Collect unique finishes from variants
+      const finishes = new Set<string>();
+      
+      // Analyze suffix of each variant
+      editedProduct.variants.forEach(v => {
+          const suffix = v.suffix;
+          // Check against known finish codes (P, X, D, H)
+          Object.keys(FINISH_CODES).forEach(code => {
+              // Only check valid non-empty codes.
+              // Suffix could be "PKR". P is in codes.
+              if (code && suffix.includes(code)) {
+                  finishes.add(FINISH_CODES[code]);
+              }
+          });
+      });
+
+      if (finishes.size === 0) return editedProduct.plating_type;
+      return Array.from(finishes).join(', ');
   }, [editedProduct.variants, editedProduct.plating_type]);
 
   const cost = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
@@ -454,6 +469,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         <InfoCard label="Φύλο" value={editedProduct.gender} />
+                        {/* Enhanced Plating Display */}
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
                     </div>
                 </div>
@@ -533,6 +549,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                               const wholesale = variant.selling_price ?? editedProduct.selling_price;
                               const retail = wholesale * 3;
                               
+                              // Check if price/cost is overridden to apply styling
+                              const hasPriceOverride = variant.selling_price !== null;
+                              const hasCostOverride = variant.active_price !== null;
+
                               return (
                               <div key={index} className="flex flex-col md:flex-row md:items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all">
                                 <div className="flex items-center gap-3 w-full md:w-auto">
@@ -547,8 +567,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 </div>
                                 
                                 <div className="flex items-center gap-2 flex-1 w-full border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-                                     {/* Override Price Inputs */}
-                                     <div className="flex flex-col w-1/2 md:w-auto relative">
+                                     {/* Override Price Inputs - Clean, Intuitive Styling */}
+                                     <div className="flex flex-col w-1/2 md:w-auto relative group/cost">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
                                         <input 
                                             type="number"
@@ -556,10 +576,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             placeholder={editedProduct.active_price.toFixed(2)}
                                             value={variant.active_price === null ? '' : variant.active_price}
                                             onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none ${variant.active_price !== null ? 'border-amber-400 bg-amber-50 text-amber-900' : 'border-slate-200 text-slate-500'}`}
+                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
+                                                ${hasCostOverride 
+                                                    ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
+                                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-indigo-500'}
+                                            `}
                                         />
                                      </div>
-                                     <div className="flex flex-col w-1/2 md:w-auto relative">
+                                     <div className="flex flex-col w-1/2 md:w-auto relative group/price">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
                                         <input 
                                             type="number"
@@ -567,9 +591,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             placeholder={editedProduct.selling_price.toFixed(2)}
                                             value={variant.selling_price === null ? '' : variant.selling_price}
                                             onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none ${variant.selling_price !== null ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-500'}`}
+                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
+                                                ${hasPriceOverride 
+                                                    ? 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100' 
+                                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-indigo-500'}
+                                            `}
                                         />
-                                        <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap">
+                                        <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">
                                             Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
                                         </div>
                                      </div>

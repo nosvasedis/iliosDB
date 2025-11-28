@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,148 +20,158 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Unisex', value: Gender.Unisex, icon: <UsersIcon size={16} /> },
 ];
 
-interface ProductCardProps {
+// --- Sub-Component: Product Card with Smart Variant Switching ---
+const ProductCard: React.FC<{
     product: Product;
     onClick: () => void;
     settings: GlobalSettings;
     materials: Material[];
     allProducts: Product[];
-}
+}> = ({ product, onClick, settings, materials, allProducts }) => {
+    const [viewIndex, setViewIndex] = useState(0); // 0 = Master, 1..n = Variants
 
-// --- Sub-Component: Product Card with Variant Switching Logic ---
-const ProductCard: React.FC<ProductCardProps> = ({ 
-    product, 
-    onClick, 
-    settings, 
-    materials, 
-    allProducts 
-}) => {
-    const [viewIndex, setViewIndex] = useState(0); // 0 = Master, 1+ = Variants
-
-    // Flatten logic: [Master, ...Variants]
     const variants = product.variants || [];
     const hasVariants = variants.length > 0;
-    
-    // Calculate Master Cost (Base for everything unless we do deep variant costing)
-    const cost = calculateProductCost(product, settings, materials, allProducts);
-    const masterCostVal = cost.total;
+    const variantCount = variants.length;
 
-    // Determine current view data
+    // Determine what to display based on viewIndex
     const isMasterView = viewIndex === 0;
     const currentVariant = !isMasterView ? variants[viewIndex - 1] : null;
 
-    // Resolve Price: Variant override -> Master price
-    const currentPrice = currentVariant 
-        ? (currentVariant.selling_price ?? product.selling_price) 
-        : product.selling_price;
+    // --- Costing Logic ---
+    const masterCostCalc = calculateProductCost(product, settings, materials, allProducts);
+    const masterCost = masterCostCalc.total;
 
-    const currentCost = currentVariant 
-        ? (currentVariant.active_price ?? masterCostVal) 
-        : masterCostVal;
+    // Resolve Price & Cost
+    // If Variant has override, use it. Else fall back to Master.
+    let displayPrice = product.selling_price;
+    let displayCost = masterCost;
+    
+    // Resolve Identity
+    let displaySku = product.sku;
+    let displayLabel = 'Βασικό';
+    
+    if (currentVariant) {
+        displaySku = `${product.sku}-${currentVariant.suffix}`;
+        displayLabel = currentVariant.description || currentVariant.suffix;
+        
+        if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
+        if (currentVariant.active_price) displayCost = currentVariant.active_price;
+    }
 
-    const profit = currentPrice - currentCost;
-    const margin = currentPrice > 0 ? (profit / currentPrice) * 100 : 0;
+    const profit = displayPrice - displayCost;
+    const margin = displayPrice > 0 ? (profit / displayPrice) * 100 : 0;
 
-    const handleNext = (e: React.MouseEvent) => {
+    // Navigation Handlers
+    const nextView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setViewIndex((prev) => (prev + 1) % (variants.length + 1));
+        setViewIndex(prev => (prev + 1) % (variantCount + 1));
     };
 
-    const handlePrev = (e: React.MouseEvent) => {
+    const prevView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setViewIndex((prev) => (prev - 1 + (variants.length + 1)) % (variants.length + 1));
+        setViewIndex(prev => (prev - 1 + (variantCount + 1)) % (variantCount + 1));
     };
-
-    const label = isMasterView ? 'ΒΑΣΙΚΟ' : (currentVariant?.suffix || 'VAR');
-    const description = isMasterView ? '' : currentVariant?.description;
 
     return (
         <div 
             onClick={onClick}
-            className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1.5 flex flex-col relative"
+            className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative"
         >
-            {/* Variant Indicator Badge */}
+            {/* Top Badge: Variant Counter */}
             {hasVariants && (
-                <div className="absolute top-3 left-3 z-10 bg-slate-900/80 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm border border-white/10">
-                    <Layers size={10} />
-                    {variants.length} {variants.length === 1 ? 'Παραλλαγή' : 'Παραλλαγές'}
+                <div className="absolute top-3 left-3 z-10 bg-slate-900/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
+                    <Layers size={10} className="text-amber-400" />
+                    <span>{variantCount}</span>
                 </div>
             )}
 
-            <div className="aspect-square relative overflow-hidden bg-slate-50">
+            {/* Top Right: Category */}
+            <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100">
+                {product.category}
+            </div>
+
+            {/* Image Area */}
+            <div className="aspect-square bg-slate-50 relative overflow-hidden">
                 {product.image_url ? (
-                    <img src={product.image_url} alt={product.sku} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                    <img 
+                        src={product.image_url} 
+                        alt={product.sku} 
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out" 
+                    />
                 ) : (
-                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                        <ImageIcon size={40} className="text-slate-300" />
+                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <ImageIcon size={40} />
                     </div>
                 )}
-                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm border border-slate-200">
-                    {product.category}
-                </div>
-            </div>
-            
-            <div className="p-5 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">
-                        {product.sku}
-                        {!isMasterView && <span className="text-indigo-500 ml-0.5">{currentVariant?.suffix}</span>}
-                    </h3>
-                </div>
                 
-                <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-4">
-                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
-                        <Weight size={12}/> {product.weight_g}g
+                {/* Variant Overlay (when viewing variant) */}
+                {!isMasterView && (
+                    <div className="absolute inset-0 bg-indigo-900/10 pointer-events-none border-4 border-indigo-500/30" />
+                )}
+            </div>
+
+            {/* Content Area */}
+            <div className="p-5 flex-1 flex flex-col relative">
+                
+                {/* Header Row: SKU & Smart Switcher */}
+                <div className="flex justify-between items-start mb-3">
+                    <div className="min-w-0 pr-2">
+                        <h3 className={`font-black text-lg leading-none truncate ${!isMasterView ? 'text-indigo-700' : 'text-slate-800'}`}>
+                            {displaySku}
+                        </h3>
+                        <div className="text-xs font-bold text-slate-400 mt-1 truncate flex items-center gap-1">
+                            {!isMasterView && <Tag size={10} />} {displayLabel}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
-                        <BookOpen size={12}/> {product.recipe.length + 1} υλικά
+
+                    {/* Smart Arrows */}
+                    {hasVariants && (
+                        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={prevView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
+                                <ChevronLeft size={16} />
+                            </button>
+                            <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
+                            <button onClick={nextView} className="p-1 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-md transition-all text-slate-400">
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Specs Row */}
+                <div className="flex gap-2 mb-4">
+                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
+                        <Weight size={10}/> {product.weight_g}g
+                    </div>
+                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
+                        <BookOpen size={10}/> {product.recipe.length} υλικά
                     </div>
                 </div>
 
-                <div className="mt-auto">
-                    <div className="pt-3 border-t border-slate-100 flex justify-between items-end mb-2">
-                        <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-400">Κοστος</span>
-                            <div className="text-xs font-mono font-bold text-slate-600 flex items-center gap-1">
-                                <Coins size={10} className="text-slate-400"/> {currentCost.toFixed(2)}€
-                            </div>
-                        </div>
-                        
-                        {/* Smart Switcher for Price */}
-                        <div className="text-right flex flex-col items-end">
-                            <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                                {hasVariants && (
-                                    <button onClick={handlePrev} className="hover:bg-slate-100 p-0.5 rounded text-slate-500">
-                                        <ChevronLeft size={10}/>
-                                    </button>
-                                )}
-                                {label}
-                                {hasVariants && (
-                                    <button onClick={handleNext} className="hover:bg-slate-100 p-0.5 rounded text-slate-500">
-                                        <ChevronRight size={10}/>
-                                    </button>
-                                )}
-                            </span>
-                            <div className="text-lg font-black text-indigo-600 leading-none mt-0.5">
-                                {currentPrice > 0 ? currentPrice.toFixed(2) + '€' : '-'}
-                            </div>
-                            {description && (
-                                <span className="text-[9px] text-slate-400 truncate max-w-[80px] block mt-0.5">{description}</span>
-                            )}
+                {/* Price & Stats Footer */}
+                <div className="mt-auto pt-3 border-t border-slate-100 grid grid-cols-2 gap-4 items-end">
+                    
+                    {/* Cost / Price */}
+                    <div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
+                        <div className={`text-xl font-black leading-none ${displayPrice > 0 ? 'text-slate-800' : 'text-slate-300'}`}>
+                            {displayPrice > 0 ? displayPrice.toFixed(2) : '-'}€
                         </div>
                     </div>
-                    
-                    {/* PROFIT & MARGIN INDICATORS */}
-                    {currentPrice > 0 && (
-                        <div className={`flex justify-between items-center text-xs rounded-lg p-2 transition-colors duration-300 ${!isMasterView ? 'bg-indigo-50' : 'bg-slate-50'}`}>
-                            <span className={`font-bold flex items-center gap-1 ${margin < 30 ? "text-red-500" : "text-emerald-600"}`}>
-                                <TrendingUp size={12}/> {margin.toFixed(0)}%
-                            </span>
-                            <span className="font-bold text-slate-500">
-                                Κέρδος: {profit.toFixed(2)}€
-                            </span>
+
+                    {/* Margin / Profit */}
+                    <div className="text-right">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Περιθωριο</div>
+                        <div className={`flex items-center justify-end gap-1 font-bold text-sm ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {displayPrice > 0 ? (
+                                <>
+                                    <TrendingUp size={12} />
+                                    {margin.toFixed(0)}%
+                                </>
+                            ) : '-'}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -289,7 +300,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                   <select 
                      value={filterCategory}
                      onChange={(e) => setFilterCategory(e.target.value)}
-                     className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full bg-white appearance-none cursor-pointer"
+                     className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-full bg-white appearance-none cursor-pointer text-slate-700 font-medium"
                   >
                       <option value="All">Όλες οι Κατηγορίες</option>
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
