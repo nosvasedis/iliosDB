@@ -9,70 +9,56 @@ interface Props {
     variant?: ProductVariant;
     width: number;
     height: number;
+    format?: 'standard' | 'simple'; // New Prop
 }
 
-const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
+const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard' }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     // Construct SKU cleanly
-    // Ensure we handle potential null/undefined gracefully although strict typing helps
     const baseSku = product?.sku || '';
     const suffix = variant?.suffix || '';
     const finalSku = `${baseSku}${suffix}`;
 
     // --- PRICE DISPLAY: WHOLESALE ONLY ---
-    // As per instruction: "The barcode shows the WHOLESALE price."
     const wholesalePrice = product.selling_price;
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
-        // 1. Try to extract from variant description (most reliable if populated correctly)
         if (variant?.description) {
             let desc = variant.description;
-            
-            // Remove known finishes from description to isolate the stone name
-            // Example: "Gold Plated - Onyx" -> "Onyx"
             const finishes = Object.values(FINISH_CODES);
             finishes.forEach(finish => {
                 if (finish) {
-                    // Remove "Finish -", "- Finish", or just "Finish"
                     const regex = new RegExp(`(^|\\s*-\\s*)${finish}(\\s*-\\s*|$)`, 'i');
                     desc = desc.replace(regex, '').trim();
                 }
             });
-            
-            // Cleanup common words
             desc = desc.replace(/Λουστρέ/gi, '').replace(/Πατίνα/gi, '').trim();
-            // Remove leading/trailing hyphens/spaces
             desc = desc.replace(/^-+\s*/, '').replace(/\s*-+$/, '').trim();
-
-            // If anything is left and it's not empty, it's likely the stone/color name
             if (desc && desc.length > 2) return desc; 
         }
-        
-        // 2. Fallback: Analyze suffix against known stone codes
         if (suffix) {
              const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-             // Sort by length desc to match longest code first
              const sortedCodes = Object.keys(allStones).sort((a,b) => b.length - a.length);
-             
              for (const code of sortedCodes) {
                  if (suffix.includes(code)) {
                      return allStones[code];
                  }
              }
         }
-        
         return null;
     }, [variant]);
 
     useEffect(() => {
         if (canvasRef.current && finalSku) {
             try {
+                // Adjust barcode settings based on format
+                const isSimple = format === 'simple';
                 JsBarcode(canvasRef.current, finalSku, {
                     format: 'CODE128',
-                    displayValue: false, // We render SKU manually to control positioning
-                    height: 50, // Base height, CSS will scale it to fit container
+                    displayValue: false, 
+                    height: isSimple ? 60 : 50, // Taller barcode for simple view
                     width: 2, 
                     margin: 0,
                     background: '#ffffff'
@@ -81,30 +67,46 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
                 console.error("JsBarcode error:", e);
             }
         }
-    }, [finalSku]);
+    }, [finalSku, format]);
 
     // --- DYNAMIC SIZING ENGINE ---
-    // Calculate font sizes in 'mm' relative to the label dimensions to ensure perfect fit.
-    
-    // 1. SKU (Top): Priority #1. Must be legible.
     const skuLength = finalSku.length;
-    // Estimate width consumption. Increased divisor from 0.6 to 0.85 to make font smaller for long strings
     const maxSkuWidthFont = width / (Math.max(skuLength, 1) * 0.85); 
     const maxSkuHeightFont = height * 0.18; 
     const skuFontSize = Math.min(maxSkuWidthFont, maxSkuHeightFont);
-
-    // 2. Details (Bottom)
     const detailsFontSize = Math.min(height * 0.11, width * 0.14); 
-
-    // 3. Brand
     const brandFontSize = Math.min(height * 0.14, width * 0.22);
-
-    // 4. Stone
     const stoneFontSize = Math.min(height * 0.09, width * 0.16);
     
-    // Formatted Price - WHOLESALE
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(0)}€` : '';
 
+    // --- RENDER SIMPLE FORMAT ---
+    if (format === 'simple') {
+        return (
+            <div
+                className="bg-white text-black flex flex-col items-center justify-center overflow-hidden relative break-inside-avoid page-break-inside-avoid"
+                style={{
+                    width: `${width}mm`,
+                    height: `${height}mm`,
+                    padding: '2mm', 
+                    fontFamily: `'Inter', sans-serif`,
+                    boxSizing: 'border-box',
+                    border: '1px solid #eee' // Helper border for screen
+                }}
+            >
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
+                    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                </div>
+                <div className="w-full text-center leading-none mt-[1mm]" style={{ flex: '0 0 auto' }}>
+                    <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize * 0.9}mm` }}>
+                        {finalSku}
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    // --- RENDER STANDARD FORMAT ---
     return (
         <div
             className="bg-white text-black flex flex-col items-center justify-between overflow-hidden relative break-inside-avoid page-break-inside-avoid"
@@ -114,7 +116,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
                 padding: '1mm', 
                 fontFamily: `'Inter', sans-serif`,
                 boxSizing: 'border-box',
-                border: '1px solid #eee' // Light border for screen preview, normally hidden by @media print in global styles if set
+                border: '1px solid #eee'
             }}
         >
             {/* ROW 1: SKU */}
@@ -124,9 +126,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
                 </span>
             </div>
 
-            {/* ROW 2: BARCODE (Flexible Height) */}
+            {/* ROW 2: BARCODE */}
             <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
-                {/* The canvas scales to fit the flex container without overflowing */}
                 <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             </div>
 
@@ -142,7 +143,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
                 )}
             </div>
 
-            {/* ROW 4: DETAILS (Price Left | 925 Right - Removed Weight) */}
+            {/* ROW 4: DETAILS */}
             <div 
                 className="w-full flex justify-between items-end border-t border-black/10 pt-[0.5mm] mt-[0.5mm] leading-none" 
                 style={{ fontSize: `${detailsFontSize}mm`, flex: '0 0 auto' }}

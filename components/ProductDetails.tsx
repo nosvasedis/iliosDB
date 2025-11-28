@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
@@ -14,7 +15,7 @@ import JsBarcode from 'jsbarcode';
 interface PrintModalProps {
     product: Product;
     onClose: () => void;
-    onPrint: (items: { product: Product, variant?: ProductVariant, quantity: number }[]) => void;
+    onPrint: (items: { product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple' }[]) => void;
 }
 
 const GENDER_MAP: Record<Gender, string> = {
@@ -40,12 +41,12 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
     };
 
     const handlePrint = () => {
-        const itemsToPrint: { product: Product, variant?: ProductVariant, quantity: number }[] = [];
+        const itemsToPrint: { product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple' }[] = [];
         for (const suffix in quantities) {
             const qty = quantities[suffix];
             if (qty > 0) {
                 const variant = suffix === '(Master)' ? undefined : product.variants?.find(v => v.suffix === suffix);
-                itemsToPrint.push({ product, variant, quantity: qty });
+                itemsToPrint.push({ product, variant, quantity: qty, format: 'standard' }); // Standard full format for mass print
             }
         }
         
@@ -143,7 +144,7 @@ interface Props {
   allMaterials: Material[];
   onClose: () => void;
   onSave?: (updatedProduct: Product) => void;
-  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
+  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
   viewMode?: 'registry' | 'warehouse'; // New prop
@@ -535,8 +536,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setViewIndex(0); // Reset to first/prevalent
   };
 
+  // Quick Print: Single Item with SIMPLE format
   const handleQuickPrint = (prod: Product, variant?: ProductVariant) => {
-      setPrintItems([{ product: prod, variant, quantity: 1 }]);
+      setPrintItems([{ product: prod, variant, quantity: 1, format: 'simple' }]);
       showToast('Εστάλη για εκτύπωση (1 τεμ).', 'success');
   };
   
@@ -895,7 +897,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             <BarcodeRow product={editedProduct} onPrint={handleQuickPrint} />
                         )}
                         
-                        {/* Variant Rows */}
+                        {/* Variant Rows - Always show if variants exist */}
                         {editedProduct.variants.map((v, i) => (
                             <BarcodeRow key={i} product={editedProduct} variant={v} onPrint={handleQuickPrint} />
                         ))}

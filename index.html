@@ -22,14 +22,33 @@
         margin: 0;
       }
       @media print {
-        /* Hide the main application container when printing */
-        #app-container {
-          display: none !important;
+        /* HIDE EVERYTHING IN THE BACKGROUND */
+        body * {
+          visibility: hidden;
         }
         
-        /* Show the print view */
+        #app-container, #root {
+          display: none !important;
+        }
+
+        /* Hide any portals/modals (Common classes for overlays) */
+        .fixed.inset-0 {
+            display: none !important;
+        }
+
+        /* SHOW ONLY THE PRINT VIEW */
+        .print-view, .print-view * {
+          visibility: visible;
+        }
+
         .print-view {
           display: block !important;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          background: white;
+          z-index: 9999;
         }
 
         .print-area {
@@ -46,12 +65,13 @@
 
         @page {
           size: auto;
-          margin: 0; /* This removes default browser headers/footers */
+          margin: 0;
         }
 
         body {
-          background-color: white; /* Ensure clean background for print */
-          margin: 0; /* Reset body margin for print */
+          background-color: white;
+          margin: 0;
+          overflow: visible !important;
         }
       }
       .print-view { 

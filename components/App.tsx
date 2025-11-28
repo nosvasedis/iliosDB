@@ -77,7 +77,8 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number}[]>([]);
+  // UPDATED STATE TYPE TO INCLUDE OPTIONAL FORMAT
+  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const { signOut, profile } = useAuth();
 
   // Resource Page Tab State
@@ -124,7 +125,7 @@ function AppContent() {
   if (!settings || !products || !materials || !molds || !collections) return null;
   
   const flattenedPrintItems = printItems.flatMap(item => 
-      Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant }))
+      Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, format: item.format }))
   );
 
   return (
@@ -139,6 +140,7 @@ function AppContent() {
               variant={item.variant}
               width={settings.barcode_width_mm}
               height={settings.barcode_height_mm}
+              format={item.format} // Pass format
             />
           ))}
         </div>
@@ -336,7 +338,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.1.0 (Greek Edit)</p>
+                  <p className="opacity-50 mt-1">v1.2.0 (Unified Resources)</p>
                 </div>
             )}
           </div>
@@ -375,7 +377,7 @@ function AppContent() {
                             <MapPin size={18} /> Λάστιχα
                         </button>
                     </div>
-                    {resourceTab === 'materials' && <MaterialsPage />}
+                    {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
                     {resourceTab === 'molds' && <MoldsPage />}
                 </div>
               )}
