@@ -88,8 +88,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
     
     // 1. SKU (Top): Priority #1. Must be legible.
     const skuLength = finalSku.length;
-    // Estimate width consumption. 
-    const maxSkuWidthFont = width / (Math.max(skuLength, 1) * 0.6); 
+    // Estimate width consumption. Increased divisor from 0.6 to 0.85 to make font smaller for long strings
+    const maxSkuWidthFont = width / (Math.max(skuLength, 1) * 0.85); 
     const maxSkuHeightFont = height * 0.18; 
     const skuFontSize = Math.min(maxSkuWidthFont, maxSkuHeightFont);
 
@@ -142,16 +142,15 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height }) => {
                 )}
             </div>
 
-            {/* ROW 4: DETAILS (Price Left | 925 & Weight Right) */}
+            {/* ROW 4: DETAILS (Price Left | 925 Right - Removed Weight) */}
             <div 
                 className="w-full flex justify-between items-end border-t border-black/10 pt-[0.5mm] mt-[0.5mm] leading-none" 
                 style={{ fontSize: `${detailsFontSize}mm`, flex: '0 0 auto' }}
             >
                  <span className="font-bold">{priceDisplay}</span>
                  
-                 <div className="flex items-center gap-[0.5mm]">
+                 <div className="flex items-center">
                     <span className="font-medium text-slate-800">925°</span>
-                    {product.weight_g > 0 && <span className="font-medium text-slate-600">{product.weight_g}g</span>}
                  </div>
             </div>
         </div>

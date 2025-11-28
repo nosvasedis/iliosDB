@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
@@ -14,6 +15,12 @@ interface PrintModalProps {
     onClose: () => void;
     onPrint: (items: { product: Product, variant?: ProductVariant, quantity: number }[]) => void;
 }
+
+const GENDER_MAP: Record<Gender, string> = {
+    [Gender.Men]: 'Ανδρικά',
+    [Gender.Women]: 'Γυναικεία',
+    [Gender.Unisex]: 'Unisex'
+};
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
     // Only show variants in the list if they exist. Don't show Master generic row if variants exist.
@@ -627,7 +634,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         </div>
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
-                        <InfoCard label="Φύλο" value={editedProduct.gender} />
+                        <InfoCard label="Φύλο" value={GENDER_MAP[editedProduct.gender] || editedProduct.gender} />
                         
                         {/* Enhanced Plating Display */}
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />

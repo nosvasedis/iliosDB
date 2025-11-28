@@ -44,12 +44,13 @@
         }
 
         @page {
-          size: A4;
-          margin: 10mm; 
+          size: auto;
+          margin: 0mm; /* This removes default browser headers/footers */
         }
 
         body {
           background-color: white; /* Ensure clean background for print */
+          margin: 0; /* Reset body margin for print */
         }
       }
       .print-view { 

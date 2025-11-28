@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame } from 'lucide-react';
@@ -230,7 +230,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       } finally { setIsCreatingMold(false); }
   };
 
-  const filteredMolds = molds.filter(m => m.code.includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase()));
+  const filteredMolds = useMemo(() => {
+      return molds
+        .filter(m => m.code.includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase()))
+        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [molds, moldSearch]);
 
   // --- VARIANT MANAGEMENT ---
   

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
 import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle, Crown } from 'lucide-react';
@@ -279,7 +279,12 @@ export default function AiStudio() {
         if (mode === 'trends') handleTrends();
     };
 
-    const filteredProducts = products?.filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.includes(searchTerm)) || [];
+    const filteredProducts = useMemo(() => {
+        if (!products) return [];
+        return products
+            .filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.includes(searchTerm))
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+    }, [products, searchTerm]);
 
     // Helper for placeholder text
     const getPlaceholder = () => {
