@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Customer, Order } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -8,7 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 
 export default function CustomersPage() {
     const queryClient = useQueryClient();
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
     
     const { data: customers, isLoading: loadingCustomers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -95,6 +96,28 @@ export default function CustomersPage() {
             showToast("Τα στοιχεία ενημερώθηκαν.", 'success');
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", 'error');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!selectedCustomer) return;
+        const yes = await confirm({
+            title: 'Διαγραφή Πελάτη',
+            message: `Είστε σίγουροι ότι θέλετε να διαγράψετε τον πελάτη "${selectedCustomer.full_name}"; Η ενέργεια είναι μη αναστρέψιμη.`,
+            isDestructive: true,
+            confirmText: 'Διαγραφή'
+        });
+
+        if (yes) {
+            try {
+                await api.deleteCustomer(selectedCustomer.id);
+                queryClient.invalidateQueries({ queryKey: ['customers'] });
+                setSelectedCustomer(null);
+                showToast('Ο πελάτης διαγράφηκε.', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Σφάλμα κατά τη διαγραφή.', 'error');
+            }
         }
     };
 
@@ -193,9 +216,16 @@ export default function CustomersPage() {
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={() => isEditing ? handleUpdate() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all relative z-10 ${isEditing ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-                                {isEditing ? <><Save size={18}/> Αποθήκευση</> : <><FileText size={18}/> Επεξεργασία</>}
-                            </button>
+                            <div className="flex gap-2 relative z-10">
+                                <button onClick={() => isEditing ? handleUpdate() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isEditing ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+                                    {isEditing ? <><Save size={18}/> Αποθήκευση</> : <><FileText size={18}/> Επεξεργασία</>}
+                                </button>
+                                {!isEditing && (
+                                    <button onClick={handleDelete} className="px-3 py-2.5 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm" title="Διαγραφή Πελάτη">
+                                        <Trash2 size={18} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30">
