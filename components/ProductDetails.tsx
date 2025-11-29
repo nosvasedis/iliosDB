@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
@@ -779,7 +781,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     placeholder={`π.χ. ${editedProduct.sku}P`}
                                     value={smartAddSku} 
                                     onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
-                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0"
+                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"
                                 />
                                 <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">Προσθήκη</button>
                             </div>
@@ -787,8 +789,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
                             <div className="grid grid-cols-[80px_1fr_auto] gap-2 w-full">
-                                <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0"/>
-                                <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0"/>
+                                <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"/>
+                                <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
                                 <button onClick={handleManualAdd} className="bg-[#060b00] text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-black transition-colors flex items-center justify-center"><Plus size={16}/></button>
                             </div>
                             {manualSuffixAnalysis && (
@@ -817,7 +819,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         value={variant.description}
                                         onChange={e => updateVariant(index, 'description', e.target.value)}
                                         placeholder="Περιγραφή"
-                                        className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none"
+                                        className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"
                                     />
                                 </div>
                                 
@@ -848,7 +850,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
                                                 ${hasPriceOverride 
                                                     ? 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100' 
-                                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-emerald-500'}
+                                                    : 'border-emerald-200 text-emerald-700 bg-slate-50 focus:bg-white focus:border-emerald-500 ring-1 ring-emerald-100'}
                                             `}
                                         />
                                         <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">

@@ -1,5 +1,6 @@
 
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
@@ -169,7 +170,7 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
     try {
         const ai = getClient();
         const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-2.5-flash',
             contents: `Ανάλυσε τις τρέχουσες τάσεις κοσμημάτων για: ${query}. Εστίασε στην Ευρωπαϊκή και Ελληνική αγορά.`,
             config: {
                 tools: [{ googleSearch: {} }],
