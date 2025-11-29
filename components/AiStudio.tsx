@@ -496,7 +496,7 @@ export default function AiStudio() {
                         />
                         <button 
                             onClick={handleSubmit} 
-                            disabled={!inputValue.trim() || isLoading}
+                            disabled={isLoading || (mode === 'trends' ? !inputValue.trim() : !getActiveImage())} 
                             className="bg-[#060b00] text-white p-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-900 transition-colors shadow-md"
                         >
                             {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
