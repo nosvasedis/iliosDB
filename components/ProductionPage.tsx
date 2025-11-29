@@ -1,5 +1,4 @@
 
-
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +12,7 @@ interface Props {
 }
 
 const STAGES = [
-    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', icon: <Package size={18} />, color: 'bg-slate-100 border-slate-200 text-slate-600', activeColor: 'bg-slate-900 text-white' },
+    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', icon: <Package size={18} />, color: 'bg-slate-100 border-slate-200 text-slate-600', activeColor: 'bg-[#060b00] text-white' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', icon: <Flame size={18} />, color: 'bg-orange-50 border-orange-200 text-orange-700', activeColor: 'bg-orange-600 text-white' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', icon: <Gem size={18} />, color: 'bg-purple-50 border-purple-200 text-purple-700', activeColor: 'bg-purple-600 text-white' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', icon: <Hammer size={18} />, color: 'bg-blue-50 border-blue-200 text-blue-700', activeColor: 'bg-blue-600 text-white' },
@@ -21,7 +20,6 @@ const STAGES = [
     { id: ProductionStage.Ready, label: 'Έτοιμα', icon: <CheckCircle size={18} />, color: 'bg-emerald-50 border-emerald-200 text-emerald-700', activeColor: 'bg-emerald-600 text-white' }
 ];
 
-// SLA Thresholds in Hours (Logic for "Stuck" batches)
 const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Waxing]: 48,
     [ProductionStage.Casting]: 24,
@@ -35,15 +33,12 @@ export default function ProductionPage({ products, materials }: Props) {
   const { showToast } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
-  // State for Tabs
   const [activeStage, setActiveStage] = useState<ProductionStage | 'ALL'>(ProductionStage.Waxing);
 
   const getNextStage = (batch: ProductionBatch): ProductionStage | null => {
       const currentIdx = STAGES.findIndex(s => s.id === batch.current_stage);
       if (currentIdx === -1 || currentIdx === STAGES.length - 1) return null;
 
-      // Smart Workflow Logic
-      // If next is Setting, but product doesn't require setting, skip to Polishing
       const nextStage = STAGES[currentIdx + 1].id;
       
       if (nextStage === ProductionStage.Setting && !batch.requires_setting) {
@@ -58,12 +53,11 @@ export default function ProductionPage({ products, materials }: Props) {
       if (next) {
           await api.updateBatchStage(batch.id, next);
           queryClient.invalidateQueries({ queryKey: ['batches'] });
-          queryClient.invalidateQueries({ queryKey: ['orders'] }); // Status might change
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
           showToast(`Προωθήθηκε σε ${next}`, 'success');
       }
   };
 
-  // Enhance batches with image/details from products prop AND calculate Delays
   const enhancedBatches = useMemo(() => {
       return batches?.map(b => {
         const prod = products.find(p => p.sku === b.sku);
@@ -71,7 +65,7 @@ export default function ProductionPage({ products, materials }: Props) {
         const now = new Date();
         const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
         
-        const threshold = STAGE_LIMITS_HOURS[b.current_stage] || 1000; // default large number if ready
+        const threshold = STAGE_LIMITS_HOURS[b.current_stage] || 1000;
         const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
 
         return {
@@ -95,12 +89,11 @@ export default function ProductionPage({ products, materials }: Props) {
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-6">
-        {/* Header & Alerts */}
         <div className="space-y-4 shrink-0">
             <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-slate-800 text-white rounded-xl">
+                    <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                        <div className="p-2 bg-[#060b00] text-white rounded-xl">
                             <Factory size={24} />
                         </div>
                         Ροή Παραγωγής
@@ -119,11 +112,10 @@ export default function ProductionPage({ products, materials }: Props) {
                 )}
             </div>
             
-            {/* TABS NAVIGATION */}
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                  <button 
                     onClick={() => setActiveStage('ALL')}
-                    className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeStage === 'ALL' ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
+                    className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeStage === 'ALL' ? 'bg-[#060b00] text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
                  >
                     <ListFilter size={16}/> Όλα
                  </button>
@@ -144,7 +136,6 @@ export default function ProductionPage({ products, materials }: Props) {
             </div>
         </div>
 
-        {/* BATCH GRID (SLIM TICKETS) */}
         <div className="flex-1 overflow-y-auto bg-slate-50/50 rounded-3xl border border-slate-200 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {displayedBatches.map(batch => (
@@ -178,17 +169,15 @@ export default function ProductionPage({ products, materials }: Props) {
                             </div>
                         </div>
 
-                        {/* Order & Stage Info */}
                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-50">
                              {batch.order_id ? (
                                  <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded">{batch.order_id}</div>
                              ) : <span></span>}
 
-                             {/* Contextual Action Button */}
                              {batch.current_stage !== ProductionStage.Ready ? (
                                  <button 
                                     onClick={() => advanceBatch(batch)}
-                                    className="flex items-center gap-1 text-xs font-bold bg-slate-900 text-white hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                                    className="flex items-center gap-1 text-xs font-bold bg-[#060b00] text-white hover:bg-black px-3 py-1.5 rounded-lg transition-colors shadow-sm"
                                  >
                                      Επόμενο <ChevronRight size={12}/>
                                  </button>

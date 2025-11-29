@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight, Zap } from 'lucide-react';
 import { saveConfiguration } from '../lib/supabase';
-import { APP_LOGO } from '../constants';
+import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 
 export default function SetupScreen() {
     const [url, setUrl] = useState('');
@@ -18,17 +18,17 @@ export default function SetupScreen() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-[#060b00] flex items-center justify-center p-4">
             <div className="bg-white max-w-lg w-full rounded-3xl shadow-2xl p-8 border border-white/10 relative overflow-hidden">
                 <div className="flex flex-col items-center mb-8">
-                     <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg mb-4 border border-slate-700">
-                         <img src={APP_LOGO} alt="Logo" className="w-10 h-10 object-contain"/>
+                     <div className="w-16 h-16 bg-[#060b00] rounded-2xl flex items-center justify-center shadow-lg mb-4 border border-slate-700">
+                         <img src={APP_ICON_ONLY} alt="Logo" className="w-10 h-10 object-contain"/>
                      </div>
-                     <h1 className="text-2xl font-black text-slate-800">Ρύθμιση Συστήματος</h1>
+                     <h1 className="text-2xl font-black text-[#060b00]">Ρύθμιση Συστήματος</h1>
                      <p className="text-slate-500 text-sm mt-1">Απαιτείται ρύθμιση σύνδεσης</p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-sm text-blue-800 leading-relaxed">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6 text-sm text-emerald-800 leading-relaxed">
                     <strong>Ασφαλής Λειτουργία:</strong> Επειδή το περιβάλλον δεν υποστηρίζει αρχεία .env, παρακαλώ εισάγετε τα κλειδιά Supabase εδώ. Θα αποθηκευτούν <strong>τοπικά στον browser σας</strong> και όχι στον κώδικα.
                 </div>
 
@@ -43,7 +43,7 @@ export default function SetupScreen() {
                                 value={url}
                                 onChange={e => setUrl(e.target.value)}
                                 placeholder="https://xyz.supabase.co"
-                                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono text-sm"
                             />
                         </div>
                     </div>
@@ -58,7 +58,7 @@ export default function SetupScreen() {
                                 value={key}
                                 onChange={e => setKey(e.target.value)}
                                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
-                                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono text-sm"
                             />
                         </div>
                     </div>
@@ -80,7 +80,7 @@ export default function SetupScreen() {
                         </div>
                     </div>
 
-                    <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all mt-4 flex items-center justify-center gap-2">
+                    <button className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold hover:bg-black transition-all mt-4 flex items-center justify-center gap-2 shadow-lg">
                         Αποθήκευση & Εκκίνηση <ArrowRight size={18}/>
                     </button>
                 </form>

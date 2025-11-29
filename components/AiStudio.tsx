@@ -10,7 +10,6 @@ import { compressImage } from '../utils/imageHelpers';
 
 type Mode = 'copywriting' | 'virtual-model' | 'trends';
 
-// --- Text Styling Helpers ---
 const parseBold = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*)/g);
     return parts.map((part, i) => {
@@ -24,19 +23,15 @@ const parseBold = (text: string) => {
 const parseStyledText = (text: string) => {
     if (!text) return null;
     
-    // Remove ugly separators
     const cleanText = text.replace(/\*\*\*/g, '').replace(/---/g, '');
-    
-    // Split by lines to identify structure
     const lines = cleanText.split('\n');
     const elements: React.ReactNode[] = [];
-    
     let currentList: React.ReactNode[] = [];
     
     const flushList = (keyPrefix: number) => {
         if (currentList.length > 0) {
             elements.push(
-                <ul key={`list-${keyPrefix}`} className="list-disc pl-5 space-y-1.5 text-slate-700 marker:text-indigo-400 my-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <ul key={`list-${keyPrefix}`} className="list-disc pl-5 space-y-1.5 text-slate-700 marker:text-emerald-400 my-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
                     {currentList}
                 </ul>
             );
@@ -52,22 +47,19 @@ const parseStyledText = (text: string) => {
             return;
         }
 
-        // 1. Headers (# Title)
         if (trimmed.startsWith('#')) {
             flushList(index);
             const content = trimmed.replace(/^#+\s*/, '');
             elements.push(
-                <h3 key={index} className="text-lg font-bold text-indigo-900 mt-5 mb-2 flex items-center gap-2">
+                <h3 key={index} className="text-lg font-bold text-[#060b00] mt-5 mb-2 flex items-center gap-2">
                     {content}
                 </h3>
             );
         }
-        // 2. Lists (- Item)
         else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
             const content = trimmed.replace(/^[-•]\s+/, '');
             currentList.push(<li key={`li-${index}`}>{parseBold(content)}</li>);
         }
-        // 3. Regular Paragraphs
         else {
             flushList(index);
             elements.push(
@@ -78,7 +70,7 @@ const parseStyledText = (text: string) => {
         }
     });
     
-    flushList(lines.length); // Final flush
+    flushList(lines.length); 
     return <div className="space-y-1">{elements}</div>;
 };
 
@@ -86,26 +78,21 @@ export default function AiStudio() {
     const { showToast } = useUI();
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     
-    // State
     const [mode, setMode] = useState<Mode>('copywriting');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     
-    // Inputs
     const [inputValue, setInputValue] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     
-    // Pro Settings
-    const [useProModel, setUseProModel] = useState(false); // Default to Nano Banana (Flash)
+    const [useProModel, setUseProModel] = useState(false);
     
-    // Product Search Modal
     const [showProductSearch, setShowProductSearch] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Initial Greeting
     useEffect(() => {
         if (messages.length === 0) {
             setMessages([{ 
@@ -124,7 +111,7 @@ export default function AiStudio() {
 
     const handleProductSelect = (p: Product) => {
         setSelectedProduct(p);
-        setUploadedImage(null); // Reset manual upload
+        setUploadedImage(null); 
         setShowProductSearch(false);
     };
 
@@ -136,7 +123,7 @@ export default function AiStudio() {
                 reader.readAsDataURL(blob);
                 reader.onloadend = () => {
                     setUploadedImage(reader.result as string);
-                    setSelectedProduct(null); // Reset DB selection
+                    setSelectedProduct(null); 
                 };
             } catch (err) {
                 showToast("Σφάλμα φόρτωσης εικόνας.", "error");
@@ -150,37 +137,26 @@ export default function AiStudio() {
         return null;
     };
 
-    /**
-     * Helper to robustly fetch an image and convert to Base64.
-     * Handles CORS by routing R2 requests through our Worker with Auth.
-     */
     const fetchImageAsBase64 = async (url: string): Promise<string> => {
-        // 1. If it's already base64, return it.
         if (url.startsWith('data:')) return url;
 
         try {
             let fetchUrl = url;
             let headers: HeadersInit = {};
 
-            // 2. Check if it's OUR R2 Image
             if (url.startsWith(R2_PUBLIC_URL)) {
-                // Extract filename
                 const parts = url.split('/');
                 const filename = parts[parts.length - 1];
-                
-                // Use Worker as Proxy with Auth Header
                 fetchUrl = `${CLOUDFLARE_WORKER_URL}/${filename}`;
                 headers = { 'Authorization': AUTH_KEY_SECRET };
             }
 
-            // 3. Perform Fetch
             const response = await fetch(fetchUrl, { headers });
             
             if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
             
             const blob = await response.blob();
             
-            // 4. Convert Blob to Base64
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
@@ -193,8 +169,6 @@ export default function AiStudio() {
         }
     };
 
-    // --- ACTION HANDLERS ---
-
     const handleCopywriting = async () => {
         const image = getActiveImage();
         if (!image) {
@@ -205,7 +179,6 @@ export default function AiStudio() {
         const userText = inputValue;
         const msgId = Date.now().toString();
 
-        // Construct User Message
         const userMsg: ChatMessage = { 
             id: msgId, 
             role: 'user', 
@@ -218,7 +191,6 @@ export default function AiStudio() {
         setIsLoading(true);
 
         try {
-            // Build Prompt with Technical Details if product selected
             let prompt = "Γράψε μια ελκυστική περιγραφή προϊόντος για e-shop και social media.";
             if (selectedProduct) {
                 prompt += `\nΤεχνικά Χαρακτηριστικά:\n- SKU: ${selectedProduct.sku}\n- Κατηγορία: ${selectedProduct.category}\n- Υλικό/Επιμετάλλωση: ${selectedProduct.plating_type}\n- Βάρος: ${selectedProduct.weight_g}g\n- Φύλο: ${selectedProduct.gender}`;
@@ -229,7 +201,6 @@ export default function AiStudio() {
             }
             if (userText) prompt += `\n\nΕπιπλέον Οδηγίες Χρήστη: ${userText}`;
 
-            // Fetch Base64 safely
             const base64Image = await fetchImageAsBase64(image);
 
             const response = await generateMarketingCopy(prompt, base64Image);
@@ -256,9 +227,9 @@ export default function AiStudio() {
         }
 
         const msgId = Date.now().toString();
-        const gender = selectedProduct?.gender || 'Women'; // Default to Women if unknown
+        const gender = selectedProduct?.gender || 'Women'; 
         const category = selectedProduct?.category || 'jewelry';
-        const instructions = inputValue; // Capture user instructions
+        const instructions = inputValue;
 
         const modelUsed = useProModel ? 'Nano Banana Pro' : 'Nano Banana';
 
@@ -272,10 +243,8 @@ export default function AiStudio() {
         setIsLoading(true);
 
         try {
-            // Fetch Base64 safely
             const base64Image = await fetchImageAsBase64(image);
 
-            // Pass instructions to Gemini with PRO toggle
             const generatedImage = await generateVirtualModel(
                 base64Image, 
                 gender === 'Unisex' ? 'Women' : gender, 
@@ -301,7 +270,6 @@ export default function AiStudio() {
 
         } catch (error: any) {
             console.error(error);
-            // Handle Free Tier 429 Error specifically
             if (error.message.includes("limit: 0") || error.message.includes("quota")) {
                 setMessages(prev => [...prev, {
                     id: (Date.now() + 1).toString(),
@@ -355,10 +323,9 @@ export default function AiStudio() {
         if (!products) return [];
         return products
             .filter(p => p.sku.includes(searchTerm.toUpperCase()) || p.category.includes(searchTerm))
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })); // Natural Sort
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })); 
     }, [products, searchTerm]);
 
-    // Helper for placeholder text
     const getPlaceholder = () => {
         if (mode === 'copywriting') return "Προσθέστε ειδικές οδηγίες (π.χ. 'Τόνισε την αντοχή')...";
         if (mode === 'virtual-model') return "Προσθέστε οδηγίες (π.χ. 'Σκοτεινό φόντο', 'Ξανθιά κοπέλα')...";
@@ -367,18 +334,17 @@ export default function AiStudio() {
 
     return (
         <div className="h-[calc(100vh-100px)] flex gap-6">
-            {/* Sidebar Controls */}
             <div className="w-72 flex flex-col gap-4 shrink-0">
-                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-6 text-white shadow-lg shadow-indigo-200">
+                <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 rounded-3xl p-6 text-white shadow-lg shadow-black/30">
                     <h1 className="text-2xl font-black flex items-center gap-2 mb-1">
                         <Sparkles className="text-yellow-300 animate-pulse" /> AI Studio
                     </h1>
-                    <p className="text-indigo-100 text-sm opacity-90">Ilios Intelligent Suite</p>
+                    <p className="text-emerald-100 text-sm opacity-90">Ilios Intelligent Suite</p>
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-2 flex flex-col gap-1">
                     <button onClick={() => setMode('copywriting')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'copywriting' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <Feather size={20} className={mode === 'copywriting' ? 'text-indigo-600' : ''}/> Έξυπνη Περιγραφή
+                        <Feather size={20} className={mode === 'copywriting' ? 'text-[#060b00]' : ''}/> Έξυπνη Περιγραφή
                     </button>
                     <button onClick={() => setMode('virtual-model')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'virtual-model' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
                         <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> 
@@ -391,11 +357,8 @@ export default function AiStudio() {
                     </button>
                 </div>
                 
-                {/* Model Selector Toggle - Nano Banana / Nano Banana Pro */}
                 {mode === 'virtual-model' && (
                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 animate-in fade-in slide-in-from-top-2 space-y-4">
-                        
-                        {/* High Quality Toggle */}
                         <label className="flex items-center justify-between cursor-pointer group select-none">
                             <div className="flex items-center gap-2">
                                 <div className={`p-2 rounded-lg transition-colors ${useProModel ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
@@ -415,7 +378,6 @@ export default function AiStudio() {
                     </div>
                 )}
                 
-                {/* Context Panel (Inputs) */}
                 {mode !== 'trends' && (
                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 flex flex-col gap-4 flex-1">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιλογη Προϊοντος</div>
@@ -423,7 +385,7 @@ export default function AiStudio() {
                         {getActiveImage() ? (
                             <div className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square">
                                 <img src={getActiveImage()!} alt="Selected" className="w-full h-full object-cover" />
-                                <button onClick={() => { setShowProductSearch(true); /* Keep search active to switch */ }} className="absolute top-2 left-2 bg-white/80 p-1.5 rounded-full hover:bg-blue-500 hover:text-white transition-colors shadow-sm text-slate-700">
+                                <button onClick={() => { setShowProductSearch(true); }} className="absolute top-2 left-2 bg-white/80 p-1.5 rounded-full hover:bg-blue-500 hover:text-white transition-colors shadow-sm text-slate-700">
                                     <Search size={16}/>
                                 </button>
                                 <button onClick={() => { setSelectedProduct(null); setUploadedImage(null); }} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition-colors shadow-sm">
@@ -435,11 +397,11 @@ export default function AiStudio() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => setShowProductSearch(true)} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all gap-2">
+                                <button onClick={() => setShowProductSearch(true)} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all gap-2">
                                     <Search size={24}/>
                                     <span className="text-xs font-bold">Αναζήτηση</span>
                                 </button>
-                                <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all gap-2 cursor-pointer">
+                                <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all gap-2 cursor-pointer">
                                     <Camera size={24}/>
                                     <span className="text-xs font-bold">Μεταφόρτωση</span>
                                     <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
@@ -461,14 +423,12 @@ export default function AiStudio() {
                 )}
             </div>
 
-            {/* Main Chat Area */}
             <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden relative">
                 
-                {/* Messages */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-slate-50/30">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'model' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-600'}`}>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'model' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-600'}`}>
                                 {msg.role === 'model' ? <Sparkles size={18} /> : <div className="font-bold">ME</div>}
                             </div>
                             
@@ -476,7 +436,7 @@ export default function AiStudio() {
                                 {msg.text && (
                                     <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                                         msg.role === 'user' 
-                                            ? 'bg-slate-900 text-white rounded-tr-none whitespace-pre-wrap' 
+                                            ? 'bg-[#060b00] text-white rounded-tr-none whitespace-pre-wrap' 
                                             : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
                                     }`}>
                                         {msg.role === 'model' ? parseStyledText(msg.text) : msg.text}
@@ -503,7 +463,7 @@ export default function AiStudio() {
                                 )}
                                 
                                 {msg.role === 'model' && msg.text && (
-                                    <button onClick={() => { navigator.clipboard.writeText(msg.text!); showToast('Αντιγράφηκε', 'success'); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors pl-1">
+                                    <button onClick={() => { navigator.clipboard.writeText(msg.text!); showToast('Αντιγράφηκε', 'success'); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-emerald-600 transition-colors pl-1">
                                         <Copy size={12}/> Αντιγραφή
                                     </button>
                                 )}
@@ -512,7 +472,7 @@ export default function AiStudio() {
                     ))}
                     {isLoading && (
                         <div className="flex gap-4">
-                             <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-400 flex items-center justify-center shrink-0">
+                             <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-400 flex items-center justify-center shrink-0">
                                 <Sparkles size={18} className="animate-pulse" />
                             </div>
                             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 flex items-center gap-2 text-slate-500 text-sm shadow-sm">
@@ -523,56 +483,70 @@ export default function AiStudio() {
                     )}
                 </div>
 
-                {/* Input Area */}
                 <div className="p-4 border-t border-slate-100 bg-white">
-                    <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-100 focus-within:border-indigo-400 transition-all shadow-inner">
-                        <textarea
-                            disabled={isLoading || (mode !== 'trends' && !getActiveImage())}
+                    <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-emerald-100 focus-within:border-emerald-400 transition-all shadow-sm">
+                        <input 
+                            type="text" 
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                             placeholder={getPlaceholder()}
-                            className="flex-1 bg-transparent border-none focus:ring-0 p-2 text-sm max-h-32 min-h-[44px] resize-none outline-none text-slate-800 placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                            rows={1}
+                            disabled={isLoading}
+                            className="flex-1 bg-transparent p-2 outline-none text-slate-800 placeholder-slate-400 min-w-0"
                         />
                         <button 
-                            onClick={handleSubmit}
-                            disabled={isLoading || (mode !== 'trends' && !getActiveImage())}
-                            className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 shadow-md shadow-indigo-200"
+                            onClick={handleSubmit} 
+                            disabled={!inputValue.trim() || isLoading}
+                            className="bg-[#060b00] text-white p-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-900 transition-colors shadow-md"
                         >
-                            <Send size={18} />
+                            {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
                         </button>
+                    </div>
+                    <div className="text-center mt-2">
+                        <span className="text-[10px] text-slate-400">
+                            Powered by Google Gemini 2.5 • Ilios Intelligent Suite
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* Product Selection Modal */}
+            {/* Product Selector Modal */}
             {showProductSearch && (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl flex flex-col max-h-[80vh] animate-in zoom-in-95">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800">Επιλογή Προϊόντος</h3>
-                            <button onClick={() => setShowProductSearch(false)}><X size={20} className="text-slate-400 hover:text-slate-600"/></button>
+                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-lg">Επιλογή Προϊόντος</h3>
+                            <button onClick={() => setShowProductSearch(false)}><X size={20}/></button>
                         </div>
-                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="p-4 border-b border-slate-100">
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                 <input 
-                                    autoFocus
-                                    className="w-full pl-9 p-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-indigo-500" 
+                                    type="text" 
                                     placeholder="Αναζήτηση SKU..." 
-                                    value={searchTerm} 
+                                    value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
+                                    autoFocus
+                                    className="w-full pl-10 p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-2">
+                        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 gap-4">
                             {filteredProducts.map(p => (
-                                <div key={p.sku} onClick={() => handleProductSelect(p)} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors border-b border-slate-50 last:border-0">
-                                    <img src={p.image_url} className="w-12 h-12 rounded bg-slate-100 object-cover" alt={p.sku}/>
-                                    <div>
+                                <div key={p.sku} onClick={() => handleProductSelect(p)} className="cursor-pointer group">
+                                    <div className="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-2 relative border border-slate-200 group-hover:border-emerald-500 transition-colors">
+                                        {p.image_url ? (
+                                            <img src={p.image_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
+                                        )}
+                                        <div className="absolute inset-0 bg-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <CheckCircle className="text-white drop-shadow-md" size={32}/>
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
                                         <div className="font-bold text-sm text-slate-800">{p.sku}</div>
-                                        <div className="text-xs text-slate-500">{p.category} • {p.gender}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{p.category}</div>
                                     </div>
                                 </div>
                             ))}

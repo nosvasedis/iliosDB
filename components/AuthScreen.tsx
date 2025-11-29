@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { APP_LOGO } from '../constants';
 import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useUI } from './UIProvider';
+import { APP_LOGO, APP_ICON_ONLY } from '../constants'; // Πρόσθεσε το APP_ICON_ONLY
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -64,7 +65,7 @@ export default function AuthScreen() {
              <div className="w-20 h-20 bg-[#060b00] rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden border border-slate-700">
                  {!logoError ? (
                     <img 
-                        src={APP_LOGO} 
+                        src={APP_ICON_ONLY} 
                         alt="Logo" 
                         className="w-12 h-12 object-contain relative z-10" 
                         onError={() => setLogoError(true)}

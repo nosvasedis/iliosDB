@@ -16,9 +16,8 @@ interface Props {
   molds: Mold[];
 }
 
-// Flattened Inventory Item Interface
 interface InventoryItem {
-    id: string; // Composite: SKU + Suffix
+    id: string;
     masterSku: string;
     suffix: string;
     description: string;
@@ -29,7 +28,7 @@ interface InventoryItem {
     demandQty: number;
     product: Product;
     variantRef?: ProductVariant;
-    isSingleVariantMode?: boolean; // New flag for the "Single Variant" logic
+    isSingleVariantMode?: boolean;
 }
 
 export default function Inventory({ products, setPrintItems, settings, collections, molds }: Props) {
@@ -39,18 +38,15 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
   const [showScanner, setShowScanner] = useState(false);
   
-  // Data Fetching
   const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
 
-  // Warehouse Management State
   const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
   const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
   
-  // Transfer Logic State
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
   const [sourceId, setSourceId] = useState<string>(SYSTEM_IDS.CENTRAL);
@@ -58,27 +54,22 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [transferQty, setTransferQty] = useState(1);
   const [isTransferring, setIsTransferring] = useState(false);
 
-  // --- SMART SCANNER STATE ---
   const [scanInput, setScanInput] = useState('');
   const [scanSuggestion, setScanSuggestion] = useState('');
   const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
   const [scanQty, setScanQty] = useState(1);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to display warehouse types nicely
   const getWarehouseNameClean = (w: Warehouse) => {
       if (w.id === SYSTEM_IDS.CENTRAL) return 'Κεντρική Αποθήκη';
       if (w.id === SYSTEM_IDS.SHOWROOM || w.type === 'Showroom' || w.name === 'Showroom') return 'Δειγματολόγιο';
       return w.name;
   };
 
-  // --- FLATTENED INVENTORY LOGIC ---
   const rawInventory = useMemo(() => {
       if (!products) return [];
       
       const items: InventoryItem[] = [];
-      
-      // Calculate Demand Map (Key: SKU+Suffix)
       const demandMap: Record<string, number> = {};
       if (orders) {
           const pending = orders.filter(o => o.status === OrderStatus.Pending);
@@ -91,29 +82,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       }
 
       products.forEach(p => {
-          // LOGIC CHANGE: Check if product has EXACTLY ONE variant
           const hasSingleVariant = p.variants && p.variants.length === 1;
 
           if (hasSingleVariant) {
-              // --- SINGLE VARIANT MODE ---
-              // We merge Master + Single Variant into ONE display item.
               const v = p.variants![0];
               const key = p.sku + v.suffix;
-              
-              // Demand can be on Master SKU (legacy) or Variant SKU
               const demand = (demandMap[p.sku] || 0) + (demandMap[key] || 0);
-
-              // Merge Stocks (Master Stock + Variant Stock)
-              // This ensures if stock is in 'RN001P' but we view 'RN001', we see the total.
               const mergedLocationStock: Record<string, number> = {};
-              
-              // 1. Central Stock
               mergedLocationStock[SYSTEM_IDS.CENTRAL] = (p.stock_qty || 0) + (v.stock_qty || 0);
-              
-              // 2. Showroom (Usually tracked on Master)
-              mergedLocationStock[SYSTEM_IDS.SHOWROOM] = (p.sample_qty || 0); // Variants usually don't track sample separately yet
+              mergedLocationStock[SYSTEM_IDS.SHOWROOM] = (p.sample_qty || 0);
 
-              // 3. Merge Custom Warehouses
               const allWarehouseIds = new Set([
                   ...Object.keys(p.location_stock || {}),
                   ...Object.keys(v.location_stock || {})
@@ -127,7 +105,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
               const totalStock = Object.values(mergedLocationStock).reduce((a, b) => a + b, 0);
 
-              // VISIBILITY CHECK: Hide if stock is 0 and no demand
               if (totalStock > 0 || demand > 0) {
                   items.push({
                       id: key,
@@ -146,16 +123,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               }
 
           } else if (p.variants && p.variants.length > 1) {
-              // --- MULTIPLE VARIANTS MODE ---
-              // Show individual rows for each variant
               p.variants.forEach(v => {
                   const key = p.sku + v.suffix;
-                  const totalStock = Object.values(v.location_stock || {}).reduce((a, b) => a + b, 0) + v.stock_qty; // Add central explicitly if not in location_stock
-                  
-                  // For multiple variants, we treat Central Stock specifically from the variant table
+                  const totalStock = Object.values(v.location_stock || {}).reduce((a, b) => a + b, 0) + v.stock_qty; 
                   const variantLocStock = { ...v.location_stock };
                   variantLocStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
-
                   const demand = demandMap[key] || 0;
                   
                   if (totalStock > 0 || demand > 0) {
@@ -174,19 +146,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       });
                   }
               });
-
-              // NOTE: We do NOT show the Master SKU row here if variants exist, 
-              // treating the master as a "Container" only.
-              
           } else {
-              // --- NO VARIANTS (PURE MASTER) ---
               const totalStock = Object.values(p.location_stock || {}).reduce((a, b) => a + b, 0) + p.stock_qty + p.sample_qty;
               const demand = demandMap[p.sku] || 0;
-              
-              // Include Central/Showroom in location map for display
               const displayStock = { ...p.location_stock, [SYSTEM_IDS.CENTRAL]: p.stock_qty, [SYSTEM_IDS.SHOWROOM]: p.sample_qty };
 
-              // Always show if it exists, or if demand exists
                if (totalStock > 0 || demand > 0) {
                   items.push({
                       id: p.sku,
@@ -206,16 +170,12 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       return items;
   }, [products, orders]);
 
-  // Apply Filters
   const filteredInventory = useMemo(() => {
     return rawInventory.filter(i => {
-      // 1. Warehouse Filter
       if (viewWarehouseId !== 'ALL') {
          const qtyInWh = i.locationStock[viewWarehouseId] || 0;
          if (qtyInWh <= 0) return false;
       }
-
-      // 2. Search Filter
       const term = searchTerm.toUpperCase();
       if (term) {
         return i.masterSku.includes(term) || 
@@ -226,10 +186,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
     });
   }, [rawInventory, viewWarehouseId, searchTerm]);
 
-  // --- ACTIONS ---
-
   const handleDeleteItem = async (item: InventoryItem) => {
-      // Determine scope based on current view
       const isSpecificView = viewWarehouseId !== 'ALL';
       const warehouseName = warehouses?.find(w => w.id === viewWarehouseId)?.name;
       
@@ -247,54 +204,37 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           const sku = item.masterSku;
           const suffix = item.suffix;
 
-          // Helper to clear custom stock
           const clearCustomStock = async (whId?: string) => {
               let query = supabase.from('product_stock').delete().eq('product_sku', sku);
               if (suffix) query = query.eq('variant_suffix', suffix);
               else query = query.is('variant_suffix', null);
-              
               if (whId) query = query.eq('warehouse_id', whId);
-              
               await query;
           };
 
           if (isSpecificView) {
-              // --- SINGLE WAREHOUSE CLEAR ---
               let movementAmount = 0;
-
               if (viewWarehouseId === SYSTEM_IDS.CENTRAL) {
                   movementAmount = item.locationStock[SYSTEM_IDS.CENTRAL] || 0;
-                  
-                  // Logic for Single Variant Mode: We must check where the stock lives. 
-                  // It typically lives in product_variants, but let's be safe and clear Master too if it was summed.
                   if (item.isSingleVariantMode) {
-                       // Clear master stock
                        await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
-                       // Clear variant stock if suffix exists
                        if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
                   } else if (suffix) {
                       await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
                   } else {
                       await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
                   }
-
               } else if (viewWarehouseId === SYSTEM_IDS.SHOWROOM) {
-                   // Showroom is generally on Master Product level in this schema
                    movementAmount = item.locationStock[SYSTEM_IDS.SHOWROOM] || 0;
                    await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
               } else {
                    movementAmount = item.locationStock[viewWarehouseId] || 0;
                    await clearCustomStock(viewWarehouseId);
               }
-              
               if (movementAmount > 0) {
                   await recordStockMovement(sku, -movementAmount, `Εκκαθάριση: ${warehouseName}`, suffix);
               }
-
           } else {
-              // --- GLOBAL CLEAR (ALL WAREHOUSES) ---
-              
-              // 1. Clear Central
               if (item.isSingleVariantMode) {
                    await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
                    if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
@@ -303,19 +243,12 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               } else {
                   await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
               }
-
-              // 2. Clear Showroom (Only on master usually, but let's be safe)
-              // Even for single variant mode, sample_qty is on master
               await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
-
-              // 3. Clear All Custom Stocks
               await clearCustomStock();
-              
               if (item.totalStock > 0) {
                 await recordStockMovement(sku, -item.totalStock, 'Μαζική Εκκαθάριση', suffix);
               }
           }
-
           queryClient.invalidateQueries({ queryKey: ['products'] });
           showToast('Το απόθεμα μηδενίστηκε.', 'success');
       } catch (err: any) {
@@ -323,14 +256,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       }
   };
 
-  // --- SMART SCANNER LOGIC ---
   const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value.toUpperCase();
       setScanInput(val);
-      
       if (val.length > 0) {
           let match = rawInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
-          
           if (!match) {
              const prod = products.find(p => p.sku.startsWith(val));
              if (prod) {
@@ -368,32 +298,25 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const executeQuickAdd = async () => {
       const targetCode = scanSuggestion || scanInput;
       const product = products.find(p => targetCode.startsWith(p.sku));
-      
       if (!product) {
           showToast(`Ο κωδικός ${targetCode} δεν βρέθηκε.`, "error");
           return;
       }
-      
       let variantSuffix = targetCode.replace(product.sku, '');
       let variant = product.variants?.find(v => v.suffix === variantSuffix);
-      
       if (product.variants && product.variants.length === 1 && !variantSuffix) {
           variant = product.variants[0];
           variantSuffix = variant.suffix;
       }
-
       if (product.variants && product.variants.length > 0 && !variant && variantSuffix) {
            showToast(`Η παραλλαγή ${variantSuffix} δεν βρέθηκε.`, "error");
            return;
       }
-      
       try {
           const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
-          
           if (variant) {
                const currentStock = variant.location_stock?.[scanTargetId] || 0;
                let newQty = 0;
-
                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
                    newQty = (variant.stock_qty || 0) + scanQty;
                    await supabase.from('product_variants').update({ stock_qty: newQty }).match({ product_sku: product.sku, suffix: variant.suffix });
@@ -407,7 +330,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
                }
                await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
-
           } else {
               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
                   const newQty = product.stock_qty + scanQty;
@@ -426,15 +348,12 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               }
               await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`);
           }
-
           queryClient.invalidateQueries({ queryKey: ['products'] });
           showToast(`Προστέθηκε ${scanQty} τεμ. στον κωδικό ${product.sku}${variant ? variant.suffix : ''}`, "success");
-          
           setScanInput('');
           setScanSuggestion('');
           setScanQty(1);
           inputRef.current?.focus();
-
       } catch (err) {
           console.error(err);
           showToast("Σφάλμα ενημέρωσης.", "error");
@@ -445,13 +364,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       const product = products.find(p => code.startsWith(p.sku));
       if (product) {
           setSelectedProduct(product);
-          // Optional: You could scroll to it or highlight it in the list
       } else {
           showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
       }
   };
 
-  // --- WAREHOUSE ACTIONS ---
   const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); };
   const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); };
   
@@ -475,7 +392,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       } catch (e) { showToast("Σφάλμα διαγραφής.", "error"); }
   };
 
-  // --- TRANSFER ACTIONS ---
   const openTransfer = (item: InventoryItem) => {
       setTransferItem(item);
       setSourceId(SYSTEM_IDS.CENTRAL);
@@ -487,18 +403,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const executeTransfer = async () => {
       if (!transferItem || sourceId === targetId) return;
       const currentSourceQty = transferItem.locationStock[sourceId] || 0;
-      
       if (transferQty > currentSourceQty) { showToast("Ανεπαρκές απόθεμα.", "error"); return; }
-      
       setIsTransferring(true);
       try {
           const variantSuffix = transferItem.suffix;
           const sku = transferItem.masterSku;
-
           const newSourceQty = currentSourceQty - transferQty;
           const currentTargetQty = transferItem.locationStock[targetId] || 0;
           const newTargetQty = currentTargetQty + transferQty;
-
           const updateStock = async (whId: string, qty: number) => {
                if (whId === SYSTEM_IDS.CENTRAL) {
                    if (variantSuffix) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: variantSuffix });
@@ -514,12 +426,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
                }
           };
-
           await updateStock(sourceId, newSourceQty);
           await updateStock(targetId, newTargetQty);
-          
           await recordStockMovement(sku, transferQty, `Transfer: ${getWarehouseNameClean(warehouses!.find(w=>w.id===sourceId)!)} -> ${getWarehouseNameClean(warehouses!.find(w=>w.id===targetId)!)}`, variantSuffix);
-
           queryClient.invalidateQueries({ queryKey: ['products'] });
           showToast("Η μεταφορά ολοκληρώθηκε.", "success");
           setTransferModalOpen(false);
@@ -529,10 +438,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
          <div>
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
                 <div className="p-2 bg-slate-800 text-white rounded-xl">
                     <Store size={24} />
                 </div>
@@ -553,16 +461,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
       {activeTab === 'stock' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-2">
-              
-              {/* --- SMART SCANNER BAR --- */}
-              <div className="bg-slate-900 p-5 rounded-2xl shadow-lg flex flex-col lg:flex-row items-center gap-4 border border-slate-800">
+              <div className="bg-[#060b00] p-5 rounded-2xl shadow-lg flex flex-col lg:flex-row items-center gap-4 border border-slate-800">
                   <div className="flex items-center gap-2 text-white/80 font-bold shrink-0">
                       <ScanBarcode size={24} className="text-amber-400" /> 
                       <span className="uppercase tracking-wider text-sm">Γρήγορη Εισαγωγή</span>
                   </div>
                   
                   <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-12 gap-3">
-                      {/* Target Warehouse Selector */}
                       <div className="md:col-span-3">
                           <select 
                             value={scanTargetId} 
@@ -575,9 +480,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                           </select>
                       </div>
 
-                      {/* Smart Input */}
                       <div className="md:col-span-6 relative">
-                          {/* Ghost Text */}
                           <div className="absolute inset-0 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center">
                               <span className="text-transparent">{scanInput}</span>
                               <span className="text-slate-600">
@@ -601,7 +504,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                           </div>
                       </div>
 
-                      {/* Quantity & Button */}
                       <div className="md:col-span-3 flex gap-2">
                           <input 
                               type="number" 
@@ -620,9 +522,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                   </div>
               </div>
 
-              {/* Filters Bar */}
               <div className="flex flex-col md:flex-row gap-4 mb-2">
-                 {/* Warehouse Filter */}
                  <div className="w-full md:w-64 relative">
                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                      <select 
@@ -637,7 +537,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                      </select>
                  </div>
                  
-                 {/* Search Filter with Scanner */}
                  <div className="relative flex-1 flex gap-2">
                      <div className="relative flex-1">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -659,24 +558,19 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                  </div>
               </div>
 
-              {/* Enhanced Flattened Stock Table/Cards */}
               <div className="grid grid-cols-1 gap-4">
                   {filteredInventory.map(item => {
                       const hasDemand = item.demandQty > 0;
                       const inStock = item.totalStock > 0;
                       const canFulfill = inStock && item.totalStock >= item.demandQty;
                       const displayName = (item.isSingleVariantMode || !item.suffix) ? item.masterSku : `${item.masterSku}-${item.suffix}`;
-                      
-                      // Price display logic: Variant Price > Master Price
                       const displayPrice = item.variantRef?.selling_price ?? item.product.selling_price;
                       const displayRetail = displayPrice * 3;
 
                       return (
                           <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden">
-                              {/* Left Border Status Indicator */}
                               <div className={`absolute left-0 top-0 bottom-0 w-1 ${inStock ? 'bg-emerald-500' : 'bg-slate-200'}`} />
 
-                              {/* Product Info */}
                               <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
                                   <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 relative border border-slate-100">
                                       {item.imageUrl ? (
@@ -688,7 +582,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                       )}
                                   </div>
                                   <div>
-                                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2" onClick={() => setSelectedProduct(item.product)}>
+                                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-emerald-600 transition-colors cursor-pointer flex items-center gap-2" onClick={() => setSelectedProduct(item.product)}>
                                           {displayName}
                                           {item.suffix && <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">{item.description}</span>}
                                           {item.isSingleVariantMode && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="Μοναδική Παραλλαγή">1 Var</span>}
@@ -705,18 +599,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                   </div>
                               </div>
 
-                              {/* Stock Distribution Visualization */}
                               <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">
                                    {Object.entries(item.locationStock).map(([whId, qty]) => {
                                        if (Number(qty) <= 0) return null;
-                                       // If filtering by warehouse, maybe visually emphasize the selected one, or just show all relevant.
                                        const whObj = warehouses?.find(w => w.id === whId);
                                        const whName = whObj ? getWarehouseNameClean(whObj) : 'Άγνωστο';
                                        const isCentral = whId === SYSTEM_IDS.CENTRAL;
                                        const isSelected = viewWarehouseId === whId;
                                        
                                        return (
-                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                                           <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm transition-all ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-1' : ''} ${isCentral ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
                                                <span className="text-[10px] uppercase opacity-70">{whName.substring(0, 15)}</span>
                                                <span className="text-base">{Number(qty)}</span>
                                            </div>
@@ -725,7 +617,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                    {item.totalStock === 0 && <span className="text-slate-400 text-sm italic">Εξαντλημένο</span>}
                               </div>
 
-                              {/* Demand Alert Logic */}
                               {hasDemand && (
                                   <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border w-full md:w-auto justify-center ${canFulfill ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}>
                                       {canFulfill ? <CheckCircle size={20} className="text-emerald-600"/> : <AlertTriangle size={20} className="text-orange-500"/>}
@@ -738,12 +629,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                   </div>
                               )}
 
-                              {/* Actions */}
                               <div className="flex items-center gap-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 mt-3 md:mt-0">
                                   <button onClick={() => openTransfer(item)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors">
                                       <ArrowLeftRight size={16}/> Μεταφορά
                                   </button>
-                                  <button onClick={() => setSelectedProduct(item.product)} className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-slate-800 transition-colors">
+                                  <button onClick={() => setSelectedProduct(item.product)} className="bg-[#060b00] text-white p-2.5 rounded-xl hover:bg-black transition-colors">
                                       <Edit2 size={16}/>
                                   </button>
                                   <button onClick={() => handleDeleteItem(item)} className="bg-red-50 text-red-600 p-2.5 rounded-xl hover:bg-red-100 transition-colors border border-red-100">
@@ -768,7 +658,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                {warehouses?.map(wh => (
                    <div key={wh.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform">
                        <div className="flex justify-between items-start mb-6">
-                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wh.is_system ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'} shadow-lg`}>
+                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wh.is_system ? 'bg-[#060b00] text-white' : 'bg-blue-600 text-white'} shadow-lg`}>
                                <Store size={28} />
                            </div>
                            {!wh.is_system && (
@@ -778,9 +668,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                </div>
                            )}
                        </div>
-                       
                        <h3 className="text-2xl font-black text-slate-800 tracking-tight">{getWarehouseNameClean(wh)}</h3>
-                       
                        {!wh.is_system && (
                            <div className="mt-2 text-xs font-mono text-slate-400 bg-slate-50 inline-block px-2 py-1 rounded">ID: {wh.id.split('-')[0]}</div>
                        )}
@@ -795,7 +683,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
            </div>
       )}
 
-      {/* MODALS */}
       {isEditingWarehouse && (
           <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 border border-slate-100">
@@ -808,7 +695,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       <select className="w-full p-3 border rounded-xl bg-white" value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})}>
                           <option value="Store">Κατάστημα</option><option value="Warehouse">Αποθήκη</option><option value="Showroom">Δειγματολόγιο</option>
                       </select>
-                      <button onClick={saveWarehouse} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800">Αποθήκευση</button>
+                      <button onClick={saveWarehouse} className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold hover:bg-black">Αποθήκευση</button>
                   </div>
               </div>
           </div>
@@ -839,7 +726,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                           <span className="font-bold text-slate-600">Ποσότητα</span>
                           <input type="number" min="1" max={transferItem.locationStock[sourceId] || 0} value={transferQty} onChange={e => setTransferQty(parseInt(e.target.value))} className="w-24 text-center p-2 rounded-lg border font-bold text-lg"/>
                       </div>
-                      <button onClick={executeTransfer} disabled={isTransferring} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all">{isTransferring ? 'Μεταφορά...' : 'Επιβεβαίωση'}</button>
+                      <button onClick={executeTransfer} disabled={isTransferring} className="w-full bg-[#060b00] text-white py-4 rounded-xl font-bold hover:bg-black transition-all">{isTransferring ? 'Μεταφορά...' : 'Επιβεβαίωση'}</button>
                   </div>
               </div>
           </div>
@@ -849,13 +736,13 @@ export default function Inventory({ products, setPrintItems, settings, collectio
         <ProductDetails 
           product={selectedProduct} 
           allProducts={products}
-          allMaterials={[]} // Not needed for stock view
+          allMaterials={[]} 
           onClose={() => setSelectedProduct(null)}
           setPrintItems={setPrintItems}
           settings={settings}
           collections={collections}
           allMolds={molds}
-          viewMode="warehouse" // Hides Definitions/Costing
+          viewMode="warehouse" 
         />
       )}
 

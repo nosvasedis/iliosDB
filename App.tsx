@@ -198,17 +198,18 @@ function AppContent() {
 
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-            <div className={`mb-6 px-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-500 flex items-center justify-center text-white font-bold shadow-lg">
-                    {profile?.full_name?.charAt(0) || 'U'}
+            {/* User Profile Section - No Avatar */}
+            {!isCollapsed && (
+      <div className="mb-6 px-4 animate-in fade-in duration-300">
+        <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
+        <button 
+            onClick={signOut} 
+            className="text-xs text-slate-400 hover:text-white transition-colors mt-1 flex items-center gap-1"
+            >
+             Αποσύνδεση
+                 </button>
                 </div>
-                {!isCollapsed && (
-                    <div className="overflow-hidden">
-                        <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
-                        <button onClick={signOut} className="text-xs text-slate-400 hover:text-white transition-colors">Αποσύνδεση</button>
-                    </div>
-                )}
-            </div>
+              )}
 
             <NavItem 
               icon={<LayoutDashboard size={22} />} 

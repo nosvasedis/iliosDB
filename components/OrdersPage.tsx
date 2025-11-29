@@ -22,19 +22,16 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   
-  // New Order Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   
-  // Customer Search within Modal
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerResults, setShowCustomerResults] = useState(false);
 
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
-  // Derived filtered products for adding to order
   const filteredProducts = products.filter(p => 
       !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
   ).slice(0, 5); 
@@ -52,7 +49,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
   };
 
   const handleAddItem = (product: Product, variant?: ProductVariant) => {
-      // PRICING FIX: Use variant price if exists and > 0, otherwise fallback to master selling_price
       const unitPrice = (variant?.selling_price && variant.selling_price > 0) 
           ? variant.selling_price 
           : (product.selling_price || 0);
@@ -65,7 +61,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
           product_details: product
       };
       
-      // Check if already exists
       const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix);
       if (existingIdx >= 0) {
           const updated = [...selectedItems];
@@ -77,27 +72,16 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
       setProductSearch('');
   };
 
-  // --- SCANNER HANDLER ---
   const handleScanItem = (code: string) => {
-      // 1. Try Exact Product Match (e.g. Master SKU scanned directly)
       let product = products.find(p => p.sku === code);
       let variant = undefined;
 
       if (product) {
-          // If product exists, we MUST check if it has variants.
-          // If variants exist, scanning the Master SKU is generally not allowed unless we default to a specific one.
-          // But strict logic: Scan specific variant code.
           if (product.variants && product.variants.length > 0) {
-              // Check if code matches one of the variants exactly (unlikely if code == sku)
-              // This case happens if code = 'DA1005' and product sku = 'DA1005'.
-              // We should prevent adding master if variants exist.
               showToast(`Το προϊόν έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
               return;
           }
       } else {
-          // 2. Try Partial Match (Variant scanned)
-          // Find product where SKU is a prefix of the code
-          // Sort by length desc to match longest SKU first (e.g. match XR100 before XR1)
           const potentialProducts = products
             .filter(p => code.startsWith(p.sku))
             .sort((a, b) => b.sku.length - a.sku.length);
@@ -159,7 +143,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
       await api.saveOrder(newOrder);
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       
-      // Reset
       setIsCreating(false);
       setCustomerName(''); setCustomerPhone(''); setSelectedItems([]); setSelectedCustomerId(null);
       showToast('Η παραγγελία δημιουργήθηκε.', 'success');
@@ -208,7 +191,7 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
           case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
           case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
           case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
-          case OrderStatus.Delivered: return 'bg-slate-800 text-white border-slate-800';
+          case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
           case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
       }
   };
@@ -219,15 +202,15 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+            <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
                     <ShoppingCart size={24} />
                 </div>
                 Παραγγελίες Πελατών
             </h1>
             <p className="text-slate-500 mt-1 ml-14">Διαχείριση λιανικής και χονδρικής.</p>
           </div>
-          <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-slate-800 font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
+          <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
               <Plus size={20} /> Νέα Παραγγελία
           </button>
       </div>
@@ -243,7 +226,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                       <div className="space-y-4">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Στοιχεία Πελάτη</label>
                           
-                          {/* Smart Customer Search */}
                           <div className="relative">
                               <div className="relative">
                                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
@@ -258,10 +240,10 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                         if (!e.target.value) setSelectedCustomerId(null);
                                     }}
                                     onFocus={() => setShowCustomerResults(true)}
-                                    className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white transition-all ${selectedCustomerId ? 'border-indigo-300 ring-2 ring-indigo-50 text-indigo-900 font-bold' : 'border-slate-200'}`}
+                                    className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all ${selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50 text-emerald-900 font-bold' : 'border-slate-200'}`}
                                   />
                                   {selectedCustomerId && (
-                                      <button onClick={() => { setSelectedCustomerId(null); setCustomerName(''); setCustomerPhone(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600">
+                                      <button onClick={() => { setSelectedCustomerId(null); setCustomerName(''); setCustomerPhone(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                                           <X size={16}/>
                                       </button>
                                   )}
@@ -283,16 +265,16 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
 
                           <div className="relative">
                               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                              <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"/>
+                              <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"/>
                           </div>
                       </div>
                       
-                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
+                      <div className="bg-gradient-to-br from-[#060b00]/5 to-emerald-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
                           <div className="flex justify-between items-center mb-4">
-                             <span className="font-bold text-indigo-900 text-sm uppercase">Σύνολο (Χονδρ.)</span>
-                             <span className="font-black text-3xl text-indigo-700">{calculateTotal().toFixed(2)}€</span>
+                             <span className="font-bold text-slate-900 text-sm uppercase">Σύνολο (Χονδρ.)</span>
+                             <span className="font-black text-3xl text-[#060b00]">{calculateTotal().toFixed(2)}€</span>
                           </div>
-                          <button onClick={handleCreateOrder} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5 active:scale-95">
+                          <button onClick={handleCreateOrder} className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold hover:bg-black transition-all shadow-lg hover:-translate-y-0.5 active:scale-95">
                               Καταχώρηση
                           </button>
                       </div>
@@ -301,7 +283,7 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                   <div className="lg:col-span-2 flex flex-col h-full">
                       <div className="flex justify-between items-center mb-2">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Προϊόντα</label>
-                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200 shadow-sm">
+                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200 shadow-sm">
                               <Camera size={14}/> Scan
                           </button>
                       </div>
@@ -312,7 +294,7 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                             placeholder="Αναζήτηση SKU..." 
                             value={productSearch} 
                             onChange={e => setProductSearch(e.target.value)} 
-                            className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
                           />
                           {productSearch && (
                               <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 max-h-60 overflow-y-auto divide-y divide-slate-50">
@@ -321,7 +303,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                       
                                       return (
                                       <div key={p.sku} className="p-3 hover:bg-slate-50 transition-colors">
-                                          {/* Master Row - Only clickable if NO variants */}
                                           <div 
                                             className={`flex justify-between items-center ${!hasVariants ? 'cursor-pointer' : 'opacity-70 cursor-default'}`} 
                                             onClick={() => { if(!hasVariants) handleAddItem(p); }}
@@ -333,7 +314,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                               </div>
                                           </div>
                                           
-                                          {/* Variants List */}
                                           {hasVariants && (
                                               <div className="mt-2 flex flex-wrap gap-2">
                                                   {p.variants?.map(v => {
@@ -342,11 +322,11 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                                       <span 
                                                         key={v.suffix} 
                                                         onClick={(e) => { e.stopPropagation(); handleAddItem(p, v); }} 
-                                                        className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1.5 rounded cursor-pointer border border-indigo-100 font-medium flex items-center gap-1.5 transition-all active:scale-95"
+                                                        className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 py-1.5 rounded cursor-pointer border border-emerald-100 font-medium flex items-center gap-1.5 transition-all active:scale-95"
                                                       >
                                                           <b>{v.suffix}</b>
                                                           <span className="opacity-70 text-[10px]">{v.description}</span>
-                                                          <span className="ml-1 bg-white px-1 rounded text-indigo-900 font-bold">{vPrice.toFixed(0)}€</span>
+                                                          <span className="ml-1 bg-white px-1 rounded text-emerald-900 font-bold">{vPrice.toFixed(0)}€</span>
                                                       </span>
                                                   )})}
                                               </div>
@@ -364,12 +344,12 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                   <div className="flex items-center gap-3">
                                       {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>}
                                       <div>
-                                          <div className="font-bold text-slate-800 text-lg leading-none">{item.sku}<span className="text-indigo-600">{item.variant_suffix}</span></div>
+                                          <div className="font-bold text-slate-800 text-lg leading-none">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
                                           <div className="text-xs text-slate-500 mt-1">{item.price_at_order.toFixed(2)}€ / τεμ</div>
                                       </div>
                                   </div>
                                   <div className="flex items-center gap-3">
-                                      <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-2 bg-white border border-slate-200 rounded-lg text-center font-bold outline-none focus:border-indigo-500 transition-colors"/>
+                                      <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-2 bg-white border border-slate-200 rounded-lg text-center font-bold outline-none focus:border-emerald-500 transition-colors"/>
                                       <div className="font-black w-20 text-right text-slate-800 text-lg">{(item.price_at_order * item.quantity).toFixed(2)}€</div>
                                       <button onClick={() => updateQuantity(idx, 0)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
                                   </div>
@@ -415,7 +395,7 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                   <td className="p-4 pl-6 font-mono font-bold text-slate-700">{order.id}</td>
                                   <td className="p-4">
                                       <div className="font-bold text-slate-800 flex items-center gap-2">
-                                          {order.customer_id ? <Users size={14} className="text-indigo-500"/> : null} 
+                                          {order.customer_id ? <Users size={14} className="text-emerald-500"/> : null} 
                                           {order.customer_name}
                                       </div>
                                       {order.customer_phone && <div className="text-xs text-slate-500 mt-0.5">{order.customer_phone}</div>}
@@ -433,7 +413,6 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                   </td>
                                   <td className="p-4 text-center">
                                       <div className="flex items-center justify-center gap-2">
-                                          {/* PRINT BUTTON */}
                                           {onPrintOrder && (
                                               <button 
                                                 onClick={() => onPrintOrder(order)} 
@@ -445,7 +424,7 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                           )}
 
                                           {order.status === OrderStatus.Pending && (
-                                              <button onClick={() => sendToProduction(order)} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition-colors flex items-center gap-1 hover:shadow-sm">
+                                              <button onClick={() => sendToProduction(order)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
                                                   <Factory size={14}/> Παραγωγή
                                               </button>
                                           )}
@@ -465,12 +444,11 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
           </div>
       )}
 
-      {/* Reusable Scanner Modal */}
       {showScanner && (
           <BarcodeScanner 
             onScan={handleScanItem}
             onClose={() => setShowScanner(false)}
-            continuous={true} // Allow multiple scans in quick succession
+            continuous={true} 
           />
       )}
     </div>

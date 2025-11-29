@@ -18,11 +18,9 @@ export default function CustomersPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     
-    // New Customer Form State
     const [isCreating, setIsCreating] = useState(false);
     const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '' });
     
-    // Analytics for Selected Customer
     const customerStats = useMemo(() => {
         if (!selectedCustomer || !orders) return null;
         const customerOrders = orders.filter(o => o.customer_id === selectedCustomer.id || o.customer_name === selectedCustomer.full_name);
@@ -31,7 +29,6 @@ export default function CustomersPage() {
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
         
-        // Category Preferences
         const catCounts: Record<string, number> = {};
         customerOrders.forEach(o => {
             o.items.forEach(item => {
@@ -43,7 +40,7 @@ export default function CustomersPage() {
         const prefData = Object.entries(catCounts)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
-            .slice(0, 5); // Top 5 categories
+            .slice(0, 5); 
 
         return {
             totalSpent,
@@ -130,8 +127,8 @@ export default function CustomersPage() {
             <div className="lg:col-span-4 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
                 <div className="p-5 border-b border-slate-100 space-y-4">
                     <div className="flex justify-between items-center">
-                        <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-blue-600"/> Πελάτες</h2>
-                        <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); }} className="bg-slate-900 text-white p-2 rounded-lg hover:bg-slate-800 transition-colors shadow-md"><Plus size={18}/></button>
+                        <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-emerald-600"/> Πελάτες</h2>
+                        <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
                     </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -140,26 +137,26 @@ export default function CustomersPage() {
                             placeholder="Αναζήτηση..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all shadow-sm"
+                            className="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all shadow-sm"
                         />
                     </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/30">
                     {isCreating && (
-                        <div className="p-5 bg-white rounded-2xl border border-blue-200 shadow-lg mb-4 animate-in fade-in slide-in-from-top-2 relative z-10">
-                            <h3 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><Plus size={14}/> Νέος Πελάτης</h3>
+                        <div className="p-5 bg-white rounded-2xl border border-emerald-200 shadow-lg mb-4 animate-in fade-in slide-in-from-top-2 relative z-10">
+                            <h3 className="font-bold text-emerald-800 text-sm mb-3 flex items-center gap-2"><Plus size={14}/> Νέος Πελάτης</h3>
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Ονοματεπωνυμο / Επωνυμια *</label>
-                                    <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none" value={newCustomer.full_name} onChange={e => setNewCustomer({...newCustomer, full_name: e.target.value})}/>
+                                    <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.full_name} onChange={e => setNewCustomer({...newCustomer, full_name: e.target.value})}/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Τηλεφωνο</label>
-                                    <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none" value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}/>
+                                    <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}/>
                                 </div>
                                 <div className="flex gap-2 pt-2">
-                                    <button onClick={handleCreate} className="flex-1 bg-blue-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors">Αποθήκευση</button>
+                                    <button onClick={handleCreate} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors">Αποθήκευση</button>
                                     <button onClick={() => setIsCreating(false)} className="flex-1 bg-white text-slate-600 py-2 rounded-xl text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">Άκυρο</button>
                                 </div>
                             </div>
@@ -170,7 +167,7 @@ export default function CustomersPage() {
                         <div 
                             key={c.id} 
                             onClick={() => { setSelectedCustomer(c); setIsCreating(false); setIsEditing(false); }}
-                            className={`p-4 rounded-xl cursor-pointer transition-all border group ${selectedCustomer?.id === c.id ? 'bg-slate-900 text-white border-slate-800 shadow-lg transform scale-[1.02]' : 'bg-white hover:bg-white border-transparent hover:border-slate-200 text-slate-700 hover:shadow-md'}`}
+                            className={`p-4 rounded-xl cursor-pointer transition-all border group ${selectedCustomer?.id === c.id ? 'bg-[#060b00] text-white border-black shadow-lg transform scale-[1.02]' : 'bg-white hover:bg-white border-transparent hover:border-slate-200 text-slate-700 hover:shadow-md'}`}
                         >
                             <div className="font-bold flex items-center gap-2">
                                 <Briefcase size={14} className={selectedCustomer?.id === c.id ? 'text-slate-400' : 'text-slate-300'} />
@@ -192,17 +189,17 @@ export default function CustomersPage() {
                             <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl opacity-50 pointer-events-none"></div>
                             
                             <div className="flex items-center gap-6 relative z-10">
-                                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200 transform rotate-3">
+                                <div className="w-20 h-20 bg-gradient-to-br from-[#060b00] to-emerald-800 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-black/20 transform rotate-3">
                                     <User size={36}/>
                                 </div>
                                 <div>
                                     {isEditing ? (
                                         <div>
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ονοματεπωνυμο / Επωνυμια</label>
-                                            <input className="text-2xl font-black text-slate-800 bg-white border border-slate-200 p-2 rounded-lg outline-none w-full focus:ring-2 focus:ring-blue-500/20" value={selectedCustomer.full_name} onChange={e => setSelectedCustomer({...selectedCustomer, full_name: e.target.value})}/>
+                                            <input className="text-2xl font-black text-slate-800 bg-white border border-slate-200 p-2 rounded-lg outline-none w-full focus:ring-2 focus:ring-emerald-500/20" value={selectedCustomer.full_name} onChange={e => setSelectedCustomer({...selectedCustomer, full_name: e.target.value})}/>
                                         </div>
                                     ) : (
-                                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">{selectedCustomer.full_name}</h2>
+                                        <h2 className="text-3xl font-black text-[#060b00] tracking-tight">{selectedCustomer.full_name}</h2>
                                     )}
                                     <div className="flex items-center gap-4 text-sm text-slate-500 mt-3">
                                         <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
@@ -229,7 +226,6 @@ export default function CustomersPage() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30">
-                            {/* Stats Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
                                     <div className="absolute right-0 top-0 w-20 h-20 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
@@ -255,14 +251,13 @@ export default function CustomersPage() {
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                {/* Details Form */}
                                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                                     <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50"><FileText size={20} className="text-slate-400"/> Στοιχεία Τιμολόγησης</h3>
                                     <div className="space-y-5">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Διεύθυνση</label>
                                             {isEditing ? (
-                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none" value={selectedCustomer.address || ''} onChange={e => setSelectedCustomer({...selectedCustomer, address: e.target.value})} />
+                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={selectedCustomer.address || ''} onChange={e => setSelectedCustomer({...selectedCustomer, address: e.target.value})} />
                                             ) : (
                                                 <div className="text-slate-800 font-medium text-base">{selectedCustomer.address || '-'}</div>
                                             )}
@@ -270,7 +265,7 @@ export default function CustomersPage() {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">ΑΦΜ</label>
                                             {isEditing ? (
-                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none font-mono" value={selectedCustomer.vat_number || ''} onChange={e => setSelectedCustomer({...selectedCustomer, vat_number: e.target.value})} />
+                                                <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" value={selectedCustomer.vat_number || ''} onChange={e => setSelectedCustomer({...selectedCustomer, vat_number: e.target.value})} />
                                             ) : (
                                                 <div className="text-slate-800 font-medium font-mono text-base">{selectedCustomer.vat_number || '-'}</div>
                                             )}
@@ -278,7 +273,7 @@ export default function CustomersPage() {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Σημειώσεις</label>
                                             {isEditing ? (
-                                                <textarea className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none h-24 resize-none" value={selectedCustomer.notes || ''} onChange={e => setSelectedCustomer({...selectedCustomer, notes: e.target.value})} />
+                                                <textarea className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none h-24 resize-none" value={selectedCustomer.notes || ''} onChange={e => setSelectedCustomer({...selectedCustomer, notes: e.target.value})} />
                                             ) : (
                                                 <div className="text-slate-600 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[80px] leading-relaxed">{selectedCustomer.notes || 'Καμία σημείωση.'}</div>
                                             )}
@@ -286,7 +281,6 @@ export default function CustomersPage() {
                                     </div>
                                 </div>
 
-                                {/* Preferences Chart */}
                                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                                     <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50"><PieChart size={20} className="text-slate-400"/> Προτιμήσεις (Top 5)</h3>
                                     {customerStats && customerStats.prefData.length > 0 ? (
@@ -310,9 +304,8 @@ export default function CustomersPage() {
                                 </div>
                             </div>
 
-                            {/* Order History */}
                             <div>
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg"><Calendar size={20} className="text-indigo-500"/> Ιστορικό Παραγγελιών</h3>
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg"><Calendar size={20} className="text-emerald-500"/> Ιστορικό Παραγγελιών</h3>
                                 <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">

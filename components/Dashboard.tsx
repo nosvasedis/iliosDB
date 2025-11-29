@@ -25,7 +25,7 @@ export default function Dashboard({ products, settings }: Props) {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Πίνακας Ελέγχου</h1>
+        <h1 className="text-3xl font-bold text-[#060b00] tracking-tight">Πίνακας Ελέγχου</h1>
         <p className="text-slate-500 mt-2">Επισκόπηση της παραγωγής και της αποθήκης.</p>
       </div>
       
@@ -41,9 +41,9 @@ export default function Dashboard({ products, settings }: Props) {
         <StatCard 
           title="Κωδικοί (SKUs)" 
           value={products.length.toString()} 
-          icon={<Layers className="text-blue-600" size={24} />} 
-          bg="bg-blue-50"
-          border="border-blue-100"
+          icon={<Layers className="text-[#060b00]" size={24} />} 
+          bg="bg-slate-50"
+          border="border-slate-100"
         />
         <StatCard 
           title="Σύνολο Τεμαχίων" 
@@ -65,7 +65,7 @@ export default function Dashboard({ products, settings }: Props) {
         {/* Chart */}
         <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 min-w-0 transition-all hover:shadow-md">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Κατανομή Κατηγοριών</h3>
+            <h3 className="text-xl font-bold text-[#060b00]">Κατανομή Κατηγοριών</h3>
           </div>
           <div className="w-full h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -101,15 +101,15 @@ export default function Dashboard({ products, settings }: Props) {
 
         {/* Quick Settings View */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 h-fit transition-all hover:shadow-md">
-          <h3 className="text-xl font-bold mb-6 text-slate-800">Τρέχουσες Τιμές</h3>
+          <h3 className="text-xl font-bold mb-6 text-[#060b00]">Τρέχουσες Τιμές</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-600 font-medium">Τιμή Ασημιού</span>
-              <span className="font-mono font-bold text-xl text-slate-900">{settings.silver_price_gram} €/g</span>
+              <span className="font-mono font-bold text-xl text-[#060b00]">{settings.silver_price_gram} €/g</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-600 font-medium">Ποσοστό Απώλειας</span>
-              <span className="font-mono font-bold text-xl text-slate-900">{settings.loss_percentage}%</span>
+              <span className="font-mono font-bold text-xl text-[#060b00]">{settings.loss_percentage}%</span>
             </div>
             
             <div className="pt-4 border-t border-slate-100 mt-4">
@@ -129,7 +129,7 @@ const StatCard = ({ title, value, icon, bg, border }: { title: string, value: st
   <div className={`p-6 rounded-3xl border shadow-sm ${bg} ${border} flex items-center justify-between transition-transform hover:-translate-y-1`}>
     <div>
       <p className="text-slate-600 text-sm font-semibold tracking-wide uppercase opacity-80">{title}</p>
-      <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{value}</p>
+      <p className="text-3xl font-black text-[#060b00] mt-2 tracking-tight">{value}</p>
     </div>
     <div className="p-4 bg-white rounded-2xl shadow-sm bg-opacity-60 backdrop-blur-sm">{icon}</div>
   </div>
