@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -26,7 +24,7 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 import { api, isConfigured } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings } from '../types';
+import { Product, ProductVariant, GlobalSettings, Order } from '../types';
 import { UIProvider } from './UIProvider';
 import { AuthProvider, useAuth } from './AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './AuthScreen';
@@ -47,6 +45,7 @@ import OrdersPage from './OrdersPage';
 import ProductionPage from './ProductionPage';
 import CustomersPage from './CustomersPage';
 import AiStudio from './AiStudio';
+import OrderInvoiceView from './OrderInvoiceView';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
@@ -78,7 +77,11 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
+  const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+
   const { signOut, profile } = useAuth();
 
   // Resource Page Tab State
@@ -93,9 +96,9 @@ function AppContent() {
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
+  // Barcode Printing Effect
   useEffect(() => {
     if (printItems.length > 0) {
-      // Increased delay to 500ms to ensure BarcodeView canvas renders completely before print dialog interrupts
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
@@ -103,6 +106,17 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [printItems]);
+
+  // Order Printing Effect
+  useEffect(() => {
+    if (orderToPrint) {
+        const timer = setTimeout(() => {
+            window.print();
+            setOrderToPrint(null);
+        }, 500);
+        return () => clearTimeout(timer);
+    }
+  }, [orderToPrint]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -130,20 +144,24 @@ function AppContent() {
 
   return (
     <>
-      {/* Print View */}
+      {/* Print View Layer */}
       <div className="print-view">
-        <div className="print-area">
-          {flattenedPrintItems.map((item, index) => (
-            <BarcodeView 
-              key={`${item.product.sku}-${item.variant?.suffix || 'master'}-${index}`}
-              product={item.product} 
-              variant={item.variant}
-              width={settings.barcode_width_mm}
-              height={settings.barcode_height_mm}
-              format={item.format}
-            />
-          ))}
-        </div>
+        {orderToPrint ? (
+            <OrderInvoiceView order={orderToPrint} />
+        ) : (
+            <div className="print-area">
+            {flattenedPrintItems.map((item, index) => (
+                <BarcodeView 
+                key={`${item.product.sku}-${item.variant?.suffix || 'master'}-${index}`}
+                product={item.product} 
+                variant={item.variant}
+                width={settings.barcode_width_mm}
+                height={settings.barcode_height_mm}
+                format={item.format}
+                />
+            ))}
+            </div>
+        )}
       </div>
       
       {/* Main Application Container */}
@@ -338,7 +356,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.2.0 (Unified Resources)</p>
+                  <p className="opacity-50 mt-1">v1.3.0 (Order Print)</p>
                 </div>
             )}
           </div>
@@ -362,9 +380,8 @@ function AppContent() {
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
-              {/* FIX: Pass the 'molds' prop to the Inventory component. */}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
               

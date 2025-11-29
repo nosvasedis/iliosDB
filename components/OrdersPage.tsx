@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, MaterialType, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -9,9 +9,10 @@ import BarcodeScanner from './BarcodeScanner';
 
 interface Props {
   products: Product[];
+  onPrintOrder?: (order: Order) => void;
 }
 
-export default function OrdersPage({ products }: Props) {
+export default function OrdersPage({ products, onPrintOrder }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -51,11 +52,16 @@ export default function OrdersPage({ products }: Props) {
   };
 
   const handleAddItem = (product: Product, variant?: ProductVariant) => {
+      // PRICING FIX: Use variant price if exists and > 0, otherwise fallback to master selling_price
+      const unitPrice = (variant?.selling_price && variant.selling_price > 0) 
+          ? variant.selling_price 
+          : (product.selling_price || 0);
+
       const newItem: OrderItem = {
           sku: product.sku,
           variant_suffix: variant?.suffix,
           quantity: 1,
-          price_at_order: product.selling_price,
+          price_at_order: unitPrice,
           product_details: product
       };
       
@@ -73,25 +79,38 @@ export default function OrdersPage({ products }: Props) {
 
   // --- SCANNER HANDLER ---
   const handleScanItem = (code: string) => {
-      // Find product
-      // Scanning codes can be "DA1005" (master) or "DA1005X" (variant)
-      // Logic: Find largest matching SKU prefix from code
-      
       // 1. Try Exact Product Match (e.g. Master SKU scanned directly)
       let product = products.find(p => p.sku === code);
       let variant = undefined;
 
-      if (!product) {
+      if (product) {
+          // If product exists, we MUST check if it has variants.
+          // If variants exist, scanning the Master SKU is generally not allowed unless we default to a specific one.
+          // But strict logic: Scan specific variant code.
+          if (product.variants && product.variants.length > 0) {
+              // Check if code matches one of the variants exactly (unlikely if code == sku)
+              // This case happens if code = 'DA1005' and product sku = 'DA1005'.
+              // We should prevent adding master if variants exist.
+              showToast(`Το προϊόν έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
+              return;
+          }
+      } else {
           // 2. Try Partial Match (Variant scanned)
           // Find product where SKU is a prefix of the code
-          product = products.find(p => code.startsWith(p.sku));
+          // Sort by length desc to match longest SKU first (e.g. match XR100 before XR1)
+          const potentialProducts = products
+            .filter(p => code.startsWith(p.sku))
+            .sort((a, b) => b.sku.length - a.sku.length);
           
-          if (product) {
+          if (potentialProducts.length > 0) {
+              product = potentialProducts[0];
               const suffix = code.replace(product.sku, '');
               variant = product.variants?.find(v => v.suffix === suffix);
               
-              // If variant suffix in code doesn't match a real variant, warn user?
-              // Or if master has only 1 variant and scanned master code?
+              if (!variant && product.variants && product.variants.length > 0) {
+                   showToast(`Η παραλλαγή '${suffix}' δεν βρέθηκε για το ${product.sku}`, 'error');
+                   return;
+              }
           }
       }
 
@@ -297,23 +316,43 @@ export default function OrdersPage({ products }: Props) {
                           />
                           {productSearch && (
                               <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 max-h-60 overflow-y-auto divide-y divide-slate-50">
-                                  {filteredProducts.map(p => (
-                                      <div key={p.sku} className="p-3 hover:bg-slate-50 cursor-pointer">
-                                          <div className="flex justify-between font-bold text-slate-800" onClick={() => handleAddItem(p)}>
-                                              <span>{p.sku}</span>
-                                              <span>{p.selling_price}€ <span className="text-[10px] text-slate-400">(Χονδρ.)</span></span>
+                                  {filteredProducts.map(p => {
+                                      const hasVariants = p.variants && p.variants.length > 0;
+                                      
+                                      return (
+                                      <div key={p.sku} className="p-3 hover:bg-slate-50 transition-colors">
+                                          {/* Master Row - Only clickable if NO variants */}
+                                          <div 
+                                            className={`flex justify-between items-center ${!hasVariants ? 'cursor-pointer' : 'opacity-70 cursor-default'}`} 
+                                            onClick={() => { if(!hasVariants) handleAddItem(p); }}
+                                          >
+                                              <div className="font-bold text-slate-800">{p.sku} <span className="text-xs font-normal text-slate-500 ml-1">{p.category}</span></div>
+                                              <div className="flex items-center gap-2">
+                                                  {!hasVariants && <span className="font-mono font-bold">{p.selling_price.toFixed(2)}€</span>}
+                                                  {hasVariants && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">Master</span>}
+                                              </div>
                                           </div>
-                                          {p.variants && p.variants.length > 0 && (
+                                          
+                                          {/* Variants List */}
+                                          {hasVariants && (
                                               <div className="mt-2 flex flex-wrap gap-2">
-                                                  {p.variants.map(v => (
-                                                      <span key={v.suffix} onClick={(e) => { e.stopPropagation(); handleAddItem(p, v); }} className="text-xs bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-700 px-2 py-1 rounded cursor-pointer border border-slate-200">
-                                                          {v.suffix} ({v.description})
+                                                  {p.variants?.map(v => {
+                                                      const vPrice = (v.selling_price && v.selling_price > 0) ? v.selling_price : p.selling_price;
+                                                      return (
+                                                      <span 
+                                                        key={v.suffix} 
+                                                        onClick={(e) => { e.stopPropagation(); handleAddItem(p, v); }} 
+                                                        className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1.5 rounded cursor-pointer border border-indigo-100 font-medium flex items-center gap-1.5 transition-all active:scale-95"
+                                                      >
+                                                          <b>{v.suffix}</b>
+                                                          <span className="opacity-70 text-[10px]">{v.description}</span>
+                                                          <span className="ml-1 bg-white px-1 rounded text-indigo-900 font-bold">{vPrice.toFixed(0)}€</span>
                                                       </span>
-                                                  ))}
+                                                  )})}
                                               </div>
                                           )}
                                       </div>
-                                  ))}
+                                  )})}
                                   {filteredProducts.length === 0 && <div className="p-4 text-center text-slate-400 text-sm">Δεν βρέθηκαν προϊόντα.</div>}
                               </div>
                           )}
@@ -326,7 +365,7 @@ export default function OrdersPage({ products }: Props) {
                                       {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>}
                                       <div>
                                           <div className="font-bold text-slate-800 text-lg leading-none">{item.sku}<span className="text-indigo-600">{item.variant_suffix}</span></div>
-                                          <div className="text-xs text-slate-500 mt-1">{item.price_at_order}€ / τεμ</div>
+                                          <div className="text-xs text-slate-500 mt-1">{item.price_at_order.toFixed(2)}€ / τεμ</div>
                                       </div>
                                   </div>
                                   <div className="flex items-center gap-3">
@@ -393,16 +432,29 @@ export default function OrdersPage({ products }: Props) {
                                       {order.total_price.toFixed(2)}€
                                   </td>
                                   <td className="p-4 text-center">
-                                      {order.status === OrderStatus.Pending && (
-                                          <button onClick={() => sendToProduction(order)} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition-colors flex items-center gap-1 mx-auto hover:shadow-sm">
-                                              <Factory size={14}/> Παραγωγή
-                                          </button>
-                                      )}
-                                      {order.status === OrderStatus.Ready && (
-                                          <button className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 mx-auto hover:shadow-sm">
-                                              <CheckCircle size={14}/> Παράδοση
-                                          </button>
-                                      )}
+                                      <div className="flex items-center justify-center gap-2">
+                                          {/* PRINT BUTTON */}
+                                          {onPrintOrder && (
+                                              <button 
+                                                onClick={() => onPrintOrder(order)} 
+                                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                                                title="Εκτύπωση Παραγγελίας"
+                                              >
+                                                  <Printer size={16} />
+                                              </button>
+                                          )}
+
+                                          {order.status === OrderStatus.Pending && (
+                                              <button onClick={() => sendToProduction(order)} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition-colors flex items-center gap-1 hover:shadow-sm">
+                                                  <Factory size={14}/> Παραγωγή
+                                              </button>
+                                          )}
+                                          {order.status === OrderStatus.Ready && (
+                                              <button className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
+                                                  <CheckCircle size={14}/> Παράδοση
+                                              </button>
+                                          )}
+                                      </div>
                                   </td>
                               </tr>
                           ))}
