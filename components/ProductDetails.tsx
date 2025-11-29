@@ -538,16 +538,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setViewIndex(0); // Reset to first/prevalent
   };
 
-  // Quick Print: Single Item with SIMPLE format
+  // Quick Print: Single Item with STANDARD format
   const handleQuickPrint = (prod: Product, variant?: ProductVariant) => {
-      setPrintItems([{ product: prod, variant, quantity: 1, format: 'simple' }]);
+      setPrintItems([{ product: prod, variant, quantity: 1, format: 'standard' }]);
       showToast('Εστάλη για εκτύπωση (1 τεμ).', 'success');
   };
   
   return createPortal(
     <>
       <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[100] animate-in fade-in duration-200" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-5xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-6xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         
         {/* Header */}
         <header className="p-6 border-b border-slate-200 bg-white flex justify-between items-center shrink-0">
