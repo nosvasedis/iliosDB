@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -82,6 +83,9 @@ function AppContent() {
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+
+  // Batch Print state (lifted for persistence)
+  const [batchPrintSkus, setBatchPrintSkus] = useState('');
 
   const { signOut, profile } = useAuth();
 
@@ -333,22 +337,16 @@ function AppContent() {
               />
               
               {/* User Indicator */}
-              <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center' : 'px-4'}`}>
+              <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center px-2' : 'px-4'}`}>
                   {!isCollapsed ? (
-                      <div className="flex items-center justify-between group p-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all">
-                          <div className="flex flex-col overflow-hidden mr-2">
-                              <span className="text-xs font-bold text-white truncate">{profile?.full_name || 'User'}</span>
-                              <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                                Active
-                              </span>
-                          </div>
+                      <div className="flex items-center justify-between w-full">
+                          <span className="text-sm font-medium text-white truncate">{profile?.full_name || 'User'}</span>
                           <button 
                               onClick={signOut} 
-                              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                               title="Αποσύνδεση"
                           >
-                              <LogOut size={16} />
+                              <LogOut size={18} />
                           </button>
                       </div>
                   ) : (
@@ -422,7 +420,8 @@ function AppContent() {
 
               {activePage === 'collections' && <CollectionsPage />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
-              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} />}
+              {/* FIX: Pass skusText and setSkusText to BatchPrintPage */}
+              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} />}
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
             </div>

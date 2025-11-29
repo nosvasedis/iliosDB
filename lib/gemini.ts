@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
@@ -198,4 +199,43 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
         }
         throw new Error(`Αποτυχία ανάλυσης τάσεων: ${error.message}`);
     }
+};
+
+/**
+ * Extracts SKUs and quantities from an image of an order sheet.
+ */
+export const extractSkusFromImage = async (imageBase64: string): Promise<string> => {
+  try {
+    const ai = getClient();
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: cleanBase64(imageBase64),
+              mimeType: 'image/jpeg',
+            },
+          },
+          {
+            text: `You are an OCR system for a jewelry ERP. Analyze the provided image of an order sheet. Extract all product SKUs and their corresponding quantities.
+            The SKU is in the 'Περιγραφή / SKU' column. The quantity is in the 'Ποσότητα' column.
+            Format your output strictly as 'SKU QUANTITY' with each item on a new line.
+            Example:
+            XR2020-PKR 5
+            DA1005-X 10
+            
+            - Only output the SKU and quantity pairs.
+            - Do not include any conversational text, headers, explanations, or markdown formatting.
+            - If no SKUs are found, return an empty string.`,
+          },
+        ],
+      },
+    });
+
+    return response.text || "";
+  } catch (error: any) {
+    console.error("Gemini SKU Extraction Error:", error);
+    throw new Error(`AI analysis failed: ${error.message || 'Unknown error'}`);
+  }
 };

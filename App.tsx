@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -21,12 +20,13 @@ import {
   Users,
   Sparkles,
   Database,
-  Layers
+  Layers,
+  LogOut
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings } from './types';
+import { Product, ProductVariant, GlobalSettings, Order } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -47,6 +47,7 @@ import OrdersPage from './components/OrdersPage';
 import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
 import AiStudio from './components/AiStudio';
+import OrderInvoiceView from './components/OrderInvoiceView';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
@@ -78,7 +79,14 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number}[]>([]);
+  
+  // Printing State
+  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
+  const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+
+  // Batch Print state (lifted for persistence)
+  const [batchPrintSkus, setBatchPrintSkus] = useState('');
+
   const { signOut, profile } = useAuth();
 
   // Resource Page Tab State
@@ -93,9 +101,9 @@ function AppContent() {
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
+  // Barcode Printing Effect
   useEffect(() => {
     if (printItems.length > 0) {
-      // Increased delay to 500ms to ensure BarcodeView canvas renders completely before print dialog interrupts
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
@@ -103,6 +111,17 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [printItems]);
+
+  // Order Printing Effect
+  useEffect(() => {
+    if (orderToPrint) {
+        const timer = setTimeout(() => {
+            window.print();
+            setOrderToPrint(null);
+        }, 500);
+        return () => clearTimeout(timer);
+    }
+  }, [orderToPrint]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -125,32 +144,37 @@ function AppContent() {
   if (!settings || !products || !materials || !molds || !collections) return null;
   
   const flattenedPrintItems = printItems.flatMap(item => 
-      Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant }))
+      Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, format: item.format }))
   );
 
   return (
     <>
-      {/* Print View */}
+      {/* Print View Layer */}
       <div className="print-view">
-        <div className="print-area">
-          {flattenedPrintItems.map((item, index) => (
-            <BarcodeView 
-              key={`${item.product.sku}-${item.variant?.suffix || 'master'}-${index}`}
-              product={item.product} 
-              variant={item.variant}
-              width={settings.barcode_width_mm}
-              height={settings.barcode_height_mm}
-            />
-          ))}
-        </div>
+        {orderToPrint ? (
+            <OrderInvoiceView order={orderToPrint} />
+        ) : (
+            <div className="print-area">
+            {flattenedPrintItems.map((item, index) => (
+                <BarcodeView 
+                key={`${item.product.sku}-${item.variant?.suffix || 'master'}-${index}`}
+                product={item.product} 
+                variant={item.variant}
+                width={settings.barcode_width_mm}
+                height={settings.barcode_height_mm}
+                format={item.format}
+                />
+            ))}
+            </div>
+        )}
       </div>
       
       {/* Main Application Container */}
-      <div id="app-container" className="flex h-screen overflow-hidden text-slate-800 bg-slate-50 font-sans selection:bg-amber-100">
+      <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans selection:bg-amber-100">
         {/* Mobile Overlay */}
         {isSidebarOpen && (
           <div 
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
+            className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -161,7 +185,7 @@ function AppContent() {
             fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
             ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'}
             ${isCollapsed ? 'md:w-20' : 'md:w-72'}
-            border-r border-white/10
+            border-r border-white/5
           `}
         >
           {/* Sidebar Header */}
@@ -198,19 +222,7 @@ function AppContent() {
 
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-            {/* User Profile Section - No Avatar */}
-            {!isCollapsed && (
-      <div className="mb-6 px-4 animate-in fade-in duration-300">
-        <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
-        <button 
-            onClick={signOut} 
-            className="text-xs text-slate-400 hover:text-white transition-colors mt-1 flex items-center gap-1"
-            >
-             Αποσύνδεση
-                 </button>
-                </div>
-              )}
-
+            
             <NavItem 
               icon={<LayoutDashboard size={22} />} 
               label="Πίνακας Ελέγχου" 
@@ -227,23 +239,23 @@ function AppContent() {
                     className={`
                     w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-300 group relative
                     ${activePage === 'ai-studio' 
-                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/30 ring-1 ring-indigo-400' 
-                        : 'text-indigo-200 hover:bg-white/5 hover:text-white border border-indigo-500/20 bg-indigo-900/10'}
+                        ? 'bg-gradient-to-r from-[#060b00] to-emerald-900 text-white shadow-lg shadow-black/30 ring-1 ring-emerald-800' 
+                        : 'text-emerald-200 hover:bg-white/5 hover:text-white border border-emerald-900/30 bg-[#0a1200]/50'}
                     `}
                 >
-                    <div className={`${activePage === 'ai-studio' ? 'text-white' : 'text-indigo-300 group-hover:text-white transition-colors duration-200'}`}>
+                    <div className={`${activePage === 'ai-studio' ? 'text-white' : 'text-emerald-300 group-hover:text-white transition-colors duration-200'}`}>
                         <Sparkles size={22} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} />
                     </div>
                     {!isCollapsed && <span className="font-bold truncate tracking-wide text-sm">AI Studio</span>}
                     {isCollapsed && (
-                    <div className="absolute left-full ml-3 px-3 py-1.5 bg-indigo-900 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-indigo-700 transition-opacity duration-200">
+                    <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
                         AI Studio
                     </div>
                     )}
                 </button>
             </div>
 
-            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            <div className="my-2 border-t border-white/10 mx-2"></div>
             
             <NavItem 
               icon={<Database size={22} />} 
@@ -275,7 +287,7 @@ function AppContent() {
               onClick={() => handleNav('customers')} 
             />
             
-            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            <div className="my-2 border-t border-white/10 mx-2"></div>
             
             <NavItem 
               icon={<Warehouse size={22} />} 
@@ -285,7 +297,7 @@ function AppContent() {
               onClick={() => handleNav('inventory')} 
             />
             
-             <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem 
               icon={<Layers size={22} />} 
               label="Υλικά & Λάστιχα" 
@@ -300,7 +312,7 @@ function AppContent() {
               isCollapsed={isCollapsed}
               onClick={() => handleNav('collections')} 
             />
-            <div className="my-2 border-t border-slate-800/50 mx-2"></div>
+            <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem 
               icon={<DollarSign size={22} />} 
               label="Τιμολόγηση" 
@@ -323,6 +335,30 @@ function AppContent() {
                 isCollapsed={isCollapsed}
                 onClick={() => handleNav('settings')} 
               />
+              
+              {/* User Indicator */}
+              <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center px-2' : 'px-4'}`}>
+                  {!isCollapsed ? (
+                      <div className="flex items-center justify-between w-full">
+                          <span className="text-sm font-medium text-white truncate">{profile?.full_name || 'User'}</span>
+                          <button 
+                              onClick={signOut} 
+                              className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              title="Αποσύνδεση"
+                          >
+                              <LogOut size={18} />
+                          </button>
+                      </div>
+                  ) : (
+                      <button 
+                          onClick={signOut}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                          title="Αποσύνδεση"
+                      >
+                          <LogOut size={20} />
+                      </button>
+                  )}
+              </div>
             </div>
           </nav>
 
@@ -338,7 +374,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.2.0 (Unified Resources)</p>
+                  <p className="opacity-50 mt-1">v1.3.0 (Dark Theme)</p>
                 </div>
             )}
           </div>
@@ -362,16 +398,15 @@ function AppContent() {
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
-              {/* FIX: Pass the 'molds' prop to the Inventory component. */}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
               
               {activePage === 'resources' && (
                 <div className="space-y-6">
                     <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0">
-                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'materials' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <Gem size={18} /> Υλικά
                         </button>
                         <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
@@ -385,7 +420,7 @@ function AppContent() {
 
               {activePage === 'collections' && <CollectionsPage />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
-              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} />}
+              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} />}
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
             </div>
@@ -404,7 +439,7 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
       w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
       ${isActive 
         ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
-        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
     `}
   >
     <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
@@ -412,7 +447,7 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
     </div>
     {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
     {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
+      <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
         {label}
       </div>
     )}
