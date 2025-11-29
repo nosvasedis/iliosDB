@@ -51,7 +51,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#041302] flex items-center justify-center p-4 relative overflow-hidden">
        {/* Background Effects */}
        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-amber-500/20 rounded-full blur-[120px]"></div>
@@ -61,7 +61,7 @@ export default function AuthScreen() {
        <div className="bg-white/95 backdrop-blur-md w-full max-w-md rounded-3xl shadow-2xl p-8 z-10 border border-white/20 relative">
           
           <div className="flex flex-col items-center mb-8">
-             <div className="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden border border-slate-700">
+             <div className="w-20 h-20 bg-[#041302] rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden border border-slate-700">
                  {!logoError ? (
                     <img 
                         src={APP_LOGO} 
@@ -128,7 +128,7 @@ export default function AuthScreen() {
              <button 
                type="submit" 
                disabled={isLoading}
-               className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 mt-6 flex items-center justify-center gap-2"
+               className="w-full bg-[#041302] text-white py-3.5 rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 mt-6 flex items-center justify-center gap-2"
              >
                 {isLoading ? <Loader2 className="animate-spin"/> : (isLogin ? 'Είσοδος' : 'Εγγραφή')}
                 {!isLoading && <ArrowRight size={18}/>}

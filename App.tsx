@@ -158,14 +158,14 @@ function AppContent() {
         {/* Sidebar */}
         <aside 
           className={`
-            fixed inset-y-0 left-0 z-40 bg-slate-900 text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
+            fixed inset-y-0 left-0 z-40 bg-[#041302] text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
             ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'}
             ${isCollapsed ? 'md:w-20' : 'md:w-72'}
-            border-r border-slate-800
+            border-r border-white/10
           `}
         >
           {/* Sidebar Header */}
-          <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} h-24 relative bg-slate-950/30`}>
+          <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} h-24 relative bg-black/20`}>
             {!isCollapsed ? (
               <div className="flex items-center justify-center w-full px-2 h-full animate-in fade-in duration-300">
                 <img 
@@ -326,7 +326,7 @@ function AppContent() {
           </nav>
 
           {/* Footer */}
-          <div className="p-4 bg-slate-950/30">
+          <div className="p-4 bg-black/20">
             <button 
               onClick={toggleCollapse}
               className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
