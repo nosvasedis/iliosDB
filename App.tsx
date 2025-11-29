@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -360,7 +361,8 @@ function AppContent() {
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
-              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
+              {/* FIX: Pass the 'molds' prop to the Inventory component. */}
+              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
               {activePage === 'orders' && <OrdersPage products={products} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}

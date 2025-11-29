@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, ProductVariant, Warehouse, Order, OrderStatus } from '../types';
+import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold } from '../types';
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
@@ -10,9 +10,10 @@ import BarcodeScanner from './BarcodeScanner';
 
 interface Props {
   products: Product[];
-  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
+  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
   settings: any;
   collections: any[];
+  molds: Mold[];
 }
 
 // Flattened Inventory Item Interface
@@ -31,7 +32,7 @@ interface InventoryItem {
     isSingleVariantMode?: boolean; // New flag for the "Single Variant" logic
 }
 
-export default function Inventory({ products, setPrintItems, settings, collections }: Props) {
+export default function Inventory({ products, setPrintItems, settings, collections, molds }: Props) {
   const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -853,6 +854,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           setPrintItems={setPrintItems}
           settings={settings}
           collections={collections}
+          allMolds={molds}
           viewMode="warehouse" // Hides Definitions/Costing
         />
       )}

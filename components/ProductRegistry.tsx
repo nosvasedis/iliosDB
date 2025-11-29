@@ -11,7 +11,7 @@ import { calculateProductCost, getPrevalentVariant, getVariantComponents } from 
 import { useUI } from './UIProvider';
 
 interface Props {
-    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
+    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
 }
 
 const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNode }[] = [
@@ -370,6 +370,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           setPrintItems={setPrintItems || (() => {})} // Pass the prop function
           settings={settings}
           collections={collections}
+          allMolds={molds}
           viewMode="registry" // Hides stock
         />
       )}

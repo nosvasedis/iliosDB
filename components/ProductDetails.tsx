@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection } from '../types';
+import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown } from 'lucide-react';
@@ -140,10 +140,11 @@ interface Props {
   setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
+  allMolds: Mold[];
   viewMode?: 'registry' | 'warehouse'; // New prop
 }
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, viewMode = 'registry' }: Props) {
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   
@@ -715,18 +716,29 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         )}
                     </div>
 
-                    {/* NEW: Molds Display */}
+                    {/* NEW: Molds Display with Tooltip */}
                     <div className="bg-white p-4 rounded-xl border border-slate-200">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-3">
                             <MapPin size={14}/> Απαιτούμενα Λάστιχα
                         </label>
                         {editedProduct.molds && editedProduct.molds.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                                {editedProduct.molds.map(moldCode => (
-                                    <div key={moldCode} className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100">
-                                        {moldCode}
-                                    </div>
-                                ))}
+                                {editedProduct.molds.map(moldCode => {
+                                    const moldDetails = allMolds.find(m => m.code === moldCode);
+                                    return (
+                                        <div key={moldCode} className="relative group">
+                                            <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
+                                                {moldCode}
+                                            </div>
+                                            {moldDetails && (
+                                                <div className="absolute bottom-full mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg left-1/2 -translate-x-1/2">
+                                                    <p className="font-bold">{moldDetails.description}</p>
+                                                    <p className="text-slate-300 mt-1">Τοποθεσία: {moldDetails.location}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="text-sm text-slate-400 italic">

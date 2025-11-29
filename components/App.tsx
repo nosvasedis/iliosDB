@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -22,55 +23,32 @@ import {
   Database,
   Layers
 } from 'lucide-react';
-import { APP_LOGO, APP_ICON_ONLY } from './constants';
-import { api, isConfigured } from './lib/supabase';
+import { APP_LOGO, APP_ICON_ONLY } from '../constants';
+import { api, isConfigured } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings } from './types';
-import { UIProvider } from './components/UIProvider';
-import { AuthProvider, useAuth } from './components/AuthContext';
-import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
-import SetupScreen from './components/SetupScreen';
+import { Product, ProductVariant, GlobalSettings } from '../types';
+import { UIProvider } from './UIProvider';
+import { AuthProvider, useAuth } from './AuthContext';
+import AuthScreen, { PendingApprovalScreen } from './AuthScreen';
+import SetupScreen from './SetupScreen';
 
 // Pages
-import Dashboard from './components/Dashboard';
-import Inventory from './components/Inventory';
-import ProductRegistry from './components/ProductRegistry'; 
-import PricingManager from './components/PricingManager';
-import SettingsPage from './components/SettingsPage';
-import MaterialsPage from './components/MaterialsPage';
-import MoldsPage from './components/MoldsPage';
-import CollectionsPage from './components/CollectionsPage';
-import BarcodeView from './components/BarcodeView';
-import BatchPrintPage from './components/BatchPrintPage';
-import OrdersPage from './components/OrdersPage';
-import ProductionPage from './components/ProductionPage';
-import CustomersPage from './components/CustomersPage';
-import AiStudio from './components/AiStudio';
+import Dashboard from './Dashboard';
+import Inventory from './Inventory';
+import ProductRegistry from './ProductRegistry'; 
+import PricingManager from './PricingManager';
+import SettingsPage from './SettingsPage';
+import MaterialsPage from './MaterialsPage';
+import MoldsPage from './MoldsPage';
+import CollectionsPage from './CollectionsPage';
+import BarcodeView from './BarcodeView';
+import BatchPrintPage from './BatchPrintPage';
+import OrdersPage from './OrdersPage';
+import ProductionPage from './ProductionPage';
+import CustomersPage from './CustomersPage';
+import AiStudio from './AiStudio';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
-
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
-  <button
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive 
-        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
-        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
-    `}
-  >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
-      {icon}
-    </div>
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
-    {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
-        {label}
-      </div>
-    )}
-  </button>
-);
 
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
@@ -100,7 +78,6 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // UPDATED STATE TYPE TO INCLUDE FORMAT
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const { signOut, profile } = useAuth();
 
@@ -163,7 +140,7 @@ function AppContent() {
               variant={item.variant}
               width={settings.barcode_width_mm}
               height={settings.barcode_height_mm}
-              format={item.format} // Pass Format
+              format={item.format}
             />
           ))}
         </div>
@@ -385,7 +362,8 @@ function AppContent() {
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
-              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} />}
+              {/* FIX: Pass the 'molds' prop to the Inventory component. */}
+              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
               {activePage === 'orders' && <OrdersPage products={products} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
@@ -417,6 +395,29 @@ function AppContent() {
     </>
   );
 }
+
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+  <button
+    onClick={onClick}
+    title={isCollapsed ? label : ''}
+    className={`
+      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
+      ${isActive 
+        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
+        : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+    `}
+  >
+    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
+      {icon}
+    </div>
+    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {isCollapsed && (
+      <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700 transition-opacity duration-200">
+        {label}
+      </div>
+    )}
+  </button>
+);
 
 export default function App() {
   if (!isConfigured) {
