@@ -158,7 +158,7 @@ function AppContent() {
         {/* Sidebar */}
         <aside 
           className={`
-            fixed inset-y-0 left-0 z-40 bg-[#041302] text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
+            fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl flex flex-col
             ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'}
             ${isCollapsed ? 'md:w-20' : 'md:w-72'}
             border-r border-white/10
