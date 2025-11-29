@@ -10,6 +10,78 @@ import { compressImage } from '../utils/imageHelpers';
 
 type Mode = 'copywriting' | 'virtual-model' | 'trends';
 
+// --- Text Styling Helpers ---
+const parseBold = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+const parseStyledText = (text: string) => {
+    if (!text) return null;
+    
+    // Remove ugly separators
+    const cleanText = text.replace(/\*\*\*/g, '').replace(/---/g, '');
+    
+    // Split by lines to identify structure
+    const lines = cleanText.split('\n');
+    const elements: React.ReactNode[] = [];
+    
+    let currentList: React.ReactNode[] = [];
+    
+    const flushList = (keyPrefix: number) => {
+        if (currentList.length > 0) {
+            elements.push(
+                <ul key={`list-${keyPrefix}`} className="list-disc pl-5 space-y-1.5 text-slate-700 marker:text-indigo-400 my-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    {currentList}
+                </ul>
+            );
+            currentList = [];
+        }
+    };
+
+    lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        
+        if (!trimmed) {
+            flushList(index);
+            return;
+        }
+
+        // 1. Headers (# Title)
+        if (trimmed.startsWith('#')) {
+            flushList(index);
+            const content = trimmed.replace(/^#+\s*/, '');
+            elements.push(
+                <h3 key={index} className="text-lg font-bold text-indigo-900 mt-5 mb-2 flex items-center gap-2">
+                    {content}
+                </h3>
+            );
+        }
+        // 2. Lists (- Item)
+        else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+            const content = trimmed.replace(/^[-•]\s+/, '');
+            currentList.push(<li key={`li-${index}`}>{parseBold(content)}</li>);
+        }
+        // 3. Regular Paragraphs
+        else {
+            flushList(index);
+            elements.push(
+                <p key={index} className="mb-2 text-slate-700 leading-relaxed text-[15px]">
+                    {parseBold(trimmed)}
+                </p>
+            );
+        }
+    });
+    
+    flushList(lines.length); // Final flush
+    return <div className="space-y-1">{elements}</div>;
+};
+
 export default function AiStudio() {
     const { showToast } = useUI();
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -402,12 +474,13 @@ export default function AiStudio() {
                             
                             <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'items-end flex flex-col' : ''}`}>
                                 {msg.text && (
-                                    <div className={`p-5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
+                                    <div className={`p-5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                                         msg.role === 'user' 
-                                            ? 'bg-slate-900 text-white rounded-tr-none' 
+                                            ? 'bg-slate-900 text-white rounded-tr-none whitespace-pre-wrap' 
                                             : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
                                     }`}>
-                                        {msg.text}
+                                        {msg.role === 'model' ? parseStyledText(msg.text) : msg.text}
+                                        
                                         {msg.isTrendAnalysis && (
                                             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-1 text-xs font-bold text-emerald-600">
                                                 <Search size={12}/> Επαληθεύτηκε με Google Search
