@@ -94,7 +94,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) =>
 };
 
 // Barcode Row Component
-const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant, onPrint: (p: Product, v?: ProductVariant) => void }> = ({ product, variant, onPrint }) => {
+const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant }> = ({ product, variant }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const sku = variant ? `${product.sku}${variant.suffix}` : product.sku;
     
@@ -127,13 +127,6 @@ const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant, onPrint
             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-center min-w-[200px]">
                 <canvas ref={canvasRef} className="max-w-full h-auto" />
             </div>
-
-            <button 
-                onClick={() => onPrint(product, variant)}
-                className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 hover:shadow-lg transition-all flex items-center gap-2 text-sm font-bold active:scale-95"
-            >
-                <Printer size={16} /> Εκτύπωση
-            </button>
         </div>
     );
 };
@@ -547,7 +540,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   return createPortal(
     <>
       <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[100] animate-in fade-in duration-200" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-6xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-7xl h-[90vh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         
         {/* Header */}
         <header className="p-6 border-b border-slate-200 bg-white flex justify-between items-center shrink-0">
@@ -718,6 +711,26 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <div className="mt-1 font-bold text-slate-800 text-lg leading-snug">
                                     {displayStones}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* NEW: Molds Display */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-3">
+                            <MapPin size={14}/> Απαιτούμενα Λάστιχα
+                        </label>
+                        {editedProduct.molds && editedProduct.molds.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {editedProduct.molds.map(moldCode => (
+                                    <div key={moldCode} className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100">
+                                        {moldCode}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-slate-400 italic">
+                                Δεν έχουν οριστεί λάστιχα για αυτό το προϊόν.
                             </div>
                         )}
                     </div>
@@ -912,12 +925,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     <div className="space-y-3">
                         {/* Master Barcode Row - Show ONLY if no variants exist */}
                         {editedProduct.variants.length === 0 && (
-                            <BarcodeRow product={editedProduct} onPrint={handleQuickPrint} />
+                            <BarcodeRow product={editedProduct} />
                         )}
                         
                         {/* Variant Rows - Always show if variants exist */}
                         {editedProduct.variants.map((v, i) => (
-                            <BarcodeRow key={i} product={editedProduct} variant={v} onPrint={handleQuickPrint} />
+                            <BarcodeRow key={i} product={editedProduct} variant={v} />
                         ))}
                     </div>
                 </div>
