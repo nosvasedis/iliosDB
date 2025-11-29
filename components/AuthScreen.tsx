@@ -1,11 +1,8 @@
-
-
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { APP_LOGO } from '../constants';
+import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useUI } from './UIProvider';
-import { APP_LOGO, APP_ICON_ONLY } from '../constants'; // Πρόσθεσε το APP_ICON_ONLY
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);

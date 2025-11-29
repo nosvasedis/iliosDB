@@ -333,8 +333,8 @@ export default function AiStudio() {
     };
 
     return (
-        <div className="h-[calc(100vh-100px)] flex gap-6">
-            <div className="w-72 flex flex-col gap-4 shrink-0">
+        <div className="h-[calc(100vh-6rem)] flex gap-6">
+            <div className="w-72 flex flex-col gap-4 shrink-0 hidden md:flex">
                 <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 rounded-3xl p-6 text-white shadow-lg shadow-black/30">
                     <h1 className="text-2xl font-black flex items-center gap-2 mb-1">
                         <Sparkles className="text-yellow-300 animate-pulse" /> AI Studio
