@@ -109,10 +109,21 @@ export default function PricingManager({ products, settings, materials }: Props)
 
   // If we haven't calculated yet, we show the original products list
   // IMPORTANT: For the table, if not calculated, we map draft_price to current price so diff is 0
-  const productsToList = isCalculated ? previewProducts : products.map(p => ({
+  const productsToList = (isCalculated ? previewProducts : products.map(p => ({
       ...p,
       draft_price: mode === 'cost' ? p.active_price : p.selling_price
-  }));
+  }))).sort((a, b) => {
+    const regex = /^([A-Z-]+)(\d+)$/i;
+    const matchA = a.sku.match(regex);
+    const matchB = b.sku.match(regex);
+    if (!matchA || !matchB) return a.sku.localeCompare(b.sku);
+    const [, prefixA, numStrA] = matchA;
+    const [, prefixB, numStrB] = matchB;
+    const numA = parseInt(numStrA, 10);
+    const numB = parseInt(numStrB, 10);
+    if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
+    return numA - numB;
+  });
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto h-[calc(100vh-100px)] flex flex-col">
