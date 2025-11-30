@@ -71,7 +71,7 @@ export default function AuthScreen() {
                     <span className="text-amber-500 font-black text-3xl tracking-tighter">IL</span>
                  )}
              </div>
-             <h1 className="text-2xl font-black text-slate-900 tracking-tight">ILIOS KOSMIMA ERP</h1>
+             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Ilios Kosmima ERP</h1>
              <p className="text-slate-500 text-sm mt-1 font-medium">Σύστημα Διαχείρισης Παραγωγής</p>
           </div>
 

@@ -877,7 +877,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <ScanBarcode className="text-blue-600 mt-1" size={24} />
                         <div>
                             <h4 className="font-bold text-blue-900 text-sm">Διαχείριση Barcode</h4>
-                            <p className="text-xs text-blue-700 mt-1">Εδώ μπορείτε να δείτε και να εκτυπώσετε μεμονωμένα τα barcode για κάθε παραλλαγή.</p>
+                            <p className="text-xs text-blue-700 mt-1">Εδώ μπορείτε να δείτε μεμονωμένα τα barcode για κάθε παραλλαγή.</p>
                         </div>
                     </div>
 
