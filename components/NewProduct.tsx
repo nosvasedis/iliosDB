@@ -130,7 +130,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         );
         
         let suggestedCost = 0;
-        if (similarProducts.length > 1) { // Smart suggestion based on similar items
+        if (similarProducts.length > 0) { // Smart suggestion based on similar items
             const costPerGramRatios = similarProducts.map(p => p.labor.plating_cost / p.weight_g);
             const avgCostPerGram = costPerGramRatios.reduce((a, b) => a + b, 0) / costPerGramRatios.length;
             suggestedCost = avgCostPerGram * weight;
@@ -739,7 +739,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                  <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between">
                     <label className="text-sm font-bold text-amber-800 uppercase tracking-wide">Βάρος Ασημιού (g) <span className="text-red-500">*</span></label>
                     <div className="relative w-40">
-                        <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-amber-200 rounded-xl bg-white text-3xl font-mono font-bold text-center outline-none"/>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={weight} 
+                            onChange={e => {
+                                setWeight(parseFloat(e.target.value) || 0);
+                                setIsPlatingCostManuallySet(false);
+                                setIsPlatingCostSuggested(false);
+                            }} 
+                            className="w-full p-3 border border-amber-200 rounded-xl bg-white text-3xl font-mono font-bold text-center outline-none"
+                        />
                     </div>
                  </div>
                  <div className="grid grid-cols-2 gap-6">
