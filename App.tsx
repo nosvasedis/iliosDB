@@ -1,8 +1,6 @@
 
 
 
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -29,7 +27,8 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order } from './types';
+// FIX: Import ProductionBatch to handle production printing state
+import { Product, ProductVariant, GlobalSettings, Order, ProductionBatch } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -51,6 +50,8 @@ import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
 import AiStudio from './components/AiStudio';
 import OrderInvoiceView from './components/OrderInvoiceView';
+// FIX: Import ProductionWorkerView for printing production batches
+import ProductionWorkerView from './components/ProductionWorkerView';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
@@ -86,6 +87,8 @@ function AppContent() {
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  // FIX: Add state for printing production batches
+  const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
 
   // Batch Print state (lifted for persistence)
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
@@ -115,16 +118,18 @@ function AppContent() {
     }
   }, [printItems]);
 
-  // Order Printing Effect
+  // FIX: Update printing effect to handle both orders and production batches
+  // Order & Production Printing Effect
   useEffect(() => {
-    if (orderToPrint) {
+    if (orderToPrint || batchToPrint) {
         const timer = setTimeout(() => {
             window.print();
             setOrderToPrint(null);
+            setBatchToPrint(null);
         }, 500);
         return () => clearTimeout(timer);
     }
-  }, [orderToPrint]);
+  }, [orderToPrint, batchToPrint]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -153,10 +158,18 @@ function AppContent() {
   return (
     <>
       {/* Print View Layer */}
+      {/* FIX: Update print view to handle batch printing */}
       <div className="print-view">
-        {orderToPrint ? (
-            <OrderInvoiceView order={orderToPrint} />
-        ) : (
+        {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+        {batchToPrint && (
+            <ProductionWorkerView 
+                batch={batchToPrint}
+                allMolds={molds}
+                allProducts={products}
+                allMaterials={materials}
+            />
+        )}
+        {!orderToPrint && !batchToPrint && (
             <div className="print-area">
             {flattenedPrintItems.map((item, index) => (
                 <BarcodeView 
@@ -402,9 +415,9 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {/* FIX: Pass materials to OrdersPage as it is a required prop */}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
+              {/* FIX: Pass missing `molds` and `onPrintBatch` props to ProductionPage */}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} />}
               {activePage === 'customers' && <CustomersPage />}
               
               {activePage === 'resources' && (

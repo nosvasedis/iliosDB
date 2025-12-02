@@ -186,6 +186,7 @@ export interface ProductionBatch {
   
   // Computed helpers for UI
   product_image?: string | null;
+  product_details?: Product;
   
   // UI Logic helpers
   diffHours?: number;

@@ -1,21 +1,17 @@
 
 
-
-
-
-
-
 import React, { useMemo, useState } from 'react';
-// FIX: Import Material type
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
   products: Product[];
-  materials: Material[]; // materials are needed to determine if a product has stones
+  materials: Material[];
+  molds: Mold[];
+  onPrintBatch: (batch: ProductionBatch) => void;
 }
 
 const STAGES = [
@@ -44,25 +40,33 @@ const STAGE_COLORS = {
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
 };
 
-// FIX: Changed component definition to use React.FC and a props interface
-// to correctly type it and resolve the issue with the 'key' prop.
 interface BatchCardProps {
     batch: ProductionBatch;
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
+    onPrint: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart }) => (
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) => (
     <div 
         draggable 
         onDragStart={(e) => onDragStart(e, batch.id)}
-        className={`bg-white p-4 rounded-2xl shadow-sm border hover:shadow-lg transition-all relative flex flex-col cursor-grab active:cursor-grabbing
+        className={`bg-white p-4 rounded-2xl shadow-sm border hover:shadow-lg transition-all relative flex flex-col cursor-grab active:cursor-grabbing group
                     ${batch.isDelayed ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-100'}`}
     >
-        {batch.isDelayed && (
-            <div className="absolute top-3 right-3 text-red-500 flex items-center gap-1 text-[10px] font-bold bg-red-50 px-2 py-1 rounded-full border border-red-100">
-                <Clock size={12} /> +{batch.diffHours}h
-            </div>
-        )}
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+            {batch.isDelayed && (
+                <div className="text-red-500 flex items-center gap-1 text-[10px] font-bold bg-red-50 px-2 py-1 rounded-full border border-red-100">
+                    <Clock size={12} /> +{batch.diffHours}h
+                </div>
+            )}
+            <button
+                onClick={() => onPrint(batch)}
+                className="p-1.5 bg-white/50 backdrop-blur-sm text-slate-400 rounded-full border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100 hover:text-slate-700"
+                title="Εκτύπωση Εντολής Παραγωγής"
+            >
+                <Printer size={14} />
+            </button>
+        </div>
         
         <div className="flex gap-4 items-start mb-3">
             <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
@@ -89,7 +93,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart }) => (
     </div>
 );
 
-export default function ProductionPage({ products, materials }: Props) {
+export default function ProductionPage({ products, materials, molds, onPrintBatch }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -97,7 +101,6 @@ export default function ProductionPage({ products, materials }: Props) {
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
 
-  // FIX: Explicitly type enhancedBatches to avoid type inference issues with the 'key' prop.
   const enhancedBatches: ProductionBatch[] = useMemo(() => {
     return batches?.map(b => {
       const prod = products.find(p => p.sku === b.sku);
@@ -113,7 +116,7 @@ export default function ProductionPage({ products, materials }: Props) {
           return material?.type === MaterialType.Stone;
       }) || false;
 
-      return { ...b, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasStones };
+      return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasStones };
     }) || [];
   }, [batches, products, materials]);
 
@@ -192,7 +195,7 @@ export default function ProductionPage({ products, materials }: Props) {
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                                 {stageBatches.map(batch => (
-                                    <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} />
+                                    <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
                                 ))}
                                 {stageBatches.length === 0 && (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-300 p-4">

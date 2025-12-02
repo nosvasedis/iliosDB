@@ -42,33 +42,33 @@ export default function OrderInvoiceView({ order }: Props) {
     };
 
     return (
-        <div className="w-full bg-white text-slate-900 p-10 font-sans text-sm leading-normal h-full flex flex-col page-break-inside-avoid break-inside-avoid">
+        <div className="w-full bg-white text-slate-900 p-8 font-sans text-sm leading-normal h-full flex flex-col page-break-inside-avoid break-inside-avoid">
             {/* HEADER */}
-            <header className="flex justify-between items-start border-b border-slate-200 pb-8 mb-8">
-                <div className="w-40">
+            <header className="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
+                <div className="w-28">
                     <img src={APP_LOGO} alt="ILIOS" className="w-full object-contain" />
                 </div>
                 
                 <div className="text-right">
-                    <h1 className="text-4xl font-black text-slate-800 uppercase tracking-tight mb-1">Παραγγελια</h1>
-                    <p className="text-slate-500 font-mono text-lg font-bold">#{order.id}</p>
-                    <p className="text-slate-500 text-sm mt-4">Ημερομηνία: <span className="font-bold">{formatDate(order.created_at)}</span></p>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Παραγγελια</h1>
+                    <p className="text-slate-500 font-mono font-bold">#{order.id}</p>
+                    <p className="text-slate-500 text-xs mt-2">Ημερομηνία: <span className="font-bold">{formatDate(order.created_at)}</span></p>
                 </div>
             </header>
 
             {/* CUSTOMER INFO */}
-            <section className="bg-slate-50 rounded-xl p-6 mb-8 border border-slate-100 flex justify-between items-start">
+            <section className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 flex justify-between items-start">
                 <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Στοιχεια Πελατη</h3>
-                    <p className="text-xl font-bold text-slate-800">{order.customer_name}</p>
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Στοιχεια Πελατη</h3>
+                    <p className="text-lg font-bold text-slate-800">{order.customer_name}</p>
                     {order.customer_phone && (
-                        <p className="text-slate-600 mt-1">{order.customer_phone}</p>
+                        <p className="text-slate-600 text-sm mt-0.5">{order.customer_phone}</p>
                     )}
                 </div>
                 {order.notes && (
                     <div className="text-right max-w-xs">
-                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Σημειωσεις</h3>
-                         <p className="text-slate-600 italic text-sm">{order.notes}</p>
+                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Σημειωσεις</h3>
+                         <p className="text-slate-600 italic text-xs">{order.notes}</p>
                     </div>
                 )}
             </section>
