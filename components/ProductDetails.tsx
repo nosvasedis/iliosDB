@@ -774,11 +774,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                             {(editedProduct.molds && editedProduct.molds.length > 0) ? (
                                 <div className="flex flex-wrap gap-2">
-                                    {editedProduct.molds.map(moldCode => (
-                                        <div key={moldCode} className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100">
-                                            {moldCode}
-                                        </div>
-                                    ))}
+                                    {editedProduct.molds.map(moldCode => {
+                                        const moldDetails = allMolds.find(m => m.code === moldCode);
+                                        return (
+                                            <div key={moldCode} className="relative group">
+                                                <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
+                                                    {moldCode}
+                                                </div>
+                                                {moldDetails && (
+                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                                                        <p className="font-bold border-b border-slate-600 pb-1 mb-1">{moldDetails.description || 'Χωρίς Περιγραφή'}</p>
+                                                        <p className="flex items-center gap-1.5"><MapPin size={12} className="text-amber-400"/> {moldDetails.location || 'Άγνωστη Τοποθεσία'}</p>
+                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div> {/* Arrow */}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="text-sm text-slate-400 italic">Δεν έχουν οριστεί λάστιχα.</div>
