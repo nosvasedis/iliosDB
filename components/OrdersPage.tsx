@@ -1,18 +1,20 @@
-
 import React, { useState } from 'react';
-import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, MaterialType, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle } from 'lucide-react';
+// FIX: Import `Material` type
+import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer } from '../types';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 
 interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
+  // FIX: Add materials to props
+  materials: Material[];
 }
 
-export default function OrdersPage({ products, onPrintOrder }: Props) {
+export default function OrdersPage({ products, onPrintOrder, materials }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -31,6 +33,9 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
 
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
+
+  // NEW: Fulfillment Modal State
+  const [fulfillmentOrder, setFulfillmentOrder] = useState<Order | null>(null);
 
   const filteredProducts = products.filter(p => 
       !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
@@ -148,42 +153,28 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
       showToast('Η παραγγελία δημιουργήθηκε.', 'success');
   };
 
-  const sendToProduction = async (order: Order) => {
-      const confirmed = await confirm({
-          title: 'Αποστολή στην Παραγωγή',
-          message: `Δημιουργία ${order.items.length} εντολών παραγωγής για την παραγγελία ${order.id};`,
-          confirmText: 'Αποστολή'
-      });
+  const handleDeleteOrder = async (order: Order) => {
+    if (order.status === OrderStatus.InProduction) {
+        showToast('Δεν μπορείτε να διαγράψετε μια παραγγελία που βρίσκεται στην παραγωγή.', 'error');
+        return;
+    }
 
-      if (!confirmed) return;
+    const confirmed = await confirm({
+        title: 'Διαγραφή Παραγγελίας',
+        message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την παραγγελία ${order.id}; Αυτή η ενέργεια θα διαγράψει και τις σχετικές παρτίδες παραγωγής.`,
+        isDestructive: true,
+        confirmText: 'Διαγραφή'
+    });
 
-      try {
-          for (const item of order.items) {
-              const product = products.find(p => p.sku === item.sku);
-              const hasStones = product?.recipe.some(r => r.type === 'raw' && r.itemDetails?.type === MaterialType.Stone) || false; 
-
-              const batch: ProductionBatch = {
-                  id: `BAT-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-                  order_id: order.id,
-                  sku: item.sku,
-                  variant_suffix: item.variant_suffix,
-                  quantity: item.quantity,
-                  current_stage: ProductionStage.Waxing, 
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  priority: 'Normal',
-                  requires_setting: hasStones
-              };
-              await api.createProductionBatch(batch);
-          }
-          
-          await api.updateOrderStatus(order.id, OrderStatus.InProduction);
-          queryClient.invalidateQueries({ queryKey: ['orders'] });
-          showToast('Οι εντολές παραγωγής δημιουργήθηκαν.', 'success');
-      } catch (e) {
-          console.error(e);
-          showToast('Σφάλμα κατά την αποστολή.', 'error');
-      }
+    if (confirmed) {
+        try {
+            await api.deleteOrder(order.id);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            showToast('Η παραγγελία διαγράφηκε.', 'success');
+        } catch (err: any) {
+            showToast(`Σφάλμα διαγραφής: ${err.message}`, 'error');
+        }
+    }
   };
 
   const getStatusColor = (status: OrderStatus) => {
@@ -423,9 +414,17 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
                                               </button>
                                           )}
 
+                                          <button
+                                            onClick={() => handleDeleteOrder(order)}
+                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Διαγραφή Παραγγελίας"
+                                          >
+                                            <Trash2 size={16} />
+                                          </button>
+
                                           {order.status === OrderStatus.Pending && (
-                                              <button onClick={() => sendToProduction(order)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
-                                                  <Factory size={14}/> Παραγωγή
+                                              <button onClick={() => setFulfillmentOrder(order)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
+                                                  <ArrowRight size={14}/> Εκτέλεση
                                               </button>
                                           )}
                                           {order.status === OrderStatus.Ready && (
@@ -451,6 +450,165 @@ export default function OrdersPage({ products, onPrintOrder }: Props) {
             continuous={true} 
           />
       )}
+
+      {fulfillmentOrder && (
+          <FulfillmentModal 
+            order={fulfillmentOrder}
+            products={products}
+            materials={materials}
+            onClose={() => setFulfillmentOrder(null)}
+          />
+      )}
     </div>
   );
 }
+
+// NEW: Fulfillment Modal Component
+const FulfillmentModal = ({ order, products, materials, onClose }: { order: Order, products: Product[], materials: Material[], onClose: () => void }) => {
+    const queryClient = useQueryClient();
+    const { showToast } = useUI();
+    const [allocations, setAllocations] = useState<Record<string, { fromStock: number }>>({});
+    const [isLoading, setIsLoading] = useState(false);
+
+    const getAvailableStock = (item: OrderItem) => {
+        const product = products.find(p => p.sku === item.sku);
+        if (!product) return 0;
+
+        if (item.variant_suffix) {
+            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+            return variant?.location_stock?.[SYSTEM_IDS.CENTRAL] || variant?.stock_qty || 0;
+        }
+        return product.location_stock?.[SYSTEM_IDS.CENTRAL] || product.stock_qty || 0;
+    };
+
+    const handleAllocationChange = (itemId: string, value: number) => {
+        const orderedItem = order.items.find(i => (i.sku + (i.variant_suffix || '')) === itemId);
+        const stock = getAvailableStock(orderedItem!);
+        const newStockQty = Math.max(0, Math.min(stock, value, orderedItem!.quantity));
+
+        setAllocations(prev => ({ ...prev, [itemId]: { ...prev[itemId], fromStock: newStockQty } }));
+    };
+
+    const handleConfirmFulfillment = async () => {
+        setIsLoading(true);
+        try {
+            for (const item of order.items) {
+                const itemId = item.sku + (item.variant_suffix || '');
+                const allocation = allocations[itemId] || { fromStock: 0 };
+                
+                const toProduce = item.quantity - allocation.fromStock;
+
+                // 1. Deduct from stock if needed
+                if (allocation.fromStock > 0) {
+                    const currentStock = getAvailableStock(item);
+                    const newStock = currentStock - allocation.fromStock;
+
+                    if (item.variant_suffix) {
+                        await supabase.from('product_variants').update({ stock_qty: newStock }).match({ product_sku: item.sku, suffix: item.variant_suffix });
+                    } else {
+                        await supabase.from('products').update({ stock_qty: newStock }).eq('sku', item.sku);
+                    }
+                    await recordStockMovement(item.sku, -allocation.fromStock, `Fulfillment for Order ${order.id}`, item.variant_suffix);
+                }
+
+                // 2. Create production batch if needed
+                if (toProduce > 0) {
+                    const product = products.find(p => p.sku === item.sku);
+                    // FIX: `materials` was not defined. It's now passed in through props.
+                    const hasStones = product?.recipe.some(r => r.type === 'raw' && materials.find(m => m.id === r.id)?.type === MaterialType.Stone) || false;
+
+                    const batch: ProductionBatch = {
+                        id: `BAT-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                        order_id: order.id,
+                        sku: item.sku,
+                        variant_suffix: item.variant_suffix,
+                        quantity: toProduce,
+                        current_stage: ProductionStage.Waxing,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        priority: 'Normal',
+                        requires_setting: hasStones
+                    };
+                    await api.createProductionBatch(batch);
+                }
+            }
+
+            // 3. Update Order Status
+            await api.updateOrderStatus(order.id, OrderStatus.InProduction);
+            
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+
+            showToast('Η παραγγελία προωθήθηκε!', 'success');
+            onClose();
+
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 h-[90vh]">
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Πλάνο Εκτέλεσης Παραγγελίας</h2>
+                        <p className="text-sm text-slate-500 font-mono">{order.id}</p>
+                    </div>
+                    <button onClick={onClose} disabled={isLoading}><X/></button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {order.items.map(item => {
+                        const itemId = item.sku + (item.variant_suffix || '');
+                        const stock = getAvailableStock(item);
+                        const allocatedFromStock = allocations[itemId]?.fromStock || 0;
+                        const toProduce = item.quantity - allocatedFromStock;
+
+                        return (
+                            <div key={itemId} className="bg-white p-4 rounded-2xl border border-slate-200 grid grid-cols-12 gap-4 items-center shadow-sm">
+                                <div className="col-span-4 flex items-center gap-3">
+                                    <img src={item.product_details?.image_url || ''} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>
+                                    <div>
+                                        <div className="font-bold text-slate-800">{item.sku}{item.variant_suffix && `-${item.variant_suffix}`}</div>
+                                        <div className="text-xs text-slate-500">Ζήτηση: <span className="font-bold text-slate-700">{item.quantity}</span></div>
+                                    </div>
+                                </div>
+                                <div className="col-span-2 text-center">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Διαθέσιμο</div>
+                                    <div className={`font-bold text-lg ${stock > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{stock}</div>
+                                </div>
+                                <div className="col-span-3 flex items-center gap-2">
+                                    <label htmlFor={`stock_${itemId}`} className="text-sm font-medium text-slate-600">Από Stock:</label>
+                                    <input 
+                                        type="number" 
+                                        id={`stock_${itemId}`}
+                                        value={allocatedFromStock}
+                                        onChange={e => handleAllocationChange(itemId, parseInt(e.target.value) || 0)}
+                                        max={Math.min(stock, item.quantity)}
+                                        min="0"
+                                        className="w-20 p-2 text-center font-bold border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                </div>
+                                <div className="col-span-3 flex justify-between items-center bg-blue-50/70 p-3 rounded-xl border border-blue-100">
+                                    <span className="text-sm font-bold text-blue-800">Για Παραγωγή:</span>
+                                    <span className="font-black text-xl text-blue-900">{toProduce}</span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-white flex justify-end">
+                    <button onClick={handleConfirmFulfillment} disabled={isLoading} className="bg-[#060b00] text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 hover:bg-black disabled:opacity-60 transition-all">
+                        {isLoading ? <Loader2 className="animate-spin"/> : <CheckCircle size={18}/>}
+                        {isLoading ? 'Επεξεργασία...' : 'Επιβεβαίωση & Αποστολή'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};

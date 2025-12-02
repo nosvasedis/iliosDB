@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -400,7 +402,8 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} />}
+              {/* FIX: Pass materials to OrdersPage as it is a required prop */}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
               

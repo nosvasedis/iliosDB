@@ -1,8 +1,3 @@
-
-
-
-
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -538,6 +533,30 @@ export const api = {
         }
     },
 
+    deleteOrder: async (orderId: string): Promise<void> => {
+        // First, delete associated production batches to maintain data integrity
+        const { error: batchError } = await supabase
+            .from('production_batches')
+            .delete()
+            .eq('order_id', orderId);
+
+        if (batchError) {
+            console.error("Error deleting associated batches:", batchError);
+            throw batchError;
+        }
+
+        // Then, delete the order itself
+        const { error } = await supabase
+            .from('orders')
+            .delete()
+            .eq('id', orderId);
+        
+        if (error) {
+            console.error("Error deleting order:", error);
+            throw error;
+        }
+    },
+
     // --- PRODUCTION API ---
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
         try {
@@ -564,7 +583,8 @@ export const api = {
             current_stage: batch.current_stage,
             priority: batch.priority,
             created_at: batch.created_at,
-            updated_at: batch.updated_at
+            updated_at: batch.updated_at,
+            requires_setting: batch.requires_setting
         });
 
         if (error) {
@@ -574,7 +594,6 @@ export const api = {
     },
 
     updateBatchStage: async (batchId: string, stage: ProductionStage): Promise<void> => {
-        // 1. Update the specific batch
         const { data: updatedBatch, error } = await supabase
             .from('production_batches')
             .update({ current_stage: stage, updated_at: new Date().toISOString() })
@@ -587,9 +606,7 @@ export const api = {
             throw error;
         }
 
-        // 2. Sync Logic: If batch is linked to an order, check if the whole order is Ready
-        if (updatedBatch && updatedBatch.order_id && stage === ProductionStage.Ready) {
-            // Fetch all batches for this order
+        if (updatedBatch && updatedBatch.order_id) {
             const { data: orderBatches } = await supabase
                 .from('production_batches')
                 .select('current_stage')
@@ -599,8 +616,9 @@ export const api = {
                 const allReady = orderBatches.every((b: any) => b.current_stage === ProductionStage.Ready);
                 if (allReady) {
                     await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.Ready);
+                // FIX: The comparison `stage !== OrderStatus.Pending` is invalid because the types do not overlap.
+                // The correct logic is to set the status to 'InProduction' if not all batches are ready.
                 } else {
-                    // Ensure it is marked as In Production if not all ready (sanity check)
                     await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.InProduction);
                 }
             }

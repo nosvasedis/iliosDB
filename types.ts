@@ -181,9 +181,11 @@ export interface ProductionBatch {
   priority: 'Normal' | 'High';
   notes?: string;
   
+  // Data for smart logic
+  requires_setting: boolean; // Does it have stones?
+  
   // Computed helpers for UI
   product_image?: string | null;
-  requires_setting?: boolean; // Does it have stones?
   
   // UI Logic helpers
   diffHours?: number;

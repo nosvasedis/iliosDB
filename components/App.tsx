@@ -1,5 +1,8 @@
 
 
+
+
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -374,7 +377,7 @@ function AppContent() {
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
-                  <p className="opacity-50 mt-1">v1.3.0 (Dark Theme)</p>
+                  <p className="opacity-50 mt-1">v0.0.5-b (Beta)</p>
                 </div>
             )}
           </div>
@@ -399,7 +402,8 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} />}
+              {/* FIX: Pass materials to OrdersPage */}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
               {activePage === 'customers' && <CustomersPage />}
               
@@ -420,7 +424,6 @@ function AppContent() {
 
               {activePage === 'collections' && <CollectionsPage />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
-              {/* FIX: Pass skusText and setSkusText to BatchPrintPage */}
               {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} />}
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
