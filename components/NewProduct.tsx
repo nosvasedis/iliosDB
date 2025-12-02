@@ -38,6 +38,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   
   const [weight, setWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
+  const [isPlatingSuggested, setIsPlatingSuggested] = useState(false);
   const [sellingPrice, setSellingPrice] = useState(0); // Master Wholesale
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
@@ -109,6 +110,44 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         setDetectedSuffix('');
     }
   }, [sku, gender, category]);
+
+  // SMART PLATING SUGGESTION
+  useEffect(() => {
+    // Only trigger if the user hasn't manually overridden the plating
+    if (sku.length >= 2 && weight > 0 && !isPlatingSuggested) {
+        const skuPrefix = sku.substring(0, 2).toUpperCase();
+        if (!category) return;
+
+        const similarProducts = products.filter(p => 
+            p.sku !== sku &&
+            p.prefix === skuPrefix &&
+            p.category === category &&
+            p.weight_g > 0 &&
+            Math.abs(p.weight_g - weight) / weight <= 0.25 // within 25% weight range
+        );
+        
+        if (similarProducts.length > 2) { // Need a decent sample size
+            const platingCounts = similarProducts.reduce((acc, p) => {
+                acc[p.plating_type] = (acc[p.plating_type] || 0) + 1;
+                return acc;
+            }, {} as Record<PlatingType, number>);
+
+            let suggestedPlating: PlatingType | null = null;
+            let maxCount = 0;
+            for (const pt in platingCounts) {
+                if (platingCounts[pt as PlatingType] > maxCount) {
+                    maxCount = platingCounts[pt as PlatingType];
+                    suggestedPlating = pt as PlatingType;
+                }
+            }
+            
+            if (suggestedPlating && suggestedPlating !== PlatingType.None) {
+                setPlating(suggestedPlating);
+                setIsPlatingSuggested(true);
+            }
+        }
+    }
+  }, [sku, weight, category, products]);
 
   // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
   useEffect(() => {
@@ -557,8 +596,26 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Βασική Επιμετάλλωση (Master)</label>
-                            <select value={plating} onChange={(e) => setPlating(e.target.value as PlatingType)} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"><option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option><option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option><option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option><option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option></select>
+                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1.5">
+                                Βασική Επιμετάλλωση (Master)
+                                {isPlatingSuggested && (
+                                    <span className="flex items-center gap-1 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title="Έξυπνη Πρόταση">
+                                        <Lightbulb size={12} /> Πρόταση
+                                    </span>
+                                )}
+                            </label>
+                            <select 
+                                value={plating} 
+                                onChange={(e) => {
+                                    setPlating(e.target.value as PlatingType);
+                                    setIsPlatingSuggested(false);
+                                }} 
+                                className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none">
+                                <option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option>
+                                <option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option>
+                                <option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option>
+                                <option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option>
+                            </select>
                         </div>
                         <div className="flex gap-4">
                             <label className="flex-1 flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50 cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-amber-600 rounded" /><span className="font-bold text-slate-700">Είναι Εξάρτημα (STX);</span></label>
