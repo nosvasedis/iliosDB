@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import ProductDetails from './ProductDetails';
@@ -186,6 +185,29 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
+  // Floating Action Button State
+  const [showFab, setShowFab] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // The main scrollable container is defined in App.tsx
+    const scrollContainer = document.querySelector('main > div.overflow-y-auto');
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      if (headerRef.current) {
+        // Show FAB when the top header is scrolled out of view
+        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
+        setShowFab(headerBottomPosition < 20); // Show when header is mostly off-screen
+      }
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+  
   const categories = useMemo(() => {
     if (!products) return [];
     const cats = new Set(products.map(p => p.category));
@@ -239,7 +261,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
             <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
@@ -334,6 +356,20 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           viewMode="registry" // Hides stock
         />
       )}
+
+      {/* FLOATING ACTION BUTTON */}
+      <div 
+        className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+      >
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
+            aria-label="Δημιουργία Νέου Προϊόντος"
+          >
+            <PackagePlus size={24} />
+            <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
+          </button>
+      </div>
     </div>
   );
 }
