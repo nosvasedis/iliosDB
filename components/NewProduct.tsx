@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
@@ -537,8 +538,32 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 <div className="pt-4 border-t border-slate-100">
                     <label className="block text-sm font-bold text-slate-700 mb-3">Λάστιχα</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 overflow-y-auto custom-scrollbar">
-                            {filteredMolds.map(m => (<div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border mb-1 transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}><CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> {m.code} <span className="text-xs text-slate-400 ml-auto">{m.description}</span></div>))}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
+                            <div className="relative shrink-0">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <input 
+                                    type="text" 
+                                    placeholder="Αναζήτηση..."
+                                    value={moldSearch}
+                                    onChange={e => setMoldSearch(e.target.value)}
+                                    className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
+                                />
+                            </div>
+                            <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
+                                {filteredMolds.length > 0 ? (
+                                    filteredMolds.map(m => (
+                                        <div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border mb-1 transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}>
+                                            <CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> 
+                                            {m.code} 
+                                            <span className="text-xs text-slate-400 ml-auto truncate">{m.description}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center text-slate-400 pt-8 text-xs italic">
+                                        Δεν βρέθηκαν λάστιχα.
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         
                         {/* Mini Mold Creator */}
