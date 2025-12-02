@@ -35,6 +35,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [sku, setSku] = useState('');
   const [category, setCategory] = useState('');
   const [gender, setGender] = useState<Gender | ''>('');
+  const [isCategoryManuallySet, setIsCategoryManuallySet] = useState(false);
+  const [isGenderManuallySet, setIsGenderManuallySet] = useState(false);
   
   const [weight, setWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
@@ -80,22 +82,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   // Auto-Suggest Logic & Smart SKU Analysis
   useEffect(() => {
     if (sku.length >= 2) {
-      // 1. Analyze Category/Gender
+      // 1. Analyze Category/Gender, guarded by manual override flags
       const meta = parseSku(sku);
-      if (meta.category !== 'Γενικό' && !category) {
+      if (meta.category !== 'Γενικό' && !isCategoryManuallySet) {
          setCategory(meta.category);
       }
-      // Set gender if inferred and not manually set
-      let currentGender = gender;
-      if (meta.gender && !gender) {
+      if (meta.gender && !isGenderManuallySet) {
          setGender(meta.gender as Gender);
-         currentGender = meta.gender as Gender;
       }
-      if (sku.startsWith('STX')) setIsSTX(true);
+      setIsSTX(sku.startsWith('STX'));
       
-      // 2. Smart Suffix Analysis
-      // We pass the current gender to help analyzeSku distinguish between codes like PAX (Women) vs P-AX (Men)
-      const analysis = analyzeSku(sku, currentGender as Gender);
+      // 2. Smart Suffix Analysis (always runs to keep detection fresh)
+      const analysis = analyzeSku(sku, gender as Gender);
       if (analysis.isVariant) {
           setDetectedMasterSku(analysis.masterSku);
           setDetectedSuffix(analysis.suffix);
@@ -108,10 +106,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           if (!plating || plating !== PlatingType.None) setPlating(PlatingType.None);
       }
     } else {
+        // Reset ALL derived fields when SKU is empty to allow for fresh analysis
+        setCategory('');
+        setGender('');
+        setIsSTX(false);
         setDetectedMasterSku(sku.trim().toUpperCase());
         setDetectedSuffix('');
+        setDetectedVariantDesc('');
+        // Also reset manual override flags
+        setIsCategoryManuallySet(false);
+        setIsGenderManuallySet(false);
     }
-  }, [sku, gender, category]);
+  }, [sku, gender]);
 
   // SMART PLATING COST SUGGESTION (FINAL REWORK)
   useEffect(() => {
@@ -596,11 +602,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="grid grid-cols-2 gap-5">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Φύλο *</label>
-                                <select value={gender} onChange={(e) => setGender(e.target.value as Gender)} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"><option value="" disabled>Επιλέξτε</option><option value={Gender.Women}>Γυναικείο</option><option value={Gender.Men}>Ανδρικό</option><option value={Gender.Unisex}>Unisex</option></select>
+                                <select value={gender} onChange={(e) => { setGender(e.target.value as Gender); setIsGenderManuallySet(true); }} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"><option value="" disabled>Επιλέξτε</option><option value={Gender.Women}>Γυναικείο</option><option value={Gender.Men}>Ανδρικό</option><option value={Gender.Unisex}>Unisex</option></select>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Κατηγορία *</label>
-                                <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none" />
+                                <input type="text" value={category} onChange={(e) => { setCategory(e.target.value); setIsCategoryManuallySet(true); }} className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none" />
                             </div>
                         </div>
                         <div>
