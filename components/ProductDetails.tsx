@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
@@ -341,6 +338,51 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }
   };
 
+  // --- RECIPE EDITING HANDLERS ---
+  const addRecipeItem = (type: 'raw' | 'component') => {
+    let newItem: RecipeItem;
+    if (type === 'raw') {
+        if (!allMaterials || allMaterials.length === 0) {
+            showToast("Δεν υπάρχουν διαθέσιμα υλικά.", "error");
+            return;
+        }
+        newItem = { type: 'raw', id: allMaterials[0].id, quantity: 1 };
+    } else {
+        const stxProducts = allProducts.filter(p => p.is_component);
+        if (stxProducts.length === 0) {
+            showToast("Δεν υπάρχουν διαθέσιμα εξαρτήματα (STX).", "error");
+            return;
+        }
+        newItem = { type: 'component', sku: stxProducts[0].sku, quantity: 1 };
+    }
+    setEditedProduct(prev => ({
+        ...prev,
+        recipe: [...prev.recipe, newItem]
+    }));
+  };
+
+  const updateRecipeItem = (index: number, field: string, value: any) => {
+    const newRecipe = [...editedProduct.recipe];
+    const item = { ...newRecipe[index] };
+    if (field === 'quantity') {
+        item.quantity = parseFloat(value) || 0;
+    } else if (field === 'id' && item.type === 'raw') {
+        item.id = value;
+    } else if (field === 'sku' && item.type === 'component') {
+        item.sku = value;
+    }
+    newRecipe[index] = item;
+    setEditedProduct(prev => ({ ...prev, recipe: newRecipe }));
+  };
+
+  const removeRecipeItem = (index: number) => {
+    setEditedProduct(prev => ({
+        ...prev,
+        recipe: prev.recipe.filter((_, i) => i !== index)
+    }));
+  };
+  // --- END RECIPE EDITING HANDLERS ---
+
   const handleSave = async () => {
     try {
         const currentCost = calculateProductCost(editedProduct, settings, allMaterials, allProducts).total;
@@ -358,6 +400,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             active_price: currentCost,
             draft_price: currentCost
         }).eq('sku', editedProduct.sku);
+
+        // --- NEW RECIPE SAVE LOGIC ---
+        await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
+        if (editedProduct.recipe.length > 0) {
+            const recipeInserts = editedProduct.recipe.map(r => ({
+                parent_sku: editedProduct.sku,
+                type: r.type,
+                material_id: r.type === 'raw' ? r.id : null,
+                component_sku: r.type === 'component' ? r.sku : null,
+                quantity: r.quantity
+            }));
+            await supabase.from('recipes').insert(recipeInserts);
+        }
+        // --- END NEW RECIPE SAVE LOGIC ---
 
         await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.variants && editedProduct.variants.length > 0) {
@@ -714,33 +770,43 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        </div>
                    </div>
                    
-                   {editedProduct.recipe.map((r, idx) => {
-                       const mat = r.type === 'raw' ? allMaterials.find(m => m.id === r.id) : null;
-                       const comp = r.type === 'component' ? allProducts.find(p => p.sku === r.sku) : null;
-                       const name = mat?.name || comp?.sku || 'Άγνωστο';
-                       const unitCost = mat?.cost_per_unit || comp?.active_price || 0;
-                       const totalItemCost = unitCost * r.quantity;
-
-                       return (
-                           <div key={idx} className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
-                               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600"><Box size={20} /></div>
-                               <div className="flex-1">
-                                   <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{r.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
-                                   <span className="font-bold text-slate-800">{name}</span>
-                               </div>
-                               <div className="text-right">
-                                   <div className="font-mono font-bold">{totalItemCost.toFixed(2)}€</div>
-                                   <div className="text-xs text-slate-400">{r.quantity} x {unitCost.toFixed(2)}€</div>
-                               </div>
-                           </div>
-                       );
-                   })}
+                   {editedProduct.recipe.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-4 rounded-xl border bg-white shadow-sm">
+                       <div className="flex-1">
+                           <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
+                           {item.type === 'raw' ? (
+                               <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
+                                   {allMaterials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                               </select>
+                           ) : (
+                               <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
+                                   {allProducts.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
+                               </select>
+                           )}
+                       </div>
+                       <div className="w-24">
+                           <input 
+                               type="number" 
+                               value={item.quantity} 
+                               onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} 
+                               className="w-full p-2 bg-slate-50 rounded font-bold text-center outline-none border border-slate-200"
+                           />
+                       </div>
+                       <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500">
+                           <Trash2 size={18} />
+                       </button>
+                    </div>
+                   ))}
 
                    {editedProduct.recipe.length === 0 && (
                        <div className="text-center italic text-slate-400 py-4 text-xs">
-                           Μόνο Υλικό Βάσης (Ασήμι)
+                           Μόνο Υλικό Βάσης (Ασήμι). Προσθέστε υλικά.
                        </div>
                    )}
+                   <div className="flex gap-2 pt-4 border-t border-slate-100">
+                        <button type="button" onClick={() => addRecipeItem('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-2.5 rounded-lg font-bold border border-purple-200 flex items-center gap-1 hover:bg-purple-100 transition-colors"><Plus size={14}/> Υλικό</button>
+                        <button type="button" onClick={() => addRecipeItem('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-bold border border-blue-200 flex items-center gap-1 hover:bg-blue-100 transition-colors"><Plus size={14}/> STX</button>
+                    </div>
                 </div>
             )}
             {activeTab === 'labor' && viewMode === 'registry' && (
