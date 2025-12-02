@@ -239,25 +239,25 @@ export const parseSku = (sku: string) => {
     return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
   }
   
-  // NEW: Advanced XR Logic
+  // Advanced XR Logic
   if (prefix === 'XR' && !isNaN(numPart)) {
-    if (numPart >= 1 && numPart <= 99) {
+    if (numPart >= 1 && numPart <= 100) {
       return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
     }
-    if (numPart >= 100 && numPart <= 199) {
+    if (numPart >= 101 && numPart <= 199) {
       return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
     }
     if (numPart >= 200 && numPart <= 700) {
-      return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ με Πέτρες' };
+      return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
     }
-    if (numPart >= 1101 && numPart < 1150) {
-      return { gender: Gender.Unisex, category: 'Βραχιόλι Θρησκευτικό Μακραμέ' };
+    if (numPart >= 1100 && numPart <= 1149) {
+      return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Θρησκευτικό' };
     }
-    if (numPart >= 1150 && numPart < 1200) {
-      return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ' };
+    if (numPart >= 1150 && numPart <= 1199) {
+        return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Πολύχρωμο' };
     }
-    if (numPart >= 1200 && numPart <= 1299) {
-        return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο' };
+    if (numPart >= 1201 && numPart <= 1290) {
+        return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
     }
     // Fallback for other XR numbers if they don't fit the ranges
     return { gender: Gender.Men, category: 'Βραχιόλι' };
