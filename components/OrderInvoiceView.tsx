@@ -1,141 +1,149 @@
-
-import React from 'react';
-import { Order, OrderItem } from '../types';
+import React, { useEffect, useRef } from 'react';
+import { Order, Product } from '../types';
 import { APP_LOGO } from '../constants';
-import { MapPin, Phone, Mail, FileText, Calendar } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/supabase';
+import JsBarcode from 'jsbarcode';
+import { ImageIcon } from 'lucide-react';
 
 interface Props {
     order: Order;
 }
 
+// A small component to render the barcode canvas
+const BarcodeCanvas: React.FC<{ sku: string }> = ({ sku }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    useEffect(() => {
+        if (canvasRef.current && sku) {
+            try {
+                JsBarcode(canvasRef.current, sku, {
+                    format: 'CODE128',
+                    displayValue: false,
+                    height: 40,
+                    width: 1.5,
+                    margin: 0,
+                });
+            } catch (e) {
+                console.error("Barcode generation failed for SKU:", sku, e);
+            }
+        }
+    }, [sku]);
+    return <canvas ref={canvasRef} />;
+};
+
+
 export default function OrderInvoiceView({ order }: Props) {
+    const { data: allProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('el-GR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+            day: '2-digit', month: '2-digit', year: 'numeric'
         });
     };
 
     return (
-        <div className="w-full bg-white text-slate-900 p-10 font-sans text-sm leading-normal h-full flex flex-col">
+        <div className="w-full bg-white text-slate-900 p-10 font-sans text-sm leading-normal h-full flex flex-col page-break-inside-avoid break-inside-avoid">
             {/* HEADER */}
-            <div className="flex justify-between items-start border-b border-slate-200 pb-8 mb-8">
-                <div className="flex flex-col gap-2">
-                    <div className="w-32 mb-2">
-                        {/* Ensure logo is loaded or render text fallback */}
-                        <img src={APP_LOGO} alt="ILIOS" className="w-full object-contain" />
-                    </div>
-                    <div className="text-xs text-slate-500">
-                        <p className="font-bold text-slate-800">ILIOS KOSMIMA ERP</p>
-                        <p>Manufacturing & Wholesale</p>
-                        <p>Athens, Greece</p>
-                    </div>
+            <header className="flex justify-between items-start border-b border-slate-200 pb-8 mb-8">
+                <div className="w-40">
+                    <img src={APP_LOGO} alt="ILIOS" className="w-full object-contain" />
                 </div>
                 
                 <div className="text-right">
-                    <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-1">Παραγγελια</h1>
-                    <p className="text-slate-500 font-mono text-lg">#{order.id}</p>
-                    <div className="mt-4 flex flex-col gap-1 items-end text-sm">
-                        <div className="flex items-center gap-2">
-                            <span className="text-slate-400">Ημερομηνία:</span>
-                            <span className="font-bold">{formatDate(order.created_at)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-slate-400">Κατάσταση:</span>
-                            <span className="font-bold uppercase text-xs border border-slate-300 px-2 py-0.5 rounded">{order.status}</span>
-                        </div>
-                    </div>
+                    <h1 className="text-4xl font-black text-slate-800 uppercase tracking-tight mb-1">Παραγγελια</h1>
+                    <p className="text-slate-500 font-mono text-lg font-bold">#{order.id}</p>
+                    <p className="text-slate-500 text-sm mt-4">Ημερομηνία: <span className="font-bold">{formatDate(order.created_at)}</span></p>
                 </div>
-            </div>
+            </header>
 
             {/* CUSTOMER INFO */}
-            <div className="bg-slate-50 rounded-xl p-6 mb-8 border border-slate-100 flex justify-between">
+            <section className="bg-slate-50 rounded-xl p-6 mb-8 border border-slate-100 flex justify-between items-start">
                 <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Πελατης</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Στοιχεια Πελατη</h3>
                     <p className="text-xl font-bold text-slate-800">{order.customer_name}</p>
                     {order.customer_phone && (
-                        <p className="text-slate-600 mt-1 flex items-center gap-2"><Phone size={14}/> {order.customer_phone}</p>
+                        <p className="text-slate-600 mt-1">{order.customer_phone}</p>
                     )}
                 </div>
-                <div className="text-right max-w-xs">
-                    {/* Placeholder for customer details if we had full object, using placeholders for layout */}
-                    {order.notes && (
-                        <>
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Σημειωσεις</h3>
-                            <p className="text-slate-600 italic text-sm">{order.notes}</p>
-                        </>
-                    )}
-                </div>
-            </div>
+                {order.notes && (
+                    <div className="text-right max-w-xs">
+                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Σημειωσεις</h3>
+                         <p className="text-slate-600 italic text-sm">{order.notes}</p>
+                    </div>
+                )}
+            </section>
 
             {/* ITEMS TABLE */}
-            <div className="flex-1">
+            <main className="flex-1">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b-2 border-slate-800 text-slate-800 text-xs uppercase font-black tracking-wider">
-                            <th className="py-3 pr-4 w-12">#</th>
+                            <th className="py-3 pr-4 w-20">Εικονα</th>
                             <th className="py-3 pr-4">Περιγραφη / SKU</th>
-                            <th className="py-3 px-4 text-center">Ποσοτητα</th>
-                            <th className="py-3 px-4 text-right">Τιμη Μοναδας</th>
-                            <th className="py-3 pl-4 text-right">Συνολο</th>
+                            <th className="py-3 px-4 w-40">Barcode</th>
+                            <th className="py-3 px-4 text-center w-24">Ποσοτητα</th>
+                            <th className="py-3 px-4 text-right w-32">Τιμη</th>
+                            <th className="py-3 pl-4 text-right w-32">Συνολο</th>
                         </tr>
                     </thead>
-                    <tbody className="text-sm">
-                        {order.items.map((item, idx) => {
-                            const variantSuffix = item.variant_suffix || '';
-                            const skuDisplay = item.sku + (variantSuffix ? `-${variantSuffix}` : '');
-                            const desc = item.product_details?.category || 'Προϊόν';
-                            
-                            // Try to get variant specific description
-                            let variantDesc = '';
-                            if (item.product_details?.variants) {
-                                const v = item.product_details.variants.find(x => x.suffix === variantSuffix);
-                                if (v) variantDesc = v.description;
-                            }
+                    <tbody>
+                        {order.items.map((item) => {
+                            const product = allProducts?.find(p => p.sku === item.sku);
+                            const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
+
+                            const fullSku = item.sku + (item.variant_suffix || '');
+                            const imageUrl = product?.image_url;
+                            const description = variant?.description || product?.category || 'Προϊόν';
 
                             return (
-                                <tr key={idx} className="border-b border-slate-100">
-                                    <td className="py-4 pr-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
+                                <tr key={fullSku} className="border-b border-slate-100 odd:bg-slate-50/50">
                                     <td className="py-4 pr-4">
-                                        <div className="font-bold text-slate-800 text-base">{skuDisplay}</div>
-                                        <div className="text-slate-500 text-xs mt-0.5">
-                                            {desc} {variantDesc ? `• ${variantDesc}` : ''}
+                                        <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                                            {imageUrl ? (
+                                                <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                    <ImageIcon size={24} />
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-4 text-center font-bold text-slate-700">{item.quantity}</td>
-                                    <td className="py-4 px-4 text-right text-slate-600">{item.price_at_order.toFixed(2)}€</td>
-                                    <td className="py-4 pl-4 text-right font-bold text-slate-900">{(item.price_at_order * item.quantity).toFixed(2)}€</td>
+                                    <td className="py-4 pr-4 align-top">
+                                        <div className="font-bold text-slate-800 text-base">{fullSku}</div>
+                                        <div className="text-slate-500 text-xs mt-0.5">{description}</div>
+                                    </td>
+                                    <td className="py-4 px-4 align-middle">
+                                        <div className="h-10 flex items-center justify-center">
+                                            <BarcodeCanvas sku={fullSku} />
+                                        </div>
+                                    </td>
+                                    <td className="py-4 px-4 text-center align-middle font-bold text-slate-700 text-lg">{item.quantity}</td>
+                                    <td className="py-4 px-4 text-right align-middle text-slate-600 font-mono">{item.price_at_order.toFixed(2)}€</td>
+                                    <td className="py-4 pl-4 text-right align-middle font-bold text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2)}€</td>
                                 </tr>
                             );
                         })}
                     </tbody>
                 </table>
-            </div>
+            </main>
 
             {/* FOOTER TOTALS */}
-            <div className="mt-8 border-t-2 border-slate-800 pt-6 flex justify-end">
-                <div className="w-64 space-y-3">
-                    <div className="flex justify-between items-center text-slate-500 text-sm">
+            <footer className="mt-8 border-t-2 border-slate-800 pt-6 flex justify-between items-start">
+                <div className="text-xs text-slate-400">
+                    <p>Σας ευχαριστούμε για την παραγγελία σας.</p>
+                </div>
+                <div className="w-72 space-y-3">
+                    <div className="flex justify-between items-center text-slate-600 font-medium">
                         <span>Μερικό Σύνολο:</span>
-                        <span>{order.total_price.toFixed(2)}€</span>
+                        <span className="font-mono">{order.total_price.toFixed(2)}€</span>
                     </div>
+                    {/* Add VAT or other fields if needed in the future */}
                     <div className="flex justify-between items-center text-slate-900 font-black text-2xl pt-2 border-t border-slate-200">
-                        <span>Σύνολο:</span>
-                        <span>{order.total_price.toFixed(2)}€</span>
-                    </div>
-                    <div className="text-xs text-slate-400 text-right mt-1 italic">
-                        * Οι τιμές αφορούν χονδρική πώληση
+                        <span>Τελικο Συνολο:</span>
+                        <span className="font-mono">{order.total_price.toFixed(2)}€</span>
                     </div>
                 </div>
-            </div>
-
-            {/* PRINT FOOTER */}
-            <div className="mt-auto pt-12 text-center text-xs text-slate-400 border-t border-slate-100">
-                <p>Generated by Ilios Kosmima ERP • {new Date().toLocaleDateString('el-GR')} {new Date().toLocaleTimeString('el-GR')}</p>
-            </div>
+            </footer>
         </div>
     );
 }
