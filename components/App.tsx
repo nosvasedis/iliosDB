@@ -2,7 +2,6 @@
 
 
 
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -29,7 +28,8 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 import { api, isConfigured } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order } from '../types';
+// @FIX: Add missing type imports for Material, Mold, Collection, ProductionBatch, and RecipeItem.
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem } from '../types';
 import { UIProvider } from './UIProvider';
 import { AuthProvider, useAuth } from './AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './AuthScreen';
@@ -51,8 +51,22 @@ import ProductionPage from './ProductionPage';
 import CustomersPage from './CustomersPage';
 import AiStudio from './AiStudio';
 import OrderInvoiceView from './OrderInvoiceView';
+// @FIX: Import components for production printing.
+import ProductionWorkerView from './ProductionWorkerView';
+import AggregatedProductionView from './AggregatedProductionView';
+
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
+
+// @FIX: Add interface for aggregated production data.
+interface AggregatedData {
+  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
+  materials: Map<string, { name: string; unit: string; totalQuantity: number; usedIn: Map<string, number> }>;
+  components: Map<string, { sku: string; totalQuantity: number; usedIn: Map<string, number> }>;
+  totalSilver: number;
+  batches: ProductionBatch[];
+}
+
 
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
@@ -86,6 +100,10 @@ function AppContent() {
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  // @FIX: Add state for production printing.
+  const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
+  const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
+
 
   // Batch Print state (lifted for persistence)
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
@@ -97,34 +115,27 @@ function AppContent() {
   
   // --- React Query Data Fetching ---
   const { data: settings, isLoading: loadingSettings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-  const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-  const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-  const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+  const { data: materials, isLoading: loadingMaterials } = useQuery<Material[]>({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: molds, isLoading: loadingMolds } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
+  const { data: products, isLoading: loadingProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
+  const { data: collections, isLoading: loadingCollections } = useQuery<Collection[]>({ queryKey: ['collections'], queryFn: api.getCollections });
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
-  // Barcode Printing Effect
+  // @FIX: Update print effect to handle all printable items.
   useEffect(() => {
-    if (printItems.length > 0) {
+    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData;
+    if (shouldPrint) {
       const timer = setTimeout(() => {
         window.print();
         setPrintItems([]);
+        setOrderToPrint(null);
+        setBatchToPrint(null);
+        setAggregatedPrintData(null);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [printItems]);
-
-  // Order Printing Effect
-  useEffect(() => {
-    if (orderToPrint) {
-        const timer = setTimeout(() => {
-            window.print();
-            setOrderToPrint(null);
-        }, 500);
-        return () => clearTimeout(timer);
-    }
-  }, [orderToPrint]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -134,6 +145,85 @@ function AppContent() {
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
   };
+  
+  // @FIX: Add handler for aggregated production printing.
+  const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
+    if (!molds || !materials) return;
+    
+    const aggregatedMolds: AggregatedData['molds'] = new Map();
+    const aggregatedMaterials: AggregatedData['materials'] = new Map();
+    const aggregatedComponents: AggregatedData['components'] = new Map();
+    let totalSilver = 0;
+
+    for (const batch of batchesToPrint) {
+        const product = batch.product_details;
+        if (!product) continue;
+
+        const batchQuantity = batch.quantity;
+        const fullSku = product.sku + (batch.variant_suffix || '');
+
+        totalSilver += batchQuantity * product.weight_g;
+
+        // Molds
+        for (const moldCode of product.molds) {
+            const moldDetails = molds.find(m => m.code === moldCode);
+            if (!moldDetails) continue;
+
+            if (aggregatedMolds.has(moldCode)) {
+                aggregatedMolds.get(moldCode)!.usedIn.add(fullSku);
+            } else {
+                aggregatedMolds.set(moldCode, {
+                    ...moldDetails,
+                    usedIn: new Set([fullSku])
+                });
+            }
+        }
+
+        // Recipe
+        for (const recipeItem of product.recipe) {
+            const requiredQuantity = batchQuantity * recipeItem.quantity;
+
+            if (recipeItem.type === 'raw') {
+                const materialDetails = materials.find(m => m.id === recipeItem.id);
+                if (!materialDetails) continue;
+
+                if (aggregatedMaterials.has(materialDetails.id)) {
+                    const existing = aggregatedMaterials.get(materialDetails.id)!;
+                    existing.totalQuantity += requiredQuantity;
+                    existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
+                } else {
+                    aggregatedMaterials.set(materialDetails.id, {
+                        name: materialDetails.name,
+                        unit: materialDetails.unit,
+                        totalQuantity: requiredQuantity,
+                        usedIn: new Map([[fullSku, requiredQuantity]])
+                    });
+                }
+            } else if (recipeItem.type === 'component') {
+                if (aggregatedComponents.has(recipeItem.sku)) {
+                    const existing = aggregatedComponents.get(recipeItem.sku)!;
+                    existing.totalQuantity += requiredQuantity;
+                    existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
+                } else {
+                    aggregatedComponents.set(recipeItem.sku, {
+                        sku: recipeItem.sku,
+                        totalQuantity: requiredQuantity,
+                        usedIn: new Map([[fullSku, requiredQuantity]])
+                    });
+                }
+            }
+        }
+    }
+    
+    setAggregatedPrintData({
+        molds: aggregatedMolds,
+        materials: aggregatedMaterials,
+        components: aggregatedComponents,
+        totalSilver: totalSilver,
+        batches: batchesToPrint,
+    });
+};
+
 
   if (isLoading) {
     return (
@@ -153,10 +243,20 @@ function AppContent() {
   return (
     <>
       {/* Print View Layer */}
+      {/* @FIX: Update print view to render all printable components. */}
       <div className="print-view">
-        {orderToPrint ? (
-            <OrderInvoiceView order={orderToPrint} />
-        ) : (
+        {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+        {batchToPrint && (
+            <ProductionWorkerView 
+                batch={batchToPrint}
+                allMolds={molds}
+                allProducts={products}
+                allMaterials={materials}
+            />
+        )}
+        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} />}
+        
+        {printItems.length > 0 && (
             <div className="print-area">
             {flattenedPrintItems.map((item, index) => (
                 <BarcodeView 
@@ -402,9 +502,9 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {/* FIX: Pass materials to OrdersPage */}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} />}
+              {/* @FIX: Pass missing props to ProductionPage. */}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
               {activePage === 'customers' && <CustomersPage />}
               
               {activePage === 'resources' && (

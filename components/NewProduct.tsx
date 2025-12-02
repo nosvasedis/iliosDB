@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
@@ -81,43 +80,43 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   // Auto-Suggest Logic & Smart SKU Analysis
   useEffect(() => {
-    if (sku.length >= 2) {
+    const skuTrimmed = sku.trim();
+    if (skuTrimmed.length >= 2) {
       // 1. Analyze Category/Gender, guarded by manual override flags
-      const meta = parseSku(sku);
+      const meta = parseSku(skuTrimmed);
       if (meta.category !== 'Γενικό' && !isCategoryManuallySet) {
          setCategory(meta.category);
       }
       if (meta.gender && !isGenderManuallySet) {
          setGender(meta.gender as Gender);
       }
-      setIsSTX(sku.startsWith('STX'));
+      setIsSTX(skuTrimmed.startsWith('STX'));
       
       // 2. Smart Suffix Analysis (always runs to keep detection fresh)
-      const analysis = analyzeSku(sku, gender as Gender);
+      const analysis = analyzeSku(skuTrimmed, gender as Gender);
       if (analysis.isVariant) {
           setDetectedMasterSku(analysis.masterSku);
           setDetectedSuffix(analysis.suffix);
           setDetectedVariantDesc(analysis.variantDescription);
           setPlating(analysis.detectedPlating);
       } else {
-          setDetectedMasterSku(sku.trim().toUpperCase());
+          setDetectedMasterSku(skuTrimmed.toUpperCase());
           setDetectedSuffix('');
           setDetectedVariantDesc('');
           if (!plating || plating !== PlatingType.None) setPlating(PlatingType.None);
       }
     } else {
-        // Reset ALL derived fields when SKU is empty to allow for fresh analysis
+        // BUG FIX: Reset ALL derived fields and manual locks when SKU is empty.
         setCategory('');
         setGender('');
         setIsSTX(false);
-        setDetectedMasterSku(sku.trim().toUpperCase());
+        setDetectedMasterSku('');
         setDetectedSuffix('');
         setDetectedVariantDesc('');
-        // Also reset manual override flags
         setIsCategoryManuallySet(false);
         setIsGenderManuallySet(false);
     }
-  }, [sku, gender]);
+  }, [sku]);
 
   // SMART PLATING COST SUGGESTION (FINAL REWORK)
   useEffect(() => {

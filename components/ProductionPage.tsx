@@ -1,10 +1,9 @@
 
-
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -12,6 +11,7 @@ interface Props {
   materials: Material[];
   molds: Mold[];
   onPrintBatch: (batch: ProductionBatch) => void;
+  onPrintAggregated: (batches: ProductionBatch[]) => void;
 }
 
 const STAGES = [
@@ -93,7 +93,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) =>
     </div>
 );
 
-export default function ProductionPage({ products, materials, molds, onPrintBatch }: Props) {
+export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -161,14 +161,23 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-6">
-        <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-            <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-[#060b00] text-white rounded-xl">
-                    <Factory size={24} />
-                </div>
-                Ροή Παραγωγής (Kanban)
-            </h1>
-            <p className="text-slate-500 mt-1 ml-14">Drag & drop τις παρτίδες για να αλλάξετε το στάδιό τους.</p>
+        <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                    <div className="p-2 bg-[#060b00] text-white rounded-xl">
+                        <Factory size={24} />
+                    </div>
+                    Ροή Παραγωγής
+                </h1>
+                <p className="text-slate-500 mt-1 ml-14">Drag & drop τις παρτίδες για να αλλάξετε το στάδιό τους.</p>
+            </div>
+            <button 
+                onClick={() => onPrintAggregated(enhancedBatches)}
+                disabled={enhancedBatches.length === 0}
+                className="flex items-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50"
+            >
+                <FileText size={18} /> Συγκεντρωτική Εντολή
+            </button>
         </div>
 
         <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
