@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -159,6 +159,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [showRepriceTool, setShowRepriceTool] = useState(false);
   const [targetMargin, setTargetMargin] = useState(50);
   const [calculatedPrice, setCalculatedPrice] = useState(0);
+
+  // Molds Editing State
+  const [isEditingMolds, setIsEditingMolds] = useState(false);
+  const [moldSearch, setMoldSearch] = useState('');
 
   useEffect(() => {
     setEditedProduct({ 
@@ -413,7 +417,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             }));
             await supabase.from('recipes').insert(recipeInserts);
         }
-        // --- END NEW RECIPE SAVE LOGIC ---
+        
+        // --- NEW MOLD SAVE LOGIC ---
+        await supabase.from('product_molds').delete().eq('product_sku', editedProduct.sku);
+        if (editedProduct.molds && editedProduct.molds.length > 0) {
+            const moldInserts = editedProduct.molds.map(moldCode => ({
+                product_sku: editedProduct.sku,
+                mold_code: moldCode
+            }));
+            const { error: moldError } = await supabase.from('product_molds').insert(moldInserts);
+            if (moldError) throw moldError;
+        }
 
         await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.variants && editedProduct.variants.length > 0) {
@@ -551,6 +565,29 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
       setViewIndex(0);
   };
+  
+  // Mold Editor Logic
+  const toggleMold = (moldCode: string) => {
+      setEditedProduct(prev => {
+          const molds = prev.molds || [];
+          const newMolds = molds.includes(moldCode)
+              ? molds.filter(m => m !== moldCode)
+              : [...molds, moldCode];
+          return { ...prev, molds: newMolds };
+      });
+  };
+
+  const availableMolds = useMemo(() => {
+      if (!isEditingMolds) return [];
+      const selected = new Set(editedProduct.molds || []);
+      return allMolds
+          .filter(m => !selected.has(m.code))
+          .filter(m => 
+              m.code.toUpperCase().includes(moldSearch.toUpperCase()) || 
+              m.description.toLowerCase().includes(moldSearch.toLowerCase())
+          );
+  }, [allMolds, editedProduct.molds, moldSearch, isEditingMolds]);
+
 
   return createPortal(
     <>
@@ -725,35 +762,72 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         )}
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-3">
-                            <MapPin size={14}/> Απαιτούμενα Λάστιχα
-                        </label>
-                        {editedProduct.molds && editedProduct.molds.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {editedProduct.molds.map(moldCode => {
-                                    const moldDetails = allMolds.find(m => m.code === moldCode);
-                                    return (
-                                        <div key={moldCode} className="relative group">
-                                            <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
-                                                {moldCode}
-                                            </div>
-                                            {moldDetails && (
-                                                <div className="absolute bottom-full mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg left-1/2 -translate-x-1/2">
-                                                    <p className="font-bold">{moldDetails.description}</p>
-                                                    <p className="text-slate-300 mt-1">Τοποθεσία: {moldDetails.location}</p>
-                                                </div>
-                                            )}
+                    {!isEditingMolds ? (
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                             <div className="flex justify-between items-center mb-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                    <MapPin size={14}/> Απαιτούμενα Λάστιχα
+                                </label>
+                                <button onClick={() => setIsEditingMolds(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                    <Edit3 size={12}/> Επεξεργασία
+                                </button>
+                            </div>
+                            {(editedProduct.molds && editedProduct.molds.length > 0) ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {editedProduct.molds.map(moldCode => (
+                                        <div key={moldCode} className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100">
+                                            {moldCode}
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-slate-400 italic">Δεν έχουν οριστεί λάστιχα.</div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="bg-white p-4 rounded-xl border-2 border-emerald-200 shadow-lg shadow-emerald-50 animate-in fade-in">
+                            <div className="flex justify-between items-center mb-4">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                    <MapPin size={14}/> Επεξεργασία Λάστιχων
+                                </label>
+                                <button onClick={() => { setIsEditingMolds(false); setMoldSearch(''); }} className="text-xs font-bold bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-emerald-600">
+                                    Τέλος
+                                </button>
                             </div>
-                        ) : (
-                            <div className="text-sm text-slate-400 italic">
-                                Δεν έχουν οριστεί λάστιχα για αυτό το προϊόν.
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
+                                    <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Επιλεγμένα ({editedProduct.molds?.length || 0})</h4>
+                                    <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1">
+                                        <div className="flex flex-wrap gap-2">
+                                            {(editedProduct.molds || []).map(moldCode => (
+                                                <div key={moldCode} className="bg-amber-100 text-amber-900 font-mono font-bold text-sm px-2 py-1 rounded-md border border-amber-200 flex items-center gap-2">
+                                                    <span>{moldCode}</span>
+                                                    <button onClick={() => toggleMold(moldCode)} className="text-amber-500 hover:text-amber-700"><X size={12} /></button>
+                                                </div>
+                                            ))}
+                                            {(!editedProduct.molds || editedProduct.molds.length === 0) && <p className="text-xs text-slate-400 italic w-full text-center py-4">Κανένα</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
+                                    <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Διαθέσιμα</h4>
+                                    <div className="relative mb-2 shrink-0">
+                                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input type="text" value={moldSearch} onChange={e => setMoldSearch(e.target.value)} placeholder="Αναζήτηση..." className="w-full text-xs pl-7 p-1.5 bg-white rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-emerald-400"/>
+                                    </div>
+                                    <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1 space-y-1">
+                                        {availableMolds.map(mold => (
+                                            <div key={mold.code} onClick={() => toggleMold(mold.code)} className="p-2 rounded-md hover:bg-emerald-100 cursor-pointer flex justify-between items-center text-sm">
+                                                <span className="font-mono font-bold text-slate-700">{mold.code}</span>
+                                                <span className="text-xs text-slate-400 truncate ml-2">{mold.description}</span>
+                                            </div>
+                                        ))}
+                                         {availableMolds.length === 0 && <p className="text-xs text-slate-400 italic w-full text-center py-4">Δεν βρέθηκαν άλλα.</p>}
+                                    </div>
+                                </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
             {activeTab === 'recipe' && viewMode === 'registry' && (
