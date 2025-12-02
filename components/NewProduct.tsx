@@ -112,41 +112,58 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [sku, gender, category]);
 
-  // SMART PLATING COST SUGGESTION
+  // SMART PLATING COST SUGGESTION (FINAL REWORK)
   useEffect(() => {
-    // Don't suggest if user has manually entered a value for the current config
+    // 1. Don't suggest if user has manually entered a value.
     if (isPlatingCostManuallySet) return;
 
-    if (weight > 0 && plating !== PlatingType.None && sku.length >= 2 && category) {
-        const skuPrefix = sku.substring(0, 2).toUpperCase();
-        
-        const similarProducts = products.filter(p => 
-            p.sku !== sku &&
-            p.prefix === skuPrefix &&
-            p.category === category &&
-            p.weight_g > 0 &&
-            p.labor.plating_cost > 0 &&
-            Math.abs(p.weight_g - weight) / weight <= 0.25
-        );
-        
-        let suggestedCost = 0;
-        if (similarProducts.length > 0) { // Smart suggestion based on similar items
-            const costPerGramRatios = similarProducts.map(p => p.labor.plating_cost / p.weight_g);
-            const avgCostPerGram = costPerGramRatios.reduce((a, b) => a + b, 0) / costPerGramRatios.length;
-            suggestedCost = avgCostPerGram * weight;
-        } else { // Fallback to default formula
-            suggestedCost = calculatePlatingCost(weight, plating);
-        }
-
-        if (suggestedCost > 0) {
-            setLabor(prev => ({ ...prev, plating_cost: parseFloat(suggestedCost.toFixed(2)) }));
-            setIsPlatingCostSuggested(true);
-        }
-    } else if (plating === PlatingType.None) {
-        setLabor(prev => ({ ...prev, plating_cost: 0 }));
-        setIsPlatingCostSuggested(false);
+    // 2. If no weight, cost is always zero.
+    if (weight <= 0) {
+      setLabor(prev => ({ ...prev, plating_cost: 0 }));
+      setIsPlatingCostSuggested(false);
+      return;
     }
-  }, [weight, plating, sku, category, products, isPlatingCostManuallySet]);
+
+    // 3. At this point, we will always calculate a cost, regardless of master plating type.
+    let suggestedCost = 0;
+    const canUseSmartSuggestion = sku.length >= 2 && category;
+
+    // 4. Try to use the "smart" algorithm if possible.
+    if (canUseSmartSuggestion) {
+      const skuPrefix = sku.substring(0, 2).toUpperCase();
+      const similarProducts = products.filter(p =>
+        p.sku !== sku &&
+        p.prefix === skuPrefix &&
+        p.category === category &&
+        p.weight_g > 0 &&
+        p.labor.plating_cost > 0 &&
+        Math.abs(p.weight_g - weight) / p.weight_g <= 0.25
+      );
+
+      if (similarProducts.length > 0) {
+        const costPerGramRatios = similarProducts.map(p => p.labor.plating_cost / p.weight_g);
+        const avgCostPerGram = costPerGramRatios.reduce((a, b) => a + b, 0) / costPerGramRatios.length;
+        suggestedCost = avgCostPerGram * weight;
+      }
+    }
+
+    // 5. If smart suggestion wasn't possible or didn't yield a result, use the fallback formula.
+    if (suggestedCost <= 0) {
+      // Pass a dummy plating type to force calculation, as the user wants the cost to be ready for potential plated variants.
+      suggestedCost = calculatePlatingCost(weight, PlatingType.GoldPlated);
+    }
+    
+    // 6. Update the state with the calculated suggestion.
+    if (suggestedCost > 0) {
+      setLabor(prev => ({ ...prev, plating_cost: parseFloat(suggestedCost.toFixed(2)) }));
+      setIsPlatingCostSuggested(true);
+    } else {
+      // Safety net for any edge cases.
+      setLabor(prev => ({ ...prev, plating_cost: 0 }));
+      setIsPlatingCostSuggested(false);
+    }
+
+  }, [weight, sku, category, products, isPlatingCostManuallySet]);
 
 
   // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
