@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix } from '../utils/pricingEngine';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -831,7 +832,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                   {/* Variant List - Fully Editable */}
                   <div className="flex-1 overflow-y-auto space-y-3">
                       {variants.map((v, idx) => {
-                          const isPlated = v.suffix.includes('X') || v.suffix.includes('D') || v.suffix.includes('H');
+                          const { finish } = getVariantComponents(v.suffix, gender as Gender);
+                          const isPlated = ['X', 'D', 'H'].includes(finish.code);
                           
                           return (
                               <div key={idx} className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm items-center">

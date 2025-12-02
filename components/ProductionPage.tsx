@@ -3,6 +3,8 @@
 
 
 
+
+
 import React, { useMemo, useState } from 'react';
 // FIX: Import Material type
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType } from '../types';
@@ -42,7 +44,14 @@ const STAGE_COLORS = {
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
 };
 
-const BatchCard = ({ batch, onDragStart }: { batch: ProductionBatch, onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void }) => (
+// FIX: Changed component definition to use React.FC and a props interface
+// to correctly type it and resolve the issue with the 'key' prop.
+interface BatchCardProps {
+    batch: ProductionBatch;
+    onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
+}
+
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart }) => (
     <div 
         draggable 
         onDragStart={(e) => onDragStart(e, batch.id)}

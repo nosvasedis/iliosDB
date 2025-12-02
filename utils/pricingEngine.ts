@@ -1,4 +1,5 @@
 
+
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -119,6 +120,58 @@ export const calculateProductCost = (
 };
 
 /**
+ * PARSES a suffix string (e.g. "PKR" or "PAX") and returns its isolated components.
+ * This is crucial for separating Metal Finish from Stone Description.
+ * Gender-aware: 'PAX' in Women means 'Agate', 'PAX' in Men means 'Patina' + 'Agate' (AX)
+ */
+export const getVariantComponents = (suffix: string, gender?: Gender) => {
+    // 1. Select Dictionary based on Gender
+    let relevantStones = {};
+    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
+    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
+    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+
+    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
+    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
+
+    let detectedStoneCode = '';
+    let detectedFinishCode = '';
+    let remainder = suffix.toUpperCase();
+
+    // Check for Stone Suffix first (usually at the end)
+    for (const sCode of stoneKeys) {
+        if (remainder.endsWith(sCode)) {
+            detectedStoneCode = sCode;
+            remainder = remainder.slice(0, -sCode.length);
+            break; 
+        }
+    }
+
+    // Check for Finish Suffix on the remainder
+    for (const fCode of finishKeys) {
+        if (remainder.endsWith(fCode)) {
+            detectedFinishCode = fCode;
+            remainder = remainder.slice(0, -fCode.length);
+            break;
+        }
+    }
+    
+    const finishDesc = FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] /* Lustre */;
+    const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
+
+    return {
+        finish: {
+            code: detectedFinishCode,
+            name: finishDesc
+        },
+        stone: {
+            code: detectedStoneCode,
+            name: stoneDesc
+        }
+    };
+};
+
+/**
  * Estimates the cost of a variant based on the master product and the suffix.
  * STRICT LOGIC: 
  * - P (Plain) = Base Cost (No Plating).
@@ -142,9 +195,8 @@ export const estimateVariantCost = (
     const masterPlatingCost = masterProduct.labor.plating_cost || 0;
     const baseMetalCost = calculatedCost - masterPlatingCost;
 
-    const suffix = variantSuffix.toUpperCase();
-    const isPlatedVariant = suffix.includes('X') || suffix.includes('D') || suffix.includes('H');
-    const isPlainVariant = suffix.includes('P') && !isPlatedVariant; // 'P' alone or with stone, but no plating code
+    const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
+    const isPlatedVariant = ['X', 'D', 'H'].includes(finish.code);
 
     if (isPlatedVariant) {
         // If variant is plated, add the manual plating cost
@@ -249,58 +301,6 @@ const PLATING_MAP: Record<string, PlatingType> = {
   'D': PlatingType.TwoTone,
   'H': PlatingType.Platinum,
   '': PlatingType.None
-};
-
-/**
- * PARSES a suffix string (e.g. "PKR" or "PAX") and returns its isolated components.
- * This is crucial for separating Metal Finish from Stone Description.
- * Gender-aware: 'PAX' in Women means 'Agate', 'PAX' in Men means 'Patina' + 'Agate' (AX)
- */
-export const getVariantComponents = (suffix: string, gender?: Gender) => {
-    // 1. Select Dictionary based on Gender
-    let relevantStones = {};
-    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
-    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
-    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-
-    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
-    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
-
-    let detectedStoneCode = '';
-    let detectedFinishCode = '';
-    let remainder = suffix.toUpperCase();
-
-    // Check for Stone Suffix first (usually at the end)
-    for (const sCode of stoneKeys) {
-        if (remainder.endsWith(sCode)) {
-            detectedStoneCode = sCode;
-            remainder = remainder.slice(0, -sCode.length);
-            break; 
-        }
-    }
-
-    // Check for Finish Suffix on the remainder
-    for (const fCode of finishKeys) {
-        if (remainder.endsWith(fCode)) {
-            detectedFinishCode = fCode;
-            remainder = remainder.slice(0, -fCode.length);
-            break;
-        }
-    }
-    
-    const finishDesc = FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] /* Lustre */;
-    const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
-
-    return {
-        finish: {
-            code: detectedFinishCode,
-            name: finishDesc
-        },
-        stone: {
-            code: detectedStoneCode,
-            name: stoneDesc
-        }
-    };
 };
 
 /**
