@@ -108,7 +108,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         setDetectedMasterSku(sku.trim().toUpperCase());
         setDetectedSuffix('');
     }
-  }, [sku]);
+  }, [sku, gender, category]);
 
   // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
   useEffect(() => {
@@ -231,11 +231,45 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       } finally { setIsCreatingMold(false); }
   };
 
-  const filteredMolds = useMemo(() => {
-      return molds
-        .filter(m => m.code.includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase()))
-        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })); // Natural numeric sort (L2 < L10)
-  }, [molds, moldSearch]);
+  // SMART MOLD SUGGESTIONS
+  const { suggestedMolds, otherMolds } = useMemo(() => {
+    const upperSku = sku.toUpperCase();
+    let suggestionKeyword: string | null = null;
+
+    if (upperSku.startsWith('PN') || upperSku.startsWith('MN')) {
+        suggestionKeyword = 'κρίκος';
+    } else if (upperSku.startsWith('SK')) {
+        suggestionKeyword = 'καβαλάρης';
+    }
+
+    const allMoldsFilteredBySearch = molds
+      .filter(m => 
+          m.code.toUpperCase().includes(moldSearch.toUpperCase()) || 
+          m.description.toLowerCase().includes(moldSearch.toLowerCase())
+      );
+
+    let suggested: Mold[] = [];
+    let others: Mold[] = [];
+
+    if (suggestionKeyword) {
+        allMoldsFilteredBySearch.forEach(m => {
+            if (m.description.toLowerCase().includes(suggestionKeyword!)) {
+                suggested.push(m);
+            } else {
+                others.push(m);
+            }
+        });
+    } else {
+        others = allMoldsFilteredBySearch;
+    }
+    
+    const sortFn = (a: Mold, b: Mold) => a.code.localeCompare(b.code, undefined, { numeric: true });
+    
+    suggested.sort(sortFn);
+    others.sort(sortFn);
+
+    return { suggestedMolds: suggested, otherMolds: others };
+  }, [molds, moldSearch, sku]);
 
   // --- VARIANT MANAGEMENT ---
   
@@ -550,15 +584,29 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 />
                             </div>
                             <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
-                                {filteredMolds.length > 0 ? (
-                                    filteredMolds.map(m => (
+                                {suggestedMolds.length > 0 && (
+                                    <>
+                                        <div className="text-xs font-bold text-amber-600 px-2 py-1">Προτάσεις</div>
+                                        {suggestedMolds.map(m => (
+                                            <div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border mb-1 transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'bg-emerald-50/50 border-transparent hover:bg-emerald-50'}`}>
+                                                <CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> 
+                                                {m.code} 
+                                                <span className="text-xs text-slate-400 ml-auto truncate">{m.description}</span>
+                                            </div>
+                                        ))}
+                                        {otherMolds.length > 0 && <div className="h-px bg-slate-200 my-2 mx-2"></div>}
+                                    </>
+                                )}
+                                {otherMolds.length > 0 && (
+                                    otherMolds.map(m => (
                                         <div key={m.code} onClick={() => toggleMold(m.code)} className={`flex items-center gap-2 text-sm p-2 rounded-lg cursor-pointer border mb-1 transition-colors ${selectedMolds.includes(m.code) ? 'bg-amber-100 border-amber-200 text-amber-900 font-bold' : 'border-transparent hover:bg-white'}`}>
                                             <CheckCircle size={14} className={selectedMolds.includes(m.code) ? 'opacity-100' : 'opacity-0'}/> 
                                             {m.code} 
                                             <span className="text-xs text-slate-400 ml-auto truncate">{m.description}</span>
                                         </div>
                                     ))
-                                ) : (
+                                )}
+                                {suggestedMolds.length === 0 && otherMolds.length === 0 && (
                                     <div className="text-center text-slate-400 pt-8 text-xs italic">
                                         Δεν βρέθηκαν λάστιχα.
                                     </div>
