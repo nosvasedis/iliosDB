@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-// FIX: Import `Material` type
-import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2 } from 'lucide-react';
+import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -10,7 +9,6 @@ import BarcodeScanner from './BarcodeScanner';
 interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
-  // FIX: Add materials to props
   materials: Material[];
 }
 
@@ -45,6 +43,8 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
 
   // NEW: Fulfillment Modal State
   const [fulfillmentOrder, setFulfillmentOrder] = useState<Order | null>(null);
+  // NEW: Manage Modal State
+  const [managingOrder, setManagingOrder] = useState<Order | null>(null);
 
   const filteredProducts = products.filter(p => 
       !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
@@ -425,6 +425,14 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
                                   </td>
                                   <td className="p-4 text-center">
                                       <div className="flex items-center justify-center gap-2">
+                                          <button
+                                            onClick={() => setManagingOrder(order)}
+                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Διαχείριση Παραγωγής"
+                                          >
+                                            <Settings size={16} />
+                                          </button>
+
                                           {onPrintOrder && (
                                               <button 
                                                 onClick={() => onPrintOrder(order)} 
@@ -480,15 +488,168 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
             onClose={() => setFulfillmentOrder(null)}
           />
       )}
+
+      {managingOrder && (
+          <OrderProductionManager
+            order={managingOrder}
+            products={products}
+            onClose={() => setManagingOrder(null)}
+          />
+      )}
     </div>
   );
 }
 
-// NEW: Fulfillment Modal Component
+// Order Production Manager Modal (Interactive)
+const OrderProductionManager = ({ order, products, onClose }: { order: Order, products: Product[], onClose: () => void }) => {
+    const { showToast } = useUI();
+    const queryClient = useQueryClient();
+    const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const orderBatches = batches?.filter(b => b.order_id === order.id) || [];
+
+    const totalItems = order.items.reduce((acc, i) => acc + i.quantity, 0);
+    const inProduction = orderBatches.reduce((acc, b) => acc + b.quantity, 0);
+    const fulfilledFromStock = totalItems - inProduction; 
+
+    const handleCreateRefurbishBatch = async (item: OrderItem, maxQty: number) => {
+        const qtyStr = prompt(`Πόσα τεμάχια ${item.sku} να σταλούν για φρεσκάρισμα; (Max: ${maxQty})`, maxQty.toString());
+        if (!qtyStr) return;
+        const qty = parseInt(qtyStr, 10);
+        
+        if (isNaN(qty) || qty <= 0 || qty > maxQty) {
+            showToast("Μη έγκυρη ποσότητα.", "error");
+            return;
+        }
+
+        try {
+            await api.createProductionBatch({
+                id: `REF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                order_id: order.id,
+                sku: item.sku,
+                variant_suffix: item.variant_suffix,
+                quantity: qty,
+                current_stage: ProductionStage.Polishing,
+                priority: 'High',
+                type: 'Refurbish',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                requires_setting: false,
+                notes: 'Manual Refurbish from Order Manager'
+            });
+            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast("Δημιουργήθηκε παρτίδα φρεσκαρίσματος.", "success");
+        } catch(e) {
+            showToast("Σφάλμα δημιουργίας.", "error");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 h-[85vh]">
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <LayoutList size={22} className="text-blue-600"/>
+                            Διαχείριση Παραγωγής
+                        </h2>
+                        <p className="text-sm text-slate-500 font-mono mt-1">Παραγγελία #{order.id} • {order.customer_name}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4 p-6 border-b border-slate-100">
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <div className="text-xs font-bold text-blue-700 uppercase">Συνολο Ειδων</div>
+                        <div className="text-2xl font-black text-blue-900">{totalItems}</div>
+                    </div>
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <div className="text-xs font-bold text-amber-700 uppercase">Σε Παραγωγη</div>
+                        <div className="text-2xl font-black text-amber-900">{inProduction}</div>
+                    </div>
+                    <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                        <div className="text-xs font-bold text-emerald-700 uppercase">Απο Stock / Ετοιμα</div>
+                        <div className="text-2xl font-black text-emerald-900">{fulfilledFromStock > 0 ? fulfilledFromStock : 0}</div>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-center text-center">
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold border ${order.status === OrderStatus.Delivered ? 'bg-black text-white' : 'bg-white text-slate-600'}`}>
+                            {STATUS_TRANSLATIONS[order.status]}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                    <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase tracking-wide">Αναλυση Γραμμων</h3>
+                    <div className="space-y-3">
+                        {order.items.map((item, idx) => {
+                            const relatedBatches = orderBatches.filter(b => b.sku === item.sku && b.variant_suffix === item.variant_suffix);
+                            const productionQty = relatedBatches.reduce((acc, b) => acc + b.quantity, 0);
+                            const stockQty = item.quantity - productionQty;
+                            
+                            return (
+                                <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center gap-4">
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                            {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover" />}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-800 text-lg">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
+                                            <div className="text-xs text-slate-500">Ζήτηση: <span className="font-bold text-slate-900">{item.quantity}</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4 items-center">
+                                        {stockQty > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-xs font-bold flex items-center gap-2">
+                                                    <CheckCircle size={14}/> {stockQty} Stock
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleCreateRefurbishBatch(item, stockQty)}
+                                                    className="bg-blue-50 text-blue-600 p-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
+                                                    title="Στείλε για φρεσκάρισμα"
+                                                >
+                                                    <RefreshCcw size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                        {productionQty > 0 && (
+                                            <div className="px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-lg text-amber-800 text-xs font-bold flex items-center gap-2">
+                                                <Factory size={14}/> {productionQty} Prod.
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="w-full md:w-1/3">
+                                        {relatedBatches.length > 0 ? (
+                                            <div className="space-y-1">
+                                                {relatedBatches.map(b => (
+                                                    <div key={b.id} className="text-[10px] flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                        <span className="font-mono text-slate-500">{b.id}</span>
+                                                        <span className={`font-bold ${b.type === 'Refurbish' ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                            {b.current_stage} {b.type === 'Refurbish' && '(Φρεσκ.)'}
+                                                        </span>
+                                                        <span className="bg-white px-1.5 rounded border border-slate-200">{b.quantity}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-[10px] text-slate-400 italic text-center">Όλα από Stock</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const FulfillmentModal = ({ order, products, materials, onClose }: { order: Order, products: Product[], materials: Material[], onClose: () => void }) => {
     const queryClient = useQueryClient();
     const { showToast } = useUI();
-    const [allocations, setAllocations] = useState<Record<string, { fromStock: number }>>({});
+    const [allocations, setAllocations] = useState<Record<string, { fromStock: number, needsRefurbish: boolean }>>({});
     const [isLoading, setIsLoading] = useState(false);
 
     const getAvailableStock = (item: OrderItem) => {
@@ -507,7 +668,23 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
         const stock = getAvailableStock(orderedItem!);
         const newStockQty = Math.max(0, Math.min(stock, value, orderedItem!.quantity));
 
-        setAllocations(prev => ({ ...prev, [itemId]: { ...prev[itemId], fromStock: newStockQty } }));
+        setAllocations(prev => ({ 
+            ...prev, 
+            [itemId]: { 
+                ...(prev[itemId] || { needsRefurbish: false }), 
+                fromStock: newStockQty 
+            } 
+        }));
+    };
+
+    const toggleRefurbish = (itemId: string) => {
+        setAllocations(prev => ({
+            ...prev,
+            [itemId]: {
+                ...(prev[itemId] || { fromStock: 0 }),
+                needsRefurbish: !prev[itemId]?.needsRefurbish
+            }
+        }));
     };
 
     const handleConfirmFulfillment = async () => {
@@ -515,11 +692,11 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
         try {
             for (const item of order.items) {
                 const itemId = item.sku + (item.variant_suffix || '');
-                const allocation = allocations[itemId] || { fromStock: 0 };
+                const allocation = allocations[itemId] || { fromStock: 0, needsRefurbish: false };
                 
-                const toProduce = item.quantity - allocation.fromStock;
-
-                // 1. Deduct from stock if needed
+                const toNewProduction = item.quantity - allocation.fromStock;
+                const toRefurbish = allocation.needsRefurbish ? allocation.fromStock : 0;
+                
                 if (allocation.fromStock > 0) {
                     const currentStock = getAvailableStock(item);
                     const newStock = currentStock - allocation.fromStock;
@@ -529,13 +706,30 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                     } else {
                         await supabase.from('products').update({ stock_qty: newStock }).eq('sku', item.sku);
                     }
-                    await recordStockMovement(item.sku, -allocation.fromStock, `Fulfillment for Order ${order.id}`, item.variant_suffix);
+                    const reason = allocation.needsRefurbish ? `Stock to Refurbish (Order ${order.id})` : `Fulfillment (Order ${order.id})`;
+                    await recordStockMovement(item.sku, -allocation.fromStock, reason, item.variant_suffix);
                 }
 
-                // 2. Create production batch if needed
-                if (toProduce > 0) {
+                if (toRefurbish > 0) {
+                    const batch: ProductionBatch = {
+                        id: `REF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                        order_id: order.id,
+                        sku: item.sku,
+                        variant_suffix: item.variant_suffix,
+                        quantity: toRefurbish,
+                        current_stage: ProductionStage.Polishing,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        priority: 'High', 
+                        requires_setting: false,
+                        type: 'Refurbish',
+                        notes: 'Από Στοκ - Χρήζει Φρεσκαρίσματος'
+                    };
+                    await api.createProductionBatch(batch);
+                }
+
+                if (toNewProduction > 0) {
                     const product = products.find(p => p.sku === item.sku);
-                    // FIX: `materials` was not defined. It's now passed in through props.
                     const hasStones = product?.recipe.some(r => r.type === 'raw' && materials.find(m => m.id === r.id)?.type === MaterialType.Stone) || false;
 
                     const batch: ProductionBatch = {
@@ -543,19 +737,25 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                         order_id: order.id,
                         sku: item.sku,
                         variant_suffix: item.variant_suffix,
-                        quantity: toProduce,
+                        quantity: toNewProduction,
                         current_stage: ProductionStage.Waxing,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                         priority: 'Normal',
-                        requires_setting: hasStones
+                        requires_setting: hasStones,
+                        type: 'New'
                     };
                     await api.createProductionBatch(batch);
                 }
             }
 
-            // 3. Update Order Status
-            await api.updateOrderStatus(order.id, OrderStatus.InProduction);
+            const anyBatches = Object.values(allocations).some((a: { needsRefurbish: boolean; fromStock: number }) => a.needsRefurbish && a.fromStock > 0) || order.items.some(i => i.quantity - (allocations[i.sku+(i.variant_suffix||'')]?.fromStock || 0) > 0);
+            
+            if (anyBatches) {
+                await api.updateOrderStatus(order.id, OrderStatus.InProduction);
+            } else {
+                await api.updateOrderStatus(order.id, OrderStatus.Ready);
+            }
             
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -573,7 +773,7 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
 
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 h-[90vh]">
+            <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 h-[90vh]">
                 <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Πλάνο Εκτέλεσης Παραγγελίας</h2>
@@ -586,8 +786,8 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                     {order.items.map(item => {
                         const itemId = item.sku + (item.variant_suffix || '');
                         const stock = getAvailableStock(item);
-                        const allocatedFromStock = allocations[itemId]?.fromStock || 0;
-                        const toProduce = item.quantity - allocatedFromStock;
+                        const allocation = allocations[itemId] || { fromStock: 0, needsRefurbish: false };
+                        const toNewProduction = item.quantity - allocation.fromStock;
 
                         return (
                             <div key={itemId} className="bg-white p-4 rounded-2xl border border-slate-200 grid grid-cols-12 gap-4 items-center shadow-sm">
@@ -602,21 +802,34 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Διαθέσιμο</div>
                                     <div className={`font-bold text-lg ${stock > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{stock}</div>
                                 </div>
-                                <div className="col-span-3 flex items-center gap-2">
-                                    <label htmlFor={`stock_${itemId}`} className="text-sm font-medium text-slate-600">Από Stock:</label>
-                                    <input 
-                                        type="number" 
-                                        id={`stock_${itemId}`}
-                                        value={allocatedFromStock}
-                                        onChange={e => handleAllocationChange(itemId, parseInt(e.target.value) || 0)}
-                                        max={Math.min(stock, item.quantity)}
-                                        min="0"
-                                        className="w-20 p-2 text-center font-bold border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
-                                    />
+                                <div className="col-span-4 flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Από Stock:</label>
+                                        <input 
+                                            type="number" 
+                                            value={allocation.fromStock}
+                                            onChange={e => handleAllocationChange(itemId, parseInt(e.target.value) || 0)}
+                                            max={Math.min(stock, item.quantity)}
+                                            min="0"
+                                            className="w-20 p-2 text-center font-bold border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+                                        />
+                                    </div>
+                                    {allocation.fromStock > 0 && (
+                                        <label className={`flex items-center gap-2 text-xs font-bold cursor-pointer transition-colors px-2 py-1 rounded border ${allocation.needsRefurbish ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-slate-400 border-transparent hover:bg-slate-50'}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={allocation.needsRefurbish} 
+                                                onChange={() => toggleRefurbish(itemId)}
+                                                className="accent-blue-600"
+                                            />
+                                            <RefreshCcw size={12} className={allocation.needsRefurbish ? "text-blue-600" : ""}/> 
+                                            Χρήζει Φρεσκαρίσματος;
+                                        </label>
+                                    )}
                                 </div>
-                                <div className="col-span-3 flex justify-between items-center bg-blue-50/70 p-3 rounded-xl border border-blue-100">
-                                    <span className="text-sm font-bold text-blue-800">Για Παραγωγή:</span>
-                                    <span className="font-black text-xl text-blue-900">{toProduce}</span>
+                                <div className="col-span-2 flex flex-col items-end justify-center bg-blue-50/50 p-2 rounded-xl border border-blue-100/50">
+                                    <span className="text-[10px] font-bold text-blue-800 uppercase">Νεα Παραγωγη</span>
+                                    <span className="font-black text-xl text-blue-900">{toNewProduction}</span>
                                 </div>
                             </div>
                         );
@@ -624,7 +837,7 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                 </div>
 
                 <div className="p-6 border-t border-slate-100 bg-white flex justify-end">
-                    <button onClick={handleConfirmFulfillment} disabled={isLoading} className="bg-[#060b00] text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 hover:bg-black disabled:opacity-60 transition-all">
+                    <button onClick={handleConfirmFulfillment} disabled={isLoading} className="bg-[#060b00] text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 hover:bg-black disabled:opacity-60 transition-all shadow-lg">
                         {isLoading ? <Loader2 className="animate-spin"/> : <CheckCircle size={18}/>}
                         {isLoading ? 'Επεξεργασία...' : 'Επιβεβαίωση & Αποστολή'}
                     </button>

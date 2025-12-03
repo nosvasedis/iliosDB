@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { ProductionBatch, Mold, Product, Material, RecipeItem } from '../types';
 import { APP_LOGO } from '../constants';
-import { Box, MapPin, ImageIcon, Tag, Factory } from 'lucide-react';
+import { Box, MapPin, ImageIcon, Tag, Factory, RefreshCcw } from 'lucide-react';
 
 interface Props {
     batch: ProductionBatch;
@@ -58,7 +59,14 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     </div>
                     <div>
                         <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Εντολη Παραγωγησ</h1>
-                        <p className="text-slate-500 font-mono font-bold">{batch.id}</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-slate-500 font-mono font-bold">{batch.id}</p>
+                            {batch.type === 'Refurbish' && (
+                                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 border border-blue-200">
+                                    <RefreshCcw size={12}/> Φρεσκάρισμα
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="text-right">

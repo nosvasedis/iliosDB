@@ -169,9 +169,11 @@ export enum ProductionStage {
   Casting = 'Casting',     // Χυτήριο
   Setting = 'Setting',     // Καρφωτής (Conditional)
   Polishing = 'Polishing', // Τεχνίτης/Γυάλισμα
-  Labeling = 'Labeling',   // Καρτελάκια/QC
+  Labeling = 'Labeling',   // Καρτελάκια/QC/Πακετάρισμα
   Ready = 'Ready'          // Έτοιμο για κατάστημα
 }
+
+export type BatchType = 'New' | 'Refurbish';
 
 export interface ProductionBatch {
   id: string;
@@ -183,6 +185,7 @@ export interface ProductionBatch {
   created_at: string;
   updated_at: string;
   priority: 'Normal' | 'High';
+  type?: BatchType; // New: Distinguish between new production and refurbishing
   notes?: string;
   
   // Data for smart logic

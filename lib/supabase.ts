@@ -7,16 +7,11 @@ export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.de
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
 // --- SECURE INITIALIZATION STRATEGY ---
-// VITE IMPORTANT: We must access import.meta.env.VARIABLE_NAME explicitly 
-// for the build tool to replace it with the Vercel Env Var.
-// Do not use dynamic property access (e.g. env[key]) for build variables.
-
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
 const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
 const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
-// Logic: 1. Try Build Env (Vercel) -> 2. Try Local Storage (Preview/Fallback) -> 3. Empty
 const SUPABASE_URL = envUrl || localStorage.getItem('VITE_SUPABASE_URL') || '';
 const SUPABASE_KEY = envKey || localStorage.getItem('VITE_SUPABASE_ANON_KEY') || '';
 export const AUTH_KEY_SECRET = envWorkerKey || localStorage.getItem('VITE_WORKER_AUTH_KEY') || '';
@@ -24,8 +19,6 @@ export const GEMINI_API_KEY = envGeminiKey || localStorage.getItem('VITE_GEMINI_
 
 export const isConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
 
-// Initialize with real keys or valid-looking placeholders to prevent crash on startup
-// If isConfigured is false, the UI will block access anyway via SetupScreen.
 export const supabase = createClient(
     SUPABASE_URL || 'https://placeholder.supabase.co', 
     SUPABASE_KEY || 'placeholder'
@@ -59,24 +52,21 @@ export const SYSTEM_IDS = {
  * Naming Convention: {SKU}_{TIMESTAMP}_{RANDOM}.jpg
  */
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
-    // Sanitize SKU to prevent URL malformation. 
-    // Allow alphanumerics, Greek characters, dashes.
     const safeSku = sku
-        .replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-') // Replace non-alphanumeric/non-greek with dash
-        .replace(/-+/g, '-') // Remove duplicate dashes
-        .replace(/^-|-$/g, ''); // Trim dashes
+        .replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-') 
+        .replace(/-+/g, '-') 
+        .replace(/^-|-$/g, ''); 
 
     const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const fileName = `${safeSku.toUpperCase()}_${uniqueId}.jpg`;
     
-    // We encode the filename for the URL
     const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
 
     try {
         const response = await fetch(uploadUrl, {
             method: 'POST',
-            mode: 'cors', // Explicitly allow CORS
-            credentials: 'omit', // Important: Do not send cookies/auth headers that conflict with wildcard CORS
+            mode: 'cors',
+            credentials: 'omit',
             headers: {
                 'Content-Type': 'image/jpeg',
                 'Authorization': AUTH_KEY_SECRET,
@@ -89,22 +79,16 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
             throw new Error(`Worker responded with ${response.status}: ${errorText}`);
         }
 
-        // Return the Public R2 URL
         return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
 
     } catch (error) {
         console.error("Cloudflare R2 Upload Error:", error);
-        // Throwing error allows the UI to catch it and alert the user
         throw error;
     }
 };
 
-/**
- * [UPDATED & ROBUST] Product Deletion with explicit error checking.
- */
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
-        // 1. SAFETY CHECK: Is this product used as a component in another product's recipe?
         const { data: usedInRecipes, error: checkError } = await supabase
             .from('recipes')
             .select('parent_sku')
@@ -118,7 +102,6 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
             };
         }
 
-        // 2. STORAGE CLEANUP: Delete image from R2 via worker
         if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) {
             try {
                 const urlParts = imageUrl.split('/');
@@ -132,7 +115,6 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
             }
         }
 
-        // 3. DATABASE CLEANUP (Fail-fast with explicit checks)
         const { error: variantsError } = await supabase.from('product_variants').delete().eq('product_sku', sku);
         if (variantsError) throw new Error(`Failed to delete variants: ${variantsError.message}`);
 
@@ -151,7 +133,6 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         const { error: stockError } = await supabase.from('product_stock').delete().eq('product_sku', sku);
         if (stockError) throw new Error(`Failed to delete warehouse stock: ${stockError.message}`);
 
-        // 4. FINALLY, DELETE THE MASTER PRODUCT
         const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
         if (deleteError) throw new Error(`Failed to delete main product: ${deleteError.message}`);
 
@@ -178,9 +159,6 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
     }
 };
 
-/**
- * API Fetchers for React Query
- */
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         try {
@@ -265,40 +243,32 @@ export const api = {
             const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
             const { data: prodCollData } = await supabase.from('product_collections').select('*');
             
-            // Fetch Custom Warehouse Stocks
             const { data: stockData } = await supabase.from('product_stock').select('*');
 
             const assembledProducts: Product[] = prodData.map((p: any) => {
                 
-                // Map custom stock for Master (where variant_suffix is null/empty)
                 const customStock: Record<string, number> = {};
                 stockData?.filter((s: any) => s.product_sku === p.sku && !s.variant_suffix).forEach((s: any) => {
                     customStock[s.warehouse_id] = s.quantity;
                 });
-                // Add System Stocks to the map for uniform access (Master)
                 customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
                 customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
 
                 const pVariants: ProductVariant[] = varData
                   ?.filter((v: any) => v.product_sku === p.sku)
                   .map((v: any) => {
-                    // Map custom stock for this variant
                     const vCustomStock: Record<string, number> = {};
                     stockData?.filter((s: any) => s.product_sku === p.sku && s.variant_suffix === v.suffix).forEach((s: any) => {
                         vCustomStock[s.warehouse_id] = s.quantity;
                     });
                     
-                    // Add System Stocks for Variant (Assuming stock_qty in variants table is Central)
                     vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
-                    // Note: Sample quantity for variants is not strictly defined in schema but can be extended. 
-                    // For now, variants only track Central in 'stock_qty' column of 'product_variants' table.
 
                     return {
                         suffix: v.suffix,
                         description: v.description,
                         stock_qty: v.stock_qty,
                         location_stock: vCustomStock,
-                        // NEW: Pricing Overrides
                         active_price: v.active_price ? Number(v.active_price) : null,
                         selling_price: v.selling_price ? Number(v.selling_price) : null
                     };
@@ -333,9 +303,9 @@ export const api = {
                   active_price: Number(p.active_price),
                   draft_price: Number(p.draft_price),
                   selling_price: Number(p.selling_price || 0),
-                  stock_qty: p.stock_qty, // Master Central
-                  sample_qty: p.sample_qty, // Master Showroom
-                  location_stock: customStock, // Master Custom Stocks
+                  stock_qty: p.stock_qty, 
+                  sample_qty: p.sample_qty, 
+                  location_stock: customStock, 
                   molds: pMolds,
                   is_component: p.is_component,
                   variants: pVariants,
@@ -358,12 +328,10 @@ export const api = {
         }
     },
     
-    // --- WAREHOUSE MANAGEMENT API ---
     getWarehouses: async (): Promise<Warehouse[]> => {
         try {
             const { data, error } = await supabase.from('warehouses').select('*').order('created_at');
             if (error) {
-                // If table doesn't exist, return defaults
                 console.warn("Warehouses table might not exist yet:", error);
                 return [
                     { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
@@ -391,32 +359,20 @@ export const api = {
     },
 
     deleteWarehouse: async (id: string): Promise<void> => {
-        // Also delete stocks associated? Handled by DB cascade
         const { error } = await supabase.from('warehouses').delete().eq('id', id);
         if (error) throw error;
     },
 
-    /**
-     * UNIFIED TRANSFER LOGIC
-     * Handles movement between:
-     * 1. System -> System (stock_qty <-> sample_qty)
-     * 2. System -> Custom (stock_qty -> product_stock table)
-     * 3. Custom -> System (product_stock -> stock_qty)
-     * 4. Custom -> Custom (product_stock -> product_stock)
-     */
     transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
-        // Fetch current product to get system stocks
         const { data: prod, error: pErr } = await supabase.from('products').select('*').eq('sku', productSku).single();
         if (pErr) throw pErr;
 
-        // Fetch custom stocks
         const { data: stockFrom } = await supabase.from('product_stock').select('quantity').match({ product_sku: productSku, warehouse_id: fromId }).single();
         const { data: stockTo } = await supabase.from('product_stock').select('quantity').match({ product_sku: productSku, warehouse_id: toId }).single();
         
         let newFromQty = 0;
         let newToQty = 0;
 
-        // --- DECREMENT SOURCE ---
         if (fromId === SYSTEM_IDS.CENTRAL) {
             newFromQty = prod.stock_qty - qty;
             if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στην Κεντρική Αποθήκη");
@@ -426,16 +382,12 @@ export const api = {
             if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στο Δειγματολόγιο");
             await supabase.from('products').update({ sample_qty: newFromQty }).eq('sku', productSku);
         } else {
-            // Custom Source
             const current = stockFrom ? stockFrom.quantity : 0;
             newFromQty = current - qty;
             if (newFromQty < 0) throw new Error("Ανεπαρκές απόθεμα στον επιλεγμένο χώρο");
             await supabase.from('product_stock').upsert({ product_sku: productSku, warehouse_id: fromId, quantity: newFromQty });
         }
 
-        // --- INCREMENT TARGET ---
-        // Refetch product in case we just updated it above (if source was system)
-        
         if (toId === SYSTEM_IDS.CENTRAL) {
             const { data: freshProd } = await supabase.from('products').select('*').eq('sku', productSku).single();
             await supabase.from('products').update({ stock_qty: freshProd.stock_qty + qty }).eq('sku', productSku);
@@ -444,7 +396,6 @@ export const api = {
             const { data: freshProd } = await supabase.from('products').select('*').eq('sku', productSku).single();
             await supabase.from('products').update({ sample_qty: freshProd.sample_qty + qty }).eq('sku', productSku);
         } else {
-            // Custom Target
             const current = stockTo ? stockTo.quantity : 0;
             newToQty = current + qty;
             await supabase.from('product_stock').upsert({ product_sku: productSku, warehouse_id: toId, quantity: newToQty });
@@ -453,7 +404,6 @@ export const api = {
         await recordStockMovement(productSku, qty, `Transfer: ${fromId} -> ${toId}`);
     },
 
-    // --- CUSTOMERS API ---
     getCustomers: async (): Promise<Customer[]> => {
         try {
             const { data, error } = await supabase.from('customers').select('*').order('full_name');
@@ -466,16 +416,8 @@ export const api = {
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
-        const { data, error } = await supabase
-            .from('customers')
-            .insert(customer)
-            .select()
-            .single();
-        
-        if (error) {
-            console.error("Error saving customer:", error);
-            throw error;
-        }
+        const { data, error } = await supabase.from('customers').insert(customer).select().single();
+        if (error) { console.error("Error saving customer:", error); throw error; }
         return data;
     },
 
@@ -489,14 +431,9 @@ export const api = {
         if (error) throw error;
     },
 
-    // --- ORDERS API ---
     getOrders: async (): Promise<Order[]> => {
         try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*')
-                .order('created_at', { ascending: false });
-            
+            const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
             if (error) throw error;
             return data as Order[];
         } catch (e) {
@@ -508,81 +445,37 @@ export const api = {
     saveOrder: async (order: Order): Promise<void> => {
         const { error } = await supabase.from('orders').insert({
             id: order.id,
-            customer_id: order.customer_id, // Link
+            customer_id: order.customer_id, 
             customer_name: order.customer_name,
             customer_phone: order.customer_phone,
             status: order.status,
             total_price: order.total_price,
-            items: order.items, // Stores as JSONB
+            items: order.items, 
             created_at: order.created_at
         });
-
-        if (error) {
-            console.error("Error saving order:", error);
-            throw error;
-        }
+        if (error) { console.error("Error saving order:", error); throw error; }
     },
     
     updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
-        const { error } = await supabase
-            .from('orders')
-            .update({ status })
-            .eq('id', orderId);
-            
-        if (error) {
-            console.error("Error updating order status:", error);
-            throw error;
-        }
+        const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+        if (error) { console.error("Error updating order status:", error); throw error; }
 
-        // --- NEW LOGIC: CLEANUP PRODUCTION ---
-        // If an order is marked as Delivered, we should remove its production batches
-        // to clear the Kanban board and signal completion.
         if (status === OrderStatus.Delivered) {
-            const { error: batchError } = await supabase
-                .from('production_batches')
-                .delete()
-                .eq('order_id', orderId);
-            
-            if (batchError) {
-                console.warn("Could not auto-archive production batches:", batchError);
-                // We don't throw here to avoid blocking the status update, 
-                // but we log it.
-            }
+            const { error: batchError } = await supabase.from('production_batches').delete().eq('order_id', orderId);
+            if (batchError) console.warn("Could not auto-archive production batches:", batchError);
         }
     },
 
     deleteOrder: async (orderId: string): Promise<void> => {
-        // First, delete associated production batches to maintain data integrity
-        const { error: batchError } = await supabase
-            .from('production_batches')
-            .delete()
-            .eq('order_id', orderId);
-
-        if (batchError) {
-            console.error("Error deleting associated batches:", batchError);
-            throw batchError;
-        }
-
-        // Then, delete the order itself
-        const { error } = await supabase
-            .from('orders')
-            .delete()
-            .eq('id', orderId);
-        
-        if (error) {
-            console.error("Error deleting order:", error);
-            throw error;
-        }
+        const { error: batchError } = await supabase.from('production_batches').delete().eq('order_id', orderId);
+        if (batchError) { console.error("Error deleting associated batches:", batchError); throw batchError; }
+        const { error } = await supabase.from('orders').delete().eq('id', orderId);
+        if (error) { console.error("Error deleting order:", error); throw error; }
     },
 
-    // --- PRODUCTION API ---
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
         try {
-            const { data, error } = await supabase
-                .from('production_batches')
-                .select('*')
-                .order('created_at', { ascending: false });
-
+            const { data, error } = await supabase.from('production_batches').select('*').order('created_at', { ascending: false });
             if (error) throw error;
             return data as ProductionBatch[];
         } catch (e) {
@@ -602,40 +495,24 @@ export const api = {
             priority: batch.priority,
             created_at: batch.created_at,
             updated_at: batch.updated_at,
-            requires_setting: batch.requires_setting
+            requires_setting: batch.requires_setting,
+            type: batch.type || 'New',
+            notes: batch.notes
         });
 
-        if (error) {
-            console.error("Error creating batch:", error);
-            throw error;
-        }
+        if (error) { console.error("Error creating batch:", error); throw error; }
     },
 
     updateBatchStage: async (batchId: string, stage: ProductionStage): Promise<void> => {
-        const { data: updatedBatch, error } = await supabase
-            .from('production_batches')
-            .update({ current_stage: stage, updated_at: new Date().toISOString() })
-            .eq('id', batchId)
-            .select()
-            .single();
-
-        if (error) {
-            console.error("Error updating batch stage:", error);
-            throw error;
-        }
+        const { data: updatedBatch, error } = await supabase.from('production_batches').update({ current_stage: stage, updated_at: new Date().toISOString() }).eq('id', batchId).select().single();
+        if (error) { console.error("Error updating batch stage:", error); throw error; }
 
         if (updatedBatch && updatedBatch.order_id) {
-            const { data: orderBatches } = await supabase
-                .from('production_batches')
-                .select('current_stage')
-                .eq('order_id', updatedBatch.order_id);
-
+            const { data: orderBatches } = await supabase.from('production_batches').select('current_stage').eq('order_id', updatedBatch.order_id);
             if (orderBatches) {
                 const allReady = orderBatches.every((b: any) => b.current_stage === ProductionStage.Ready);
                 if (allReady) {
                     await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.Ready);
-                // FIX: The comparison `stage !== OrderStatus.Pending` is invalid because the types do not overlap.
-                // The correct logic is to set the status to 'InProduction' if not all batches are ready.
                 } else {
                     await api.updateOrderStatus(updatedBatch.order_id, OrderStatus.InProduction);
                 }
@@ -645,9 +522,6 @@ export const api = {
     
     deleteProductionBatch: async (batchId: string): Promise<void> => {
         const { error } = await supabase.from('production_batches').delete().eq('id', batchId);
-        if (error) {
-             console.error("Error deleting batch:", error);
-             throw error;
-        }
+        if (error) { console.error("Error deleting batch:", error); throw error; }
     }
 };

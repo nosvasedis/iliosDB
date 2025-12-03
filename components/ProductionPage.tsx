@@ -1,9 +1,8 @@
-
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -19,7 +18,7 @@ const STAGES = [
     { id: ProductionStage.Casting, label: 'Χυτήριο', icon: <Flame size={20} />, color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', icon: <Gem size={20} />, color: 'purple' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', icon: <Hammer size={20} />, color: 'blue' },
-    { id: ProductionStage.Labeling, label: 'Καρτελάκια', icon: <Tag size={20} />, color: 'yellow' },
+    { id: ProductionStage.Labeling, label: 'Καρτελάκια - Πακετάρισμα', icon: <Tag size={20} />, color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', icon: <CheckCircle size={20} />, color: 'emerald' }
 ];
 
@@ -46,12 +45,15 @@ interface BatchCardProps {
     onPrint: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) => (
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) => {
+    const isRefurbish = batch.type === 'Refurbish';
+    
+    return (
     <div 
         draggable 
         onDragStart={(e) => onDragStart(e, batch.id)}
         className={`bg-white p-4 rounded-2xl shadow-sm border hover:shadow-lg transition-all relative flex flex-col cursor-grab active:cursor-grabbing group
-                    ${batch.isDelayed ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-100'}`}
+                    ${batch.isDelayed ? 'border-red-300 ring-1 ring-red-100' : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-100')}`}
     >
         <div className="absolute top-3 right-3 flex items-center gap-2">
             {batch.isDelayed && (
@@ -67,6 +69,12 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) =>
                 <Printer size={14} />
             </button>
         </div>
+        
+        {isRefurbish && (
+            <div className="absolute -top-2 left-3 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                <RefreshCcw size={10}/> Φρεσκάρισμα
+            </div>
+        )}
         
         <div className="flex gap-4 items-start mb-3">
             <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
@@ -85,13 +93,55 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) =>
             </div>
         </div>
 
-        <div className="mt-auto pt-3 border-t border-slate-50">
+        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-end">
             {batch.order_id ? (
                 <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">{batch.order_id}</div>
             ) : <div/>}
         </div>
     </div>
-);
+    );
+};
+
+const OrderGroupCard: React.FC<{ 
+    orderId: string, 
+    batches: ProductionBatch[], 
+    onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void, 
+    onPrint: (batch: ProductionBatch) => void
+}> = ({ orderId, batches, onDragStart, onPrint }) => {
+    const [expanded, setExpanded] = useState(false);
+    const totalQty = batches.reduce((acc, b) => acc + b.quantity, 0);
+    const hasRefurbish = batches.some(b => b.type === 'Refurbish');
+
+    return (
+        <div className={`bg-white rounded-2xl shadow-sm border transition-all ${expanded ? 'ring-2 ring-slate-200' : 'border-slate-200 hover:shadow-md'}`}>
+            <div 
+                className="p-4 cursor-pointer flex justify-between items-center"
+                onClick={() => setExpanded(!expanded)}
+            >
+                <div>
+                    <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-600 text-xs">#{orderId}</span>
+                        {hasRefurbish && <span className="w-2 h-2 rounded-full bg-blue-500" title="Περιέχει Φρεσκάρισμα"></span>}
+                    </div>
+                    <div className="font-black text-slate-800 text-sm mt-1">{totalQty} τεμ. <span className="text-slate-400 font-normal">({batches.length} παρτίδες)</span></div>
+                </div>
+                <div className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
+                    <ChevronDown size={16} className="text-slate-400"/>
+                </div>
+            </div>
+            
+            {expanded && (
+                <div className="p-3 pt-0 space-y-3 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+                    {batches.map(batch => (
+                        <div key={batch.id} className="scale-95 origin-top">
+                            <BatchCard batch={batch} onDragStart={onDragStart} onPrint={onPrint} />
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
@@ -100,6 +150,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
+  const [groupByOrder, setGroupByOrder] = useState(false);
 
   const enhancedBatches: ProductionBatch[] = useMemo(() => {
     return batches?.map(b => {
@@ -137,17 +188,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       const batch = enhancedBatches.find(b => b.id === draggedBatchId);
       if (!batch || batch.current_stage === targetStage) return;
 
-      // SMART SKIP LOGIC
       if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
           showToast(`Το ${batch.sku} δεν έχει πέτρες. Προχωρήστε στο επόμενο στάδιο.`, 'info');
           return;
       }
       
-      // OPTIONAL: Auto-advance if skipping
-      if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Polishing && !batch.requires_setting) {
-          // This is a valid skip, proceed
-      }
-
       try {
           await api.updateBatchStage(batch.id, targetStage);
           queryClient.invalidateQueries({ queryKey: ['batches'] });
@@ -155,6 +200,22 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       } catch (e: any) {
           showToast(`Σφάλμα: ${e.message}`, 'error');
       }
+  };
+
+  const getGroupedBatches = (stageBatches: ProductionBatch[]) => {
+      const groups: Record<string, ProductionBatch[]> = {};
+      const orphans: ProductionBatch[] = [];
+
+      stageBatches.forEach(b => {
+          if (b.order_id) {
+              if (!groups[b.order_id]) groups[b.order_id] = [];
+              groups[b.order_id].push(b);
+          } else {
+              orphans.push(b);
+          }
+      });
+
+      return { groups, orphans };
   };
 
   if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
@@ -171,13 +232,23 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 </h1>
                 <p className="text-slate-500 mt-1 ml-14">Drag & drop τις παρτίδες για να αλλάξετε το στάδιό τους.</p>
             </div>
-            <button 
-                onClick={() => onPrintAggregated(enhancedBatches)}
-                disabled={enhancedBatches.length === 0}
-                className="flex items-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50"
-            >
-                <FileText size={18} /> Συγκεντρωτική Εντολή
-            </button>
+            
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={() => setGroupByOrder(!groupByOrder)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${groupByOrder ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                    <Layers size={16} /> {groupByOrder ? 'Ομαδοποιημένη' : 'Αναλυτική'} Προβολή
+                </button>
+
+                <button 
+                    onClick={() => onPrintAggregated(enhancedBatches)}
+                    disabled={enhancedBatches.length === 0}
+                    className="flex items-center gap-2 bg-slate-100 text-slate-700 px-5 py-2.5 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-sm"
+                >
+                    <FileText size={16} /> Συγκεντρωτική
+                </button>
+            </div>
         </div>
 
         <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
@@ -187,6 +258,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                     const isTarget = dropTarget === stage.id;
                     
+                    const { groups, orphans } = getGroupedBatches(stageBatches);
+
                     return (
                         <div 
                             key={stage.id}
@@ -202,10 +275,23 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                 </div>
                                 <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${colors.text} ${colors.bg}`}>{stageBatches.length}</span>
                             </div>
+                            
                             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                {stageBatches.map(batch => (
-                                    <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
-                                ))}
+                                {groupByOrder ? (
+                                    <>
+                                        {Object.entries(groups).map(([orderId, batches]) => (
+                                            <OrderGroupCard key={orderId} orderId={orderId} batches={batches} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                        ))}
+                                        {orphans.map(batch => (
+                                            <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                        ))}
+                                    </>
+                                ) : (
+                                    stageBatches.map(batch => (
+                                        <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                    ))
+                                )}
+                                
                                 {stageBatches.length === 0 && (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-300 p-4">
                                         <Package size={32} className="mb-2"/>
