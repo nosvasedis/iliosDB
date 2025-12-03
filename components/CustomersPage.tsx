@@ -1,13 +1,34 @@
-
 import React, { useState, useMemo } from 'react';
-import { Customer, Order } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2 } from 'lucide-react';
+import { Customer, Order, OrderStatus } from '../types';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-export default function CustomersPage() {
+interface Props {
+    onPrintOrder?: (order: Order) => void;
+}
+
+const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+};
+
+const getStatusColor = (status: OrderStatus) => {
+    switch(status) {
+        case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
+        case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
+        case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+        case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
+        case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
+    }
+};
+
+export default function CustomersPage({ onPrintOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     
@@ -315,6 +336,7 @@ export default function CustomersPage() {
                                                 <th className="p-4 text-right">Ποσό</th>
                                                 <th className="p-4">Κατάσταση</th>
                                                 <th className="p-4 text-center">Είδη</th>
+                                                <th className="p-4 text-center"></th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
@@ -323,11 +345,26 @@ export default function CustomersPage() {
                                                     <td className="p-4 pl-6 font-mono font-bold text-slate-700">{o.id}</td>
                                                     <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
                                                     <td className="p-4 text-right font-black text-slate-800">{o.total_price.toFixed(2)}€</td>
-                                                    <td className="p-4"><span className="bg-slate-100 px-2.5 py-1 rounded-full text-xs font-bold text-slate-600 uppercase tracking-wide border border-slate-200">{o.status}</span></td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(o.status)}`}>
+                                                            {STATUS_TRANSLATIONS[o.status]}
+                                                        </span>
+                                                    </td>
                                                     <td className="p-4 text-center text-xs font-bold text-slate-500">{o.items.length}</td>
+                                                    <td className="p-4 text-center">
+                                                        {onPrintOrder && (
+                                                            <button 
+                                                                onClick={() => onPrintOrder(o)}
+                                                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                                                                title="Προβολή/Εκτύπωση"
+                                                            >
+                                                                <Printer size={16} />
+                                                            </button>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
-                                            {customerStats?.history.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">Καμία παραγγελία μέχρι στιγμής.</td></tr>}
+                                            {customerStats?.history.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Καμία παραγγελία μέχρι στιγμής.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>

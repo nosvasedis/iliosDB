@@ -533,6 +533,22 @@ export const api = {
             console.error("Error updating order status:", error);
             throw error;
         }
+
+        // --- NEW LOGIC: CLEANUP PRODUCTION ---
+        // If an order is marked as Delivered, we should remove its production batches
+        // to clear the Kanban board and signal completion.
+        if (status === OrderStatus.Delivered) {
+            const { error: batchError } = await supabase
+                .from('production_batches')
+                .delete()
+                .eq('order_id', orderId);
+            
+            if (batchError) {
+                console.warn("Could not auto-archive production batches:", batchError);
+                // We don't throw here to avoid blocking the status update, 
+                // but we log it.
+            }
+        }
     },
 
     deleteOrder: async (orderId: string): Promise<void> => {

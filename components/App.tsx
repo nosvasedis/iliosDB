@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -91,6 +87,29 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
 
     return <>{children}</>;
 }
+
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+  <button
+    onClick={onClick}
+    title={isCollapsed ? label : ''}
+    className={`
+      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
+      ${isActive 
+        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
+        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
+    `}
+  >
+    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
+      {icon}
+    </div>
+    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {isCollapsed && (
+      <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
+        {label}
+      </div>
+    )}
+  </button>
+);
 
 function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -505,7 +524,7 @@ function AppContent() {
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
               {/* @FIX: Pass missing props to ProductionPage. */}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
-              {activePage === 'customers' && <CustomersPage />}
+              {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               
               {activePage === 'resources' && (
                 <div className="space-y-6">
@@ -534,29 +553,6 @@ function AppContent() {
     </>
   );
 }
-
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
-  <button
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive 
-        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20' 
-        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
-    `}
-  >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
-      {icon}
-    </div>
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
-    {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
-        {label}
-      </div>
-    )}
-  </button>
-);
 
 export default function App() {
   if (!isConfigured) {
