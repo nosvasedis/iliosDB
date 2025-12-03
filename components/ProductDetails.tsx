@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -21,6 +21,16 @@ const GENDER_MAP: Record<Gender, string> = {
     [Gender.Men]: 'Ανδρικά',
     [Gender.Women]: 'Γυναικεία',
     [Gender.Unisex]: 'Unisex'
+};
+
+const getMaterialIcon = (type?: string) => {
+    switch (type) {
+        case 'Stone': return <Gem size={16} className="text-emerald-500" />;
+        case 'Cord': return <Activity size={16} className="text-amber-600" />;
+        case 'Chain': return <Link size={16} className="text-slate-500" />;
+        case 'Component': return <Puzzle size={16} className="text-blue-500" />;
+        default: return <Box size={16} className="text-slate-400" />;
+    }
 };
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
@@ -917,19 +927,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        </div>
                    </div>
                    
-                   {editedProduct.recipe.map((item, idx) => (
+                   {editedProduct.recipe.map((item, idx) => {
+                    const mat = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : null;
+                    return (
                     <div key={idx} className="flex items-center gap-3 p-4 rounded-xl border bg-white shadow-sm">
                        <div className="flex-1">
                            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
-                           {item.type === 'raw' ? (
-                               <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
-                                   {allMaterials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
-                               </select>
-                           ) : (
-                               <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
-                                   {allProducts.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
-                               </select>
-                           )}
+                           
+                           <div className="flex items-center gap-2">
+                               {item.type === 'raw' && mat && getMaterialIcon(mat.type)}
+                               {item.type === 'component' && getMaterialIcon('Component')}
+                               
+                               {item.type === 'raw' ? (
+                                   <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
+                                       {allMaterials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                                   </select>
+                               ) : (
+                                   <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
+                                       {allProducts.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
+                                   </select>
+                               )}
+                           </div>
                        </div>
                        <div className="w-24">
                            <input 
@@ -943,7 +961,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            <Trash2 size={18} />
                        </button>
                     </div>
-                   ))}
+                   )})}
 
                    {editedProduct.recipe.length === 0 && (
                        <div className="text-center italic text-slate-400 py-4 text-xs">

@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -87,6 +88,16 @@ export default function MaterialsPage({ settings }: Props) {
     }
   };
 
+  const getMaterialIcon = (type: MaterialType) => {
+      switch (type) {
+          case MaterialType.Stone: return <Gem size={16} className="text-emerald-500" />;
+          case MaterialType.Cord: return <Activity size={16} className="text-amber-600" />;
+          case MaterialType.Chain: return <Link size={16} className="text-slate-500" />;
+          case MaterialType.Component: return <Puzzle size={16} className="text-blue-500" />;
+          default: return <Box size={16} className="text-slate-400" />;
+      }
+  };
+
   if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
 
   return (
@@ -152,7 +163,8 @@ export default function MaterialsPage({ settings }: Props) {
                       />
                   </td>
                   <td className="p-4">
-                    <div className="relative">
+                    <div className="relative flex items-center gap-2">
+                        {getMaterialIcon(m.type)}
                         <select 
                             value={m.type} 
                             onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 

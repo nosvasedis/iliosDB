@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -70,6 +69,16 @@ const SummaryRow = ({ label, value, sub, color }: { label: string, value: number
         </div>
     </div>
 );
+
+const getMaterialIcon = (type?: string) => {
+    switch (type) {
+        case 'Stone': return <Gem size={16} className="text-emerald-500" />;
+        case 'Cord': return <Activity size={16} className="text-amber-600" />;
+        case 'Chain': return <Link size={16} className="text-slate-500" />;
+        case 'Component': return <Puzzle size={16} className="text-blue-500" />;
+        default: return <Box size={16} className="text-slate-400" />;
+    }
+};
 
 
 export default function NewProduct({ products, materials, molds = [], onCancel }: Props) {
@@ -809,11 +818,27 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </div>
 
-                    {recipe.map((item, idx) => (
+                    {recipe.map((item, idx) => {
+                        // Resolve selected material to show icon
+                        const selectedMat = item.type === 'raw' ? materials.find(m => m.id === item.id) : null;
+                        
+                        return (
                         <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100 hover:border-blue-200 transition-all">
                             <div className="flex-1">
                                 <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 ml-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
+                                    {/* Icon Indicator */}
+                                    {item.type === 'raw' && selectedMat && (
+                                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                            {getMaterialIcon(selectedMat.type)}
+                                        </div>
+                                    )}
+                                    {item.type === 'component' && (
+                                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                            {getMaterialIcon('Component')}
+                                        </div>
+                                    )}
+
                                     {item.type === 'raw' ? (
                                         <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
                                             {materials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
@@ -848,7 +873,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <Trash2 size={18} />
                             </button>
                         </div>
-                    ))}
+                    )})}
                     
                     {recipe.length === 0 && (
                         <div className="text-center italic text-slate-400 py-4 text-xs">
@@ -1054,11 +1079,25 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     {recipe.length > 0 ? (
                                         <div className="space-y-1">
                                             {recipe.map((r, i) => {
-                                                const matName = r.type === 'raw' ? materials.find(m => m.id === r.id)?.name : `STX: ${r.sku}`;
+                                                let matName = '';
+                                                let iconNode: React.ReactNode = null;
+
+                                                if (r.type === 'raw') {
+                                                    const mat = materials.find(m => m.id === r.id);
+                                                    matName = mat ? mat.name : 'Άγνωστο Υλικό';
+                                                    if (mat) iconNode = getMaterialIcon(mat.type);
+                                                } else {
+                                                    matName = `STX: ${r.sku}`;
+                                                    iconNode = getMaterialIcon('Component');
+                                                }
+
                                                 return (
-                                                    <div key={i} className="flex justify-between text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
-                                                        <span className="text-slate-700 truncate pr-2">{matName}</span>
-                                                        <span className="font-mono font-bold text-slate-500">x{r.quantity}</span>
+                                                    <div key={i} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            {iconNode}
+                                                            <span className="text-slate-700 truncate">{matName}</span>
+                                                        </div>
+                                                        <span className="font-mono font-bold text-slate-500 pl-2">x{r.quantity}</span>
                                                     </div>
                                                 );
                                             })}
