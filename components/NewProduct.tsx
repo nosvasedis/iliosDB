@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
+import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -124,6 +124,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [newMoldDesc, setNewMoldDesc] = useState('');
   const [isCreatingMold, setIsCreatingMold] = useState(false);
   
+  // New Material Creator State
+  const [isCreatingMaterial, setIsCreatingMaterial] = useState(false);
+  const [newMatName, setNewMatName] = useState('');
+  const [newMatType, setNewMatType] = useState<MaterialType>(MaterialType.Stone);
+  const [newMatCost, setNewMatCost] = useState(0);
+  const [newMatUnit, setNewMatUnit] = useState('Τεμ');
+  const [isSavingMat, setIsSavingMat] = useState(false);
+
   const [isSTX, setIsSTX] = useState(false);
   const [masterEstimatedCost, setMasterEstimatedCost] = useState(0);
   const [costBreakdown, setCostBreakdown] = useState<{silver: number, materials: number, labor: number} | null>(null);
@@ -275,6 +283,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const addRawMaterial = () => {
     if (materials.length > 0) {
       setRecipe([...recipe, { type: 'raw', id: materials[0].id, quantity: 1 }]);
+    } else {
+        // No materials exist, prompt creation
+        setIsCreatingMaterial(true);
     }
   };
 
@@ -319,6 +330,36 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       } catch (err: any) {
           showToast("Σφάλμα δημιουργίας.", "error");
       } finally { setIsCreatingMold(false); }
+  };
+
+  const handleQuickCreateMaterial = async () => {
+      if (!newMatName) { showToast("Το όνομα είναι υποχρεωτικό.", "error"); return; }
+      setIsSavingMat(true);
+      try {
+          const { data, error } = await supabase.from('materials').insert({
+              name: newMatName,
+              type: newMatType,
+              cost_per_unit: newMatCost,
+              unit: newMatUnit
+          }).select().single();
+          
+          if (error) throw error;
+          
+          await queryClient.invalidateQueries({ queryKey: ['materials'] });
+          
+          // Auto-add to recipe
+          if (data) {
+              setRecipe([...recipe, { type: 'raw', id: data.id, quantity: 1 }]);
+          }
+          
+          setNewMatName(''); setNewMatCost(0);
+          setIsCreatingMaterial(false);
+          showToast("Το υλικό προστέθηκε στη συνταγή!", "success");
+      } catch(e) {
+          showToast("Σφάλμα δημιουργίας υλικού.", "error");
+      } finally {
+          setIsSavingMat(false);
+      }
   };
 
   // SMART MOLD SUGGESTIONS
@@ -751,7 +792,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {/* STEP 2: RECIPE */}
             {currentStep === 2 && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">2. Συνταγή (Bill of Materials)</h3>
+                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
+                        2. Συνταγή (Bill of Materials)
+                    </h3>
                     
                     {/* Always show Silver */}
                     <div className="flex items-center gap-3 p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
@@ -767,30 +810,43 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </div>
 
                     {recipe.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-4 rounded-xl border bg-white shadow-sm">
-                        <div className="flex-1">
-                            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
-                            {item.type === 'raw' ? (
-                                <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
-                                    {materials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
-                                </select>
-                            ) : (
-                                <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-transparent">
-                                    {products.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
-                                </select>
-                            )}
-                        </div>
-                        <div className="w-24">
-                            <input 
-                                type="number" 
-                                value={item.quantity} 
-                                onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} 
-                                className="w-full p-2 bg-slate-50 rounded font-bold text-center outline-none border border-slate-200"
-                            />
-                        </div>
-                        <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500">
-                            <Trash2 size={18} />
-                        </button>
+                        <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100 hover:border-blue-200 transition-all">
+                            <div className="flex-1">
+                                <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 ml-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
+                                <div className="flex gap-2">
+                                    {item.type === 'raw' ? (
+                                        <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
+                                            {materials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                                        </select>
+                                    ) : (
+                                        <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
+                                            {products.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
+                                        </select>
+                                    )}
+                                    {/* QUICK ADD BUTTON NEXT TO SELECT */}
+                                    {item.type === 'raw' && (
+                                        <button 
+                                            onClick={() => setIsCreatingMaterial(true)} 
+                                            className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200 transition-colors" 
+                                            title="Νέο Υλικό"
+                                        >
+                                            <Plus size={16}/>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="w-24">
+                                <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Ποσότητα</label>
+                                <input 
+                                    type="number" 
+                                    value={item.quantity} 
+                                    onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} 
+                                    className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center outline-none border border-slate-200 focus:border-blue-400"
+                                />
+                            </div>
+                            <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto">
+                                <Trash2 size={18} />
+                            </button>
                         </div>
                     ))}
                     
@@ -801,8 +857,64 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     )}
 
                     <div className="flex gap-2 pt-4 border-t border-slate-100">
-                        <button type="button" onClick={addRawMaterial} className="text-xs bg-purple-50 text-purple-700 px-4 py-2.5 rounded-lg font-bold border border-purple-200 flex items-center gap-1 hover:bg-purple-100 transition-colors"><Plus size={14}/> Υλικό</button>
-                        <button type="button" onClick={addComponent} className="text-xs bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-bold border border-blue-200 flex items-center gap-1 hover:bg-blue-100 transition-colors"><Plus size={14}/> STX</button>
+                        <button type="button" onClick={addRawMaterial} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button>
+                        <button type="button" onClick={addComponent} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16}/> Προσθήκη STX</button>
+                    </div>
+                </div>
+            )}
+
+            {/* QUICK MATERIAL MODAL */}
+            {isCreatingMaterial && (
+                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800">Νέο Υλικό</h3>
+                            <button onClick={() => setIsCreatingMaterial(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-3">
+                            <input 
+                                type="text" 
+                                placeholder="Όνομα Υλικού" 
+                                value={newMatName} 
+                                onChange={e => setNewMatName(e.target.value)}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+                            />
+                            <select 
+                                value={newMatType}
+                                onChange={(e) => setNewMatType(e.target.value as MaterialType)}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
+                            >
+                                <option value={MaterialType.Stone}>Πέτρα</option>
+                                <option value={MaterialType.Cord}>Κορδόνι</option>
+                                <option value={MaterialType.Chain}>Αλυσίδα</option>
+                                <option value={MaterialType.Component}>Εξάρτημα</option>
+                            </select>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    placeholder="Κόστος (€)" 
+                                    value={newMatCost} 
+                                    onChange={e => setNewMatCost(parseFloat(e.target.value))}
+                                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-center"
+                                />
+                                <input 
+                                    type="text" 
+                                    placeholder="Μονάδα" 
+                                    value={newMatUnit} 
+                                    onChange={e => setNewMatUnit(e.target.value)}
+                                    className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-center"
+                                />
+                            </div>
+                            <button 
+                                onClick={handleQuickCreateMaterial}
+                                disabled={isSavingMat}
+                                className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold mt-2 hover:bg-black transition-all flex items-center justify-center gap-2"
+                            >
+                                {isSavingMat ? <Loader2 size={16} className="animate-spin"/> : <Plus size={16}/>}
+                                {isSavingMat ? 'Αποθήκευση...' : 'Δημιουργία & Χρήση'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
