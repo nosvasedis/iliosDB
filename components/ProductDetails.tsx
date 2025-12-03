@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
@@ -153,7 +153,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       variants: product.variants || [],
       selling_price: product.selling_price || 0,
       molds: product.molds || [],
-      collections: product.collections || []
+      collections: product.collections || [],
+      secondary_weight_g: product.secondary_weight_g || 0,
+      labor: {
+          ...product.labor,
+          plating_cost_x: product.labor.plating_cost_x || 0,
+          plating_cost_d: product.labor.plating_cost_d || 0,
+      }
   });
   
   const [showRepriceTool, setShowRepriceTool] = useState(false);
@@ -170,7 +176,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       variants: product.variants || [],
       selling_price: product.selling_price || 0,
       molds: product.molds || [],
-      collections: product.collections || []
+      collections: product.collections || [],
+      secondary_weight_g: product.secondary_weight_g || 0,
+      labor: {
+          ...product.labor,
+          plating_cost_x: product.labor.plating_cost_x || 0,
+          plating_cost_d: product.labor.plating_cost_d || 0,
+      }
     });
     setViewIndex(0);
   }, [product]);
@@ -191,6 +203,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
 
+  // Auto-calculate plating costs
+  useEffect(() => {
+    const costX = parseFloat((editedProduct.weight_g * 0.60).toFixed(2));
+    const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
+    setEditedProduct(prev => ({
+        ...prev,
+        labor: { ...prev.labor, plating_cost_x: costX, plating_cost_d: costD }
+    }));
+  }, [editedProduct.weight_g, editedProduct.secondary_weight_g]);
+
   useEffect(() => {
       setEditedProduct(prev => {
           if (!prev.variants || prev.variants.length === 0) return prev;
@@ -202,8 +224,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   v.suffix,
                   settings,
                   allMaterials,
-                  allProducts,
-                  editedProduct.labor.plating_cost
+                  allProducts
               );
               
               if (Math.abs((v.active_price || 0) - estimated) > 0.005) {
@@ -220,13 +241,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       });
   }, [
       editedProduct.weight_g,
+      editedProduct.secondary_weight_g,
       editedProduct.labor.casting_cost,
       editedProduct.labor.setter_cost,
       editedProduct.labor.technician_cost,
-      editedProduct.labor.plating_cost,
+      editedProduct.labor.plating_cost_x,
+      editedProduct.labor.plating_cost_d,
       editedProduct.plating_type,
       editedProduct.recipe,
-      editedProduct.variants?.length
+      editedProduct.variants?.length,
+      settings, allMaterials, allProducts
   ]);
 
   useEffect(() => {
@@ -311,7 +335,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            setCalculatedPrice(0);
            return;
        }
-       const price = displayedCost / (1 - marginDecimal);
+       const price = roundPrice(displayedCost / (1 - marginDecimal));
        setCalculatedPrice(price);
   };
 
@@ -395,11 +419,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             gender: editedProduct.gender,
             category: editedProduct.category,
             weight_g: editedProduct.weight_g,
+            secondary_weight_g: editedProduct.secondary_weight_g || null,
             selling_price: editedProduct.selling_price,
             labor_casting: editedProduct.labor.casting_cost,
             labor_setter: editedProduct.labor.setter_cost,
             labor_technician: editedProduct.labor.technician_cost,
-            labor_plating: editedProduct.labor.plating_cost,
+            labor_plating_x: editedProduct.labor.plating_cost_x,
+            labor_plating_d: editedProduct.labor.plating_cost_d,
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
             active_price: currentCost,
             draft_price: currentCost
@@ -511,8 +537,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         analysis.suffix, 
         settings, 
         allMaterials, 
-        allProducts, 
-        editedProduct.labor.plating_cost
+        allProducts
     );
 
     const newVariant: ProductVariant = {
@@ -538,8 +563,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           upperSuffix, 
           settings, 
           allMaterials, 
-          allProducts,
-          editedProduct.labor.plating_cost
+          allProducts
       );
 
       const newVariant: ProductVariant = {
@@ -587,6 +611,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
               m.description.toLowerCase().includes(moldSearch.toLowerCase())
           );
   }, [allMolds, editedProduct.molds, moldSearch, isEditingMolds]);
+
+    const getSecondaryWeightLabel = () => {
+        const { gender, category } = editedProduct;
+        if (gender === Gender.Men && category.includes('Δαχτυλίδι')) {
+            return "Βάρος Καπακιού";
+        }
+        if (gender === Gender.Women && (category.includes('Βραχιόλι') || category.includes('Σκουλαρίκια') || category.includes('Δαχτυλίδι') || category.includes('Μενταγιόν'))) {
+            return "Βάρος Καστονιού";
+        }
+        return null;
+    };
+    const secondaryWeightLabel = getSecondaryWeightLabel();
 
 
   return createPortal(
@@ -732,6 +768,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <span className="text-sm font-medium text-slate-500">g</span>
                             </div>
                         </div>
+                        {secondaryWeightLabel && (
+                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
+                                <div className="flex items-baseline gap-2 mt-1">
+                                    <input 
+                                        type="number"
+                                        step="0.01"
+                                        value={editedProduct.secondary_weight_g || ''}
+                                        onChange={e => setEditedProduct(prev => ({ ...prev, secondary_weight_g: parseFloat(e.target.value) || 0 }))}
+                                        className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"
+                                    />
+                                    <span className="text-sm font-medium text-slate-500">g</span>
+                                </div>
+                            </div>
+                        )}
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
                         
                         <div className="bg-white p-4 rounded-xl border border-slate-200 relative group">
@@ -907,17 +958,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}}))}
                     />
                     <div className="bg-white p-4 rounded-xl border border-slate-200">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση (Manual)</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση X (€)</label>
                         <div className="relative mt-1">
-                            <input 
-                                type="number" 
-                                step="0.01" 
-                                value={editedProduct.labor.plating_cost}
-                                onChange={e => setEditedProduct(prev => ({...prev, labor: {...prev.labor, plating_cost: parseFloat(e.target.value) || 0}}))}
-                                className="w-full bg-transparent font-mono font-bold text-slate-800 text-lg outline-none"
-                            />
+                            <input type="number" readOnly value={editedProduct.labor.plating_cost_x} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
                         </div>
-                        <p className="text-[10px] text-amber-600 mt-2">Το ποσό αυτό θα προστεθεί αυτόματα στο κόστος των παραλλαγών X, D, H.</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Προϊόντος</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση D (€)</label>
+                        <div className="relative mt-1">
+                            <input type="number" readOnly value={editedProduct.labor.plating_cost_d} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Καστονιού/Καπακιού</p>
                     </div>
                 </div>
             )}
@@ -981,8 +1033,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         <input 
                                             type="number"
                                             step="0.01"
-                                            placeholder={editedProduct.active_price.toFixed(2)}
-                                            value={variant.active_price === null ? '' : variant.active_price}
+                                            placeholder={(variant.active_price || 0).toFixed(2)}
+                                            value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
                                             onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
                                             className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
                                                 ${hasCostOverride 

@@ -43,8 +43,11 @@ export interface LaborCost {
   casting_cost: number;
   setter_cost: number;
   technician_cost: number;
-  plating_cost: number;
+  plating_cost_x: number; // For Gold-Plated (X)
+  plating_cost_d: number; // For Two-Tone (D)
   technician_cost_manual_override?: boolean;
+  plating_cost_x_manual_override?: boolean;
+  plating_cost_d_manual_override?: boolean;
 }
 
 export interface ProductVariant {
@@ -71,6 +74,7 @@ export interface Product {
   gender: Gender;
   image_url: string | null;
   weight_g: number;
+  secondary_weight_g?: number; // New: For bezels, lids etc.
   plating_type: PlatingType;
   
   // Pricing

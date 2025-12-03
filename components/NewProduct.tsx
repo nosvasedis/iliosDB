@@ -8,6 +8,7 @@ import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import { FINISH_CODES } from '../constants';
 
 interface Props {
   products: Product[];
@@ -38,15 +39,22 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [isGenderManuallySet, setIsGenderManuallySet] = useState(false);
   
   const [weight, setWeight] = useState(0);
+  const [secondaryWeight, setSecondaryWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
-  const [isPlatingCostSuggested, setIsPlatingCostSuggested] = useState(false);
-  const [isPlatingCostManuallySet, setIsPlatingCostManuallySet] = useState(false);
-
+  
   const [sellingPrice, setSellingPrice] = useState(0); // Master Wholesale
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
-  // Updated default Casting Cost to 0.20
-  const [labor, setLabor] = useState<LaborCost>({ casting_cost: 0.20, setter_cost: 0, technician_cost: 0, plating_cost: 0, technician_cost_manual_override: false });
+  const [labor, setLabor] = useState<LaborCost>({ 
+    casting_cost: 0.15, 
+    setter_cost: 0, 
+    technician_cost: 0, 
+    plating_cost_x: 0, 
+    plating_cost_d: 0, 
+    technician_cost_manual_override: false,
+    plating_cost_x_manual_override: false,
+    plating_cost_d_manual_override: false
+  });
   
   // Variants State
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -77,6 +85,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [detectedMasterSku, setDetectedMasterSku] = useState('');
   const [detectedSuffix, setDetectedSuffix] = useState('');
   const [detectedVariantDesc, setDetectedVariantDesc] = useState('');
+  const [detectedFinishCode, setDetectedFinishCode] = useState('');
 
   // Auto-Suggest Logic & Smart SKU Analysis
   useEffect(() => {
@@ -94,6 +103,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       
       // 2. Smart Suffix Analysis (always runs to keep detection fresh)
       const analysis = analyzeSku(skuTrimmed, gender as Gender);
+      const { finish } = getVariantComponents(analysis.suffix, gender as Gender);
+      setDetectedFinishCode(finish.code);
+      
       if (analysis.isVariant) {
           setDetectedMasterSku(analysis.masterSku);
           setDetectedSuffix(analysis.suffix);
@@ -103,7 +115,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           setDetectedMasterSku(skuTrimmed.toUpperCase());
           setDetectedSuffix('');
           setDetectedVariantDesc('');
-          if (!plating || plating !== PlatingType.None) setPlating(PlatingType.None);
+          setPlating(PlatingType.None);
       }
     } else {
         // BUG FIX: Reset ALL derived fields and manual locks when SKU is empty.
@@ -115,62 +127,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         setDetectedVariantDesc('');
         setIsCategoryManuallySet(false);
         setIsGenderManuallySet(false);
+        setDetectedFinishCode('');
     }
-  }, [sku]);
+  }, [sku, gender]);
 
-  // SMART PLATING COST SUGGESTION (FINAL REWORK)
-  useEffect(() => {
-    // 1. Don't suggest if user has manually entered a value.
-    if (isPlatingCostManuallySet) return;
-
-    // 2. If no weight, cost is always zero.
-    if (weight <= 0) {
-      setLabor(prev => ({ ...prev, plating_cost: 0 }));
-      setIsPlatingCostSuggested(false);
-      return;
+  const platingNoneLabel = useMemo(() => {
+    if (detectedFinishCode === 'P') {
+        return FINISH_CODES['P'];
     }
-
-    // 3. At this point, we will always calculate a cost, regardless of master plating type.
-    let suggestedCost = 0;
-    const canUseSmartSuggestion = sku.length >= 2 && category;
-
-    // 4. Try to use the "smart" algorithm if possible.
-    if (canUseSmartSuggestion) {
-      const skuPrefix = sku.substring(0, 2).toUpperCase();
-      const similarProducts = products.filter(p =>
-        p.sku !== sku &&
-        p.prefix === skuPrefix &&
-        p.category === category &&
-        p.weight_g > 0 &&
-        p.labor.plating_cost > 0 &&
-        Math.abs(p.weight_g - weight) / p.weight_g <= 0.25
-      );
-
-      if (similarProducts.length > 0) {
-        const costPerGramRatios = similarProducts.map(p => p.labor.plating_cost / p.weight_g);
-        const avgCostPerGram = costPerGramRatios.reduce((a, b) => a + b, 0) / costPerGramRatios.length;
-        suggestedCost = avgCostPerGram * weight;
-      }
-    }
-
-    // 5. If smart suggestion wasn't possible or didn't yield a result, use the fallback formula.
-    if (suggestedCost <= 0) {
-      // Pass a dummy plating type to force calculation, as the user wants the cost to be ready for potential plated variants.
-      suggestedCost = calculatePlatingCost(weight, PlatingType.GoldPlated);
-    }
-    
-    // 6. Update the state with the calculated suggestion.
-    if (suggestedCost > 0) {
-      setLabor(prev => ({ ...prev, plating_cost: parseFloat(suggestedCost.toFixed(2)) }));
-      setIsPlatingCostSuggested(true);
-    } else {
-      // Safety net for any edge cases.
-      setLabor(prev => ({ ...prev, plating_cost: 0 }));
-      setIsPlatingCostSuggested(false);
-    }
-
-  }, [weight, sku, category, products, isPlatingCostManuallySet]);
-
+    return FINISH_CODES['']; // Default to Lustre
+  }, [detectedFinishCode]);
 
   // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
   useEffect(() => {
@@ -198,6 +164,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
     }
   }, [weight, labor.technician_cost_manual_override]);
+  
+  // Auto-calculate Plating Cost X based on main weight
+  useEffect(() => {
+    if (!labor.plating_cost_x_manual_override) {
+      const costX = parseFloat((weight * 0.60).toFixed(2));
+      setLabor(prev => ({ ...prev, plating_cost_x: costX }));
+    }
+  }, [weight, labor.plating_cost_x_manual_override]);
+
+  // Auto-calculate Plating Cost D based on secondary weight
+  useEffect(() => {
+    if (!labor.plating_cost_d_manual_override) {
+      const costD = parseFloat((secondaryWeight * 0.60).toFixed(2));
+      setLabor(prev => ({ ...prev, plating_cost_d: costD }));
+    }
+  }, [secondaryWeight, labor.plating_cost_d_manual_override]);
+
 
   // Cost Calculator Effect
   useEffect(() => {
@@ -209,6 +192,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       gender: gender as Gender || Gender.Unisex,
       image_url: imagePreview,
       weight_g: weight,
+      secondary_weight_g: secondaryWeight,
       plating_type: plating,
       active_price: 0,
       draft_price: 0,
@@ -223,7 +207,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     const cost = calculateProductCost(tempProduct, settings, materials, products);
     setMasterEstimatedCost(cost.total);
     setCostBreakdown(cost.breakdown);
-  }, [sku, detectedMasterSku, category, gender, weight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings]);
+  }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -347,6 +331,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           category, 
           gender: gender as Gender, 
           weight_g: weight, 
+          secondary_weight_g: secondaryWeight,
           plating_type: plating,
           image_url: imagePreview || null,
           active_price: masterEstimatedCost, 
@@ -360,14 +345,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           labor
       };
 
-      // STRICT COST LOGIC:
       const estimatedCost = estimateVariantCost(
           tempMaster, 
           upperSuffix, 
           settings!, 
           materials, 
-          products, 
-          labor.plating_cost 
+          products
       );
       
       const newV: ProductVariant = {
@@ -381,8 +364,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       setVariants([...variants, newV]);
       setNewVariantSuffix('');
       setNewVariantDesc('');
-      // Keep price as is or reset? Usually nicer to keep if adding similar items
-      // setNewVariantPrice(sellingPrice); 
       showToast(`Προστέθηκε η παραλλαγή ${upperSuffix}`, "success");
   };
 
@@ -468,6 +449,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             gender,
             image_url: finalImageUrl,
             weight_g: Number(weight) || 0,
+            secondary_weight_g: Number(secondaryWeight) || null,
             plating_type: plating,
             active_price: masterEstimatedCost,
             draft_price: masterEstimatedCost,
@@ -478,8 +460,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_casting: Number(labor.casting_cost),
             labor_setter: Number(labor.setter_cost),
             labor_technician: Number(labor.technician_cost),
-            labor_plating: Number(labor.plating_cost),
-            labor_technician_manual_override: labor.technician_cost_manual_override
+            labor_plating_x: Number(labor.plating_cost_x || 0),
+            labor_plating_d: Number(labor.plating_cost_d || 0),
+            technician_cost_manual_override: labor.technician_cost_manual_override
         });
 
         if (prodError) throw prodError;
@@ -530,7 +513,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         
         if (onCancel) onCancel();
         else {
-            setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1);
+            setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0);
         }
 
     } catch (error: any) {
@@ -543,6 +526,21 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 5));
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+  
+  const secondaryWeightLabel = useMemo(() => {
+    if (gender === Gender.Men && category.includes('Δαχτυλίδι')) {
+        return "Βάρος Καπακιού (g)";
+    }
+    if (gender === Gender.Women && (
+        category.includes('Βραχιόλι') || 
+        category.includes('Σκουλαρίκια') || 
+        category.includes('Δαχτυλίδι') || 
+        category.includes('Μενταγιόν')
+    )) {
+        return "Βάρος Καστονιού (g)";
+    }
+    return "Β' Βάρος (π.χ. Καστόνι) (g)";
+  }, [gender, category]);
 
   return (
     <div className="max-w-5xl mx-auto h-[calc(100vh-140px)] flex flex-col">
@@ -614,15 +612,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </label>
                             <select 
                                 value={plating} 
-                                onChange={(e) => {
-                                    setPlating(e.target.value as PlatingType);
-                                    setIsPlatingCostManuallySet(false); // Allow new cost suggestion
-                                    setIsPlatingCostSuggested(false);
-                                }} 
+                                onChange={(e) => { setPlating(e.target.value as PlatingType); }} 
                                 className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-amber-500/20 outline-none">
-                                <option value={PlatingType.None}>Κανένα (Ασήμι/Πατίνα)</option>
+                                <option value={PlatingType.None}>{platingNoneLabel}</option>
                                 <option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option>
-                                <option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option>
+                                <option value={PlatingType.TwoTone}>Δíχρωμο (Two-Tone)</option>
                                 <option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option>
                             </select>
                         </div>
@@ -759,52 +753,55 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           {currentStep === 3 && (
              <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                  <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Κόστος & Εργατικά</h3>
-                 <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between">
-                    <label className="text-sm font-bold text-amber-800 uppercase tracking-wide">Βάρος Ασημιού (g) <span className="text-red-500">*</span></label>
-                    <div className="relative w-40">
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 shadow-sm flex flex-col justify-center">
+                        <label className="text-sm font-bold text-amber-800 uppercase tracking-wide">Βάρος Ασημιού (g) <span className="text-red-500">*</span></label>
                         <input 
                             type="number" 
                             step="0.01" 
                             value={weight} 
-                            onChange={e => {
-                                setWeight(parseFloat(e.target.value) || 0);
-                                setIsPlatingCostManuallySet(false);
-                                setIsPlatingCostSuggested(false);
-                            }} 
-                            className="w-full p-3 border border-amber-200 rounded-xl bg-white text-3xl font-mono font-bold text-center outline-none"
+                            onChange={e => setWeight(parseFloat(e.target.value) || 0)} 
+                            className="w-full p-2 border-b-2 border-amber-200 bg-transparent text-3xl font-mono font-bold text-center outline-none"
                         />
                     </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-6">
-                     <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Χύτευση €</label><input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border rounded-xl font-mono"/></div>
-                     <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Καρφωτικό €</label><input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border rounded-xl font-mono"/></div>
-                     <div className="relative">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Τεχνίτης €</label>
-                        <input type="number" step="0.01" readOnly={!labor.technician_cost_manual_override} value={labor.technician_cost} onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value) || 0})} className={`w-full p-3 border rounded-xl font-mono ${!labor.technician_cost_manual_override ? 'bg-slate-100 text-slate-500' : 'bg-white'}`}/>
-                        <button onClick={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} className="absolute right-3 top-8 text-slate-400">{labor.technician_cost_manual_override ? <Unlock size={14}/> : <Lock size={14}/>}</button>
-                     </div>
-                     <div className="relative">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-1">
-                            Κόστος Επιμετάλλωσης €
-                            {isPlatingCostSuggested && (
-                                <span className="flex items-center gap-1 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title="Έξυπνη Πρόταση">
-                                    <Lightbulb size={12} /> Πρόταση
-                                </span>
-                            )}
-                        </label>
+                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <label className="text-sm font-bold text-slate-600 uppercase tracking-wide">{secondaryWeightLabel}</label>
                         <input 
                             type="number" 
                             step="0.01" 
-                            value={labor.plating_cost} 
-                            onChange={e => {
-                                setLabor({...labor, plating_cost: parseFloat(e.target.value) || 0});
-                                setIsPlatingCostManuallySet(true);
-                                setIsPlatingCostSuggested(false);
-                            }} 
-                            className="w-full p-3 border rounded-xl font-mono bg-white border-amber-300 ring-2 ring-amber-50"
+                            value={secondaryWeight || ''}
+                            placeholder="0.00"
+                            onChange={e => setSecondaryWeight(parseFloat(e.target.value) || 0)} 
+                            className="w-full p-2 border-b-2 border-slate-300 bg-transparent text-3xl font-mono font-bold text-center outline-none"
                         />
-                        <p className="text-[10px] text-amber-600 mt-1">Αυτό το ποσό θα προστεθεί αυτόματα στο κόστος των παραλλαγών X, D, H.</p>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Χύτευση €</label><input type="number" step="0.01" value={labor.casting_cost} onChange={e => setLabor({...labor, casting_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border rounded-xl font-mono"/></div>
+                     <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Καρφωτικό €</label><input type="number" step="0.01" value={labor.setter_cost} onChange={e => setLabor({...labor, setter_cost: parseFloat(e.target.value) || 0})} className="w-full p-3 border rounded-xl font-mono"/></div>
+                     
+                     <div className="relative md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Τεχνίτης €</label>
+                        <input type="number" step="0.01" readOnly={!labor.technician_cost_manual_override} value={labor.technician_cost} onChange={e => setLabor({...labor, technician_cost: parseFloat(e.target.value) || 0})} className={`w-full p-3 border rounded-xl font-mono ${!labor.technician_cost_manual_override ? 'bg-slate-100 text-slate-500' : 'bg-white'}`}/>
+                        <button onClick={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} className="absolute right-3 top-8 text-slate-400 p-1 hover:bg-slate-200 rounded-full">{labor.technician_cost_manual_override ? <Unlock size={14}/> : <Lock size={14}/>}</button>
                      </div>
+
+                    <div className="relative">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Κόστος Επιμετάλλωσης X (€)</label>
+                        <input type="number" step="0.01" readOnly={!labor.plating_cost_x_manual_override} value={labor.plating_cost_x} onChange={e => setLabor({...labor, plating_cost_x: parseFloat(e.target.value) || 0})} className={`w-full p-3 border rounded-xl font-mono ${!labor.plating_cost_x_manual_override ? 'bg-slate-100 text-slate-500' : 'bg-white'}`}/>
+                        <button onClick={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} className="absolute right-3 top-8 text-slate-400 p-1 hover:bg-slate-200 rounded-full">{labor.plating_cost_x_manual_override ? <Unlock size={14}/> : <Lock size={14}/>}</button>
+                        <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Προϊόντος</p>
+                     </div>
+
+                     <div className="relative">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Κόστος Επιμετάλλωσης D (€)</label>
+                        <input type="number" step="0.01" readOnly={!labor.plating_cost_d_manual_override} value={labor.plating_cost_d} onChange={e => setLabor({...labor, plating_cost_d: parseFloat(e.target.value) || 0})} className={`w-full p-3 border rounded-xl font-mono ${!labor.plating_cost_d_manual_override ? 'bg-slate-100 text-slate-500' : 'bg-white'}`}/>
+                        <button onClick={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} className="absolute right-3 top-8 text-slate-400 p-1 hover:bg-slate-200 rounded-full">{labor.plating_cost_d_manual_override ? <Unlock size={14}/> : <Lock size={14}/>}</button>
+                        <p className="text-[10px] text-slate-400 mt-1">Από Β' Βάρος</p>
+                     </div>
+
                  </div>
              </div>
           )}
@@ -831,7 +828,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                           </div>
                           <button onClick={handleAddVariant} className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-700 flex items-center gap-2 transition-all"><Plus size={18}/> Προσθήκη</button>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος υπολογίζεται αυτόματα. Για X, D, H προστίθεται το κόστος επιμετάλλωσης ({labor.plating_cost}€). Για P αφαιρείται.</p>
+                      <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Lightbulb size={12}/> Το κόστος υπολογίζεται αυτόματα. Για X/H προστίθεται το κόστος επιμετάλλωσης X ({labor.plating_cost_x}€), για D το κόστος D ({labor.plating_cost_d}€).</p>
                   </div>
 
                   {/* Variant List - Fully Editable */}

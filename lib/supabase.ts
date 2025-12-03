@@ -328,6 +328,7 @@ export const api = {
                   gender: p.gender as Gender,
                   image_url: p.image_url,
                   weight_g: Number(p.weight_g),
+                  secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined,
                   plating_type: p.plating_type as PlatingType,
                   active_price: Number(p.active_price),
                   draft_price: Number(p.draft_price),
@@ -344,7 +345,8 @@ export const api = {
                     casting_cost: Number(p.labor_casting),
                     setter_cost: Number(p.labor_setter),
                     technician_cost: Number(p.labor_technician),
-                    plating_cost: Number(p.labor_plating),
+                    plating_cost_x: Number(p.labor_plating_x || 0),
+                    plating_cost_d: Number(p.labor_plating_d || 0),
                     technician_cost_manual_override: p.labor_technician_manual_override
                   }
                 };

@@ -14,6 +14,15 @@ interface Props {
   materials: Material[];
 }
 
+const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+};
+
+
 export default function OrdersPage({ products, onPrintOrder, materials }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
@@ -176,6 +185,18 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
         }
     }
   };
+
+    const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
+        try {
+            await api.updateOrderStatus(orderId, status);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            const message = status === OrderStatus.Delivered ? 'Η παραγγελία σημειώθηκε ως παραδομένη.' : `Η κατάσταση άλλαξε σε ${STATUS_TRANSLATIONS[status]}.`;
+            showToast(message, 'success');
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        }
+    };
+
 
   const getStatusColor = (status: OrderStatus) => {
       switch(status) {
@@ -396,7 +417,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
                                   </td>
                                   <td className="p-4">
                                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
-                                          {order.status}
+                                          {STATUS_TRANSLATIONS[order.status]}
                                       </span>
                                   </td>
                                   <td className="p-4 text-right font-black text-slate-800">
@@ -428,7 +449,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
                                               </button>
                                           )}
                                           {order.status === OrderStatus.Ready && (
-                                              <button className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
+                                              <button onClick={() => handleUpdateStatus(order.id, OrderStatus.Delivered)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
                                                   <CheckCircle size={14}/> Παράδοση
                                               </button>
                                           )}

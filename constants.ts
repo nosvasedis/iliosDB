@@ -87,11 +87,13 @@ export const MOCK_PRODUCTS: Product[] = [
     recipe: [
         { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
     labor: {
       casting_cost: 1.5,
       setter_cost: 0.5,
       technician_cost: 1.0,
-      plating_cost: 0
+      plating_cost_x: 0,
+      plating_cost_d: 0
     }
   },
   {
@@ -116,11 +118,13 @@ export const MOCK_PRODUCTS: Product[] = [
     recipe: [
       { type: 'raw', id: '1', quantity: 10 }
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
     labor: {
       casting_cost: 2.0,
       setter_cost: 3.5,
       technician_cost: 2.0,
-      plating_cost: 1.5
+      plating_cost_x: 1.5,
+      plating_cost_d: 0
     }
   },
   {
@@ -146,11 +150,13 @@ export const MOCK_PRODUCTS: Product[] = [
         { type: 'raw', id: '3', quantity: 1 }, 
         { type: 'component', sku: 'STX-505', quantity: 2 } 
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
     labor: {
       casting_cost: 5.0,
       setter_cost: 0,
       technician_cost: 4.0,
-      plating_cost: 0
+      plating_cost_x: 0,
+      plating_cost_d: 0
     }
   }
 ];

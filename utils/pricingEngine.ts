@@ -3,6 +3,14 @@
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
+/**
+ * Rounds a price up to the nearest 10 cents (e.g., 11.47 -> 11.50).
+ */
+export const roundPrice = (price: number): number => {
+  if (price === 0) return 0;
+  return parseFloat((Math.ceil(price * 10) / 10).toFixed(2));
+};
+
 export const calculateTechnicianCost = (weight_g: number): number => {
   let cost = 0;
   // New Logic based on specific weight ranges
@@ -18,19 +26,19 @@ export const calculateTechnicianCost = (weight_g: number): number => {
   return parseFloat(cost.toFixed(2));
 };
 
+// @FIX: Add missing exported function 'calculatePlatingCost'
 /**
- * Calculates Plating/Epimetallosi Cost based on real-world logic.
- * Formula: Base Fee (0.50€) + (Weight * 0.75€)
- * Returns 0 if PlatingType is None.
+ * Calculates a suggested plating cost based on weight.
+ * This is a heuristic used for suggesting a value when creating new products.
  */
-export const calculatePlatingCost = (weight_g: number, type: PlatingType): number => {
-    if (type === PlatingType.None) return 0;
-    
-    const baseFee = 0.50;
-    const costPerGram = 0.75;
-    
-    const total = baseFee + (weight_g * costPerGram);
-    return parseFloat(total.toFixed(2));
+export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
+    // Replicating logic from other parts of the app (e.g., ProductDetails.tsx) for consistency.
+    if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
+        return parseFloat((weight_g * 0.60).toFixed(2));
+    }
+    // Two-tone often depends on a secondary weight, which isn't available in the context
+    // where this function is called. Returning 0 as a safe default.
+    return 0;
 };
 
 export const calculateProductCost = (
@@ -85,7 +93,7 @@ export const calculateProductCost = (
     }
   });
 
-  // 4. Labor Costs
+  // 4. Labor Costs (Base Metal - No Plating)
   const labor = product.labor;
   
   // NEW LOGIC: Check for manual override. If false, calculate dynamically.
@@ -93,20 +101,19 @@ export const calculateProductCost = (
     ? (labor.technician_cost || 0)
     : calculateTechnicianCost(product.weight_g);
 
-  // Casting cost defaults to 0.20 if 0 or undefined, unless explicitly 0'd by user input in a context where 0 is valid. 
-  // For calculation safety, we use the value on the object, but we assume the input sets it to 0.20 default.
+  // Casting cost defaults to 0.20 if 0 or undefined.
   const castingCost = labor.casting_cost;
 
+  // Plating is now handled per-variant, not in the base cost.
   const laborTotal = 
     (castingCost || 0) + 
     (labor.setter_cost || 0) + 
-    technicianCost +
-    (labor.plating_cost || 0);
+    technicianCost;
 
   const totalCost = silverBaseCost + materialsCost + laborTotal;
 
   return {
-    total: parseFloat(totalCost.toFixed(2)),
+    total: roundPrice(totalCost),
     breakdown: {
       silver: parseFloat(silverBaseCost.toFixed(2)),
       materials: parseFloat(materialsCost.toFixed(2)),
@@ -173,9 +180,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
 
 /**
  * Estimates the cost of a variant based on the master product and the suffix.
- * STRICT LOGIC: 
- * - P (Plain) = Base Cost (No Plating).
- * - X, D, H (Plated) = Base Cost + Manual Plating Cost.
+ * NEW LOGIC: Adds specific plating costs based on the variant type (X, D).
  */
 export const estimateVariantCost = (
     masterProduct: Product, 
@@ -183,29 +188,24 @@ export const estimateVariantCost = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-    manualPlatingCost: number = 0 // NEW: Pass the manual cost from the form
 ): number => {
-    // 1. Calculate Full Master Cost (includes plating if master has it)
-    const masterCostCalc = calculateProductCost(masterProduct, settings, allMaterials, allProducts);
-    let calculatedCost = masterCostCalc.total;
-    
-    // The master product labor usually includes the plating cost if plating_type is set.
-    // We need to isolate the "Base Metal Cost" (Silver + Materials + Casting + Setter + Technician)
-    // without the plating cost.
-    const masterPlatingCost = masterProduct.labor.plating_cost || 0;
-    const baseMetalCost = calculatedCost - masterPlatingCost;
+    // 1. Calculate the Base Metal Cost (Silver + Materials + Non-Plating Labor)
+    const baseMetalCost = calculateProductCost(masterProduct, settings, allMaterials, allProducts).total;
 
+    // 2. Determine plating type from suffix
     const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
-    const isPlatedVariant = ['X', 'D', 'H'].includes(finish.code);
+    
+    let finalCost = baseMetalCost;
 
-    if (isPlatedVariant) {
-        // If variant is plated, add the manual plating cost
-        // If manualPlatingCost is 0, it means user didn't enter it, so it's 0.
-        return parseFloat((baseMetalCost + manualPlatingCost).toFixed(2));
-    } else {
-        // If variant is Plain (P) or undefined, it's just the base metal cost
-        return parseFloat(baseMetalCost.toFixed(2));
+    // 3. Add the appropriate plating cost
+    if (['X', 'H'].includes(finish.code)) { // Gold-Plated (X) and Platinum (H) use plating_cost_x
+        finalCost += masterProduct.labor.plating_cost_x || 0;
+    } else if (finish.code === 'D') { // Two-Tone (D) uses plating_cost_d
+        finalCost += masterProduct.labor.plating_cost_d || 0;
     }
+    // For 'P' (Patina) or no finish code, no additional cost is added.
+
+    return roundPrice(finalCost);
 };
 
 /**
