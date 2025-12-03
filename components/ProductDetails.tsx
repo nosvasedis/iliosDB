@@ -965,7 +965,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                    {editedProduct.recipe.length === 0 && (
                        <div className="text-center italic text-slate-400 py-4 text-xs">
-                           Μόνο Υλικό Βάσης (Ασήμι). Προσθέστε υλικά.
+                           Μόνο Υλικό Βάσης (Ασήμι).
                        </div>
                    )}
                    <div className="flex gap-2 pt-4 border-t border-slate-100">
