@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ const STEPS = [
   { id: 2, title: 'Συνταγή' },
   { id: 3, title: 'Εργατικά' },
   { id: 4, title: 'Παραλλαγές' },
-  { id: 5, title: 'Σύνοψη' }
+  { id: 5, title: 'Σύνοψη & Αποθήκευση' }
 ];
 
 // Helper Component for Labor Inputs
@@ -59,13 +59,13 @@ const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOve
 );
 
 const SummaryRow = ({ label, value, sub, color }: { label: string, value: number, sub?: string, color: string }) => (
-    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100/50 hover:bg-slate-100 transition-colors">
-        <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full shadow-sm ${color}`}></div>
-            <span className="text-sm font-bold text-slate-600">{label}</span>
+    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors">
+        <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${color}`}></div>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</span>
         </div>
         <div className="text-right">
-            <div className="font-mono font-bold text-slate-800">{value.toFixed(2)}€</div>
+            <div className="font-mono font-bold text-slate-800 text-sm">{value.toFixed(2)}€</div>
             {sub && <div className="text-[10px] text-slate-400 font-medium">{sub}</div>}
         </div>
     </div>
@@ -882,143 +882,158 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 5: FINAL SUMMARY & SAVE */}
+            {/* STEP 5: FINAL SUMMARY & SAVE (Merged Live Preview Logic) */}
             {currentStep === 5 && (
-                <div className="space-y-8 animate-in slide-in-from-right duration-300">
-                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">5. Τελική Σύνοψη & Έλεγχος</h3>
-                    
-                    {/* Product Header Card */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-8">
-                        <div className="w-40 h-40 bg-slate-50 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-                             {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={40}/></div>}
+                <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                    {/* Header with Basic Info */}
+                    <div className="flex gap-6 items-start">
+                        <div className="w-32 h-32 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
+                             {imagePreview ? (
+                                <img src={imagePreview} className="w-full h-full object-cover"/> 
+                             ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>
+                             )}
                         </div>
-                        <div className="flex-1 space-y-4">
-                            <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">{detectedMasterSku || sku}</h2>
-                                    {isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}
-                                </div>
-                                <div className="flex gap-4 text-sm font-medium text-slate-500">
-                                    <span className="flex items-center gap-1"><Tag size={14}/> {category}</span>
-                                    <span className="flex items-center gap-1"><Users size={14}/> {gender}</span>
-                                    <span className="flex items-center gap-1"><Palette size={14}/> {platingNoneLabel}</span>
+                        <div className="flex-1">
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                                {detectedMasterSku || sku}
+                                {isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}
+                            </h2>
+                            <div className="flex gap-4 text-sm font-medium text-slate-500 mt-2">
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Tag size={12}/> {category}</span>
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Users size={12}/> {gender}</span>
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Palette size={12}/> {platingNoneLabel}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        {/* Column 1: Financial Breakdown (Red/Cost) */}
+                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
+                                <Calculator size={14}/> Ανάλυση Κόστους (Master)
+                            </h4>
+                            <div className="space-y-1 flex-1">
+                                <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
+                                <SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" />
+                                <SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" />
+                                <div className="ml-4 pl-4 border-l-2 border-slate-200 mt-1 space-y-1">
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{labor.casting_cost.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{labor.setter_cost.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{labor.technician_cost.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Επιμετάλλωση</span><span>{(labor.plating_cost_x + labor.plating_cost_d).toFixed(2)}€</span></div>
                                 </div>
                             </div>
-                            
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <div className="text-[10px] uppercase font-bold text-slate-400">Βαρος</div>
-                                    <div className="text-lg font-black text-slate-700">{weight}g {secondaryWeight > 0 && <span className="text-xs font-medium text-slate-400">(+{secondaryWeight}g)</span>}</div>
+                            <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center">
+                                <span className="font-bold text-slate-600 text-sm uppercase">Σύνολο</span>
+                                <span className="font-black text-xl text-slate-800">{masterEstimatedCost.toFixed(2)}€</span>
+                            </div>
+                        </div>
+
+                        {/* Column 2: Production Specs (Blue/Tech) */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-100 pb-2">
+                                <Box size={14}/> Προδιαγραφές
+                            </h4>
+                            <div className="space-y-4 flex-1">
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Συνταγή</div>
+                                    {recipe.length > 0 ? (
+                                        <div className="space-y-1">
+                                            {recipe.map((r, i) => {
+                                                const matName = r.type === 'raw' ? materials.find(m => m.id === r.id)?.name : `STX: ${r.sku}`;
+                                                return (
+                                                    <div key={i} className="flex justify-between text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                        <span className="text-slate-700 truncate pr-2">{matName}</span>
+                                                        <span className="font-mono font-bold text-slate-500">x{r.quantity}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : <div className="text-xs text-slate-400 italic">Μόνο μέταλλο βάσης.</div>}
                                 </div>
-                                <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
-                                    <div className="text-[10px] uppercase font-bold text-amber-700">Χονδρικη (Master)</div>
-                                    <div className="text-lg font-black text-amber-600">{sellingPrice.toFixed(2)}€</div>
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Λάστιχα</div>
+                                    {selectedMolds.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1">
+                                            {selectedMolds.map(m => (
+                                                <span key={m} className="px-2 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold rounded border border-amber-100">{m}</span>
+                                            ))}
+                                        </div>
+                                    ) : <div className="text-xs text-slate-400 italic">Κανένα.</div>}
                                 </div>
-                                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                                    <div className="text-[10px] uppercase font-bold text-emerald-700">Κοστος (Master)</div>
-                                    <div className="text-lg font-black text-emerald-600">{masterEstimatedCost.toFixed(2)}€</div>
+                            </div>
+                        </div>
+
+                        {/* Column 3: Commercial (Green/Sales) */}
+                        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 shadow-sm flex flex-col">
+                            <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
+                                <DollarSign size={14}/> Εμπορική Πολιτική (Master)
+                            </h4>
+                            <div className="flex-1 flex flex-col justify-center space-y-4 text-center">
+                                <div>
+                                    <div className="text-xs font-bold text-amber-700/60 uppercase mb-1">Χονδρική Τιμή</div>
+                                    <div className="text-4xl font-black text-amber-600 tracking-tight">{sellingPrice.toFixed(2)}€</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-white/60 p-2 rounded-lg">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Κέρδος</div>
+                                        <div className="font-bold text-emerald-600">{(sellingPrice - masterEstimatedCost).toFixed(2)}€</div>
+                                    </div>
+                                    <div className="bg-white/60 p-2 rounded-lg">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Margin</div>
+                                        <div className="font-bold text-blue-600">{masterMargin.toFixed(0)}%</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Left: Cost Breakdown */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-full">
-                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Calculator size={18} className="text-slate-400"/> Ανάλυση Κόστους (Master)</h4>
-                            
-                            <div className="space-y-3">
-                                <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`~${masterEstimatedCost > 0 ? ((costBreakdown?.silver || 0)/masterEstimatedCost * 100).toFixed(0) : 0}%`} color="bg-slate-300" />
-                                <SummaryRow label="Υλικά & Εξαρτήματα" value={costBreakdown?.materials || 0} color="bg-purple-300" />
-                                
-                                <div className="pt-2 mt-2 border-t border-slate-50">
-                                    <div className="text-xs font-bold text-slate-400 uppercase mb-2">Εργατικα</div>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div className="flex justify-between text-slate-600"><span>Χυτήριο:</span> <span className="font-mono font-bold">{labor.casting_cost.toFixed(2)}€</span></div>
-                                        <div className="flex justify-between text-slate-600"><span>Καρφωτής:</span> <span className="font-mono font-bold">{labor.setter_cost.toFixed(2)}€</span></div>
-                                        <div className="flex justify-between text-slate-600"><span>Τεχνίτης:</span> <span className="font-mono font-bold">{labor.technician_cost.toFixed(2)}€</span></div>
-                                        <div className="flex justify-between text-slate-600"><span>Επιμετάλλωση:</span> <span className="font-mono font-bold">{(labor.plating_cost_x + labor.plating_cost_d).toFixed(2)}€</span></div>
-                                    </div>
-                                </div>
-                                
-                                <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-center">
-                                    <span className="font-bold text-slate-700">Σύνολο Κόστους</span>
-                                    <span className="font-black text-xl text-slate-800">{masterEstimatedCost.toFixed(2)}€</span>
-                                </div>
-                            </div>
+                    {/* Variants Table */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                            <h4 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={16}/> Παραλλαγές ({variants.length})</h4>
                         </div>
-
-                        {/* Right: Recipe & Molds */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-full flex flex-col gap-6">
-                            <div>
-                                <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><Box size={18} className="text-purple-500"/> Συνταγή</h4>
-                                {recipe.length > 0 ? (
-                                    <div className="space-y-2">
-                                        {recipe.map((r, i) => {
-                                            const matName = r.type === 'raw' ? materials.find(m => m.id === r.id)?.name : `STX: ${r.sku}`;
-                                            return (
-                                                <div key={i} className="flex justify-between text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                                    <span className="text-slate-700 font-medium">{matName}</span>
-                                                    <span className="font-mono font-bold text-slate-500">x{r.quantity}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : <div className="text-sm text-slate-400 italic">Μόνο μέταλλο βάσης.</div>}
-                            </div>
-
-                            <div>
-                                <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</h4>
-                                {selectedMolds.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedMolds.map(m => (
-                                            <span key={m} className="px-2 py-1 bg-amber-50 text-amber-800 text-xs font-bold rounded border border-amber-100">{m}</span>
-                                        ))}
-                                    </div>
-                                ) : <div className="text-sm text-slate-400 italic">Δεν επιλέχθηκαν λάστιχα.</div>}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Variants Section */}
-                    {variants.length > 0 && (
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Layers size={18} className="text-emerald-500"/> Παραλλαγές ({variants.length})</h4>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
-                                        <tr>
-                                            <th className="p-3 rounded-l-lg">Suffix</th>
-                                            <th className="p-3">Περιγραφη</th>
-                                            <th className="p-3 text-right">Εκτ. Κοστος</th>
-                                            <th className="p-3 text-right">Χονδρικη</th>
-                                            <th className="p-3 text-right rounded-r-lg">Κερδος</th>
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100">
+                                <tr>
+                                    <th className="p-4 w-24">Suffix</th>
+                                    <th className="p-4">Περιγραφή</th>
+                                    <th className="p-4 text-right">Κόστος</th>
+                                    <th className="p-4 text-right">Χονδρική</th>
+                                    <th className="p-4 text-right">Κέρδος</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {variants.length > 0 ? variants.map((v, idx) => {
+                                    const cost = v.active_price || masterEstimatedCost;
+                                    const price = v.selling_price || sellingPrice;
+                                    const profit = price - cost;
+                                    const margin = price > 0 ? (profit / price) * 100 : 0;
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-4 font-mono font-bold text-emerald-700 bg-emerald-50/30">{v.suffix}</td>
+                                            <td className="p-4 font-medium text-slate-700">{v.description}</td>
+                                            <td className="p-4 text-right font-mono text-slate-600">{cost.toFixed(2)}€</td>
+                                            <td className="p-4 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>
+                                            <td className="p-4 text-right">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                    {margin.toFixed(0)}%
+                                                </span>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {variants.map((v, idx) => {
-                                            const cost = v.active_price || masterEstimatedCost;
-                                            const price = v.selling_price || sellingPrice;
-                                            const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
-                                            return (
-                                                <tr key={idx}>
-                                                    <td className="p-3 font-mono font-bold text-slate-700">{v.suffix}</td>
-                                                    <td className="p-3 text-slate-600">{v.description}</td>
-                                                    <td className="p-3 text-right font-mono text-slate-600">{cost.toFixed(2)}€</td>
-                                                    <td className="p-3 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>
-                                                    <td className="p-3 text-right">
-                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                            {margin.toFixed(0)}%
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                    );
+                                }) : (
+                                    <tr>
+                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">
+                                            Δεν υπάρχουν παραλλαγές. Θα αποθηκευτεί μόνο το Master προϊόν.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
             </div>
@@ -1033,8 +1048,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
                 {currentStep < 5 && <button onClick={nextStep} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 text-white hover:bg-black font-bold shadow-md">Επόμενο <ArrowRight size={16}/></button>}
                 {currentStep === 5 && (
-                    <button onClick={handleSubmit} disabled={isUploading} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold shadow-lg shadow-emerald-200">
-                    {isUploading ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle size={16}/>} {isUploading ? 'Αποθήκευση...' : 'Ολοκλήρωση'}
+                    <button onClick={handleSubmit} disabled={isUploading} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold shadow-lg shadow-emerald-200 hover:-translate-y-0.5 transition-all">
+                    {isUploading ? <Loader2 size={16} className="animate-spin"/> : <Check size={16}/>} {isUploading ? 'Αποθήκευση...' : 'Ολοκλήρωση & Αποθήκευση'}
                     </button>
                 )}
             </div>

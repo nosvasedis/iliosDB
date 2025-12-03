@@ -1,3 +1,4 @@
+
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender } from './types';
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
@@ -36,11 +37,11 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'KR': 'Κορνεόλη',
   'LA': 'Λάπις',
   'LE': 'Χαολίτης',
-  'AX': 'Πράσινος Αχάτης', // Updated from 'Αχάτης' to specific Green Agate for Men
+  'AX': 'Πράσινος Αχάτης', 
   'TG': 'Μάτι Τίγρης',
   'QN': 'Όνυχας',
   'TY': 'Τυρκουάζ',
-  // New Additions
+  'IA': 'Ίασπης', // Added Jasper
   'BSU': 'Μαύρος Σουλεμάνης',
   'GSU': 'Πράσινος Σουλεμάνης',
   'RSU': 'Κόκκινος Σουλεμάνης',
