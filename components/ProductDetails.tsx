@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
@@ -202,6 +203,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }));
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
+  
+  useEffect(() => {
+    const totalWeight = (editedProduct.weight_g || 0) + (editedProduct.secondary_weight_g || 0);
+    const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
+    setEditedProduct(prev => ({
+        ...prev,
+        labor: { ...prev.labor, casting_cost: castCost }
+    }));
+  }, [editedProduct.weight_g, editedProduct.secondary_weight_g]);
 
   // Auto-calculate plating costs
   useEffect(() => {
@@ -948,7 +958,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             )}
             {activeTab === 'labor' && viewMode === 'registry' && (
                 <div className="grid grid-cols-2 gap-4">
-                    <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: val}})} />
+                    <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} readOnly />
                     <LaborInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
                     <LaborInput 
                         label="Τεχνίτης (Finishing)" 
@@ -992,10 +1002,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
-                            <div className="grid grid-cols-[80px_1fr_auto] gap-2 w-full">
+                            <div className="grid grid-cols-[80px_1fr_120px_auto] gap-2 w-full items-end">
                                 <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"/>
                                 <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
-                                <button onClick={handleManualAdd} className="bg-[#060b00] text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-black transition-colors flex items-center justify-center"><Plus size={16}/></button>
+                                <button onClick={handleManualAdd} className="bg-[#060b00] text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-black transition-colors flex items-center justify-center h-10"><Plus size={16}/></button>
                             </div>
                             {manualSuffixAnalysis && (
                                 <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
@@ -1122,7 +1132,7 @@ const InfoCard = ({ label, value, unit }: any) => (
     </div>
 );
 
-const LaborInput = ({ label, value, onChange, isOverridden, onToggleOverride }: any) => (
+const LaborInput = ({ label, value, onChange, isOverridden, onToggleOverride, readOnly }: any) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200">
         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</label>
         <div className="relative mt-1">
@@ -1130,9 +1140,9 @@ const LaborInput = ({ label, value, onChange, isOverridden, onToggleOverride }: 
                 type="number" 
                 step="0.01" 
                 value={value}
-                readOnly={onToggleOverride && !isOverridden}
-                onChange={e => onChange(parseFloat(e.target.value) || 0)}
-                className={`w-full bg-transparent font-mono font-bold text-slate-800 text-lg outline-none ${onToggleOverride && !isOverridden ? 'text-slate-500' : ''}`}
+                readOnly={readOnly || (onToggleOverride && !isOverridden)}
+                onChange={!readOnly && onChange ? (e => onChange(parseFloat(e.target.value) || 0)) : undefined}
+                className={`w-full bg-transparent font-mono font-bold text-lg outline-none ${readOnly || (onToggleOverride && !isOverridden) ? 'text-slate-500' : 'text-slate-800'}`}
             />
             {onToggleOverride && (
                  <button onClick={onToggleOverride} title="Manual Override" className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:bg-slate-100">

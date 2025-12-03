@@ -101,12 +101,13 @@ export const calculateProductCost = (
     ? (labor.technician_cost || 0)
     : calculateTechnicianCost(product.weight_g);
 
-  // Casting cost defaults to 0.20 if 0 or undefined.
-  const castingCost = labor.casting_cost;
+  // NEW DYNAMIC CASTING COST: (Total Weight * 0.15)
+  const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+  const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
 
   // Plating is now handled per-variant, not in the base cost.
   const laborTotal = 
-    (castingCost || 0) + 
+    castingCost + 
     (labor.setter_cost || 0) + 
     technicianCost;
 
@@ -120,6 +121,7 @@ export const calculateProductCost = (
       labor: parseFloat(laborTotal.toFixed(2)),
       details: {
         ...labor,
+        casting_cost: castingCost,
         technician_cost: technicianCost // Return the correct breakdown detail
       }
     }
