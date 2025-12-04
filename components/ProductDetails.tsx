@@ -484,7 +484,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 stock_qty: v.stock_qty || 0,
                 active_price: v.active_price || null,
                 // Ensure selling_price is correctly typed as number or null (handling 0 correctly)
-                selling_price: (v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null
+                // Use a strict check to ensure 0 is saved as 0 and not null.
+                selling_price: (v.selling_price !== null && v.selling_price !== undefined && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null
             }));
             await supabase.from('product_variants').insert(newVariantsForDB);
         }
@@ -1022,16 +1023,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-emerald-500"/> Έξυπνη Προσθήκη</h4>
-                            <div className="flex w-full rounded-lg border border-slate-200 overflow-hidden">
-                                <div className="bg-slate-100 px-3 py-2 text-slate-500 font-mono text-sm font-bold border-r border-slate-200 flex items-center">
+                            <div className="flex w-full rounded-lg border border-slate-200 overflow-hidden bg-slate-50 relative focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+                                <div className="pl-3 py-2 text-slate-500 font-mono text-sm font-bold flex items-center select-none bg-slate-50">
                                     {editedProduct.sku}
                                 </div>
                                 <input 
                                     type="text" 
-                                    placeholder="Suffix (e.g. P, X)"
+                                    placeholder="Suffix (π.χ. P, X)"
                                     value={smartAddSuffix} 
                                     onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-white text-slate-800 font-bold"
+                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-slate-50 text-slate-800 font-bold placeholder:font-normal placeholder:normal-case"
                                 />
                                 <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">
                                     Προσθήκη
@@ -1062,8 +1063,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                           {editedProduct.variants.map((variant, index) => {
                               const wholesale = variant.selling_price ?? editedProduct.selling_price;
                               const retail = wholesale * 3;
-                              const hasPriceOverride = variant.selling_price !== null;
-                              const hasCostOverride = variant.active_price !== null;
+                              const hasPriceOverride = variant.selling_price !== null && variant.selling_price !== undefined;
+                              const hasCostOverride = variant.active_price !== null && variant.active_price !== undefined;
 
                               return (
                               <div key={index} className="flex flex-col md:flex-row md:items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
@@ -1081,33 +1082,55 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <div className="flex items-center gap-2 flex-1 w-full border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/cost">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
-                                        <input 
-                                            type="number"
-                                            step="0.01"
-                                            placeholder={(variant.active_price || 0).toFixed(2)}
-                                            value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
-                                            onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
-                                                ${hasCostOverride 
-                                                    ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
-                                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-emerald-500'}
-                                            `}
-                                        />
+                                        <div className="relative">
+                                            <input 
+                                                type="number"
+                                                step="0.01"
+                                                placeholder={(variant.active_price || 0).toFixed(2)}
+                                                value={variant.active_price === null ? '' : variant.active_price}
+                                                onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                                onBlur={(e) => {
+                                                    // Force visual update on blur to show 2 decimals
+                                                    if (e.target.value && !isNaN(parseFloat(e.target.value))) {
+                                                        const val = parseFloat(e.target.value);
+                                                        updateVariant(index, 'active_price', val);
+                                                        e.target.value = val.toFixed(2);
+                                                    }
+                                                }}
+                                                className={`w-full p-2 h-9 border rounded-lg text-sm outline-none transition-colors text-right font-mono
+                                                    ${hasCostOverride 
+                                                        ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold shadow-sm' 
+                                                        : 'bg-slate-50 border-slate-200 text-slate-500'
+                                                    } focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200`}
+                                            />
+                                            <span className={`absolute right-8 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none ${hasCostOverride ? 'text-emerald-700' : 'text-slate-400'}`}>€</span>
+                                        </div>
                                      </div>
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/price">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
-                                        <input 
-                                            type="number"
-                                            step="0.01"
-                                            placeholder={editedProduct.selling_price.toFixed(2)}
-                                            value={variant.selling_price === null ? '' : variant.selling_price}
-                                            onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
-                                                ${hasPriceOverride 
-                                                    ? 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100' 
-                                                    : 'border-emerald-200 text-emerald-700 bg-slate-50 focus:bg-white focus:border-emerald-500 ring-1 ring-emerald-100'}
-                                            `}
-                                        />
+                                        <div className="relative">
+                                            <input 
+                                                type="number"
+                                                step="0.01"
+                                                placeholder={editedProduct.selling_price.toFixed(2)}
+                                                value={variant.selling_price === null ? '' : variant.selling_price}
+                                                onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                                onBlur={(e) => {
+                                                    // Force visual update on blur to show 2 decimals
+                                                    if (e.target.value && !isNaN(parseFloat(e.target.value))) {
+                                                        const val = parseFloat(e.target.value);
+                                                        updateVariant(index, 'selling_price', val);
+                                                        e.target.value = val.toFixed(2);
+                                                    }
+                                                }}
+                                                className={`w-full p-2 h-9 border rounded-lg text-sm outline-none transition-colors text-right font-mono
+                                                    ${hasPriceOverride 
+                                                        ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold shadow-sm' 
+                                                        : 'bg-slate-50 border-slate-200 text-slate-500'
+                                                    } focus:border-amber-500 focus:ring-1 focus:ring-amber-200`}
+                                            />
+                                            <span className={`absolute right-8 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none ${hasPriceOverride ? 'text-amber-700' : 'text-slate-400'}`}>€</span>
+                                        </div>
                                         <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">
                                             Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
                                         </div>
