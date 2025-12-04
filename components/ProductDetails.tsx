@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
@@ -576,7 +575,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       description: analysis.variantDescription,
       stock_qty: 0,
       active_price: estimatedCost,
-      selling_price: null
+      selling_price: editedProduct.selling_price
     };
     
     setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
@@ -602,7 +601,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         description: newVariantDesc || manualSuffixAnalysis || '',
         stock_qty: 0,
         active_price: estimatedCost,
-        selling_price: null
+        selling_price: editedProduct.selling_price
       };
       setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
       setNewVariantSuffix('');
@@ -613,8 +612,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
       const newVariants = [...editedProduct.variants];
       // Properly handle numeric updates to prevent "NaN" strings in state
-      if ((field === 'selling_price' || field === 'active_price') && value === '') {
-          value = null;
+      if ((field === 'selling_price' || field === 'active_price')) {
+           if (value === '' || value === null) {
+              value = null;
+           } else {
+              value = parseFloat(value);
+              if (isNaN(value)) value = null;
+           }
       }
       newVariants[index] = { ...newVariants[index], [field]: value };
       setEditedProduct(prev => ({ ...prev, variants: newVariants }));
@@ -1081,33 +1085,39 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <div className="flex items-center gap-2 flex-1 w-full border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/cost">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
-                                        <input 
-                                            type="number"
-                                            step="0.01"
-                                            placeholder={(variant.active_price || 0).toFixed(2)}
-                                            value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
-                                            onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
-                                                ${hasCostOverride 
-                                                    ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
-                                                    : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-emerald-500'}
-                                            `}
-                                        />
+                                        <div className="relative">
+                                            <input 
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder={(variant.active_price || 0).toFixed(2)}
+                                                value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
+                                                onChange={e => updateVariant(index, 'active_price', e.target.value)}
+                                                className={`w-full p-2 h-9 pr-6 border rounded-lg text-sm font-bold outline-none transition-colors text-right
+                                                    ${hasCostOverride 
+                                                        ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
+                                                        : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-amber-500'}
+                                                `}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-sm">€</span>
+                                        </div>
                                      </div>
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/price">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
-                                        <input 
-                                            type="number"
-                                            step="0.01"
-                                            placeholder={editedProduct.selling_price.toFixed(2)}
-                                            value={variant.selling_price === null ? '' : variant.selling_price}
-                                            onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
-                                                ${hasPriceOverride 
-                                                    ? 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100' 
-                                                    : 'border-emerald-200 text-emerald-700 bg-slate-50 focus:bg-white focus:border-emerald-500 ring-1 ring-emerald-100'}
-                                            `}
-                                        />
+                                        <div className="relative">
+                                            <input 
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder={editedProduct.selling_price.toFixed(2)}
+                                                value={variant.selling_price === null ? '' : variant.selling_price.toFixed(2)}
+                                                onChange={e => updateVariant(index, 'selling_price', e.target.value)}
+                                                className={`w-full p-2 h-9 pr-6 border rounded-lg text-sm font-bold outline-none transition-colors text-right
+                                                    ${hasPriceOverride 
+                                                        ? 'border-slate-200 text-slate-700 bg-slate-50'
+                                                        : 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100 focus:border-emerald-500'}
+                                                `}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-sm">€</span>
+                                        </div>
                                         <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">
                                             Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
                                         </div>

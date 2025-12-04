@@ -20,7 +20,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const finalSku = `${baseSku}${suffix}`;
 
     // --- PRICE DISPLAY: WHOLESALE ONLY ---
-    const wholesalePrice = product.selling_price;
+    const wholesalePrice = variant?.selling_price ?? product.selling_price;
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
