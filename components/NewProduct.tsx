@@ -622,7 +622,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const masterMargin = sellingPrice > 0 ? ((sellingPrice - masterEstimatedCost) / sellingPrice) * 100 : 0;
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-140px)] flex flex-col">
+    <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             {onCancel && (
