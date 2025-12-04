@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Mold } from '../types';
 import { Trash2, Plus, Save, MapPin, Loader2, Search } from 'lucide-react';
@@ -12,7 +13,7 @@ export default function MoldsPage() {
   const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
 
   const [editableMolds, setEditableMolds] = useState<Mold[]>([]);
-  const [newMold, setNewMold] = useState<Mold>({ code: '', location: '', description: '' });
+  const [newMold, setNewMold] = useState<Mold>({ code: 'L', location: '', description: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   React.useEffect(() => {
@@ -21,7 +22,9 @@ export default function MoldsPage() {
     }
   }, [molds]);
 
-  const filteredMolds = editableMolds.filter(m => m.code.includes(searchTerm.toUpperCase()) || m.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredMolds = editableMolds
+    .filter(m => m.code.includes(searchTerm.toUpperCase()) || m.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
 
   const handleCreate = async () => {
       if (!newMold.code) {
@@ -34,7 +37,7 @@ export default function MoldsPage() {
           if (error) throw error;
           
           queryClient.invalidateQueries({ queryKey: ['molds'] });
-          setNewMold({ code: '', location: '', description: '' });
+          setNewMold({ code: 'L', location: '', description: '' });
           showToast("Το λάστιχο προστέθηκε.", 'success');
       } catch(e) {
           console.error(e);
@@ -115,7 +118,7 @@ export default function MoldsPage() {
                   <div className="space-y-4">
                       <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Κωδικός (Code)</label>
-                          <input type="text" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. A-12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                          <input type="text" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. L-12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
                       </div>
                       <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Τοποθεσία</label>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
@@ -128,7 +129,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [moldSearch, setMoldSearch] = useState('');
   
   // New Mold Creator State
-  const [newMoldCode, setNewMoldCode] = useState('');
+  const [newMoldCode, setNewMoldCode] = useState('L');
   const [newMoldLoc, setNewMoldLoc] = useState('');
   const [newMoldDesc, setNewMoldDesc] = useState('');
   const [isCreatingMold, setIsCreatingMold] = useState(false);
@@ -334,7 +335,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           if (error) throw error;
           await queryClient.invalidateQueries({ queryKey: ['molds'] });
           setSelectedMolds(prev => [...prev, newMold.code]);
-          setNewMoldCode(''); setNewMoldLoc(''); setNewMoldDesc('');
+          setNewMoldCode('L'); setNewMoldLoc(''); setNewMoldDesc('');
           showToast(`Το λάστιχο ${newMold.code} επιλέχθηκε!`, "success");
       } catch (err: any) {
           showToast("Σφάλμα δημιουργίας.", "error");
