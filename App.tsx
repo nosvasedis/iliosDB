@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -157,7 +155,8 @@ function AppContent() {
         totalSilver += batchQuantity * product.weight_g;
 
         // Molds
-        for (const moldCode of product.molds) {
+        for (const pm of product.molds) {
+            const moldCode = pm.code;
             const moldDetails = molds.find(m => m.code === moldCode);
             if (!moldDetails) continue;
 

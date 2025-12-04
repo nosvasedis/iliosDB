@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { ProductionBatch, Mold, Product, Material, RecipeItem } from '../types';
 import { APP_LOGO } from '../constants';
@@ -22,8 +23,11 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
     const description = variant?.description || product.category;
 
     const requiredMolds = product.molds
-        .map(code => allMolds.find(m => m.code === code))
-        .filter((m): m is Mold => !!m);
+        .map(pm => {
+            const details = allMolds.find(m => m.code === pm.code);
+            return details ? { ...details, quantity: pm.quantity } : null;
+        })
+        .filter((m): m is (Mold & { quantity: number }) => !!m);
 
     const recipeItems = product.recipe.map(item => {
         if (item.type === 'raw') {
@@ -125,7 +129,9 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                             <tbody>
                                 {requiredMolds.map(mold => (
                                     <tr key={mold.code} className="border-t border-slate-100">
-                                        <td className="py-2 pr-2 font-mono font-bold text-slate-700">{mold.code}</td>
+                                        <td className="py-2 pr-2 font-mono font-bold text-slate-700">
+                                            {mold.code} {mold.quantity > 1 && <span className="text-amber-600 bg-amber-50 px-1.5 rounded ml-1">(x{mold.quantity})</span>}
+                                        </td>
                                         <td className="py-2 px-2 text-slate-600">{mold.description}</td>
                                         <td className="py-2 pl-2 text-slate-500 font-medium">{mold.location}</td>
                                     </tr>

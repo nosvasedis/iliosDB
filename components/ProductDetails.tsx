@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -463,12 +464,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await supabase.from('recipes').insert(recipeInserts);
         }
         
-        // --- NEW MOLD SAVE LOGIC ---
+        // --- NEW MOLD SAVE LOGIC (WITH QUANTITY) ---
         await supabase.from('product_molds').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.molds && editedProduct.molds.length > 0) {
-            const moldInserts = editedProduct.molds.map(moldCode => ({
+            const moldInserts = editedProduct.molds.map(m => ({
                 product_sku: editedProduct.sku,
-                mold_code: moldCode
+                mold_code: m.code,
+                quantity: m.quantity
             }));
             const { error: moldError } = await supabase.from('product_molds').insert(moldInserts);
             if (moldError) throw moldError;
@@ -632,19 +634,32 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
   
   // Mold Editor Logic
-  const toggleMold = (moldCode: string) => {
-      setEditedProduct(prev => {
-          const molds = prev.molds || [];
-          const newMolds = molds.includes(moldCode)
-              ? molds.filter(m => m !== moldCode)
-              : [...molds, moldCode];
-          return { ...prev, molds: newMolds };
-      });
+  const addMold = (code: string) => {
+      const existing = editedProduct.molds.find(m => m.code === code);
+      if (existing) return;
+      setEditedProduct(prev => ({
+          ...prev,
+          molds: [...prev.molds, { code, quantity: 1 }]
+      }));
+  };
+
+  const updateMoldQuantity = (code: string, delta: number) => {
+      setEditedProduct(prev => ({
+          ...prev,
+          molds: prev.molds.map(m => m.code === code ? { ...m, quantity: Math.max(1, m.quantity + delta) } : m)
+      }));
+  };
+
+  const removeMold = (code: string) => {
+      setEditedProduct(prev => ({
+          ...prev,
+          molds: prev.molds.filter(m => m.code !== code)
+      }));
   };
 
   const availableMolds = useMemo(() => {
       if (!isEditingMolds) return [];
-      const selected = new Set(editedProduct.molds || []);
+      const selected = new Set(editedProduct.molds.map(m => m.code));
       return allMolds
           .filter(m => !selected.has(m.code))
           .filter(m => 
@@ -866,18 +881,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                             {(editedProduct.molds && editedProduct.molds.length > 0) ? (
                                 <div className="flex flex-wrap gap-2">
-                                    {editedProduct.molds.map(moldCode => {
-                                        const moldDetails = allMolds.find(m => m.code === moldCode);
+                                    {editedProduct.molds.map(m => {
+                                        const moldDetails = allMolds.find(md => md.code === m.code);
                                         return (
-                                            <div key={moldCode} className="relative group">
+                                            <div key={m.code} className="relative group">
                                                 <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
-                                                    {moldCode}
+                                                    {m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}
                                                 </div>
                                                 {moldDetails && (
                                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
                                                         <p className="font-bold border-b border-slate-600 pb-1 mb-1">{moldDetails.description || 'Χωρίς Περιγραφή'}</p>
                                                         <p className="flex items-center gap-1.5"><MapPin size={12} className="text-amber-400"/> {moldDetails.location || 'Άγνωστη Τοποθεσία'}</p>
-                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div> {/* Arrow */}
+                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
                                                     </div>
                                                 )}
                                             </div>
@@ -902,11 +917,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
                                     <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Επιλεγμένα ({editedProduct.molds?.length || 0})</h4>
                                     <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1">
-                                        <div className="flex flex-wrap gap-2">
-                                            {(editedProduct.molds || []).map(moldCode => (
-                                                <div key={moldCode} className="bg-amber-100 text-amber-900 font-mono font-bold text-sm px-2 py-1 rounded-md border border-amber-200 flex items-center gap-2">
-                                                    <span>{moldCode}</span>
-                                                    <button onClick={() => toggleMold(moldCode)} className="text-amber-500 hover:text-amber-700"><X size={12} /></button>
+                                        <div className="flex flex-col gap-2">
+                                            {(editedProduct.molds || []).map(m => (
+                                                <div key={m.code} className="bg-amber-100 text-amber-900 font-mono font-bold text-sm px-2 py-1 rounded-md border border-amber-200 flex items-center justify-between">
+                                                    <span>{m.code}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 bg-white rounded hover:bg-amber-50 ${m.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={m.quantity === 1}><Minus size={10}/></button>
+                                                        <span className="w-4 text-center text-xs">{m.quantity}</span>
+                                                        <button onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 bg-white rounded hover:bg-amber-50"><Plus size={10}/></button>
+                                                        <button onClick={() => removeMold(m.code)} className="ml-1 text-amber-500 hover:text-amber-700"><X size={14} /></button>
+                                                    </div>
                                                 </div>
                                             ))}
                                             {(!editedProduct.molds || editedProduct.molds.length === 0) && <p className="text-xs text-slate-400 italic w-full text-center py-4">Κανένα</p>}
@@ -921,9 +941,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </div>
                                     <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1 space-y-1">
                                         {availableMolds.map(mold => (
-                                            <div key={mold.code} onClick={() => toggleMold(mold.code)} className="p-2 rounded-md hover:bg-emerald-100 cursor-pointer flex justify-between items-center text-sm">
+                                            <div key={mold.code} onClick={() => addMold(mold.code)} className="p-2 rounded-md hover:bg-emerald-100 cursor-pointer flex justify-between items-center text-sm">
                                                 <span className="font-mono font-bold text-slate-700">{mold.code}</span>
                                                 <span className="text-xs text-slate-400 truncate ml-2">{mold.description}</span>
+                                                <Plus size={14} className="text-emerald-500"/>
                                             </div>
                                         ))}
                                          {availableMolds.length === 0 && <p className="text-xs text-slate-400 italic w-full text-center py-4">Δεν βρέθηκαν άλλα.</p>}

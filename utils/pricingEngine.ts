@@ -43,7 +43,6 @@ export const calculateTechnicianCost = (weight_g: number): number => {
   return parseFloat(cost.toFixed(2));
 };
 
-// @FIX: Add missing exported function 'calculatePlatingCost'
 /**
  * Calculates a suggested plating cost based on weight.
  * This is a heuristic used for suggesting a value when creating new products.
@@ -97,6 +96,7 @@ export const calculateProductCost = (
       // It's a raw material (stone, cord, etc.)
       const mat = allMaterials.find(m => m.id === item.id);
       if (mat) {
+        // Base cost for the master product uses the material's default cost
         materialsCost += (mat.cost_per_unit * item.quantity);
       }
     } else if (item.type === 'component') {
@@ -200,6 +200,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
 /**
  * Estimates the cost of a variant based on the master product and the suffix.
  * NEW LOGIC: Adds specific plating costs based on the variant type (X, D).
+ * ENHANCED LOGIC: Checks for Material Variant Override Prices (e.g. Lapis cost vs Generic Stone cost)
  */
 export const estimateVariantCost = (
     masterProduct: Product, 
@@ -208,23 +209,60 @@ export const estimateVariantCost = (
     allMaterials: Material[],
     allProducts: Product[],
 ): number => {
-    // 1. Calculate the Base Metal Cost (Silver + Materials + Non-Plating Labor)
-    const baseMetalCost = calculateProductCost(masterProduct, settings, allMaterials, allProducts).total;
+    // 1. Silver Base Cost
+    const lossMultiplier = 1 + (settings.loss_percentage / 100);
+    const silverCost = masterProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
 
-    // 2. Determine plating type from suffix
-    const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
+    // 2. Materials Cost (With Overrides)
+    let materialsCost = 0;
     
-    let finalCost = baseMetalCost;
+    // Deconstruct Suffix to find stone code (e.g. 'LA' from 'XLA')
+    const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
+    const targetStoneCode = stone.code; 
 
-    // 3. Add the appropriate plating cost
-    if (['X', 'H'].includes(finish.code)) { // Gold-Plated (X) and Platinum (H) use plating_cost_x
-        finalCost += masterProduct.labor.plating_cost_x || 0;
-    } else if (finish.code === 'D') { // Two-Tone (D) uses plating_cost_d
-        finalCost += masterProduct.labor.plating_cost_d || 0;
+    masterProduct.recipe.forEach(item => {
+        if (item.type === 'raw') {
+            const mat = allMaterials.find(m => m.id === item.id);
+            if (mat) {
+                let unitCost = mat.cost_per_unit;
+                // Check for overrides if we have a detected stone code
+                if (targetStoneCode && mat.variant_prices && mat.variant_prices[targetStoneCode] !== undefined) {
+                    unitCost = mat.variant_prices[targetStoneCode];
+                }
+                materialsCost += (unitCost * item.quantity);
+            }
+        } else if (item.type === 'component') {
+            // Recurse for components
+            const subProduct = allProducts.find(p => p.sku === item.sku);
+            if (subProduct) {
+                const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts);
+                materialsCost += (subCost.total * item.quantity);
+            }
+        }
+    });
+
+    // 3. Labor Costs
+    const labor = masterProduct.labor;
+    const technicianCost = masterProduct.labor.technician_cost_manual_override
+        ? (labor.technician_cost || 0)
+        : calculateTechnicianCost(masterProduct.weight_g);
+    
+    // Casting
+    const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
+    const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+
+    let laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost;
+
+    // 4. Plating Adjustments
+    const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
+    if (['X', 'H'].includes(finish.code)) { 
+        laborTotal += masterProduct.labor.plating_cost_x || 0;
+    } else if (finish.code === 'D') {
+        laborTotal += masterProduct.labor.plating_cost_d || 0;
     }
-    // For 'P' (Patina) or no finish code, no additional cost is added.
 
-    return roundPrice(finalCost);
+    const totalCost = silverCost + materialsCost + laborTotal;
+    return roundPrice(totalCost);
 };
 
 /**

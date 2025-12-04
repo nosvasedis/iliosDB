@@ -83,7 +83,7 @@ export const MOCK_PRODUCTS: Product[] = [
     selling_price: 0, 
     stock_qty: 100,
     sample_qty: 5,
-    molds: ['A-12'],
+    molds: [{ code: 'A-12', quantity: 1 }],
     is_component: true,
     recipe: [
         { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
@@ -110,7 +110,7 @@ export const MOCK_PRODUCTS: Product[] = [
     selling_price: 45.00,
     stock_qty: 10,
     sample_qty: 1,
-    molds: ['B-05'],
+    molds: [{ code: 'B-05', quantity: 1 }],
     is_component: false,
     variants: [
         { suffix: 'P', description: 'Πατίνα (Σκέτο)', stock_qty: 2 },
@@ -141,7 +141,7 @@ export const MOCK_PRODUCTS: Product[] = [
     selling_price: 120.00,
     stock_qty: 5,
     sample_qty: 1,
-    molds: ['C-01', 'C-02'],
+    molds: [{ code: 'C-01', quantity: 1 }, { code: 'C-02', quantity: 1 }],
     is_component: false,
     variants: [
         { suffix: 'PKR', description: 'Πατίνα - Κορνεόλη', stock_qty: 2 }, 

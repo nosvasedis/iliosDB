@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -187,7 +188,8 @@ export const api = {
                  name: m.name,
                  type: m.type,
                  cost_per_unit: Number(m.cost_per_unit),
-                 unit: m.unit
+                 unit: m.unit,
+                 variant_prices: m.variant_prices || {}
             }));
         } catch (e) {
             console.warn("API Error, using mock materials:", e);
@@ -285,7 +287,10 @@ export const api = {
                 
                 const pMolds = prodMoldsData
                     ?.filter((pm: any) => pm.product_sku === p.sku)
-                    .map((pm: any) => pm.mold_code) || [];
+                    .map((pm: any) => ({
+                        code: pm.mold_code,
+                        quantity: pm.quantity || 1 // Handle missing quantity for legacy rows
+                    })) || [];
 
                 const pCollections = prodCollData
                     ?.filter((pc: any) => pc.product_sku === p.sku)

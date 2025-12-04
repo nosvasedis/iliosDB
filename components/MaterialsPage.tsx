@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -26,6 +26,10 @@ export default function MaterialsPage({ settings }: Props) {
   const { data: materials, isLoading } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
 
   const [editableMaterials, setEditableMaterials] = useState<Material[]>([]);
+  
+  // Variant Pricing Modal State
+  const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
+  const [variantPrices, setVariantPrices] = useState<{code: string, price: number}[]>([]);
 
   React.useEffect(() => {
     if (materials) {
@@ -36,7 +40,7 @@ export default function MaterialsPage({ settings }: Props) {
   const handleAddMaterial = async () => {
     try {
         const { error } = await supabase.from('materials').insert({
-            name: 'Νέο Υλικό', type: MaterialType.Component, cost_per_unit: 0, unit: 'Τεμ'
+            name: 'Νέο Υλικό', type: MaterialType.Component, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}
         });
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -88,6 +92,50 @@ export default function MaterialsPage({ settings }: Props) {
         console.error("Error deleting material:", e);
         showToast("Σφάλμα διαγραφής. Το υλικό μπορεί να χρησιμοποιείται σε συνταγές.", 'error');
     }
+  };
+
+  const openVariantEditor = (m: Material) => {
+      setActiveMaterial(m);
+      const variants = m.variant_prices ? Object.entries(m.variant_prices).map(([code, price]) => ({ code, price })) : [];
+      setVariantPrices(variants);
+  };
+
+  const updateVariantPrice = (idx: number, field: 'code' | 'price', value: any) => {
+      const updated = [...variantPrices];
+      updated[idx] = { ...updated[idx], [field]: value };
+      setVariantPrices(updated);
+  };
+
+  const addVariantPriceRow = () => {
+      setVariantPrices([...variantPrices, { code: '', price: 0 }]);
+  };
+
+  const removeVariantPriceRow = (idx: number) => {
+      setVariantPrices(variantPrices.filter((_, i) => i !== idx));
+  };
+
+  const saveVariantPrices = async () => {
+      if (!activeMaterial) return;
+      const pricesObj: Record<string, number> = {};
+      variantPrices.forEach(vp => {
+          if (vp.code && vp.price > 0) {
+              pricesObj[vp.code.toUpperCase()] = parseFloat(vp.price.toString());
+          }
+      });
+
+      try {
+          const { error } = await supabase.from('materials').update({
+              variant_prices: pricesObj
+          }).eq('id', activeMaterial.id);
+          
+          if (error) throw error;
+          
+          queryClient.invalidateQueries({ queryKey: ['materials'] });
+          setActiveMaterial(null);
+          showToast("Οι ειδικές τιμές αποθηκεύτηκαν.", 'success');
+      } catch (e) {
+          showToast("Σφάλμα αποθήκευσης.", 'error');
+      }
   };
 
   const getMaterialIcon = (type: MaterialType) => {
@@ -157,12 +205,19 @@ export default function MaterialsPage({ settings }: Props) {
                 <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
                   <td className="p-4">
-                      <input 
-                        type="text" 
-                        value={m.name} 
-                        onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
-                        className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
-                      />
+                      <div className="flex flex-col">
+                          <input 
+                            type="text" 
+                            value={m.name} 
+                            onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
+                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
+                          />
+                          {Object.keys(m.variant_prices || {}).length > 0 && (
+                              <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-1">
+                                  <List size={10}/> {Object.keys(m.variant_prices || {}).length} ειδικές τιμές
+                              </div>
+                          )}
+                      </div>
                   </td>
                   <td className="p-4">
                     <div className="relative flex items-center gap-2">
@@ -195,6 +250,7 @@ export default function MaterialsPage({ settings }: Props) {
                   </td>
                   <td className="p-4">
                     <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openVariantEditor(m)} title="Ειδικές Τιμές" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><List size={18} /></button>
                         <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
                         <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
                     </div>
@@ -208,6 +264,52 @@ export default function MaterialsPage({ settings }: Props) {
           </table>
         </div>
       </div>
+
+      {/* Variant Pricing Modal */}
+      {activeMaterial && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
+                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                      <div>
+                          <h3 className="text-lg font-bold text-slate-800">Ειδικές Τιμές</h3>
+                          <p className="text-sm text-slate-500">{activeMaterial.name} ({activeMaterial.cost_per_unit}€ Base)</p>
+                      </div>
+                      <button onClick={() => setActiveMaterial(null)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="max-h-64 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
+                      {variantPrices.map((vp, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                              <input 
+                                  placeholder="Κωδικός (π.χ. LA)" 
+                                  value={vp.code} 
+                                  onChange={e => updateVariantPrice(idx, 'code', e.target.value.toUpperCase())}
+                                  className="flex-1 p-2 border border-slate-200 rounded-lg uppercase font-mono text-sm outline-none focus:border-blue-500"
+                              />
+                              <input 
+                                  type="number" step="0.01" 
+                                  placeholder="Τιμή" 
+                                  value={vp.price} 
+                                  onChange={e => updateVariantPrice(idx, 'price', parseFloat(e.target.value))}
+                                  className="w-24 p-2 border border-slate-200 rounded-lg font-bold text-sm text-right outline-none focus:border-blue-500"
+                              />
+                              <button onClick={() => removeVariantPriceRow(idx)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
+                          </div>
+                      ))}
+                      {variantPrices.length === 0 && <p className="text-sm text-slate-400 italic text-center py-4">Δεν υπάρχουν ειδικές τιμές.</p>}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                      <button onClick={addVariantPriceRow} className="flex-1 py-2 border border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                          <Plus size={14}/> Προσθήκη
+                      </button>
+                      <button onClick={saveVariantPrices} className="flex-1 bg-blue-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors">
+                          Αποθήκευση
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

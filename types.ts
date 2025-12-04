@@ -26,12 +26,18 @@ export interface Material {
   type: MaterialType;
   cost_per_unit: number;
   unit: string;
+  variant_prices?: Record<string, number>; // New: Specific prices per variant code (e.g. {'LA': 15.0, 'ON': 12.0})
 }
 
 export interface Mold {
   code: string; // Primary Key, e.g. "A-12"
   location: string; // e.g. "Syrtari 1"
   description: string; // e.g. "Main Body"
+}
+
+export interface ProductMold {
+  code: string;
+  quantity: number;
 }
 
 // New Polymorphic Recipe Item
@@ -90,7 +96,7 @@ export interface Product {
   location_stock?: Record<string, number>; // key: warehouse_id, value: qty
 
   // Manufacturing
-  molds: string[]; // Array of Mold Codes (e.g. ['A-12', 'B-02'])
+  molds: ProductMold[]; // Array of Mold Objects { code: 'A-12', quantity: 1 }
   is_component: boolean; // Is this an STX part?
   variants?: ProductVariant[]; // Specific versions (Stones, Patina, etc)
   recipe: RecipeItem[]; 
