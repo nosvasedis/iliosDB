@@ -486,7 +486,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     // FAILSAFE: Weight Check
     if (!weight || weight <= 0) { 
         showToast("Το Βάρος (g) είναι υποχρεωτικό.", "error"); 
-        setCurrentStep(3); // Auto-navigate back to step 3
+        setCurrentStep(1); // Auto-navigate back to step 1
         return; 
     }
 
@@ -688,7 +688,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </div>
                             </div>
                             <div>
-                                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1.5">
+                                <label className="flex items-center gap-2 text-sm font-bold text-stone-700 mb-1.5">
                                     Βασική Επιμετάλλωση (Master)
                                 </label>
                                 <select 
@@ -701,17 +701,27 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option>
                                 </select>
                             </div>
+                            <div className="grid grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-sm font-bold text-stone-700 mb-1.5">Βασικό Βάρος (g) *</label>
+                                    <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"/>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-stone-700 mb-1.5">{secondaryWeightLabel}</label>
+                                    <input type="number" step="0.01" value={secondaryWeight} onChange={e => setSecondaryWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"/>
+                                </div>
+                            </div>
                             <div className="flex gap-4">
-                                <label className="flex-1 flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50 cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-amber-600 rounded" /><span className="font-bold text-slate-700">Είναι Εξάρτημα (STX);</span></label>
+                                <label className="flex-1 flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50 cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-amber-600 rounded" /><span className="font-bold text-emerald-700">Είναι Εξάρτημα (STX);</span></label>
                                 <div className="flex-1">
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Χονδρική (Βασική)</label>
+                                    <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική (Βασική)</label>
                                     <div className="flex items-center gap-1"><input type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="w-full p-2.5 border border-slate-200 rounded-xl font-bold"/><span className="text-slate-500 font-bold">€</span></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div className="pt-4 border-t border-slate-100">
-                        <label className="block text-sm font-bold text-slate-700 mb-3">Λάστιχα</label>
+                        <label className="block text-sm font-bold text-amber-700 mb-3">Λάστιχα</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
                                 <div className="relative shrink-0">
@@ -948,17 +958,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {/* STEP 3: LABOR & WEIGHT */}
             {currentStep === 3 && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά & Βάρος</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Βασικό Βάρος (g) *</label>
-                            <input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"/>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-1.5">{secondaryWeightLabel}</label>
-                            <input type="number" step="0.01" value={secondaryWeight} onChange={e => setSecondaryWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-amber-500/20 outline-none"/>
-                        </div>
-                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
                     
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                         <h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18}/> Κόστη Εργατικών</h4>
