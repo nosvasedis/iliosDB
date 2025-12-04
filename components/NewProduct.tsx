@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
@@ -398,13 +397,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         suggestionKeyword = 'καβαλάρης';
     }
 
-    const selectedCodes = new Set(selectedMolds.map(m => m.code));
-
     const allMoldsFilteredBySearch = molds
       .filter(m => 
           (m.code.toUpperCase().includes(moldSearch.toUpperCase()) || 
-          m.description.toLowerCase().includes(moldSearch.toLowerCase())) &&
-          !selectedCodes.has(m.code)
+          m.description.toLowerCase().includes(moldSearch.toLowerCase()))
       );
 
     let suggested: Mold[] = [];
@@ -428,7 +424,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     others.sort(sortFn);
 
     return { suggestedMolds: suggested, otherMolds: others };
-  }, [molds, moldSearch, sku, selectedMolds]);
+  }, [molds, moldSearch, sku]); // Removed selectedMolds dependency so they don't filter out
 
   // --- VARIANT MANAGEMENT ---
   
