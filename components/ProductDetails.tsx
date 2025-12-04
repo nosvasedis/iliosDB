@@ -621,6 +621,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setEditedProduct(prev => ({ ...prev, variants: newVariants }));
   };
 
+  const handlePriceBlur = (index: number, field: 'active_price' | 'selling_price', masterValue: number) => {
+      const variant = editedProduct.variants[index];
+      const val = variant[field];
+      
+      if (val !== null && val !== undefined) {
+          // If value matches master, revert to null (inherit) to maintain visual homogeneity
+          if (Math.abs(val - masterValue) < 0.01) {
+              updateVariant(index, field, null);
+          } else {
+              // Otherwise, just re-update to ensure clean number format if needed (React handles re-render)
+              // The main goal is just triggering a render to re-format the input via 'value' prop if it changed
+          }
+      }
+  };
+
   const deleteVariant = (index: number) => {
       setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
       setViewIndex(0);
@@ -1023,8 +1038,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-emerald-500"/> Έξυπνη Προσθήκη</h4>
-                            <div className="flex w-full rounded-lg border border-slate-200 overflow-hidden bg-slate-50 relative focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
-                                <div className="pl-3 py-2 text-slate-500 font-mono text-sm font-bold flex items-center select-none bg-slate-50">
+                            <div className="flex w-full rounded-lg border border-slate-200 overflow-hidden bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all shadow-sm">
+                                <div className="px-3 py-2 bg-slate-50 border-r border-slate-100 text-slate-500 font-mono text-sm font-bold flex items-center select-none">
                                     {editedProduct.sku}
                                 </div>
                                 <input 
@@ -1032,14 +1047,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     placeholder="Suffix (π.χ. P, X)"
                                     value={smartAddSuffix} 
                                     onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-slate-50 text-slate-800 font-bold placeholder:font-normal placeholder:normal-case"
+                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none text-slate-800 font-bold placeholder:font-normal placeholder:normal-case"
                                 />
                                 <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">
-                                    Προσθήκη
+                                    <Plus size={18}/>
                                 </button>
                             </div>
                             <div className="mt-2 text-[10px] text-slate-400">
-                                Συμπληρώστε μόνο την κατάληξη (π.χ. P για Πατίνα, X για Επίχρυσο).
+                                Συμπληρώστε μόνο την κατάληξη (π.χ. P, X).
                             </div>
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -1063,6 +1078,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                           {editedProduct.variants.map((variant, index) => {
                               const wholesale = variant.selling_price ?? editedProduct.selling_price;
                               const retail = wholesale * 3;
+                              
+                              // Check if price is manually overridden
                               const hasPriceOverride = variant.selling_price !== null && variant.selling_price !== undefined;
                               const hasCostOverride = variant.active_price !== null && variant.active_price !== undefined;
 
@@ -1089,17 +1106,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 placeholder={(variant.active_price || 0).toFixed(2)}
                                                 value={variant.active_price === null ? '' : variant.active_price}
                                                 onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                                onBlur={(e) => {
-                                                    // Force visual update on blur to show 2 decimals
-                                                    if (e.target.value && !isNaN(parseFloat(e.target.value))) {
-                                                        const val = parseFloat(e.target.value);
-                                                        updateVariant(index, 'active_price', val);
-                                                        e.target.value = val.toFixed(2);
-                                                    }
-                                                }}
+                                                onBlur={() => handlePriceBlur(index, 'active_price', calculateProductCost(editedProduct, settings, allMaterials, allProducts).total)}
                                                 className={`w-full p-2 h-9 border rounded-lg text-sm outline-none transition-colors text-right font-mono
                                                     ${hasCostOverride 
-                                                        ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold shadow-sm' 
+                                                        ? 'bg-white border-emerald-400 text-emerald-700 font-bold shadow-sm' 
                                                         : 'bg-slate-50 border-slate-200 text-slate-500'
                                                     } focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200`}
                                             />
@@ -1115,17 +1125,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 placeholder={editedProduct.selling_price.toFixed(2)}
                                                 value={variant.selling_price === null ? '' : variant.selling_price}
                                                 onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                                onBlur={(e) => {
-                                                    // Force visual update on blur to show 2 decimals
-                                                    if (e.target.value && !isNaN(parseFloat(e.target.value))) {
-                                                        const val = parseFloat(e.target.value);
-                                                        updateVariant(index, 'selling_price', val);
-                                                        e.target.value = val.toFixed(2);
-                                                    }
-                                                }}
+                                                onBlur={() => handlePriceBlur(index, 'selling_price', editedProduct.selling_price)}
                                                 className={`w-full p-2 h-9 border rounded-lg text-sm outline-none transition-colors text-right font-mono
                                                     ${hasPriceOverride 
-                                                        ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold shadow-sm' 
+                                                        ? 'bg-white border-amber-400 text-amber-700 font-bold shadow-sm' 
                                                         : 'bg-slate-50 border-slate-200 text-slate-500'
                                                     } focus:border-amber-500 focus:ring-1 focus:ring-amber-200`}
                                             />
