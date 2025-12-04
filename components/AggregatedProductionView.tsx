@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { ProductionBatch } from '../types';
 import { APP_LOGO } from '../constants';
@@ -46,7 +47,7 @@ export default function AggregatedProductionView({ data }: Props) {
                 <SummaryCard title="Σύνολο Παρτίδων" value={data.batches.length} />
                 <SummaryCard title="Μοναδικοί Κωδικοί" value={uniqueSkus.size} />
                 <SummaryCard title="Σύνολο Τεμαχίων" value={data.batches.reduce((sum, b) => sum + b.quantity, 0)} />
-                <SummaryCard title="Ασήμι (g)" value={data.totalSilver.toFixed(2)} />
+                <SummaryCard title="Ασήμι (g)" value={data.totalSilver.toFixed(2).replace('.', ',')} />
             </section>
 
             {/* MAIN CONTENT */}
@@ -120,7 +121,7 @@ export default function AggregatedProductionView({ data }: Props) {
                         <tbody>
                             <tr className="border-t border-slate-100 font-bold">
                                 <td className="py-1.5 pr-2 text-slate-600 flex items-center gap-1.5"><Coins size={10} /> Ασήμι 925 (Βάση)</td>
-                                <td className="py-1.5 pl-2 text-right text-slate-800">{data.totalSilver.toFixed(2)} g</td>
+                                <td className="py-1.5 pl-2 text-right text-slate-800">{data.totalSilver.toFixed(2).replace('.', ',')} g</td>
                             </tr>
                             {sortedMaterials.map(([id, mat]) => (
                                 <tr key={id} className="border-t border-slate-100">

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold } from '../types';
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera } from 'lucide-react';
@@ -7,6 +8,7 @@ import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BarcodeScanner from './BarcodeScanner';
+import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -591,8 +593,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                           <p className="text-xs text-slate-500 font-medium">{item.category}</p>
                                           {displayPrice > 0 && (
                                               <div className="flex items-baseline gap-1.5">
-                                                  <span className="text-xs font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{displayPrice.toFixed(2)}€</span>
-                                                  <span className="text-[10px] text-slate-400 font-medium">Λιαν: {displayRetail.toFixed(0)}€</span>
+                                                  <span className="text-xs font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{formatCurrency(displayPrice)}</span>
+                                                  <span className="text-[10px] text-slate-400 font-medium">Λιαν: {formatDecimal(displayRetail, 0)}€</span>
                                               </div>
                                           )}
                                       </div>

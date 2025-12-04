@@ -1,12 +1,12 @@
 
 
-
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
+import { formatDecimal } from '../utils/pricingEngine';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -61,7 +61,7 @@ export default function SettingsPage() {
       setSettings(newSettings);
       queryClient.setQueryData(['settings'], newSettings);
 
-      showToast(`Η τιμή ενημερώθηκε: ${finalPrice} €/g (Real-time Market)`, 'success');
+      showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g (Real-time Market)`, 'success');
       
     } catch (error: any) {
       console.error(error);

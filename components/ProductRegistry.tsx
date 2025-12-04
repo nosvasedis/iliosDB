@@ -5,7 +5,7 @@ import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -150,7 +150,7 @@ const ProductCard: React.FC<{
                     <div>
                         <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
                         <div className={`text-xl font-black leading-none ${displayPrice > 0 ? 'text-[#060b00]' : 'text-slate-300'}`}>
-                            {displayPrice > 0 ? displayPrice.toFixed(2) : '-'}€
+                            {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                         </div>
                     </div>
 

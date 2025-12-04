@@ -4,6 +4,23 @@ import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant 
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 /**
+ * Formats a number to a string with a comma decimal separator.
+ */
+export const formatDecimal = (num: number | null | undefined, precision: number = 2): string => {
+    if (num === null || num === undefined || isNaN(num)) {
+        return (0).toFixed(precision).replace('.', ',');
+    }
+    return num.toFixed(precision).replace('.', ',');
+};
+
+/**
+ * Formats a number as currency with a comma decimal separator and a euro sign.
+ */
+export const formatCurrency = (num: number | null | undefined): string => {
+    return `${formatDecimal(num, 2)}€`;
+};
+
+/**
  * Rounds a price up to the nearest 10 cents (e.g., 11.47 -> 11.50).
  */
 export const roundPrice = (price: number): number => {

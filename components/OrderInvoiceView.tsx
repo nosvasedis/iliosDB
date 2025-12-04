@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useRef } from 'react';
 import { Order, Product } from '../types';
 import { APP_LOGO } from '../constants';
@@ -118,8 +120,8 @@ export default function OrderInvoiceView({ order }: Props) {
                                         </div>
                                     </td>
                                     <td className="py-4 px-4 text-center align-middle font-bold text-slate-700 text-lg">{item.quantity}</td>
-                                    <td className="py-4 px-4 text-right align-middle text-slate-600 font-mono">{item.price_at_order.toFixed(2)}€</td>
-                                    <td className="py-4 pl-4 text-right align-middle font-bold text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2)}€</td>
+                                    <td className="py-4 px-4 text-right align-middle text-slate-600 font-mono">{item.price_at_order.toFixed(2).replace('.', ',')}€</td>
+                                    <td className="py-4 pl-4 text-right align-middle font-bold text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}€</td>
                                 </tr>
                             );
                         })}
@@ -135,12 +137,12 @@ export default function OrderInvoiceView({ order }: Props) {
                 <div className="w-72 space-y-3">
                     <div className="flex justify-between items-center text-slate-600 font-medium">
                         <span>Μερικό Σύνολο:</span>
-                        <span className="font-mono">{order.total_price.toFixed(2)}€</span>
+                        <span className="font-mono">{order.total_price.toFixed(2).replace('.', ',')}€</span>
                     </div>
                     {/* Add VAT or other fields if needed in the future */}
                     <div className="flex justify-between items-center text-slate-900 font-black text-2xl pt-2 border-t border-slate-200">
                         <span>Τελικο Συνολο:</span>
-                        <span className="font-mono">{order.total_price.toFixed(2)}€</span>
+                        <span className="font-mono">{order.total_price.toFixed(2).replace('.', ',')}€</span>
                     </div>
                 </div>
             </footer>

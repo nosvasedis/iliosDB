@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Product, GlobalSettings } from '../types';
 import { TrendingUp, Package, AlertTriangle, Layers, ArrowUpRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -33,7 +35,7 @@ export default function Dashboard({ products, settings }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Αξία Αποθήκης" 
-          value={`${totalValue.toFixed(2)}€`} 
+          value={formatCurrency(totalValue)} 
           icon={<TrendingUp className="text-emerald-600" size={24} />} 
           bg="bg-emerald-50"
           border="border-emerald-100"
@@ -105,11 +107,11 @@ export default function Dashboard({ products, settings }: Props) {
           <div className="space-y-4">
             <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-600 font-medium">Τιμή Ασημιού</span>
-              <span className="font-mono font-bold text-xl text-[#060b00]">{settings.silver_price_gram} €/g</span>
+              <span className="font-mono font-bold text-xl text-[#060b00]">{formatDecimal(settings.silver_price_gram, 3)} €/g</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-600 font-medium">Ποσοστό Απώλειας</span>
-              <span className="font-mono font-bold text-xl text-[#060b00]">{settings.loss_percentage}%</span>
+              <span className="font-mono font-bold text-xl text-[#060b00]">{formatDecimal(settings.loss_percentage)}%</span>
             </div>
             
             <div className="pt-4 border-t border-slate-100 mt-4">

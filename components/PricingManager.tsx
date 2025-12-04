@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material } from '../types';
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent } from 'lucide-react';
-import { calculateProductCost } from '../utils/pricingEngine';
+import { calculateProductCost, formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -158,7 +158,7 @@ export default function PricingManager({ products, settings, materials }: Props)
               <>
                 <label className="block text-sm font-bold text-slate-600 mb-2 uppercase tracking-wide">Τιμή Βάσης (Ασήμι)</label>
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                    <span className="font-mono text-2xl font-black text-slate-800">{settings.silver_price_gram} €/g</span>
+                    <span className="font-mono text-2xl font-black text-slate-800">{formatDecimal(settings.silver_price_gram, 3)} €/g</span>
                     <span className="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded border border-slate-100">Ζωντανά</span>
                 </div>
               </>
@@ -257,14 +257,14 @@ export default function PricingManager({ products, settings, materials }: Props)
                   return (
                     <tr key={p.sku} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-4 pl-6 font-bold text-slate-800">{p.sku}</td>
-                      <td className="p-4 text-right text-slate-500 font-mono">{oldVal.toFixed(2)}€</td>
+                      <td className="p-4 text-right text-slate-500 font-mono">{formatCurrency(oldVal)}</td>
                       <td className="p-4 text-center text-slate-300"><ArrowRight size={14}/></td>
-                      <td className="p-4 text-right font-black font-mono text-slate-800">{newVal.toFixed(2)}€</td>
+                      <td className="p-4 text-right font-black font-mono text-slate-800">{formatCurrency(newVal)}</td>
                       <td className={`p-4 text-right font-bold ${Math.abs(diff) > 0.001 ? (diff > 0 ? (mode === 'cost' ? 'text-rose-500' : 'text-emerald-500') : (mode === 'cost' ? 'text-emerald-500' : 'text-rose-500')) : 'text-slate-300'}`}>
-                          {Math.abs(diff) > 0.001 ? `${diff > 0 ? '+' : ''}${diff.toFixed(2)}€` : '-'}
+                          {Math.abs(diff) > 0.001 ? `${diff > 0 ? '+' : ''}${formatDecimal(diff, 2)}€` : '-'}
                       </td>
-                      {mode === 'cost' && <td className="p-4 text-right text-slate-800 font-bold">{p.selling_price.toFixed(2)}€</td>}
-                      <td className={`p-4 pr-6 text-right font-black ${margin < 30 ? 'text-rose-500' : 'text-emerald-600'}`}>{margin.toFixed(1)}%</td>
+                      {mode === 'cost' && <td className="p-4 text-right text-slate-800 font-bold">{formatCurrency(p.selling_price)}</td>}
+                      <td className={`p-4 pr-6 text-right font-black ${margin < 30 ? 'text-rose-500' : 'text-emerald-600'}`}>{formatDecimal(margin, 1)}%</td>
                     </tr>
                   );
                 })}

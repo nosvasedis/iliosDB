@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer } from 'lucide-react';
@@ -5,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { formatCurrency } from '../utils/pricingEngine';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -252,7 +255,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     <div className="absolute right-0 top-0 w-20 h-20 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                                     <div className="relative z-10">
                                         <div className="text-emerald-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><TrendingUp size={14}/> Συνολικός Τζίρος</div>
-                                        <div className="text-3xl font-black text-emerald-700">{customerStats?.totalSpent.toFixed(2)}€</div>
+                                        <div className="text-3xl font-black text-emerald-700">{formatCurrency(customerStats?.totalSpent)}</div>
                                     </div>
                                 </div>
                                 <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
@@ -266,7 +269,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     <div className="absolute right-0 top-0 w-20 h-20 bg-amber-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                                     <div className="relative z-10">
                                         <div className="text-amber-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><PieChart size={14}/> Μέση Παραγγελία</div>
-                                        <div className="text-3xl font-black text-amber-700">{customerStats?.avgOrderValue.toFixed(2)}€</div>
+                                        <div className="text-3xl font-black text-amber-700">{formatCurrency(customerStats?.avgOrderValue)}</div>
                                     </div>
                                 </div>
                             </div>
@@ -344,7 +347,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                                 <tr key={o.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="p-4 pl-6 font-mono font-bold text-slate-700">{o.id}</td>
                                                     <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
-                                                    <td className="p-4 text-right font-black text-slate-800">{o.total_price.toFixed(2)}€</td>
+                                                    <td className="p-4 text-right font-black text-slate-800">{formatCurrency(o.total_price)}</td>
                                                     <td className="p-4">
                                                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(o.status)}`}>
                                                             {STATUS_TRANSLATIONS[o.status]}

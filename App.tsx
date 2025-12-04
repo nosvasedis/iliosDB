@@ -467,7 +467,7 @@ function AppContent() {
             
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
-                  <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
+                  <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
                   <p className="opacity-50 mt-1">v0.0.5-b (Beta)</p>
                 </div>
             )}
@@ -495,7 +495,7 @@ function AppContent() {
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
-              {activePage === 'customers' && <CustomersPage />}
+              {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               
               {activePage === 'resources' && (
                 <div className="space-y-6">

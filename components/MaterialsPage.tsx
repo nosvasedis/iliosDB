@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
 import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle } from 'lucide-react';
@@ -6,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import { formatDecimal } from '../utils/pricingEngine';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -132,7 +134,7 @@ export default function MaterialsPage({ settings }: Props) {
           <div className="bg-white/5 p-4 rounded-xl text-center border border-white/10 w-full md:w-auto mt-2 md:mt-0">
               <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Τρεχουσα Τιμη</span>
               <div className="font-mono font-black text-3xl text-amber-400 mt-1">
-                  {settings.silver_price_gram}€<span className="text-lg text-slate-400">/g</span>
+                  {formatDecimal(settings.silver_price_gram, 3)}€<span className="text-lg text-slate-400">/g</span>
               </div>
           </div>
       </div>
