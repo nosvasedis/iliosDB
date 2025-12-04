@@ -199,7 +199,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [product]);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [smartAddSku, setSmartAddSku] = useState('');
+  const [smartAddSuffix, setSmartAddSuffix] = useState(''); // RENAMED from smartAddSku for clarity
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
   const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
@@ -483,7 +483,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 description: v.description,
                 stock_qty: v.stock_qty || 0,
                 active_price: v.active_price || null,
-                selling_price: v.selling_price || null
+                // Ensure selling_price is correctly typed as number or null (handling 0 correctly)
+                selling_price: (v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null
             }));
             await supabase.from('product_variants').insert(newVariantsForDB);
         }
@@ -541,12 +542,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }
   };
 
+  // Improved Smart Add Logic
   const handleSmartAdd = () => {
-    const analysis = analyzeSku(smartAddSku, editedProduct.gender);
-    if (!analysis.isVariant || analysis.masterSku !== editedProduct.sku) {
-      showToast('Μη έγκυρος κωδικός παραλλαγής για αυτό το προϊόν.', 'error');
+    if (!smartAddSuffix.trim()) {
+        showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
+        return;
+    }
+
+    const fullSku = editedProduct.sku + smartAddSuffix.trim().toUpperCase();
+    const analysis = analyzeSku(fullSku, editedProduct.gender);
+    
+    // Validate if analysis detected something meaningful
+    if (!analysis.isVariant) {
+      showToast('Δεν αναγνωρίστηκε έγκυρος συνδυασμός.', 'error');
       return;
     }
+    
     if (editedProduct.variants.some(v => v.suffix === analysis.suffix)) {
       showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
       return;
@@ -569,8 +580,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     };
     
     setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
-    setSmartAddSku('');
-    showToast(`Παραλλαγή ${analysis.suffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
+    setSmartAddSuffix('');
+    showToast(`Παραλλαγή ${analysis.suffix} προστέθηκε!`, 'success');
   };
 
   const handleManualAdd = () => {
@@ -601,6 +612,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
       const newVariants = [...editedProduct.variants];
+      // Properly handle numeric updates to prevent "NaN" strings in state
+      if ((field === 'selling_price' || field === 'active_price') && value === '') {
+          value = null;
+      }
       newVariants[index] = { ...newVariants[index], [field]: value };
       setEditedProduct(prev => ({ ...prev, variants: newVariants }));
   };
@@ -1007,15 +1022,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-emerald-500"/> Έξυπνη Προσθήκη</h4>
-                            <div className="grid grid-cols-[1fr_auto] gap-2 w-full">
+                            <div className="flex w-full rounded-lg border border-slate-200 overflow-hidden">
+                                <div className="bg-slate-100 px-3 py-2 text-slate-500 font-mono text-sm font-bold border-r border-slate-200 flex items-center">
+                                    {editedProduct.sku}
+                                </div>
                                 <input 
                                     type="text" 
-                                    placeholder={`π.χ. ${editedProduct.sku}P`}
-                                    value={smartAddSku} 
-                                    onChange={e => setSmartAddSku(e.target.value.toUpperCase())}
-                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"
+                                    placeholder="Suffix (e.g. P, X)"
+                                    value={smartAddSuffix} 
+                                    onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
+                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-white text-slate-800 font-bold"
                                 />
-                                <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">Προσθήκη</button>
+                                <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">
+                                    Προσθήκη
+                                </button>
+                            </div>
+                            <div className="mt-2 text-[10px] text-slate-400">
+                                Συμπληρώστε μόνο την κατάληξη (π.χ. P για Πατίνα, X για Επίχρυσο).
                             </div>
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -1064,7 +1087,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             placeholder={(variant.active_price || 0).toFixed(2)}
                                             value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
                                             onChange={e => updateVariant(index, 'active_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
+                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
                                                 ${hasCostOverride 
                                                     ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
                                                     : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-emerald-500'}
@@ -1079,7 +1102,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             placeholder={editedProduct.selling_price.toFixed(2)}
                                             value={variant.selling_price === null ? '' : variant.selling_price}
                                             onChange={e => updateVariant(index, 'selling_price', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                            className={`w-full p-2 border rounded-lg text-sm font-bold outline-none transition-colors 
+                                            className={`w-full p-2 h-9 border rounded-lg text-sm font-bold outline-none transition-colors 
                                                 ${hasPriceOverride 
                                                     ? 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100' 
                                                     : 'border-emerald-200 text-emerald-700 bg-slate-50 focus:bg-white focus:border-emerald-500 ring-1 ring-emerald-100'}
