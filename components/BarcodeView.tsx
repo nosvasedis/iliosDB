@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useMemo } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariant } from '../types';
@@ -20,11 +19,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const suffix = variant?.suffix || '';
     const finalSku = `${baseSku}${suffix}`;
 
-    // --- PRICE DISPLAY: CHECK VARIANT OVERRIDE FIRST ---
-    // Fix: Explicitly check if variant price is a valid number greater than 0
-    const wholesalePrice = (variant?.selling_price && Number(variant.selling_price) > 0) 
-        ? Number(variant.selling_price) 
-        : product.selling_price;
+    // --- PRICE DISPLAY: WHOLESALE ONLY ---
+    const wholesalePrice = product.selling_price;
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
