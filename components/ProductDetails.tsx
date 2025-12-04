@@ -616,7 +616,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            if (value === '' || value === null) {
               value = null;
            } else {
-              value = parseFloat(value);
+              // Sanitize input to always use a period for decimals
+              const sanitizedValue = String(value).replace(',', '.');
+              value = parseFloat(sanitizedValue);
               if (isNaN(value)) value = null;
            }
       }
@@ -1086,37 +1088,37 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/cost">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
                                         <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-base">€</span>
                                             <input 
                                                 type="text"
                                                 inputMode="decimal"
                                                 placeholder={(variant.active_price || 0).toFixed(2)}
                                                 value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
                                                 onChange={e => updateVariant(index, 'active_price', e.target.value)}
-                                                className={`w-full p-2 h-9 pr-6 border rounded-lg text-sm font-bold outline-none transition-colors text-right
+                                                className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right
                                                     ${hasCostOverride 
                                                         ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
                                                         : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-amber-500'}
                                                 `}
                                             />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-sm">€</span>
                                         </div>
                                      </div>
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/price">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
                                         <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-base">€</span>
                                             <input 
                                                 type="text"
                                                 inputMode="decimal"
                                                 placeholder={editedProduct.selling_price.toFixed(2)}
                                                 value={variant.selling_price === null ? '' : variant.selling_price.toFixed(2)}
                                                 onChange={e => updateVariant(index, 'selling_price', e.target.value)}
-                                                className={`w-full p-2 h-9 pr-6 border rounded-lg text-sm font-bold outline-none transition-colors text-right
+                                                className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right
                                                     ${hasPriceOverride 
                                                         ? 'border-slate-200 text-slate-700 bg-slate-50'
                                                         : 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100 focus:border-emerald-500'}
                                                 `}
                                             />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-sm">€</span>
                                         </div>
                                         <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">
                                             Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
