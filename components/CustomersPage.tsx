@@ -1,12 +1,10 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatCurrency } from '../utils/pricingEngine';
 
 interface Props {
@@ -53,17 +51,30 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
         
-        const catCounts: Record<string, number> = {};
+        // Detailed category stats
+        const catStats: Record<string, { count: number; value: number }> = {};
+        let totalItems = 0;
+
         customerOrders.forEach(o => {
             o.items.forEach(item => {
                 const cat = item.product_details?.category || 'Άλλο';
-                catCounts[cat] = (catCounts[cat] || 0) + item.quantity;
+                if (!catStats[cat]) {
+                    catStats[cat] = { count: 0, value: 0 };
+                }
+                catStats[cat].count += item.quantity;
+                catStats[cat].value += (item.price_at_order * item.quantity);
+                totalItems += item.quantity;
             });
         });
         
-        const prefData = Object.entries(catCounts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
+        const prefData = Object.entries(catStats)
+            .map(([name, stats]) => ({ 
+                name, 
+                count: stats.count, 
+                value: stats.value,
+                percentage: totalItems > 0 ? (stats.count / totalItems) * 100 : 0
+            }))
+            .sort((a, b) => b.count - a.count)
             .slice(0, 5); 
 
         return {
@@ -71,7 +82,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             orderCount,
             avgOrderValue,
             history: customerOrders,
-            prefData
+            prefData,
+            totalItems
         };
     }, [selectedCustomer, orders]);
 
@@ -305,26 +317,61 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     </div>
                                 </div>
 
-                                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50"><PieChart size={20} className="text-slate-400"/> Προτιμήσεις (Top 5)</h3>
-                                    {customerStats && customerStats.prefData.length > 0 ? (
-                                        <div className="flex-1 w-full h-64">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={customerStats.prefData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
-                                                    <XAxis type="number" hide />
-                                                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12, fontWeight: 600, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                                                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                                    <Bar dataKey="value" fill="#f59e0b" radius={[0, 6, 6, 0]} barSize={24}>
-                                                        {customerStats.prefData.map((entry, index) => (
-                                                            <Cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'][index % 5]} />
-                                                        ))}
-                                                    </Bar>
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                    ) : (
-                                        <div className="flex-1 flex items-center justify-center text-slate-400 italic">Δεν υπάρχουν αρκετά δεδομένα.</div>
-                                    )}
+                                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-[320px]">
+                                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 pb-3 border-b border-slate-50">
+                                        <Trophy size={20} className="text-amber-500"/> 
+                                        <span>Προτιμήσεις (Top 5)</span>
+                                    </h3>
+                                    
+                                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                                        {customerStats && customerStats.prefData.length > 0 ? (
+                                            customerStats.prefData.map((item, index) => (
+                                                <div key={item.name} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
+                                                    {/* Rank */}
+                                                    <div className={`
+                                                        w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 shadow-sm border
+                                                        ${index === 0 ? 'bg-amber-100 text-amber-700 border-amber-200' : 
+                                                          index === 1 ? 'bg-slate-100 text-slate-600 border-slate-200' : 
+                                                          index === 2 ? 'bg-orange-50 text-orange-700 border-orange-100' : 
+                                                          'bg-white text-slate-400 border-slate-100'}
+                                                    `}>
+                                                        {index + 1}
+                                                    </div>
+
+                                                    {/* Content */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="font-bold text-slate-700 text-sm truncate">{item.name}</span>
+                                                            <span className="text-xs font-medium text-slate-500">{formatCurrency(item.value)}</span>
+                                                        </div>
+                                                        
+                                                        {/* Progress Bar */}
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className={`h-full rounded-full ${
+                                                                    index === 0 ? 'bg-amber-400' : 
+                                                                    index === 1 ? 'bg-slate-400' : 
+                                                                    index === 2 ? 'bg-orange-400' : 'bg-emerald-400'
+                                                                }`} 
+                                                                style={{ width: `${item.percentage}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Quantity Badge */}
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-xs font-bold text-slate-800">{item.count} <span className="text-[9px] text-slate-400 font-normal uppercase">τεμ</span></div>
+                                                        <div className="text-[9px] font-bold text-emerald-600">{item.percentage.toFixed(0)}%</div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
+                                                <PieChart size={32} className="mb-2 opacity-20"/>
+                                                <p>Δεν υπάρχουν αρκετά δεδομένα.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
