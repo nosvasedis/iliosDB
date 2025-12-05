@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
@@ -1090,11 +1089,30 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
                                 <SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" />
                                 <SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" />
+                                
                                 <div className="ml-4 pl-4 border-l-2 border-slate-200 mt-1 space-y-1">
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{labor.casting_cost.toFixed(2)}€</span></div>
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{labor.setter_cost.toFixed(2)}€</span></div>
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{labor.technician_cost.toFixed(2)}€</span></div>
-                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Επιμετάλλωση</span><span>{(labor.plating_cost_x + labor.plating_cost_d).toFixed(2)}€</span></div>
+                                    
+                                    {/* Conditional Plating Cost Display */}
+                                    {(labor.plating_cost_x > 0 || labor.plating_cost_d > 0) && (
+                                        <div className="mt-2 pt-2 border-t border-slate-200 border-dashed">
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Προσθετα (Ανα Παραλλαγη)</div>
+                                            {labor.plating_cost_x > 0 && (
+                                                <div className="flex justify-between text-[10px] text-amber-600 font-medium">
+                                                    <span>Επιμετάλλωση (X/H)</span>
+                                                    <span>+{labor.plating_cost_x.toFixed(2)}€</span>
+                                                </div>
+                                            )}
+                                            {labor.plating_cost_d > 0 && (
+                                                <div className="flex justify-between text-[10px] text-amber-600 font-medium">
+                                                    <span>Επιμετάλλωση (D)</span>
+                                                    <span>+{labor.plating_cost_d.toFixed(2)}€</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center">
