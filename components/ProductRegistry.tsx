@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
@@ -116,7 +117,7 @@ const ProductCard: React.FC<{
             <div className="p-5 flex-1 flex flex-col relative">
                 <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
-                        <h3 className={`font-black text-lg leading-none truncate ${hasVariants ? 'text-emerald-700' : 'text-[#060b00]'}`}>
+                        <h3 className="font-black text-lg leading-none truncate text-slate-800 group-hover:text-emerald-700 transition-colors">
                             {displaySku}
                         </h3>
                         <div className="text-xs font-bold text-slate-400 mt-1 truncate flex items-center gap-1">

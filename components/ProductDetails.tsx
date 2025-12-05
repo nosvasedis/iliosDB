@@ -23,6 +23,13 @@ const GENDER_MAP: Record<Gender, string> = {
     [Gender.Unisex]: 'Unisex'
 };
 
+const PLATING_LABELS: Record<string, string> = {
+    'None': 'Λουστρέ',
+    'Gold-Plated': 'Επίχρυσο',
+    'Two-Tone': 'Δίχρωμο',
+    'Platinum': 'Επιπλατινωμένο'
+};
+
 const getMaterialIcon = (type?: string) => {
     switch (type) {
         case 'Stone': return <Gem size={16} className="text-emerald-500" />;
@@ -340,7 +347,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const { displayPlating, displayStones } = React.useMemo(() => {
       if (!editedProduct.variants || editedProduct.variants.length === 0) {
-          return { displayPlating: editedProduct.plating_type, displayStones: '' };
+          return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: '' };
       }
 
       const finishCodes = new Set<string>();
@@ -356,7 +363,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
       if (finishCodes.size === 0 && editedProduct.plating_type) {
           // If no variants detected finishes, fallback to master
-          return { displayPlating: editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
+          return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
       }
 
       // Sort finishes by priority (P first, etc)
