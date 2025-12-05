@@ -33,10 +33,27 @@ const getMaterialIcon = (type?: string) => {
     }
 };
 
+// Priority Sort Helper
+const getSuffixPriority = (suffix: string) => {
+    const s = suffix.toUpperCase();
+    if (!s) return 0; // Master/Lustre (First)
+    if (s.includes('P')) return 1; // Patina (Second - Prevalent)
+    if (s.includes('D')) return 2; // Two-Tone (Third)
+    if (s.includes('X')) return 2; // Gold (Third - Equal to D)
+    if (s.includes('H')) return 3; // Platinum (Fourth)
+    return 4; // Others
+};
+
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
     const hasVariants = product.variants && product.variants.length > 0;
+    
+    // Sort variants for the print modal list as well
+    const sortedVariants = hasVariants 
+        ? [...product.variants!].sort((a, b) => getSuffixPriority(a.suffix) - getSuffixPriority(b.suffix))
+        : [];
+
     const displayItems = hasVariants 
-        ? product.variants!.map(v => ({ suffix: v.suffix, description: v.description, stock_qty: v.stock_qty }))
+        ? sortedVariants.map(v => ({ suffix: v.suffix, description: v.description, stock_qty: v.stock_qty }))
         : [{ suffix: '(Master)', description: 'Βασικό Προϊόν', stock_qty: product.stock_qty }];
     
     const [quantities, setQuantities] = useState<Record<string, number>>(
@@ -199,7 +216,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [product]);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [smartAddSuffix, setSmartAddSuffix] = useState(''); // RENAMED from smartAddSku for clarity
+  const [smartAddSuffix, setSmartAddSuffix] = useState(''); 
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
   const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
@@ -288,19 +305,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const variants = editedProduct.variants || [];
   const hasVariants = variants.length > 0;
   
-  const displayVariants = useMemo(() => {
+  // Sorted variants list for display in lists and sidebar switching
+  const sortedVariantsList = useMemo(() => {
       if (!hasVariants) return [];
-      return [...variants].sort((a, b) => {
-          const priority = (suffix: string) => {
-              if (suffix.includes('P')) return 1;
-              if (suffix.includes('X')) return 2;
-              return 3;
-          };
-          return priority(a.suffix) - priority(b.suffix);
-      });
+      return [...variants].sort((a, b) => getSuffixPriority(a.suffix) - getSuffixPriority(b.suffix));
   }, [variants]);
 
-  const maxViews = hasVariants ? displayVariants.length : 1;
+  const maxViews = hasVariants ? sortedVariantsList.length : 1;
 
   const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
   const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
@@ -308,7 +319,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const masterCost = currentCostCalc.total;
   
-  const currentViewVariant = hasVariants ? displayVariants[viewIndex % maxViews] : null;
+  const currentViewVariant = hasVariants ? sortedVariantsList[viewIndex % maxViews] : null;
   
   let displayedSku = editedProduct.sku;
   let displayedLabel = 'Βασικό';
@@ -332,19 +343,29 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           return { displayPlating: editedProduct.plating_type, displayStones: '' };
       }
 
-      const finishes = new Set<string>();
+      const finishCodes = new Set<string>();
       const stones = new Set<string>();
       
       editedProduct.variants.forEach(v => {
           const { finish, stone } = getVariantComponents(v.suffix, editedProduct.gender);
-          if (finish.name) finishes.add(finish.name);
+          if (finish.code) finishCodes.add(finish.code);
+          else if (v.suffix === '') finishCodes.add(''); 
+          
           if (stone.name) stones.add(stone.name);
       });
 
-      if (finishes.size === 0) finishes.add(editedProduct.plating_type);
+      if (finishCodes.size === 0 && editedProduct.plating_type) {
+          // If no variants detected finishes, fallback to master
+          return { displayPlating: editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
+      }
+
+      // Sort finishes by priority (P first, etc)
+      const sortedFinishNames = Array.from(finishCodes)
+        .sort((a, b) => getSuffixPriority(a) - getSuffixPriority(b))
+        .map(code => FINISH_CODES[code] || FINISH_CODES[''] /* Lustre if empty */);
 
       return {
-          displayPlating: Array.from(finishes).join(', '),
+          displayPlating: sortedFinishNames.join(', '),
           displayStones: Array.from(stones).join(', ')
       };
   }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
@@ -612,24 +633,31 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
   
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
+      // Find the variant in the main array because index from sorted list might differ
+      const variantToUpdate = sortedVariantsList[index];
+      const realIndex = editedProduct.variants.findIndex(v => v.suffix === variantToUpdate.suffix);
+      
+      if (realIndex === -1) return;
+
       const newVariants = [...editedProduct.variants];
-      // Properly handle numeric updates to prevent "NaN" strings in state
+      
+      // Properly handle numeric updates
       if ((field === 'selling_price' || field === 'active_price')) {
            if (value === '' || value === null) {
               value = null;
            } else {
-              // Sanitize input to always use a period for decimals
               const sanitizedValue = String(value).replace(',', '.');
               value = parseFloat(sanitizedValue);
               if (isNaN(value)) value = null;
            }
       }
-      newVariants[index] = { ...newVariants[index], [field]: value };
+      newVariants[realIndex] = { ...newVariants[realIndex], [field]: value };
       setEditedProduct(prev => ({ ...prev, variants: newVariants }));
   };
 
   const deleteVariant = (index: number) => {
-      setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
+      const variantToDelete = sortedVariantsList[index];
+      setEditedProduct(prev => ({ ...prev, variants: prev.variants.filter(v => v.suffix !== variantToDelete.suffix) }));
       setViewIndex(0);
   };
   
@@ -1086,7 +1114,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                   <div>
                       <h4 className="font-bold text-sm text-slate-600 mb-3 uppercase tracking-wide">Λίστα Παραλλαγών ({editedProduct.variants.length})</h4>
                       <div className="space-y-3">
-                          {editedProduct.variants.map((variant, index) => {
+                          {sortedVariantsList.map((variant, index) => {
                               const wholesale = variant.selling_price ?? editedProduct.selling_price;
                               const retail = wholesale * 3;
                               const hasPriceOverride = variant.selling_price !== null;
@@ -1170,10 +1198,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
 
                     <div className="space-y-3">
-                        {editedProduct.variants.length === 0 && (
+                        {sortedVariantsList.length === 0 && (
                             <BarcodeRow product={editedProduct} />
                         )}
-                        {editedProduct.variants.map((v, i) => (
+                        {sortedVariantsList.map((v, i) => (
                             <BarcodeRow key={i} product={editedProduct} variant={v} />
                         ))}
                     </div>
