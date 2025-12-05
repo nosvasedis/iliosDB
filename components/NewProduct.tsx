@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus } from 'lucide-react';
@@ -117,6 +118,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
   const [newVariantPrice, setNewVariantPrice] = useState(0); // New: Pre-add price input
+  const suffixInputRef = useRef<HTMLInputElement>(null);
   
   // Image State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -483,6 +485,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       setNewVariantSuffix('');
       setNewVariantDesc('');
       showToast(`Προστέθηκε η παραλλαγή ${upperSuffix}`, "success");
+      
+      // Focus back to Suffix Input for rapid entry
+      if (suffixInputRef.current) {
+          suffixInputRef.current.focus();
+      }
   };
 
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
@@ -1015,8 +1022,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <h4 className="font-bold text-sm text-slate-600 mb-2">Προσθήκη Νέας Παραλλαγής</h4>
                         <div className="grid grid-cols-[100px_1fr_120px_auto] gap-2 w-full items-end">
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Suffix *</label>
-                                <input type="text" placeholder="π.χ. P, XKR" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"/>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Κατάληξη (Suffix) *</label>
+                                <input 
+                                    ref={suffixInputRef}
+                                    type="text" 
+                                    placeholder="π.χ. P, XKR" 
+                                    value={newVariantSuffix} 
+                                    onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} 
+                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"
+                                />
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Περιγραφή</label>
