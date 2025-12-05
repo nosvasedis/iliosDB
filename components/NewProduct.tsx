@@ -1215,11 +1215,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     const price = v.selling_price || sellingPrice;
                                     const profit = price - cost;
                                     const margin = price > 0 ? (profit / price) * 100 : 0;
+                                    
+                                    const diff = cost - masterEstimatedCost;
+                                    const hasDiff = Math.abs(diff) > 0.01;
+                                    const { stone } = getVariantComponents(v.suffix, gender as Gender);
+
                                     return (
                                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                             <td className="p-4 font-mono font-bold text-emerald-700 bg-emerald-50/30">{v.suffix}</td>
                                             <td className="p-4 font-medium text-slate-700">{v.description}</td>
-                                            <td className="p-4 text-right font-mono text-slate-600">{cost.toFixed(2)}€</td>
+                                            <td className="p-4 text-right">
+                                                <div className="font-mono text-slate-600">{cost.toFixed(2)}€</div>
+                                                {hasDiff && (
+                                                    <div className={`text-[10px] font-bold ${diff > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                                        {diff > 0 ? '+' : ''}{diff.toFixed(2)}€ {stone.code}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="p-4 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>
                                             <td className="p-4 text-right">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
