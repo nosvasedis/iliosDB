@@ -317,7 +317,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   let isVariantView = !!currentViewVariant;
 
   if (currentViewVariant) {
-      displayedSku = `${editedProduct.sku}-${currentViewVariant.suffix}`;
+      displayedSku = `${editedProduct.sku}${currentViewVariant.suffix}`;
       displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
       
       if (currentViewVariant.active_price) displayedCost = currentViewVariant.active_price;
@@ -768,7 +768,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </div>
                                     <div className="text-center border-l border-amber-200/50">
                                         <div className="text-[9px] font-bold text-amber-800/60 uppercase">Margin</div>
-                                        <div className="text-sm font-bold text-blue-600">{displayedMargin.toFixed(0)}%</div>
+                                        <div className={`text-sm font-bold ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{displayedMargin.toFixed(0)}%</div>
                                     </div>
                                 </div>
                             )}
