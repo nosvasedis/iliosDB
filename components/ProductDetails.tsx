@@ -954,13 +954,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-slate-600" size={16} />
                             </div>
                         </div>
+                        
                         <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200 relative">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τύπος Παραγωγής</label>
-                            <div className="flex gap-2 mt-2">
-                                <button onClick={() => setEditedProduct({...editedProduct, production_type: ProductionType.InHouse})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${editedProduct.production_type === ProductionType.InHouse ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200'}`}>Εργαστήριο (In-House)</button>
-                                <button onClick={() => setEditedProduct({...editedProduct, production_type: ProductionType.Imported})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${editedProduct.production_type === ProductionType.Imported ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-500 border-slate-200'}`}>Εισαγωγή (Import)</button>
+                            <div className={`mt-2 p-3 rounded-lg border flex items-center gap-3 ${editedProduct.production_type === ProductionType.InHouse ? 'bg-slate-50 border-slate-200' : 'bg-purple-50 border-purple-200'}`}>
+                                {editedProduct.production_type === ProductionType.InHouse ? (
+                                    <div className="p-2 bg-white rounded-md shadow-sm text-slate-700"><Hammer size={18}/></div>
+                                ) : (
+                                    <div className="p-2 bg-white rounded-md shadow-sm text-purple-600"><Globe size={18}/></div>
+                                )}
+                                <div>
+                                    <div className={`font-bold ${editedProduct.production_type === ProductionType.InHouse ? 'text-slate-800' : 'text-purple-800'}`}>
+                                        {editedProduct.production_type === ProductionType.InHouse ? 'Εργαστήριο (In-House)' : 'Εισαγωγή (Imported)'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Η μέθοδος παραγωγής είναι κλειδωμένη.</div>
+                                </div>
                             </div>
                         </div>
+
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
                         {displayStones && (
                             <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200">
