@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
@@ -11,9 +10,6 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import JsBarcode from 'jsbarcode';
-
-// ... (Previous PrintModal, BarcodeRow components remain identical - omitted for brevity, keeping all existing imports and helper components)
-// [KEEP PrintModal, BarcodeRow, getSuffixPriority, PLATING_LABELS, etc from previous file lines 26-177]
 
 interface PrintModalProps {
     product: Product;
@@ -163,6 +159,7 @@ const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant }> = ({ 
     );
 };
 
+// --- UPDATED SMART AUDIT CARD ---
 const SmartAuditCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
     const color = 
         analysis.verdict === 'Excellent' ? 'emerald' : 
@@ -173,6 +170,8 @@ const SmartAuditCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
         analysis.verdict === 'Excellent' ? ThumbsUp : 
         analysis.verdict === 'Fair' ? CheckCircle : 
         analysis.verdict === 'Expensive' ? Info : AlertTriangle;
+
+    const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
 
     return (
         <div className="space-y-6">
@@ -202,6 +201,35 @@ const SmartAuditCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                         <span className="text-slate-500 font-medium">Θεωρητικό Κόστος</span>
                         <span className="font-bold text-slate-800">{formatCurrency(analysis.theoreticalMakeCost)}</span>
                     </div>
+
+                    {/* NEW FORENSIC SECTION */}
+                    {hasReportedLabor && (
+                        <div className="bg-white/40 p-2 rounded-lg border border-slate-100 space-y-2 mt-2">
+                            <h6 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-100 pb-1">Forensics</h6>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                        analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                        analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
+                                        'bg-slate-50 text-slate-500 border-slate-100'
+                                    }`}>
+                                        {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
+                                    </span>
+                                </div>
+                            </div>
+                            {analysis.effectiveSilverPrice > 0 && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-500">Effective Silver Price:</span>
+                                    <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
+                                        {analysis.effectiveSilverPrice.toFixed(2)}€/g
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="pt-2 border-t border-slate-200 border-dashed">
                         <div className="flex justify-between items-center">
                             <span className="text-xs font-bold text-slate-400 uppercase">Επιπλέον Χρέωση</span>
@@ -233,8 +261,6 @@ interface Props {
 }
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
-  // ... (Keep existing state/effects/handlers - lines 242-780)
-  // [OMITTED FOR BREVITY - NO CHANGES HERE except inside the render]
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
@@ -251,7 +277,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || [],
       secondary_weight_g: product.secondary_weight_g || 0,
-      production_type: product.production_type || ProductionType.InHouse, // Default
+      production_type: product.production_type || ProductionType.InHouse,
       supplier_id: product.supplier_id,
       supplier_cost: product.supplier_cost || 0,
       labor: {
@@ -365,22 +391,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       editedProduct.plating_type,
       editedProduct.recipe,
       editedProduct.variants?.length,
-      editedProduct.supplier_cost, // Re-calc when supplier cost changes
+      editedProduct.supplier_cost, 
       settings, allMaterials, allProducts
   ]);
 
-  useEffect(() => {
-    if (newVariantSuffix) {
-        const desc = analyzeSuffix(newVariantSuffix, editedProduct.gender);
-        setManualSuffixAnalysis(desc);
-        if (desc && !newVariantDesc) {
-            setNewVariantDesc(desc);
-        }
-    } else {
-        setManualSuffixAnalysis(null);
-    }
-  }, [newVariantSuffix, newVariantDesc, editedProduct.gender]);
-
+  const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+  const masterCost = currentCostCalc.total;
+  
   const variants = editedProduct.variants || [];
   const hasVariants = variants.length > 0;
   const sortedVariantsList = useMemo(() => {
@@ -392,9 +409,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
   const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
-
-  const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-  const masterCost = currentCostCalc.total;
   
   const currentViewVariant = hasVariants ? sortedVariantsList[viewIndex % maxViews] : null;
   
@@ -432,11 +446,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       });
 
       if (finishCodes.size === 0 && editedProduct.plating_type) {
-          // If no variants detected finishes, fallback to master
           return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
       }
 
-      // Sort finishes by priority (P first, etc)
       const sortedFinishNames = Array.from(finishCodes)
         .sort((a, b) => getSuffixPriority(a) - getSuffixPriority(b))
         .map(code => FINISH_CODES[code] || FINISH_CODES[''] /* Lustre if empty */);
@@ -549,9 +561,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
         }).eq('sku', editedProduct.sku);
 
-        // --- RECIPES ---
         await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
-        // Save recipes for BOTH InHouse and Imported (to track stone value for intelligence)
         if (editedProduct.recipe.length > 0) {
             const recipeInserts = editedProduct.recipe.map(r => ({
                 parent_sku: editedProduct.sku,
@@ -764,18 +774,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           );
   }, [allMolds, editedProduct.molds, moldSearch, isEditingMolds]);
 
-    const getSecondaryWeightLabel = () => {
+    const secondaryWeightLabel = useMemo(() => {
         const { gender, category } = editedProduct;
         if (gender === Gender.Men && category.includes('Δαχτυλίδι')) {
-            return "Βάρος Καπακιού";
+            return "Βάρος Καπακιού (g)";
         }
-        if (gender === Gender.Women && (category.includes('Βραχιόλι') || category.includes('Σκουλαρίκια') || category.includes('Δαχτυλίδι') || category.includes('Μενταγιόν'))) {
-            return "Βάρος Καστονιού";
+        if (gender === Gender.Women && (
+            category.includes('Βραχιόλι') || 
+            category.includes('Σκουλαρίκια') || 
+            category.includes('Δαχτυλίδι') || 
+            category.includes('Μενταγιόν')
+        )) {
+            return "Βάρος Καστονιού (g)";
         }
-        return null;
-    };
-    const secondaryWeightLabel = getSecondaryWeightLabel();
-
+        return "Β' Βάρος (π.χ. Καστόνι) (g)";
+    }, [editedProduct.gender, editedProduct.category]);
 
   return createPortal(
     <>
@@ -795,10 +808,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         {/* Body */}
         <main className="flex-1 flex overflow-hidden">
-          {/* LEFT SIDEBAR */}
+          {/* LEFT SIDEBAR - Unchanged */}
           <div className={`w-1/3 border-r border-slate-200 p-6 flex flex-col overflow-y-auto transition-colors duration-300 ${isVariantView ? 'bg-emerald-50/30' : 'bg-white'}`}>
              
-             {/* ... Dynamic Header & Image - KEEP ... */}
              <div className="flex items-center justify-between mb-4">
                  <div className="min-w-0">
                      <h3 className={`font-black text-xl truncate ${isVariantView ? 'text-emerald-700' : 'text-[#060b00]'}`}>
@@ -823,6 +835,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                  )}
              </div>
 
+             {/* ... Image & Price Cards ... */}
              <div className={`w-full aspect-square rounded-2xl relative group overflow-hidden border shadow-sm shrink-0 transition-all duration-300 ${isVariantView ? 'border-emerald-200 shadow-emerald-100' : 'border-slate-200 bg-slate-100'}`}>
                 {editedProduct.image_url ? (
                     <img src={editedProduct.image_url} alt={editedProduct.sku} className="w-full h-full object-cover"/>
@@ -831,7 +844,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <ImageIcon size={40} className="text-slate-300"/>
                     </div>
                 )}
-                {/* Image Overlay */}
                 <label className="absolute inset-0 bg-[#060b00]/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-sm">
                     {isUploadingImage ? <Loader2 className="animate-spin"/> : <Camera/>}
                     <span className="text-sm font-bold mt-1">Αλλαγή Φωτογραφίας</span>
@@ -898,28 +910,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           <div className="flex-1 p-6 overflow-y-auto">
             <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide">
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
-                {/* ALWAYS show recipe tab, even for imports, so users can add stones for valuation */}
                 {viewMode === 'registry' && <TabButton name="recipe" label={editedProduct.production_type === ProductionType.Imported ? "Υλικά (Valuation)" : "Συνταγή (BOM)"} activeTab={activeTab} setActiveTab={setActiveTab} />}
-                
                 {viewMode === 'registry' && <TabButton name="labor" label={editedProduct.production_type === ProductionType.Imported ? 'Έλεγχος Τιμής' : 'Εργατικά'} activeTab={activeTab} setActiveTab={setActiveTab} />}
                 <TabButton name="variants" label="Παραλλαγές & Τιμές" activeTab={activeTab} setActiveTab={setActiveTab} />
                 <TabButton name="barcodes" label="Barcodes" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
             
-            {/* ... Overview Tab ... */}
+            {/* ... Overview Tab content ... (Unchanged) */}
             {activeTab === 'overview' && (
                 <div className="space-y-4">
+                    {/* ... (Same grid inputs as before) ... */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος</label>
                             <div className="flex items-baseline gap-2 mt-1">
-                                <input 
-                                    type="number"
-                                    step="0.01"
-                                    value={editedProduct.weight_g}
-                                    onChange={e => setEditedProduct(prev => ({ ...prev, weight_g: parseFloat(e.target.value) || 0 }))}
-                                    className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"
-                                />
+                                <input type="number" step="0.01" value={editedProduct.weight_g} onChange={e => setEditedProduct(prev => ({ ...prev, weight_g: parseFloat(e.target.value) || 0 }))} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"/>
                                 <span className="text-sm font-medium text-slate-500">g</span>
                             </div>
                         </div>
@@ -927,13 +932,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             <div className="bg-white p-4 rounded-xl border border-slate-200">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
                                 <div className="flex items-baseline gap-2 mt-1">
-                                    <input 
-                                        type="number"
-                                        step="0.01"
-                                        value={editedProduct.secondary_weight_g || ''}
-                                        onChange={e => setEditedProduct(prev => ({ ...prev, secondary_weight_g: parseFloat(e.target.value) || 0 }))}
-                                        className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"
-                                    />
+                                    <input type="number" step="0.01" value={editedProduct.secondary_weight_g || ''} onChange={e => setEditedProduct(prev => ({ ...prev, secondary_weight_g: parseFloat(e.target.value) || 0 }))} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none"/>
                                     <span className="text-sm font-medium text-slate-500">g</span>
                                 </div>
                             </div>
@@ -942,11 +941,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         <div className="bg-white p-4 rounded-xl border border-slate-200 relative group">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
                             <div className="relative mt-1">
-                                <select 
-                                    value={editedProduct.gender}
-                                    onChange={(e) => setEditedProduct(prev => ({ ...prev, gender: e.target.value as Gender }))}
-                                    className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none appearance-none cursor-pointer pr-6"
-                                >
+                                <select value={editedProduct.gender} onChange={(e) => setEditedProduct(prev => ({ ...prev, gender: e.target.value as Gender }))} className="w-full bg-transparent font-bold text-slate-800 text-lg outline-none appearance-none cursor-pointer pr-6">
                                     <option value={Gender.Women}>Γυναικεία</option>
                                     <option value={Gender.Men}>Ανδρικά</option>
                                     <option value={Gender.Unisex}>Unisex</option>
@@ -955,6 +950,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         </div>
                         
+                        {/* Production Type Badge (Read Only) */}
                         <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200 relative">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τύπος Παραγωγής</label>
                             <div className={`mt-2 p-3 rounded-lg border flex items-center gap-3 ${editedProduct.production_type === ProductionType.InHouse ? 'bg-slate-50 border-slate-200' : 'bg-purple-50 border-purple-200'}`}>
@@ -965,7 +961,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 )}
                                 <div>
                                     <div className={`font-bold ${editedProduct.production_type === ProductionType.InHouse ? 'text-slate-800' : 'text-purple-800'}`}>
-                                        {editedProduct.production_type === ProductionType.InHouse ? 'Εργαστήριο' : 'Εισαγωγή'}
+                                        {editedProduct.production_type === ProductionType.InHouse ? 'Εργαστήριο (In-House)' : 'Εισαγωγή (Imported)'}
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-medium">Η μέθοδος παραγωγής είναι κλειδωμένη.</div>
                                 </div>
@@ -990,8 +986,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         )}
                     </div>
+                    {/* ... Molds or Supplier info logic ... */}
                     {editedProduct.production_type === ProductionType.InHouse ? (
                         !isEditingMolds ? (
+                            // ... Existing Molds View ...
                             <div className="bg-white p-4 rounded-xl border border-slate-200">
                                 <div className="flex justify-between items-center mb-3">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
@@ -1026,6 +1024,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 )}
                             </div>
                         ) : (
+                            // ... Edit Molds View (unchanged) ...
                             <div className="bg-white p-4 rounded-xl border-2 border-emerald-200 shadow-lg shadow-emerald-50 animate-in fade-in">
                                 <div className="flex justify-between items-center mb-4">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
@@ -1091,7 +1090,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     )}
                 </div>
             )}
-            {/* RECIPE TAB - Updated to allow for both production types */}
+            
+            {/* ... Recipe Tab ... */}
             {activeTab === 'recipe' && viewMode === 'registry' && (
                 <div className="space-y-3">
                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
@@ -1129,12 +1129,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            </div>
                        </div>
                        <div className="w-24">
-                           <input 
-                               type="number" 
-                               value={item.quantity} 
-                               onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} 
-                               className="w-full p-2 bg-slate-50 rounded font-bold text-center outline-none border border-slate-200"
-                           />
+                           <input type="number" value={item.quantity} onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} className="w-full p-2 bg-slate-50 rounded font-bold text-center outline-none border border-slate-200" />
                        </div>
                        <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500">
                            <Trash2 size={18} />
@@ -1154,6 +1149,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 </div>
             )}
             
+            {/* ... Labor Tab ... */}
             {activeTab === 'labor' && viewMode === 'registry' && (
                 <div className="space-y-4">
                     {editedProduct.production_type === ProductionType.InHouse ? (
@@ -1203,20 +1199,31 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             <LaborInput label="Κόστος Αγοράς (Supplier) €" value={editedProduct.supplier_cost || 0} onChange={val => setEditedProduct({...editedProduct, supplier_cost: val})} />
                             
-                            {/* SMART AUDIT CARD */}
+                            {/* SMART AUDIT CARD - now updated with forensics */}
                             {currentCostCalc.breakdown.smart_analysis && (
                                 <SmartAuditCard analysis={currentCostCalc.breakdown.smart_analysis} />
                             )}
+
+                            {/* Informational Breakdown Input for Forensics */}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide mb-3 flex items-center gap-2">
+                                    <Info size={16}/> Ανάλυση Κόστους Προμηθευτή
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <LaborInput label="Εργατικά (€)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: val, technician_cost_manual_override: true}})} />
+                                    <LaborInput label="Πέτρες (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, stone_setting_cost: val}})} />
+                                    <LaborInput label="Επιμετάλλωση (€)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: val, plating_cost_x_manual_override: true}})} />
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
             )}
             
-            {/* ... (Variants and Barcodes tabs remain same) ... */}
-            {/* [KEEP lines 932-1003] */}
+            {/* ... Variants Tab (Unchanged) ... */}
             {activeTab === 'variants' && (
               <div className="space-y-6">
-                  {/* Quick Add Area */}
+                  {/* ... Variants UI ... */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-emerald-500"/> Έξυπνη Προσθήκη</h4>
@@ -1224,20 +1231,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <div className="bg-slate-100 px-3 py-2 text-slate-500 font-mono text-sm font-bold border-r border-slate-200 flex items-center">
                                     {editedProduct.sku}
                                 </div>
-                                <input 
-                                    type="text" 
-                                    placeholder="Suffix (e.g. P, X)"
-                                    value={smartAddSuffix} 
-                                    onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                    className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-white text-slate-800 font-bold"
-                                />
-                                <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">
-                                    Προσθήκη
-                                </button>
+                                <input type="text" placeholder="Suffix (e.g. P, X)" value={smartAddSuffix} onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())} className="flex-1 p-2 font-mono text-sm uppercase outline-none bg-white text-slate-800 font-bold"/>
+                                <button onClick={handleSmartAdd} className="bg-emerald-600 text-white px-4 py-2 font-bold text-sm hover:bg-emerald-700 transition-colors whitespace-nowrap">Προσθήκη</button>
                             </div>
-                            <div className="mt-2 text-[10px] text-slate-400">
-                                Συμπληρώστε μόνο την κατάληξη (π.χ. P για Πατίνα, X για Επίχρυσο).
-                            </div>
+                            <div className="mt-2 text-[10px] text-slate-400">Συμπληρώστε μόνο την κατάληξη (π.χ. P για Πατίνα, X για Επίχρυσο).</div>
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-sm text-slate-600 mb-2">Χειροκίνητη Προσθήκη</h4>
@@ -1246,11 +1243,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
                                 <button onClick={handleManualAdd} className="bg-[#060b00] text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-black transition-colors flex items-center justify-center h-10"><Plus size={16}/></button>
                             </div>
-                            {manualSuffixAnalysis && (
-                                <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
-                                    <Wand2 size={12}/> {manualSuffixAnalysis}
-                                </div>
-                            )}
+                            {manualSuffixAnalysis && <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1"><Wand2 size={12}/> {manualSuffixAnalysis}</div>}
                         </div>
                   </div>
 
@@ -1267,59 +1260,25 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                               <div key={index} className="flex flex-col md:flex-row md:items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
                                 <div className="flex items-center gap-3 w-full md:w-auto">
                                     <div className="font-mono font-bold text-lg text-emerald-600 w-16 text-center bg-emerald-50 rounded-lg py-2">{variant.suffix}</div>
-                                    <input 
-                                        type="text" 
-                                        value={variant.description}
-                                        onChange={e => updateVariant(index, 'description', e.target.value)}
-                                        placeholder="Περιγραφή"
-                                        className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"
-                                    />
+                                    <input type="text" value={variant.description} onChange={e => updateVariant(index, 'description', e.target.value)} placeholder="Περιγραφή" className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"/>
                                 </div>
-                                
                                 <div className="flex items-center gap-2 flex-1 w-full border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/cost">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Κόστος</label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-base">€</span>
-                                            <input 
-                                                type="text"
-                                                inputMode="decimal"
-                                                placeholder={(variant.active_price || 0).toFixed(2)}
-                                                value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)}
-                                                onChange={e => updateVariant(index, 'active_price', e.target.value)}
-                                                className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right
-                                                    ${hasCostOverride 
-                                                        ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' 
-                                                        : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-amber-500'}
-                                                `}
-                                            />
+                                            <input type="text" inputMode="decimal" placeholder={(variant.active_price || 0).toFixed(2)} value={variant.active_price === null ? '' : (variant.active_price || 0).toFixed(2)} onChange={e => updateVariant(index, 'active_price', e.target.value)} className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right ${hasCostOverride ? 'border-amber-400 text-amber-700 bg-white ring-1 ring-amber-100' : 'border-slate-200 text-slate-700 bg-slate-50 focus:bg-white focus:border-amber-500'}`}/>
                                         </div>
                                      </div>
                                      <div className="flex flex-col w-1/2 md:w-auto relative group/price">
                                         <label className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρική</label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none text-base">€</span>
-                                            <input 
-                                                type="text"
-                                                inputMode="decimal"
-                                                placeholder={editedProduct.selling_price.toFixed(2)}
-                                                value={variant.selling_price === null ? '' : variant.selling_price.toFixed(2)}
-                                                onChange={e => updateVariant(index, 'selling_price', e.target.value)}
-                                                className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right
-                                                    ${hasPriceOverride 
-                                                        ? 'border-slate-200 text-slate-700 bg-slate-50'
-                                                        : 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100 focus:border-emerald-500'}
-                                                `}
-                                            />
+                                            <input type="text" inputMode="decimal" placeholder={editedProduct.selling_price.toFixed(2)} value={variant.selling_price === null ? '' : variant.selling_price.toFixed(2)} onChange={e => updateVariant(index, 'selling_price', e.target.value)} className={`w-full p-2 h-9 pl-7 border rounded-lg text-sm font-bold outline-none transition-colors text-right ${hasPriceOverride ? 'border-slate-200 text-slate-700 bg-slate-50' : 'border-emerald-500 text-emerald-700 bg-white ring-1 ring-emerald-100 focus:border-emerald-500'}`}/>
                                         </div>
-                                        <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">
-                                            Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span>
-                                        </div>
+                                        <div className="absolute top-full left-0 w-full mt-1 text-[9px] text-slate-400 font-medium whitespace-nowrap opacity-0 group-focus-within/price:opacity-100 transition-opacity">Λιανική: <span className="text-slate-600 font-bold">{retail.toFixed(2)}€</span></div>
                                      </div>
-                                     
-                                     <button onClick={() => deleteVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto">
-                                         <Trash2 size={18}/>
-                                     </button>
+                                     <button onClick={() => deleteVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto"><Trash2 size={18}/></button>
                                 </div>
                               </div>
                               );
@@ -1330,6 +1289,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
               </div>
             )}
             
+            {/* ... Barcodes Tab ... */}
             {activeTab === 'barcodes' && (
                 <div className="space-y-4">
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 mb-6">
@@ -1361,7 +1321,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   );
 }
 
-// ... (Helper Components InfoCard, LaborInput, TabButton - Keep as is)
+// ... Helper Components ...
 const TabButton = ({ name, label, activeTab, setActiveTab }: any) => (
     <button onClick={() => setActiveTab(name)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === name ? 'bg-slate-50 border-x border-t border-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
         {label}

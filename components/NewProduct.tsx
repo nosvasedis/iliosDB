@@ -47,8 +47,11 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
         analysis.verdict === 'Fair' ? CheckCircle : 
         analysis.verdict === 'Expensive' ? Info : AlertTriangle;
 
+    const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
+
     return (
         <div className={`border-2 border-${color}-100 bg-${color}-50/50 rounded-2xl p-5 space-y-4`}>
+            {/* Header Verdict */}
             <div className="flex items-center gap-3 border-b border-${color}-200 pb-3">
                 <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
                     <Icon size={20} />
@@ -65,6 +68,7 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                 </div>
             </div>
 
+            {/* Main Stats Grid */}
             <div className="grid grid-cols-2 gap-4 text-center">
                 <div className="bg-white p-3 rounded-xl border border-slate-100">
                     <div className="text-[10px] font-bold text-slate-400 uppercase">Θεωρητικό Κόστος (Make)</div>
@@ -76,7 +80,41 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                 </div>
             </div>
 
-            <div className="space-y-2 pt-2">
+            {/* Forensic Analysis Section (If breakdown provided) */}
+            {hasReportedLabor && (
+                <div className="bg-white/60 p-3 rounded-xl border border-slate-100 space-y-2">
+                    <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-100 pb-1 mb-2">Ανάλυση Εργατικών (Forensics)</h5>
+                    
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
+                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' : 
+                                'bg-slate-100 text-slate-600'
+                            }`}>
+                                {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {analysis.effectiveSilverPrice > 0 && (
+                        <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100/50">
+                            <span className="text-slate-500">Πραγματική Χρέωση Ασημιού:</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
+                                    {analysis.effectiveSilverPrice.toFixed(2)}€/g
+                                </span>
+                                {analysis.hasHiddenMarkup && <AlertTriangle size={12} className="text-red-500" title="Κρυφή χρέωση στο μέταλλο"/>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Markup Bar */}
+            <div className="space-y-2 pt-1">
                 <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
                     <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
@@ -94,9 +132,9 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
     );
 };
 
-// ... (Rest of existing NewProduct imports and helper components like LaborCostCard, SummaryRow)
+// ... (Rest of NewProduct.tsx remains largely the same, just keeping it consistent)
+// [No changes needed to LaborCostCard, SummaryRow etc. - reusing existing]
 
-// [KEEP LaborCostCard, SummaryRow, getMaterialIcon from previous file]
 const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOverride, readOnly = false, hint }: {
     icon: React.ReactNode;
     label: string;
@@ -154,7 +192,7 @@ const getMaterialIcon = (type?: string) => {
 };
 
 export default function NewProduct({ products, materials, molds = [], onCancel }: Props) {
-  // ... (All existing state and effects from previous file)
+  // ... (All state initialization from original file - kept intact)
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers }); 
@@ -218,7 +256,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const [isSTX, setIsSTX] = useState(false);
   const [masterEstimatedCost, setMasterEstimatedCost] = useState(0);
-  const [costBreakdown, setCostBreakdown] = useState<any>(null); // Type relaxed for flexibility
+  const [costBreakdown, setCostBreakdown] = useState<any>(null);
 
   const [detectedMasterSku, setDetectedMasterSku] = useState('');
   const [detectedSuffix, setDetectedSuffix] = useState('');
@@ -228,9 +266,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const STEPS = getSteps(productionType);
   const finalStepId = STEPS[STEPS.length - 1].id;
 
-  // ... (All existing effects)
-  // [KEEP lines 193-455 from previous file, essentially the same logic]
-  
+  // ... (Effects and Handlers - kept identical)
   useEffect(() => {
     const skuTrimmed = sku.trim();
     if (skuTrimmed.length >= 2) {
@@ -322,7 +358,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   }, [secondaryWeight, labor.plating_cost_d_manual_override]);
 
 
-  // Cost Calculator Effect
+  // Cost Calculator Effect - VITAL: Passes 'labor' to calculation
   useEffect(() => {
     if (!settings) return;
     const tempProduct: Product = {
@@ -345,15 +381,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       molds: selectedMolds,
       is_component: isSTX,
       recipe: recipe,
-      labor
+      labor // This state contains the reported supplier breakdowns now
     };
     const cost = calculateProductCost(tempProduct, settings, materials, products);
     setMasterEstimatedCost(cost.total);
     setCostBreakdown(cost.breakdown);
   }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId]);
 
-  // ... (Methods like handleImageSelect, addRawMaterial, etc. - Keep as is)
-  // [KEEP lines 457-797 from previous file]
+  // ... (All other methods: handleImageSelect, addRawMaterial, addComponent, updateRecipeItem, removeRecipeItem, addMold, updateMoldQuantity, removeMold, handleQuickCreateMold, handleQuickCreateMaterial, suggestedMolds, handleAddVariant, updateVariant, removeVariant, handleSubmit, etc. - kept identical)
+  
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -712,7 +748,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
-      {/* ... Header and Steps navigation (same as before) ... */}
+      {/* ... Header ... */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             {onCancel && (
@@ -749,10 +785,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         <div className="h-full flex flex-col relative bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
             
-            {/* STEP 1: BASIC INFO & IMAGE */}
+            {/* STEP 1: BASIC INFO & IMAGE - Unchanged */}
             {currentStep === 1 && (
                 <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
-                    {/* ... (Existing Step 1 UI) ... */}
+                    {/* ... (Same as original NewProduct.tsx Step 1 content) */}
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
                         <span>1. Βασικά Στοιχεία</span>
                         {/* Production Type Toggle */}
@@ -772,7 +808,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </h3>
                     <div className="flex flex-col lg:flex-row gap-8">
-                        {/* ... Image & Inputs (Same as previous file lines 975-1070) ... */}
+                        {/* ... Image & Inputs ... */}
                         <div className="w-full lg:w-1/3">
                             <label className="block text-sm font-bold text-slate-700 mb-2">Φωτογραφία</label>
                             <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden hover:border-amber-400 transition-all cursor-pointer shadow-inner">
@@ -845,21 +881,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
                     </div>
-                    {/* ... (Mold Selector - same as previous) ... */}
-                    {/* [KEEP lines 1073-1130] */}
+                    {/* ... (Mold Selector) ... */}
                     {productionType === ProductionType.InHouse && (
                         <div className="pt-4 border-t border-slate-100">
-                            {/* ... Molds UI ... */}
+                            {/* ... Molds UI - unchanged ... */}
                             <label className="block text-sm font-bold text-amber-700 mb-3">Λάστιχα</label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
-                                    {/* ... Search ... */}
                                     <div className="relative shrink-0">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                                         <input type="text" placeholder="Αναζήτηση..." value={moldSearch} onChange={e => setMoldSearch(e.target.value)} className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
                                     </div>
                                     <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
-                                        {/* MOLD LIST ITEMS */}
                                         {otherMolds.concat(suggestedMolds).map(m => {
                                             const selected = selectedMolds.find(sm => sm.code === m.code);
                                             return (
@@ -899,11 +932,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 2: RECIPE (ONLY FOR IN-HOUSE) */}
+            {/* STEP 2: RECIPE (ONLY FOR IN-HOUSE) - Unchanged */}
             {currentStep === 2 && productionType === ProductionType.InHouse && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                    {/* ... (Existing Recipe UI) ... */}
-                    {/* [KEEP lines 1146-1215] */}
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
                         2. Συνταγή (Bill of Materials)
                     </h3>
@@ -1003,7 +1034,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </div>
 
-                    {/* SMART AUDIT SECTION */}
+                    {/* SMART AUDIT SECTION - Upgraded for Forensics */}
                     {costBreakdown && costBreakdown.smart_analysis && (
                         <SmartAnalysisCard analysis={costBreakdown.smart_analysis} />
                     )}
@@ -1015,19 +1046,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide">Ανάλυση Κόστους Προμηθευτή (Πληροφοριακά)</h4>
                         </div>
                         <p className="text-xs text-slate-400 mb-4 italic">
-                            Τα παρακάτω κόστη είναι εσωτερικά του προμηθευτή και <strong>δεν προστίθενται</strong> στο συνολικό κόστος αγοράς.
+                            Συμπληρώστε τα παρακάτω για να ενεργοποιήσετε την <strong>Ιατροδικαστική Ανάλυση Κόστους</strong>. Τα ποσά αυτά θεωρούνται ότι συμπεριλαμβάνονται ήδη στην "Τιμή Αγοράς" παραπάνω.
                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <LaborCostCard icon={<Hammer size={14}/>} label="Εργατικά" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val, technician_cost_manual_override: true})} hint="Labor breakdown" readOnly={false}/>
-                            <LaborCostCard icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Setting breakdown" readOnly={false}/>
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val, plating_cost_x_manual_override: true})} hint="Plating breakdown" readOnly={false}/>
+                            <LaborCostCard icon={<Hammer size={14}/>} label="Εργατικά" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val, technician_cost_manual_override: true})} hint="Εκτιμώμενο κόστος εργασίας" readOnly={false}/>
+                            <LaborCostCard icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Κόστος τοποθέτησης" readOnly={false}/>
+                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val, plating_cost_x_manual_override: true})} hint="Κόστος επιμετάλλωσης" readOnly={false}/>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* QUICK MATERIAL MODAL - [KEEP lines 1269-1318] */}
+            {/* ... Rest of Steps (3-5) and Modals - kept identical ... */}
+            {/* [Quick Material Modal code...] */}
             {isCreatingMaterial && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
@@ -1057,7 +1089,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
 
-            {/* STEP 3: LABOR & WEIGHT (ONLY FOR IN-HOUSE) - [KEEP lines 1321-1335] */}
+            {/* ... Steps 3, 4, 5 code... */}
             {currentStep === 3 && productionType === ProductionType.InHouse && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
@@ -1074,7 +1106,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 4 (or 3 for Imported): VARIANTS - [KEEP lines 1338-1393] */}
+            {/* STEP 4/3 VARIANTS */}
             {currentStep === (productionType === ProductionType.Imported ? 3 : 4) && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">
@@ -1114,10 +1146,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* FINAL STEP: SUMMARY & SAVE - [KEEP lines 1396-1498] */}
+            {/* FINAL STEP: SUMMARY */}
             {currentStep === finalStepId && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                    {/* ... (Existing Summary UI - Headers, Image, Title) ... */}
                     <div className="flex gap-6 items-start">
                         <div className="w-32 h-32 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
                              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>}
@@ -1137,8 +1168,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        
-                        {/* Column 1: Financial Breakdown (Red/Cost) */}
+                        {/* Cost Summary Column */}
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
                                 <Calculator size={14}/> Ανάλυση Κόστους (Master)
@@ -1183,7 +1213,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </div>
                                 )}
                                     
-                                {/* ... Plating costs display ... */}
                                 {productionType === ProductionType.InHouse && (labor.plating_cost_x > 0 || labor.plating_cost_d > 0) && (
                                     <div className="mt-2 pt-2 border-t border-slate-200 border-dashed">
                                         <div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Προσθετα (Ανα Παραλλαγη)</div>
@@ -1198,7 +1227,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
 
-                        {/* Column 2: Production Specs (Blue/Tech) */}
+                        {/* ... (Production Specs - Same as before) */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-100 pb-2">
                                 <Box size={14}/> Προδιαγραφές
@@ -1250,7 +1279,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
 
-                        {/* Column 3: Commercial (Green/Sales) */}
+                        {/* ... (Commercial Column - Same as before) */}
                         <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 shadow-sm flex flex-col">
                             <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
                                 <DollarSign size={14}/> Εμπορική Πολιτική (Master)
@@ -1274,7 +1303,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </div>
 
-                    {/* Variants Table */}
+                    {/* ... (Variants Table - Same as before) */}
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                         <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                             <h4 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={16}/> Παραλλαγές ({variants.length})</h4>
@@ -1334,7 +1363,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             )}
             </div>
 
-            {/* FOOTER NAV */}
+            {/* FOOTER NAV - Unchanged */}
             <div className="p-6 border-t border-slate-100 bg-white/50 backdrop-blur-sm flex justify-between items-center">
                 <button onClick={prevStep} disabled={currentStep === 1} className="flex items-center gap-2 px-5 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold disabled:opacity-50"><ArrowLeft size={16}/> Πίσω</button>
                 
