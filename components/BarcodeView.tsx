@@ -75,7 +75,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const skuFontSize = Math.min(maxSkuWidthFont, maxSkuHeightFont);
     const detailsFontSize = Math.min(height * 0.11, width * 0.14); 
     const brandFontSize = Math.min(height * 0.14, width * 0.22);
-    const stoneFontSize = Math.min(height * 0.09, width * 0.16);
+    const stoneFontSize = Math.min(height * 0.10, width * 0.17);
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
 
