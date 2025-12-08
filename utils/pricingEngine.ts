@@ -1,5 +1,6 @@
 
 
+
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -266,9 +267,10 @@ export const calculateProductCost = (
     }
   });
 
-  const labor = product.labor;
+  // FIX: Type labor as Partial<LaborCost> to prevent type errors when product.labor is undefined.
+  const labor: Partial<LaborCost> = product.labor || {};
   
-  const technicianCost = product.labor.technician_cost_manual_override
+  const technicianCost = labor.technician_cost_manual_override
     ? (labor.technician_cost || 0)
     : calculateTechnicianCost(product.weight_g);
 
@@ -285,7 +287,7 @@ export const calculateProductCost = (
       materials: parseFloat(materialsCost.toFixed(2)),
       labor: parseFloat(laborTotal.toFixed(2)),
       details: {
-        ...labor,
+        ...(product.labor || {}),
         casting_cost: castingCost,
         technician_cost: technicianCost 
       }
@@ -390,8 +392,9 @@ export const estimateVariantCost = (
         }
     });
 
-    const labor = masterProduct.labor;
-    const technicianCost = masterProduct.labor.technician_cost_manual_override
+    // FIX: Type labor as Partial<LaborCost> to prevent type errors when masterProduct.labor is undefined.
+    const labor: Partial<LaborCost> = masterProduct.labor || {};
+    const technicianCost = labor.technician_cost_manual_override
         ? (labor.technician_cost || 0)
         : calculateTechnicianCost(masterProduct.weight_g);
     
@@ -402,9 +405,9 @@ export const estimateVariantCost = (
 
     const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
     if (['X', 'H'].includes(finish.code)) { 
-        laborTotal += masterProduct.labor.plating_cost_x || 0;
+        laborTotal += labor.plating_cost_x || 0;
     } else if (finish.code === 'D') {
-        laborTotal += masterProduct.labor.plating_cost_d || 0;
+        laborTotal += labor.plating_cost_d || 0;
     }
 
     const totalCost = silverCost + materialsCost + laborTotal;

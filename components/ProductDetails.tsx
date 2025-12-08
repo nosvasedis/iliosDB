@@ -271,22 +271,31 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
 
-  const [editedProduct, setEditedProduct] = useState<Product>({ 
-      ...product,
-      variants: product.variants || [],
-      selling_price: product.selling_price || 0,
-      molds: product.molds || [],
-      collections: product.collections || [],
-      secondary_weight_g: product.secondary_weight_g || 0,
-      production_type: product.production_type || ProductionType.InHouse,
-      supplier_id: product.supplier_id,
-      supplier_cost: product.supplier_cost || 0,
-      labor: {
-          ...product.labor,
-          plating_cost_x: product.labor.plating_cost_x || 0,
-          plating_cost_d: product.labor.plating_cost_d || 0,
-          stone_setting_cost: product.labor.stone_setting_cost || 0,
-      }
+  const [editedProduct, setEditedProduct] = useState<Product>(() => {
+    const initialLabor: Partial<LaborCost> = product.labor || {};
+    return { 
+        ...product,
+        variants: product.variants || [],
+        selling_price: product.selling_price || 0,
+        molds: product.molds || [],
+        collections: product.collections || [],
+        secondary_weight_g: product.secondary_weight_g || 0,
+        production_type: product.production_type || ProductionType.InHouse,
+        supplier_id: product.supplier_id,
+        supplier_cost: product.supplier_cost || 0,
+        labor: {
+            casting_cost: 0,
+            setter_cost: 0,
+            technician_cost: 0,
+            stone_setting_cost: 0,
+            plating_cost_x: 0,
+            plating_cost_d: 0,
+            technician_cost_manual_override: false,
+            plating_cost_x_manual_override: false,
+            plating_cost_d_manual_override: false,
+            ...initialLabor,
+        }
+    };
   });
   
   const [showRepriceTool, setShowRepriceTool] = useState(false);
@@ -298,6 +307,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [moldSearch, setMoldSearch] = useState('');
 
   useEffect(() => {
+    const initialLabor: Partial<LaborCost> = product.labor || {};
     setEditedProduct({ 
       ...product,
       variants: product.variants || [],
@@ -309,11 +319,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       supplier_id: product.supplier_id,
       supplier_cost: product.supplier_cost || 0,
       labor: {
-          ...product.labor,
-          plating_cost_x: product.labor.plating_cost_x || 0,
-          plating_cost_d: product.labor.plating_cost_d || 0,
-          stone_setting_cost: product.labor.stone_setting_cost || 0,
-      }
+            casting_cost: 0,
+            setter_cost: 0,
+            technician_cost: 0,
+            stone_setting_cost: 0,
+            plating_cost_x: 0,
+            plating_cost_d: 0,
+            technician_cost_manual_override: false,
+            plating_cost_x_manual_override: false,
+            plating_cost_d_manual_override: false,
+            ...initialLabor,
+        }
     });
     setViewIndex(0);
   }, [product]);
@@ -346,13 +362,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type]);
 
   useEffect(() => {
-    const costX = parseFloat((editedProduct.weight_g * 0.60).toFixed(2));
-    const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
-    setEditedProduct(prev => ({
-        ...prev,
-        labor: { ...prev.labor, plating_cost_x: costX, plating_cost_d: costD }
-    }));
-  }, [editedProduct.weight_g, editedProduct.secondary_weight_g]);
+    if (!editedProduct.labor.plating_cost_x_manual_override) {
+        const costX = parseFloat((editedProduct.weight_g * 0.60).toFixed(2));
+        setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+    }
+  }, [editedProduct.weight_g, editedProduct.labor.plating_cost_x_manual_override]);
+
+  useEffect(() => {
+    if (!editedProduct.labor.plating_cost_d_manual_override) {
+        const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
+        setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
+    }
+  }, [editedProduct.secondary_weight_g, editedProduct.labor.plating_cost_d_manual_override]);
 
   useEffect(() => {
       setEditedProduct(prev => {
@@ -554,6 +575,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_plating_x: editedProduct.labor.plating_cost_x,
             labor_plating_d: editedProduct.labor.plating_cost_d,
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
+            labor_plating_x_manual_override: editedProduct.labor.plating_cost_x_manual_override,
+            labor_plating_d_manual_override: editedProduct.labor.plating_cost_d_manual_override,
             active_price: currentCost,
             draft_price: currentCost,
             production_type: editedProduct.production_type,
@@ -818,7 +841,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                          {displayedSku}
                      </h3>
                      <div className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-0.5">
-                         {isVariantView && <Tag size={12}/>}
+                         {isVariantView && <Tag size={10}/>}
                          {displayedLabel}
                      </div>
                  </div>
@@ -1155,8 +1178,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 <div className="space-y-4">
                     {editedProduct.production_type === ProductionType.InHouse ? (
                         <div className="grid grid-cols-2 gap-4">
-                            <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} readOnly />
-                            <LaborInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
+                            <LaborInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} readOnly />
+                            <LaborInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
                             <LaborInput 
                                 label="Τεχνίτης (Finishing)" 
                                 value={editedProduct.labor.technician_cost} 
@@ -1164,20 +1187,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 isOverridden={editedProduct.labor.technician_cost_manual_override}
                                 onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}}))}
                             />
-                            <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση X (€)</label>
-                                <div className="relative mt-1">
-                                    <input type="number" readOnly value={editedProduct.labor.plating_cost_x} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
-                                </div>
-                                <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Προϊόντος</p>
-                            </div>
-                            <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση D (€)</label>
-                                <div className="relative mt-1">
-                                    <input type="number" readOnly value={editedProduct.labor.plating_cost_d} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
-                                </div>
-                                <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Καστονιού/Καπακιού</p>
-                            </div>
+                             <LaborInput 
+                                label="Επιμετάλλωση X/H (€)" 
+                                value={editedProduct.labor.plating_cost_x} 
+                                onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: val}})}
+                                isOverridden={editedProduct.labor.plating_cost_x_manual_override}
+                                onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, plating_cost_x_manual_override: !prev.labor.plating_cost_x_manual_override}}))}
+                            />
+                            <LaborInput 
+                                label="Επιμετάλλωση D (€)" 
+                                value={editedProduct.labor.plating_cost_d} 
+                                onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_d: val}})}
+                                isOverridden={editedProduct.labor.plating_cost_d_manual_override}
+                                onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, plating_cost_d_manual_override: !prev.labor.plating_cost_d_manual_override}}))}
+                            />
                         </div>
                     ) : (
                         // Imported Smart Audit View
