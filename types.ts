@@ -21,19 +21,34 @@ export enum PlatingType {
   Platinum = 'Platinum'
 }
 
+export enum ProductionType {
+  InHouse = 'InHouse', // Manufactured (Casting, Recipe)
+  Imported = 'Imported' // Bought finished (Resale)
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+}
+
 export interface Material {
   id: string;
   name: string;
   type: MaterialType;
   cost_per_unit: number;
   unit: string;
-  variant_prices?: Record<string, number>; // New: Specific prices per variant code (e.g. {'LA': 15.0, 'ON': 12.0})
+  variant_prices?: Record<string, number>; 
 }
 
 export interface Mold {
-  code: string; // Primary Key, e.g. "A-12"
-  location: string; // e.g. "Syrtari 1"
-  description: string; // e.g. "Main Body"
+  code: string; 
+  location: string; 
+  description: string; 
 }
 
 export interface ProductMold {
@@ -41,31 +56,29 @@ export interface ProductMold {
   quantity: number;
 }
 
-// New Polymorphic Recipe Item
 export type RecipeItem = 
-  | { type: 'raw'; id: string; quantity: number; itemDetails?: Material } // Link to Materials Table
-  | { type: 'component'; sku: string; quantity: number; itemDetails?: Product }; // Link to Products Table (Recursive)
+  | { type: 'raw'; id: string; quantity: number; itemDetails?: Material } 
+  | { type: 'component'; sku: string; quantity: number; itemDetails?: Product };
 
 export interface LaborCost {
   casting_cost: number;
   setter_cost: number;
   technician_cost: number;
-  plating_cost_x: number; // For Gold-Plated (X)
-  plating_cost_d: number; // For Two-Tone (D)
+  stone_setting_cost: number; // New: For Imported items requiring stones
+  plating_cost_x: number; 
+  plating_cost_d: number; 
   technician_cost_manual_override?: boolean;
   plating_cost_x_manual_override?: boolean;
   plating_cost_d_manual_override?: boolean;
 }
 
 export interface ProductVariant {
-  suffix: string; // e.g. 'PKR', 'P', 'X'
-  description: string; // e.g. 'Κορνεόλη', 'Πατίνα'
+  suffix: string; 
+  description: string; 
   stock_qty: number;
-  location_stock?: Record<string, number>; // New: Warehouse specific stock for this variant
-  
-  // Pricing Overrides (Optional - falls back to Master if null)
-  active_price?: number | null; // Variant specific Cost
-  selling_price?: number | null; // Variant specific Wholesale
+  location_stock?: Record<string, number>; 
+  active_price?: number | null; 
+  selling_price?: number | null; 
 }
 
 export interface Collection {
@@ -75,36 +88,41 @@ export interface Collection {
 }
 
 export interface Product {
-  sku: string; // Primary Key
+  sku: string; 
   prefix: string;
   category: string;
   gender: Gender;
   image_url: string | null;
   weight_g: number;
-  secondary_weight_g?: number; // New: For bezels, lids etc.
+  secondary_weight_g?: number; 
   plating_type: PlatingType;
   
+  // Production Strategy
+  production_type: ProductionType;
+  supplier_id?: string; // Link to Supplier
+  supplier_cost?: number; 
+  supplier_details?: Supplier; // Joined Data
+
   // Pricing
-  active_price: number; // Cost Price (Silver + Labor + Materials)
+  active_price: number; 
   draft_price: number;
-  selling_price: number; // Wholesale Price (Τιμή Χονδρικής) - Retail is x3
+  selling_price: number; 
   
-  // Inventory (Legacy System Columns)
-  stock_qty: number; // Central
-  sample_qty: number; // Showroom
+  // Inventory
+  stock_qty: number; 
+  sample_qty: number; 
   
-  // Dynamic Inventory (New)
-  location_stock?: Record<string, number>; // key: warehouse_id, value: qty
+  location_stock?: Record<string, number>; 
 
   // Manufacturing
-  molds: ProductMold[]; // Array of Mold Objects { code: 'A-12', quantity: 1 }
-  is_component: boolean; // Is this an STX part?
-  variants?: ProductVariant[]; // Specific versions (Stones, Patina, etc)
+  molds: ProductMold[]; 
+  is_component: boolean; 
+  variants?: ProductVariant[]; 
   recipe: RecipeItem[]; 
   labor: LaborCost;
 
   // Organization
-  collections?: number[]; // Array of collection IDs
+  collections?: number[]; 
 }
 
 export interface GlobalSettings {
@@ -114,23 +132,20 @@ export interface GlobalSettings {
   barcode_height_mm: number;
 }
 
-// --- WAREHOUSE MANAGEMENT ---
 export interface Warehouse {
     id: string;
     name: string;
     type: 'Central' | 'Showroom' | 'Store' | 'Other';
-    is_system?: boolean; // If true, maps to standard columns (stock_qty, sample_qty)
+    is_system?: boolean; 
     address?: string;
 }
 
 export interface WarehouseStock {
     warehouse_id: string;
     product_sku: string;
-    variant_suffix?: string; // New: Support for variant specific stock in custom warehouses
+    variant_suffix?: string; 
     quantity: number;
 }
-
-// --- NEW ORDERS & PRODUCTION TYPES ---
 
 export enum OrderStatus {
   Pending = 'Pending',
@@ -144,14 +159,14 @@ export interface OrderItem {
   sku: string;
   variant_suffix?: string;
   quantity: number;
-  price_at_order: number; // Wholesale price snapshot
-  product_details?: Product; // Populated for UI
+  price_at_order: number; 
+  product_details?: Product; 
 }
 
 export interface Order {
   id: string;
-  customer_id?: string; // Link to Customer
-  customer_name: string; // Fallback / Cache
+  customer_id?: string; 
+  customer_name: string; 
   customer_phone?: string;
   created_at: string;
   status: OrderStatus;
@@ -172,19 +187,19 @@ export interface Customer {
 }
 
 export enum ProductionStage {
-  Waxing = 'Waxing',       // Λάστιχα/Κεριά
-  Casting = 'Casting',     // Χυτήριο
-  Setting = 'Setting',     // Καρφωτής (Conditional)
-  Polishing = 'Polishing', // Τεχνίτης/Γυάλισμα
-  Labeling = 'Labeling',   // Καρτελάκια/QC/Πακετάρισμα
-  Ready = 'Ready'          // Έτοιμο για κατάστημα
+  Waxing = 'Waxing',       
+  Casting = 'Casting',     
+  Setting = 'Setting',     
+  Polishing = 'Polishing', 
+  Labeling = 'Labeling',   
+  Ready = 'Ready'          
 }
 
 export type BatchType = 'New' | 'Refurbish';
 
 export interface ProductionBatch {
   id: string;
-  order_id?: string; // Optional (might be stock production)
+  order_id?: string; 
   sku: string;
   variant_suffix?: string;
   quantity: number;
@@ -192,22 +207,17 @@ export interface ProductionBatch {
   created_at: string;
   updated_at: string;
   priority: 'Normal' | 'High';
-  type?: BatchType; // New: Distinguish between new production and refurbishing
+  type?: BatchType; 
   notes?: string;
   
-  // Data for smart logic
-  requires_setting: boolean; // Does it have stones?
+  requires_setting: boolean; 
   
-  // Computed helpers for UI
   product_image?: string | null;
   product_details?: Product;
   
-  // UI Logic helpers
   diffHours?: number;
   isDelayed?: boolean;
 }
-
-// --- AI STUDIO TYPES ---
 
 export interface ChatMessage {
   id: string;
@@ -218,7 +228,6 @@ export interface ChatMessage {
   isTrendAnalysis?: boolean;
 }
 
-// --- AUTH TYPES ---
 export interface UserProfile {
   id: string;
   email: string;
@@ -227,7 +236,6 @@ export interface UserProfile {
   role: 'admin' | 'user';
 }
 
-// --- GLOBAL WINDOW TYPES FOR AI STUDIO (Native Google Flow) ---
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;

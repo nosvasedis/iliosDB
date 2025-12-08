@@ -1,6 +1,9 @@
 
 
-import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant } from '../types';
+
+
+
+import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 /**
@@ -81,6 +84,38 @@ export const calculateProductCost = (
     console.warn(`Max recursion depth reached for product ${product.sku}`);
     return { total: 0, breakdown: {} };
   }
+
+  // --- IMPORTED PRODUCT LOGIC ---
+  if (product.production_type === ProductionType.Imported) {
+      const supplierCost = product.supplier_cost || 0;
+      const labor = product.labor;
+      
+      // For Imported:
+      // technician_cost = General Labor (QC, Packaging, Tagging)
+      // stone_setting_cost = Optional extra cost for stones added locally
+      const laborCost = (labor.technician_cost || 0) + (labor.stone_setting_cost || 0);
+      
+      // Plating might still apply if we plate imports
+      const platingCost = (labor.plating_cost_x || 0) + (labor.plating_cost_d || 0);
+
+      const totalCost = supplierCost + laborCost + platingCost;
+
+      return {
+          total: roundPrice(totalCost),
+          breakdown: {
+              supplier_cost: supplierCost,
+              silver: 0,
+              materials: 0,
+              labor: laborCost,
+              details: {
+                  ...labor,
+                  supplier_cost: supplierCost
+              }
+          }
+      };
+  }
+
+  // --- IN-HOUSE PRODUCTION LOGIC ---
 
   // 2. Silver Cost
   // Formula: (SilverWeight * (LivePrice + Loss%))
@@ -209,6 +244,34 @@ export const estimateVariantCost = (
     allMaterials: Material[],
     allProducts: Product[],
 ): number => {
+    // --- IMPORTED LOGIC ---
+    if (masterProduct.production_type === ProductionType.Imported) {
+        // Base supplier cost
+        let totalCost = masterProduct.supplier_cost || 0;
+        
+        // Add General Labor
+        if (masterProduct.labor.technician_cost) {
+            totalCost += masterProduct.labor.technician_cost;
+        }
+        
+        // Add Stone Setting Labor
+        if (masterProduct.labor.stone_setting_cost) {
+            totalCost += masterProduct.labor.stone_setting_cost;
+        }
+
+        // Add Plating if the variant implies it (e.g. Imported Silver -> Plated locally)
+        const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
+        if (['X', 'H'].includes(finish.code)) { 
+            totalCost += masterProduct.labor.plating_cost_x || 0;
+        } else if (finish.code === 'D') {
+            totalCost += masterProduct.labor.plating_cost_d || 0;
+        }
+        
+        return roundPrice(totalCost);
+    }
+
+    // --- IN HOUSE LOGIC ---
+
     // 1. Silver Base Cost
     const lossMultiplier = 1 + (settings.loss_percentage / 100);
     const silverCost = masterProduct.weight_g * (settings.silver_price_gram * lossMultiplier);

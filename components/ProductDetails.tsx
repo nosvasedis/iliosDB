@@ -1,15 +1,21 @@
 
 
 
+
+
+
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold } from '../types';
+import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import JsBarcode from 'jsbarcode';
 
@@ -180,6 +186,7 @@ interface Props {
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
+  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
   
   const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -193,10 +200,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || [],
       secondary_weight_g: product.secondary_weight_g || 0,
+      production_type: product.production_type || ProductionType.InHouse, // Default
+      supplier_id: product.supplier_id,
+      supplier_cost: product.supplier_cost || 0,
       labor: {
           ...product.labor,
           plating_cost_x: product.labor.plating_cost_x || 0,
           plating_cost_d: product.labor.plating_cost_d || 0,
+          stone_setting_cost: product.labor.stone_setting_cost || 0,
       }
   });
   
@@ -216,10 +227,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       molds: product.molds || [],
       collections: product.collections || [],
       secondary_weight_g: product.secondary_weight_g || 0,
+      production_type: product.production_type || ProductionType.InHouse,
+      supplier_id: product.supplier_id,
+      supplier_cost: product.supplier_cost || 0,
       labor: {
           ...product.labor,
           plating_cost_x: product.labor.plating_cost_x || 0,
           plating_cost_d: product.labor.plating_cost_d || 0,
+          stone_setting_cost: product.labor.stone_setting_cost || 0,
       }
     });
     setViewIndex(0);
@@ -232,23 +247,25 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!editedProduct.labor.technician_cost_manual_override) {
+    if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.technician_cost_manual_override) {
         const techCost = calculateTechnicianCost(editedProduct.weight_g);
         setEditedProduct(prev => ({
             ...prev,
             labor: { ...prev.labor, technician_cost: techCost }
         }));
     }
-  }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override]);
+  }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
   
   useEffect(() => {
-    const totalWeight = (editedProduct.weight_g || 0) + (editedProduct.secondary_weight_g || 0);
-    const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
-    setEditedProduct(prev => ({
-        ...prev,
-        labor: { ...prev.labor, casting_cost: castCost }
-    }));
-  }, [editedProduct.weight_g, editedProduct.secondary_weight_g]);
+    if (editedProduct.production_type === ProductionType.InHouse) {
+        const totalWeight = (editedProduct.weight_g || 0) + (editedProduct.secondary_weight_g || 0);
+        const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
+        setEditedProduct(prev => ({
+            ...prev,
+            labor: { ...prev.labor, casting_cost: castCost }
+        }));
+    }
+  }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type]);
 
   // Auto-calculate plating costs
   useEffect(() => {
@@ -292,11 +309,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       editedProduct.labor.casting_cost,
       editedProduct.labor.setter_cost,
       editedProduct.labor.technician_cost,
+      editedProduct.labor.stone_setting_cost,
       editedProduct.labor.plating_cost_x,
       editedProduct.labor.plating_cost_d,
       editedProduct.plating_type,
       editedProduct.recipe,
       editedProduct.variants?.length,
+      editedProduct.supplier_cost, // Re-calc when supplier cost changes
       settings, allMaterials, allProducts
   ]);
 
@@ -479,12 +498,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_plating_d: editedProduct.labor.plating_cost_d,
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
             active_price: currentCost,
-            draft_price: currentCost
+            draft_price: currentCost,
+            production_type: editedProduct.production_type,
+            supplier_id: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_id : null,
+            supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
+            labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null // New
         }).eq('sku', editedProduct.sku);
 
         // --- NEW RECIPE SAVE LOGIC ---
         await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
-        if (editedProduct.recipe.length > 0) {
+        if (editedProduct.recipe.length > 0 && editedProduct.production_type === ProductionType.InHouse) {
             const recipeInserts = editedProduct.recipe.map(r => ({
                 parent_sku: editedProduct.sku,
                 type: r.type,
@@ -497,7 +520,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         
         // --- NEW MOLD SAVE LOGIC (WITH QUANTITY) ---
         await supabase.from('product_molds').delete().eq('product_sku', editedProduct.sku);
-        if (editedProduct.molds && editedProduct.molds.length > 0) {
+        if (editedProduct.molds && editedProduct.molds.length > 0 && editedProduct.production_type === ProductionType.InHouse) {
             const moldInserts = editedProduct.molds.map(m => ({
                 product_sku: editedProduct.sku,
                 mold_code: m.code,
@@ -840,8 +863,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           <div className="flex-1 p-6 overflow-y-auto">
             <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide">
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
-                {viewMode === 'registry' && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
-                {viewMode === 'registry' && <TabButton name="labor" label="Εργατικά" activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {viewMode === 'registry' && editedProduct.production_type === ProductionType.InHouse && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {viewMode === 'registry' && <TabButton name="labor" label={editedProduct.production_type === ProductionType.Imported ? 'Κοστολόγηση' : 'Εργατικά'} activeTab={activeTab} setActiveTab={setActiveTab} />}
                 <TabButton name="variants" label="Παραλλαγές & Τιμές" activeTab={activeTab} setActiveTab={setActiveTab} />
                 <TabButton name="barcodes" label="Barcodes" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
@@ -895,6 +918,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         </div>
                         
+                        <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200 relative">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τύπος Παραγωγής</label>
+                            <div className="flex gap-2 mt-2">
+                                <button onClick={() => setEditedProduct({...editedProduct, production_type: ProductionType.InHouse})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${editedProduct.production_type === ProductionType.InHouse ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200'}`}>Εργαστήριο (In-House)</button>
+                                <button onClick={() => setEditedProduct({...editedProduct, production_type: ProductionType.Imported})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${editedProduct.production_type === ProductionType.Imported ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-500 border-slate-200'}`}>Εισαγωγή (Import)</button>
+                            </div>
+                        </div>
+
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
                         
                         {displayStones && (
@@ -907,93 +938,110 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         )}
                     </div>
 
-                    {!isEditingMolds ? (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                             <div className="flex justify-between items-center mb-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                                    <MapPin size={14}/> Απαιτούμενα Λάστιχα
-                                </label>
-                                <button onClick={() => setIsEditingMolds(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-                                    <Edit3 size={12}/> Επεξεργασία
-                                </button>
-                            </div>
-                            {(editedProduct.molds && editedProduct.molds.length > 0) ? (
-                                <div className="flex flex-wrap gap-2">
-                                    {editedProduct.molds.map(m => {
-                                        const moldDetails = allMolds.find(md => md.code === m.code);
-                                        return (
-                                            <div key={m.code} className="relative group">
-                                                <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
-                                                    {m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}
-                                                </div>
-                                                {moldDetails && (
-                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
-                                                        <p className="font-bold border-b border-slate-600 pb-1 mb-1">{moldDetails.description || 'Χωρίς Περιγραφή'}</p>
-                                                        <p className="flex items-center gap-1.5"><MapPin size={12} className="text-amber-400"/> {moldDetails.location || 'Άγνωστη Τοποθεσία'}</p>
-                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                    {/* Molds Section - Hide if Imported, show Supplier name instead */}
+                    {editedProduct.production_type === ProductionType.InHouse ? (
+                        !isEditingMolds ? (
+                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                        <MapPin size={14}/> Απαιτούμενα Λάστιχα
+                                    </label>
+                                    <button onClick={() => setIsEditingMolds(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                        <Edit3 size={12}/> Επεξεργασία
+                                    </button>
                                 </div>
-                            ) : (
-                                <div className="text-sm text-slate-400 italic">Δεν έχουν οριστεί λάστιχα.</div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="bg-white p-4 rounded-xl border-2 border-emerald-200 shadow-lg shadow-emerald-50 animate-in fade-in">
-                            <div className="flex justify-between items-center mb-4">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                                    <MapPin size={14}/> Επεξεργασία Λάστιχων
-                                </label>
-                                <button onClick={() => { setIsEditingMolds(false); setMoldSearch(''); }} className="text-xs font-bold bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-emerald-600">
-                                    Τέλος
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
-                                    <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Επιλεγμένα ({editedProduct.molds?.length || 0})</h4>
-                                    <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1">
-                                        <div className="flex flex-col gap-2">
-                                            {(editedProduct.molds || []).map(m => (
-                                                <div key={m.code} className="bg-amber-100 text-amber-900 font-mono font-bold text-sm px-2 py-1 rounded-md border border-amber-200 flex items-center justify-between">
-                                                    <span>{m.code}</span>
-                                                    <div className="flex items-center gap-1">
-                                                        <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 bg-white rounded hover:bg-amber-50 ${m.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={m.quantity === 1}><Minus size={10}/></button>
-                                                        <span className="w-4 text-center text-xs">{m.quantity}</span>
-                                                        <button onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 bg-white rounded hover:bg-amber-50"><Plus size={10}/></button>
-                                                        <button onClick={() => removeMold(m.code)} className="ml-1 text-amber-500 hover:text-amber-700"><X size={14} /></button>
+                                {(editedProduct.molds && editedProduct.molds.length > 0) ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {editedProduct.molds.map(m => {
+                                            const moldDetails = allMolds.find(md => md.code === m.code);
+                                            return (
+                                                <div key={m.code} className="relative group">
+                                                    <div className="bg-amber-50 text-amber-800 text-sm font-bold font-mono px-3 py-1.5 rounded-lg border border-amber-100 cursor-help">
+                                                        {m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}
                                                     </div>
+                                                    {moldDetails && (
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                                                            <p className="font-bold border-b border-slate-600 pb-1 mb-1">{moldDetails.description || 'Χωρίς Περιγραφή'}</p>
+                                                            <p className="flex items-center gap-1.5"><MapPin size={12} className="text-amber-400"/> {moldDetails.location || 'Άγνωστη Τοποθεσία'}</p>
+                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-slate-400 italic">Δεν έχουν οριστεί λάστιχα.</div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-white p-4 rounded-xl border-2 border-emerald-200 shadow-lg shadow-emerald-50 animate-in fade-in">
+                                <div className="flex justify-between items-center mb-4">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                        <MapPin size={14}/> Επεξεργασία Λάστιχων
+                                    </label>
+                                    <button onClick={() => { setIsEditingMolds(false); setMoldSearch(''); }} className="text-xs font-bold bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-emerald-600">
+                                        Τέλος
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
+                                        <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Επιλεγμένα ({editedProduct.molds?.length || 0})</h4>
+                                        <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1">
+                                            <div className="flex flex-col gap-2">
+                                                {(editedProduct.molds || []).map(m => (
+                                                    <div key={m.code} className="bg-amber-100 text-amber-900 font-mono font-bold text-sm px-2 py-1 rounded-md border border-amber-200 flex items-center justify-between">
+                                                        <span>{m.code}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 bg-white rounded hover:bg-amber-50 ${m.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={m.quantity === 1}><Minus size={10}/></button>
+                                                            <span className="w-4 text-center text-xs">{m.quantity}</span>
+                                                            <button onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 bg-white rounded hover:bg-amber-50"><Plus size={10}/></button>
+                                                            <button onClick={() => removeMold(m.code)} className="ml-1 text-amber-500 hover:text-amber-700"><X size={14} /></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {(!editedProduct.molds || editedProduct.molds.length === 0) && <p className="text-xs text-slate-400 italic w-full text-center py-4">Κανένα</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
+                                        <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Διαθέσιμα</h4>
+                                        <div className="relative mb-2 shrink-0">
+                                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input type="text" value={moldSearch} onChange={e => setMoldSearch(e.target.value)} placeholder="Αναζήτηση..." className="w-full text-xs pl-7 p-1.5 bg-white rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-emerald-400"/>
+                                        </div>
+                                        <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1 space-y-1">
+                                            {availableMolds.map(mold => (
+                                                <div key={mold.code} onClick={() => addMold(mold.code)} className="p-2 rounded-md hover:bg-emerald-100 cursor-pointer flex justify-between items-center text-sm">
+                                                    <span className="font-mono font-bold text-slate-700">{mold.code}</span>
+                                                    <span className="text-xs text-slate-400 truncate ml-2">{mold.description}</span>
+                                                    <Plus size={14} className="text-emerald-500"/>
                                                 </div>
                                             ))}
-                                            {(!editedProduct.molds || editedProduct.molds.length === 0) && <p className="text-xs text-slate-400 italic w-full text-center py-4">Κανένα</p>}
+                                            {availableMolds.length === 0 && <p className="text-xs text-slate-400 italic w-full text-center py-4">Δεν βρέθηκαν άλλα.</p>}
                                         </div>
                                     </div>
                                 </div>
-                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 h-64 flex flex-col">
-                                    <h4 className="text-xs font-bold text-slate-500 mb-2 shrink-0">Διαθέσιμα</h4>
-                                    <div className="relative mb-2 shrink-0">
-                                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input type="text" value={moldSearch} onChange={e => setMoldSearch(e.target.value)} placeholder="Αναζήτηση..." className="w-full text-xs pl-7 p-1.5 bg-white rounded-md border border-slate-200 outline-none focus:ring-1 focus:ring-emerald-400"/>
-                                    </div>
-                                    <div className="overflow-y-auto flex-1 custom-scrollbar pr-1 -mr-1 space-y-1">
-                                        {availableMolds.map(mold => (
-                                            <div key={mold.code} onClick={() => addMold(mold.code)} className="p-2 rounded-md hover:bg-emerald-100 cursor-pointer flex justify-between items-center text-sm">
-                                                <span className="font-mono font-bold text-slate-700">{mold.code}</span>
-                                                <span className="text-xs text-slate-400 truncate ml-2">{mold.description}</span>
-                                                <Plus size={14} className="text-emerald-500"/>
-                                            </div>
-                                        ))}
-                                         {availableMolds.length === 0 && <p className="text-xs text-slate-400 italic w-full text-center py-4">Δεν βρέθηκαν άλλα.</p>}
-                                    </div>
+                            </div>
+                        )
+                    ) : (
+                        // Imported Product - Show Supplier Instead
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
+                                <Globe size={14}/> Προμηθευτής
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Globe size={18}/></div>
+                                <div>
+                                    <div className="font-bold text-slate-800">{editedProduct.supplier_details?.name || 'Άγνωστος'}</div>
+                                    <div className="text-xs text-slate-500">{editedProduct.supplier_details?.contact_person || 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
             )}
-            {activeTab === 'recipe' && viewMode === 'registry' && (
+            {activeTab === 'recipe' && viewMode === 'registry' && editedProduct.production_type === ProductionType.InHouse && (
                 <div className="space-y-3">
                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
                        <div className="p-2 rounded-lg bg-slate-100 text-slate-600"><Coins size={20} /></div>
@@ -1054,31 +1102,66 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
                 </div>
             )}
+            
             {activeTab === 'labor' && viewMode === 'registry' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} readOnly />
-                    <LaborInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
-                    <LaborInput 
-                        label="Τεχνίτης (Finishing)" 
-                        value={editedProduct.labor.technician_cost} 
-                        onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: val}})}
-                        isOverridden={editedProduct.labor.technician_cost_manual_override}
-                        onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}}))}
-                    />
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση X (€)</label>
-                        <div className="relative mt-1">
-                            <input type="number" readOnly value={editedProduct.labor.plating_cost_x} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
+                <div className="space-y-4">
+                    {editedProduct.production_type === ProductionType.InHouse ? (
+                        <div className="grid grid-cols-2 gap-4">
+                            <LaborInput label="Χύτευση" value={editedProduct.labor.casting_cost} readOnly />
+                            <LaborInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: val}})} />
+                            <LaborInput 
+                                label="Τεχνίτης (Finishing)" 
+                                value={editedProduct.labor.technician_cost} 
+                                onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: val}})}
+                                isOverridden={editedProduct.labor.technician_cost_manual_override}
+                                onToggleOverride={() => setEditedProduct(prev => ({...prev, labor: {...prev.labor, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}}))}
+                            />
+                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση X (€)</label>
+                                <div className="relative mt-1">
+                                    <input type="number" readOnly value={editedProduct.labor.plating_cost_x} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Προϊόντος</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση D (€)</label>
+                                <div className="relative mt-1">
+                                    <input type="number" readOnly value={editedProduct.labor.plating_cost_d} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Καστονιού/Καπακιού</p>
+                            </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Προϊόντος</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Επιμετάλλωση D (€)</label>
-                        <div className="relative mt-1">
-                            <input type="number" readOnly value={editedProduct.labor.plating_cost_d} className="w-full bg-slate-100 text-slate-500 font-mono font-bold text-lg outline-none p-2 rounded-lg"/>
+                    ) : (
+                        // Imported Costing View
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
+                                    <Globe size={14} /> Προμηθευτής
+                                </label>
+                                <select 
+                                    value={editedProduct.supplier_id} 
+                                    onChange={e => setEditedProduct(prev => ({...prev, supplier_id: e.target.value}))}
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800"
+                                >
+                                    <option value="">Επιλέξτε Προμηθευτή...</option>
+                                    {suppliers?.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <LaborInput label="Κόστος Αγοράς (Supplier) €" value={editedProduct.supplier_cost || 0} onChange={val => setEditedProduct({...editedProduct, supplier_cost: val})} />
+                            
+                            <div className="border-t border-slate-200 pt-4 mt-4">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Πρόσθετα Κόστη (Προαιρετικά)</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <LaborInput label="Γενικά Εργατικά (€)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: val, technician_cost_manual_override: true}})} />
+                                    <LaborInput label="Πέτρα + Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, stone_setting_cost: val}})} />
+                                    <LaborInput label="Επιμετάλλωση (€)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: val}})} />
+                                </div>
+                            </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1">Από Βάρος Καστονιού/Καπακιού</p>
-                    </div>
+                    )}
                 </div>
             )}
             {activeTab === 'variants' && (
@@ -1191,7 +1274,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                               </div>
                               );
                           })}
-                          {editedProduct.variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές.</div>}
+                          {editedProduct.variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές. Θα αποθηκευτεί μόνο το Master προϊόν.</div>}
                       </div>
                   </div>
               </div>

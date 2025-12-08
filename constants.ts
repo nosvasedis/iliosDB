@@ -1,5 +1,6 @@
 
-import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender } from './types';
+
+import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
 
@@ -78,6 +79,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image_url: 'https://picsum.photos/300/300?random=10',
     weight_g: 2.5,
     plating_type: PlatingType.None,
+    production_type: ProductionType.InHouse,
     active_price: 5.50,
     draft_price: 5.50,
     selling_price: 0, 
@@ -94,7 +96,8 @@ export const MOCK_PRODUCTS: Product[] = [
       setter_cost: 0.5,
       technician_cost: 1.0,
       plating_cost_x: 0,
-      plating_cost_d: 0
+      plating_cost_d: 0,
+      stone_setting_cost: 0
     }
   },
   {
@@ -105,6 +108,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image_url: 'https://picsum.photos/300/300?random=1',
     weight_g: 3.5,
     plating_type: PlatingType.GoldPlated,
+    production_type: ProductionType.InHouse,
     active_price: 18.50,
     draft_price: 18.50,
     selling_price: 45.00,
@@ -125,7 +129,8 @@ export const MOCK_PRODUCTS: Product[] = [
       setter_cost: 3.5,
       technician_cost: 2.0,
       plating_cost_x: 1.5,
-      plating_cost_d: 0
+      plating_cost_d: 0,
+      stone_setting_cost: 0
     }
   },
   {
@@ -136,6 +141,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image_url: 'https://picsum.photos/300/300?random=2',
     weight_g: 12.0,
     plating_type: PlatingType.None,
+    production_type: ProductionType.InHouse,
     active_price: 45.00,
     draft_price: 48.20,
     selling_price: 120.00,
@@ -157,7 +163,8 @@ export const MOCK_PRODUCTS: Product[] = [
       setter_cost: 0,
       technician_cost: 4.0,
       plating_cost_x: 0,
-      plating_cost_d: 0
+      plating_cost_d: 0,
+      stone_setting_cost: 0
     }
   }
 ];

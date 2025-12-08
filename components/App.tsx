@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -24,7 +25,6 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 import { api, isConfigured } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-// @FIX: Add missing type imports for Material, Mold, Collection, ProductionBatch, and RecipeItem.
 import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem } from '../types';
 import { UIProvider } from './UIProvider';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -47,14 +47,12 @@ import ProductionPage from './ProductionPage';
 import CustomersPage from './CustomersPage';
 import AiStudio from './AiStudio';
 import OrderInvoiceView from './OrderInvoiceView';
-// @FIX: Import components for production printing.
 import ProductionWorkerView from './ProductionWorkerView';
 import AggregatedProductionView from './AggregatedProductionView';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
-// @FIX: Add interface for aggregated production data.
 interface AggregatedData {
   molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
   materials: Map<string, { name: string; unit: string; totalQuantity: number; usedIn: Map<string, number> }>;
@@ -119,7 +117,6 @@ function AppContent() {
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
-  // @FIX: Add state for production printing.
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
 
@@ -141,7 +138,6 @@ function AppContent() {
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
-  // @FIX: Update print effect to handle all printable items.
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData;
     if (shouldPrint) {
@@ -165,7 +161,6 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
-  // @FIX: Add handler for aggregated production printing.
   const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
     if (!molds || !materials) return;
     
@@ -262,8 +257,6 @@ function AppContent() {
 
   return (
     <>
-      {/* Print View Layer */}
-      {/* @FIX: Update print view to render all printable components. */}
       <div className="print-view">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {batchToPrint && (
@@ -292,7 +285,6 @@ function AppContent() {
         )}
       </div>
       
-      {/* Main Application Container */}
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans selection:bg-amber-100">
         {/* Mobile Overlay */}
         {isSidebarOpen && (
@@ -354,7 +346,6 @@ function AppContent() {
               onClick={() => handleNav('dashboard')} 
             />
             
-            {/* AI Studio Highlight */}
             <div className="my-2 mx-2">
                 <button
                     onClick={() => handleNav('ai-studio')}
@@ -404,7 +395,7 @@ function AppContent() {
             />
             <NavItem 
               icon={<Users size={22} />} 
-              label="Πελάτες" 
+              label="Πελάτες & Προμηθευτές" 
               isActive={activePage === 'customers'} 
               isCollapsed={isCollapsed}
               onClick={() => handleNav('customers')} 
@@ -451,6 +442,7 @@ function AppContent() {
               onClick={() => handleNav('batch-print')} 
             />
             <div className="mt-auto pt-6">
+              
               <NavItem 
                 icon={<SettingsIcon size={22} />} 
                 label="Ρυθμίσεις" 
@@ -496,7 +488,7 @@ function AppContent() {
             
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
-                  <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram}€</span></p>
+                  <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
                   <p className="opacity-50 mt-1">v0.0.5-b (Beta)</p>
                 </div>
             )}
@@ -523,17 +515,16 @@ function AppContent() {
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
-              {/* @FIX: Pass missing props to ProductionPage. */}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               
               {activePage === 'resources' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0">
-                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
+                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <Gem size={18} /> Υλικά
                         </button>
-                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <MapPin size={18} /> Λάστιχα
                         </button>
                     </div>
@@ -552,21 +543,5 @@ function AppContent() {
         </main>
       </div>
     </>
-  );
-}
-
-export default function App() {
-  if (!isConfigured) {
-      return <SetupScreen />;
-  }
-
-  return (
-    <UIProvider>
-      <AuthProvider>
-        <AuthGuard>
-          <AppContent />
-        </AuthGuard>
-      </AuthProvider>
-    </UIProvider>
   );
 }

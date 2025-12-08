@@ -1,6 +1,11 @@
 
+
+
+
+
+
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
@@ -212,6 +217,37 @@ export const api = {
         }
     },
 
+    // --- SUPPLIER METHODS ---
+    getSuppliers: async (): Promise<Supplier[]> => {
+        try {
+            const { data, error } = await supabase.from('suppliers').select('*').order('name');
+            if (error) {
+                // If table doesn't exist yet, return empty array seamlessly
+                console.warn("Suppliers table might not exist:", error.message);
+                return [];
+            }
+            return data || [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    saveSupplier: async (supplier: Partial<Supplier>): Promise<void> => {
+        if (supplier.id) {
+            const { error } = await supabase.from('suppliers').update(supplier).eq('id', supplier.id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase.from('suppliers').insert(supplier);
+            if (error) throw error;
+        }
+    },
+
+    deleteSupplier: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('suppliers').delete().eq('id', id);
+        if (error) throw error;
+    },
+    // ----------------------
+
     getCollections: async (): Promise<Collection[]> => {
         try {
             const { data, error } = await supabase.from('collections').select('*').order('name');
@@ -236,7 +272,11 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         try {
-            const { data: prodData, error } = await supabase.from('products').select('*');
+            // Join with suppliers to get details
+            const { data: prodData, error } = await supabase
+                .from('products')
+                .select('*, suppliers(*)'); 
+            
             if (error) throw error;
             if (!prodData) return MOCK_PRODUCTS;
 
@@ -289,7 +329,7 @@ export const api = {
                     ?.filter((pm: any) => pm.product_sku === p.sku)
                     .map((pm: any) => ({
                         code: pm.mold_code,
-                        quantity: pm.quantity || 1 // Handle missing quantity for legacy rows
+                        quantity: pm.quantity || 1 
                     })) || [];
 
                 const pCollections = prodCollData
@@ -316,13 +356,22 @@ export const api = {
                   variants: pVariants,
                   recipe: pRecipe,
                   collections: pCollections,
+                  // New Production fields
+                  production_type: p.production_type || 'InHouse',
+                  supplier_id: p.supplier_id,
+                  supplier_cost: Number(p.supplier_cost || 0),
+                  supplier_details: p.suppliers, // Joined data
+                  
                   labor: {
                     casting_cost: Number(p.labor_casting),
                     setter_cost: Number(p.labor_setter),
                     technician_cost: Number(p.labor_technician),
                     plating_cost_x: Number(p.labor_plating_x || 0),
                     plating_cost_d: Number(p.labor_plating_d || 0),
-                    technician_cost_manual_override: p.labor_technician_manual_override
+                    technician_cost_manual_override: p.labor_technician_manual_override,
+                    plating_cost_x_manual_override: p.labor_plating_x_manual_override,
+                    plating_cost_d_manual_override: p.labor_plating_d_manual_override,
+                    stone_setting_cost: Number(p.labor_stone_setting || 0), // New Mapping
                   }
                 };
             });
