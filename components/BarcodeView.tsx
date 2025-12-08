@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
+import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface Props {
     product: Product;
@@ -52,9 +53,12 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     useEffect(() => {
         if (canvasRef.current && finalSku) {
             try {
+                // Transliterate SKU to handle Greek characters which are invalid for CODE128
+                const encodedSku = transliterateForBarcode(finalSku);
+                
                 // Adjust barcode settings based on format
                 const isSimple = format === 'simple';
-                JsBarcode(canvasRef.current, finalSku, {
+                JsBarcode(canvasRef.current, encodedSku, {
                     format: 'CODE128',
                     displayValue: false, 
                     height: isSimple ? 80 : 50, // Taller barcode for simple mode
@@ -75,7 +79,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const skuFontSize = Math.min(maxSkuWidthFont, maxSkuHeightFont);
     const detailsFontSize = Math.min(height * 0.11, width * 0.14); 
     const brandFontSize = Math.min(height * 0.14, width * 0.22);
-    const stoneFontSize = Math.min(height * 0.10, width * 0.17);
+    const stoneFontSize = Math.min(height * 0.12, width * 0.17); // Slightly increased
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
@@ -129,17 +129,18 @@ const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant }> = ({ 
     useEffect(() => {
         if (canvasRef.current) {
             try {
-                JsBarcode(canvasRef.current, sku, {
+                const encodedSku = transliterateForBarcode(sku);
+                JsBarcode(canvasRef.current, encodedSku, {
                     format: 'CODE128',
                     width: 1.5,
                     height: 40,
-                    displayValue: true,
-                    fontSize: 14,
-                    fontOptions: "bold",
+                    displayValue: false, // Set to false, text is rendered separately
                     margin: 0,
                     background: 'transparent'
                 });
-            } catch(e) {}
+            } catch(e) {
+                console.error(`JsBarcode failed for SKU "${sku}":`, e);
+            }
         }
     }, [sku]);
 
