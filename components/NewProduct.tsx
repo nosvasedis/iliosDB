@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
@@ -77,6 +79,7 @@ const getMaterialIcon = (type?: string) => {
         case 'Cord': return <Activity size={16} className="text-amber-600" />;
         case 'Chain': return <Link size={16} className="text-slate-500" />;
         case 'Component': return <Puzzle size={16} className="text-blue-500" />;
+        case 'Enamel': return <Palette size={16} className="text-rose-500" />;
         default: return <Box size={16} className="text-slate-400" />;
     }
 };
@@ -964,6 +967,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <option value={MaterialType.Cord}>Κορδόνι</option>
                                 <option value={MaterialType.Chain}>Αλυσίδα</option>
                                 <option value={MaterialType.Component}>Εξάρτημα</option>
+                                <option value={MaterialType.Enamel}>Σμάλτο</option>
                             </select>
                             <div className="flex gap-2">
                                 <input 

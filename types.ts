@@ -10,7 +10,8 @@ export enum MaterialType {
   Stone = 'Stone',
   Cord = 'Cord',
   Chain = 'Chain',
-  Component = 'Component'
+  Component = 'Component',
+  Enamel = 'Enamel'
 }
 
 export enum PlatingType {
