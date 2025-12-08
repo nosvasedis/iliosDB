@@ -54,31 +54,31 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                     <Icon size={20} />
                 </div>
                 <div>
-                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Εξυπνη Αναλυση</h4>
+                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Έξυπνη Ανάλυση</h4>
                     <p className={`text-xs font-medium text-${color}-600`}>Αξιολόγηση Τιμής Προμηθευτή</p>
                 </div>
                 <div className={`ml-auto px-3 py-1 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide`}>
-                    {analysis.verdict === 'Excellent' && 'Εξαιρετικη Τιμη'}
-                    {analysis.verdict === 'Fair' && 'Δικαιη Τιμη'}
-                    {analysis.verdict === 'Expensive' && 'Ακριβο'}
-                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημενο'}
+                    {analysis.verdict === 'Excellent' && 'Εξαιρετική Τιμή'}
+                    {analysis.verdict === 'Fair' && 'Δίκαιη Τιμή'}
+                    {analysis.verdict === 'Expensive' && 'Ακριβό'}
+                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημένο'}
                 </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-center">
                 <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εσωτερικο Κοστος (Make)</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Θεωρητικό Κόστος (Make)</div>
                     <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.theoreticalMakeCost)}</div>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εσωτερικη Αξια (Melt)</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Αξία Υλικών (Melt)</div>
                     <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.intrinsicValue)}</div>
                 </div>
             </div>
 
             <div className="space-y-2 pt-2">
                 <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-500">Premium Προμηθευτή</span>
+                    <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
                     <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
                 </div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
@@ -87,7 +87,7 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400">
                     <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
-                    <span>Markup: {analysis.premiumPercent}%</span>
+                    <span>Περιθώριο: {analysis.premiumPercent}%</span>
                 </div>
             </div>
         </div>
@@ -1157,14 +1157,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         {costBreakdown?.smart_analysis && (
                                             <div className="mt-3 p-2 bg-white rounded border border-slate-200 text-xs">
                                                 <div className="flex justify-between font-bold text-slate-600 mb-1">
-                                                    <span>Premium</span>
+                                                    <span>Επιπλέον Χρέωση</span>
                                                     <span>{costBreakdown.smart_analysis.premiumPercent}%</span>
                                                 </div>
                                                 <div className={`text-right font-black uppercase text-[10px] ${
                                                     costBreakdown.smart_analysis.verdict === 'Excellent' ? 'text-emerald-600' :
                                                     costBreakdown.smart_analysis.verdict === 'Fair' ? 'text-blue-600' : 'text-orange-600'
                                                 }`}>
-                                                    {costBreakdown.smart_analysis.verdict}
+                                                    {
+                                                        costBreakdown.smart_analysis.verdict === 'Excellent' ? 'Εξαιρετική Τιμή' :
+                                                        costBreakdown.smart_analysis.verdict === 'Fair' ? 'Δίκαιη Τιμή' :
+                                                        costBreakdown.smart_analysis.verdict === 'Expensive' ? 'Ακριβό' : 'Υπερκοστολογημένο'
+                                                    }
                                                 </div>
                                             </div>
                                         )}

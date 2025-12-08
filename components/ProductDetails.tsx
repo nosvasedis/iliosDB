@@ -186,32 +186,32 @@ const SmartAuditCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                         <p className={`text-xs font-medium text-${color}-600`}>Βάσει τιμής μετάλλου & κατασκευής</p>
                     </div>
                     <div className={`ml-auto px-4 py-1.5 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide shadow-sm border border-${color}-200`}>
-                        {analysis.verdict === 'Excellent' && 'Εξαιρετικη Τιμη'}
-                        {analysis.verdict === 'Fair' && 'Δικαιη Τιμη'}
-                        {analysis.verdict === 'Expensive' && 'Ακριβο'}
-                        {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημενο'}
+                        {analysis.verdict === 'Excellent' && 'Εξαιρετική Τιμή'}
+                        {analysis.verdict === 'Fair' && 'Δίκαιη Τιμή'}
+                        {analysis.verdict === 'Expensive' && 'Ακριβό'}
+                        {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημένο'}
                     </div>
                 </div>
 
                 <div className="space-y-4">
                     <div className="flex justify-between items-center text-sm bg-white/60 p-2 rounded-lg">
-                        <span className="text-slate-500 font-medium">Αξία Μετάλλου (Melt)</span>
+                        <span className="text-slate-500 font-medium">Αξία Υλικών (Melt)</span>
                         <span className="font-bold text-slate-800">{formatCurrency(analysis.intrinsicValue)}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm bg-white/60 p-2 rounded-lg">
-                        <span className="text-slate-500 font-medium">Θεωρητικό Κόστος Κατασκευής</span>
+                        <span className="text-slate-500 font-medium">Θεωρητικό Κόστος</span>
                         <span className="font-bold text-slate-800">{formatCurrency(analysis.theoreticalMakeCost)}</span>
                     </div>
                     <div className="pt-2 border-t border-slate-200 border-dashed">
                         <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-slate-400 uppercase">Premium Προμηθευτή</span>
+                            <span className="text-xs font-bold text-slate-400 uppercase">Επιπλέον Χρέωση</span>
                             <span className={`font-black text-lg text-${color}-700`}>{formatCurrency(analysis.supplierPremium)}</span>
                         </div>
                         <div className="w-full bg-slate-100 h-2.5 rounded-full mt-2 overflow-hidden flex">
                             <div className="bg-slate-400 h-full" style={{ width: `${Math.min(100, (analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100)}%` }} />
                             <div className={`bg-${color}-500 h-full`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} />
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1 text-right">Markup: {analysis.premiumPercent}%</p>
+                        <p className="text-[10px] text-slate-400 mt-1 text-right">Περιθώριο: {analysis.premiumPercent}%</p>
                     </div>
                 </div>
             </div>
@@ -965,7 +965,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 )}
                                 <div>
                                     <div className={`font-bold ${editedProduct.production_type === ProductionType.InHouse ? 'text-slate-800' : 'text-purple-800'}`}>
-                                        {editedProduct.production_type === ProductionType.InHouse ? 'Εργαστήριο (In-House)' : 'Εισαγωγή (Imported)'}
+                                        {editedProduct.production_type === ProductionType.InHouse ? 'Εργαστήριο' : 'Εισαγωγή'}
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-medium">Η μέθοδος παραγωγής είναι κλειδωμένη.</div>
                                 </div>
