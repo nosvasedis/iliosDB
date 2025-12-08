@@ -775,9 +775,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_technician: Number(labor.technician_cost),
             labor_plating_x: Number(labor.plating_cost_x || 0),
             labor_plating_d: Number(labor.plating_cost_d || 0),
-            technician_cost_manual_override: labor.technician_cost_manual_override,
-            plating_cost_x_manual_override: labor.plating_cost_x_manual_override,
-            plating_cost_d_manual_override: labor.plating_cost_d_manual_override,
+            labor_technician_manual_override: labor.technician_cost_manual_override,
+            labor_plating_x_manual_override: labor.plating_cost_x_manual_override,
+            labor_plating_d_manual_override: labor.plating_cost_d_manual_override,
             production_type: productionType,
             supplier_id: productionType === ProductionType.Imported ? supplierId : null,
             supplier_cost: productionType === ProductionType.Imported ? supplierCost : null,
@@ -1175,8 +1175,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} readOnly hint="Από Συνολικό Βάρος"/>
                             <LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} />
                             <LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}))} />
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} hint="Από Βασικό Βάρος" />
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" />
+                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X/H (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.labor.plating_cost_x_manual_override}))} hint="Από Βασικό Βάρος" />
+                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.labor.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" />
                         </div>
                     </div>
                 </div>
