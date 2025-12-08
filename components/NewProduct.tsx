@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
@@ -1174,9 +1175,32 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} readOnly hint="Από Συνολικό Βάρος"/>
                             <LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} />
-                            <LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}))} />
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X/H (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.labor.plating_cost_x_manual_override}))} hint="Από Βασικό Βάρος" />
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.labor.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" />
+                            <LaborCostCard 
+                                icon={<Hammer size={14}/>} 
+                                label="Τεχνίτης (€)" 
+                                value={labor.technician_cost} 
+                                onChange={val => setLabor({...labor, technician_cost: val})} 
+                                isOverridden={labor.technician_cost_manual_override} 
+                                onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} 
+                            />
+                            <LaborCostCard 
+                                icon={<Coins size={14}/>} 
+                                label="Επιμετάλλωση X/H (€)" 
+                                value={labor.plating_cost_x} 
+                                onChange={val => setLabor({...labor, plating_cost_x: val})} 
+                                isOverridden={labor.plating_cost_x_manual_override} 
+                                onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} 
+                                hint="Από Βασικό Βάρος" 
+                            />
+                            <LaborCostCard 
+                                icon={<Coins size={14}/>} 
+                                label="Επιμετάλλωση D (€)" 
+                                value={labor.plating_cost_d} 
+                                onChange={val => setLabor({...labor, plating_cost_d: val})} 
+                                isOverridden={labor.plating_cost_d_manual_override} 
+                                onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} 
+                                hint="Από Β' Βάρος" 
+                            />
                         </div>
                     </div>
                 </div>
