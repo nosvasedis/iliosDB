@@ -31,7 +31,14 @@ export const STONE_CODES_WOMEN: Record<string, string> = {
   'TPR': 'Τριπλέτα Πράσινη',
   'TKO': 'Τριπλέτα Κόκκινη',
   'TMP': 'Τριπλέτα Μπλε',
-  'BST': 'Blue Sky Topaz'
+  'BST': 'Blue Sky Topaz',
+  'MP': 'Μπλέ Ζιργκόν',
+  'LE': 'Λευκά Ζιργκόν',
+  'PR': 'Πράσινα Ζιργκόν',
+  'KO': 'Κόκκινα Ζιργκόν',
+  'MV': 'Μωβ Ζιργκόν',
+  'RZ': 'Ροζ Ζιργκόν',
+  'AK': 'Άκουα Ζιργκόν'
 };
 
 export const STONE_CODES_MEN: Record<string, string> = {
