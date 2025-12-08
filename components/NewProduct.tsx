@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe } from 'lucide-react';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ const getSteps = (type: ProductionType) => {
     if (type === ProductionType.Imported) {
         return [
             { id: 1, title: 'Στοιχεία' },
-            { id: 2, title: 'Κοστολόγηση' }, // Replaces Recipe & Labor
+            { id: 2, title: 'Κοστολόγηση' }, 
             { id: 3, title: 'Παραλλαγές' },
             { id: 4, title: 'Σύνοψη & Αποθήκευση' }
         ];
@@ -36,7 +36,67 @@ const getSteps = (type: ProductionType) => {
     ];
 };
 
-// Helper Component for Labor Inputs
+const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+    const color = 
+        analysis.verdict === 'Excellent' ? 'emerald' : 
+        analysis.verdict === 'Fair' ? 'blue' : 
+        analysis.verdict === 'Expensive' ? 'orange' : 'rose';
+
+    const Icon = 
+        analysis.verdict === 'Excellent' ? ThumbsUp : 
+        analysis.verdict === 'Fair' ? CheckCircle : 
+        analysis.verdict === 'Expensive' ? Info : AlertTriangle;
+
+    return (
+        <div className={`border-2 border-${color}-100 bg-${color}-50/50 rounded-2xl p-5 space-y-4`}>
+            <div className="flex items-center gap-3 border-b border-${color}-200 pb-3">
+                <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
+                    <Icon size={20} />
+                </div>
+                <div>
+                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Εξυπνη Αναλυση</h4>
+                    <p className={`text-xs font-medium text-${color}-600`}>Αξιολόγηση Τιμής Προμηθευτή</p>
+                </div>
+                <div className={`ml-auto px-3 py-1 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide`}>
+                    {analysis.verdict === 'Excellent' && 'Εξαιρετικη Τιμη'}
+                    {analysis.verdict === 'Fair' && 'Δικαιη Τιμη'}
+                    {analysis.verdict === 'Expensive' && 'Ακριβο'}
+                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημενο'}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εσωτερικο Κοστος (Make)</div>
+                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.theoreticalMakeCost)}</div>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εσωτερικη Αξια (Melt)</div>
+                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.intrinsicValue)}</div>
+                </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+                <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-500">Premium Προμηθευτή</span>
+                    <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-slate-400" style={{ width: `${(analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100}%` }} title="Υλικά" />
+                    <div className={`h-full bg-${color}-500`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} title="Premium" />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
+                    <span>Markup: {analysis.premiumPercent}%</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ... (Rest of existing NewProduct imports and helper components like LaborCostCard, SummaryRow)
+
+// [KEEP LaborCostCard, SummaryRow, getMaterialIcon from previous file]
 const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOverride, readOnly = false, hint }: {
     icon: React.ReactNode;
     label: string;
@@ -93,11 +153,11 @@ const getMaterialIcon = (type?: string) => {
     }
 };
 
-
 export default function NewProduct({ products, materials, molds = [], onCancel }: Props) {
+  // ... (All existing state and effects from previous file)
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers }); // Fetch Suppliers
+  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers }); 
 
   const [currentStep, setCurrentStep] = useState(1);
   const { showToast } = useUI();
@@ -114,9 +174,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [secondaryWeight, setSecondaryWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
   
-  const [supplierId, setSupplierId] = useState<string>(''); // For Imported Items
-  const [supplierCost, setSupplierCost] = useState(0); // For Imported Items
-  const [sellingPrice, setSellingPrice] = useState(0); // Master Wholesale
+  const [supplierId, setSupplierId] = useState<string>(''); 
+  const [supplierCost, setSupplierCost] = useState(0); 
+  const [sellingPrice, setSellingPrice] = useState(0); 
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
   const [labor, setLabor] = useState<LaborCost>({ 
@@ -131,29 +191,24 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     plating_cost_d_manual_override: false
   });
   
-  // Variants State
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
-  const [newVariantPrice, setNewVariantPrice] = useState(0); // New: Pre-add price input
+  const [newVariantPrice, setNewVariantPrice] = useState(0);
   const suffixInputRef = useRef<HTMLInputElement>(null);
   
-  // Image State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
-  // Molds Multi-Select & Creation State
-  const [selectedMolds, setSelectedMolds] = useState<ProductMold[]>([]); // CHANGED: array of objects
+  const [selectedMolds, setSelectedMolds] = useState<ProductMold[]>([]); 
   const [moldSearch, setMoldSearch] = useState('');
   
-  // New Mold Creator State
   const [newMoldCode, setNewMoldCode] = useState('L');
   const [newMoldLoc, setNewMoldLoc] = useState('');
   const [newMoldDesc, setNewMoldDesc] = useState('');
   const [isCreatingMold, setIsCreatingMold] = useState(false);
   
-  // New Material Creator State
   const [isCreatingMaterial, setIsCreatingMaterial] = useState(false);
   const [newMatName, setNewMatName] = useState('');
   const [newMatType, setNewMatType] = useState<MaterialType>(MaterialType.Stone);
@@ -163,9 +218,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const [isSTX, setIsSTX] = useState(false);
   const [masterEstimatedCost, setMasterEstimatedCost] = useState(0);
-  const [costBreakdown, setCostBreakdown] = useState<{silver: number, materials: number, labor: number, supplier_cost?: number} | null>(null);
+  const [costBreakdown, setCostBreakdown] = useState<any>(null); // Type relaxed for flexibility
 
-  // Smart SKU Detection State
   const [detectedMasterSku, setDetectedMasterSku] = useState('');
   const [detectedSuffix, setDetectedSuffix] = useState('');
   const [detectedVariantDesc, setDetectedVariantDesc] = useState('');
@@ -174,11 +228,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const STEPS = getSteps(productionType);
   const finalStepId = STEPS[STEPS.length - 1].id;
 
-  // Auto-Suggest Logic & Smart SKU Analysis
+  // ... (All existing effects)
+  // [KEEP lines 193-455 from previous file, essentially the same logic]
+  
   useEffect(() => {
     const skuTrimmed = sku.trim();
     if (skuTrimmed.length >= 2) {
-      // 1. Analyze Category/Gender, guarded by manual override flags
       const meta = parseSku(skuTrimmed);
       if (meta.category !== 'Γενικό' && !isCategoryManuallySet) {
          setCategory(meta.category);
@@ -188,7 +243,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       }
       setIsSTX(skuTrimmed.startsWith('STX'));
       
-      // 2. Smart Suffix Analysis (always runs to keep detection fresh)
       const analysis = analyzeSku(skuTrimmed, gender as Gender);
       const { finish } = getVariantComponents(analysis.suffix, gender as Gender);
       setDetectedFinishCode(finish.code);
@@ -205,7 +259,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           setPlating(PlatingType.None);
       }
     } else {
-        // BUG FIX: Reset ALL derived fields and manual locks when SKU is empty.
         setCategory('');
         setGender('');
         setIsSTX(false);
@@ -222,13 +275,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     if (detectedFinishCode === 'P') {
         return FINISH_CODES['P'];
     }
-    return FINISH_CODES['']; // Default to Lustre
+    return FINISH_CODES['']; 
   }, [detectedFinishCode]);
 
-  // Sync detected suffix to variants form inputs (Interconnection Step 1 -> Step 4)
   useEffect(() => {
       if (detectedSuffix) {
-          // If the detected suffix is not already in the list, pre-fill the form
           const exists = variants.some(v => v.suffix === detectedSuffix);
           if (!exists) {
               setNewVariantSuffix(detectedSuffix);
@@ -237,14 +288,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       }
   }, [detectedSuffix, detectedVariantDesc, variants]);
 
-  // Sync Variant Price with Master Price (Interconnection Step 1 -> Step 4)
   useEffect(() => {
-      // Always keep the "New Variant Price" input in sync with Master Price 
-      // to save typing, assuming most variants share the base wholesale price.
       setNewVariantPrice(sellingPrice);
   }, [sellingPrice]);
 
-  // Dynamic Technician Cost Calculation (Only for InHouse)
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) {
       const techCost = calculateTechnicianCost(weight);
@@ -252,7 +299,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, labor.technician_cost_manual_override, productionType]);
   
-  // Dynamic Casting Cost Calculation (Only for InHouse)
   useEffect(() => {
     if (productionType === ProductionType.InHouse) {
         const totalWeight = (weight || 0) + (secondaryWeight || 0);
@@ -261,7 +307,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, secondaryWeight, productionType]);
   
-  // Auto-calculate Plating Cost X based on main weight
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
       const costX = parseFloat((weight * 0.60).toFixed(2));
@@ -269,7 +314,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [weight, labor.plating_cost_x_manual_override]);
 
-  // Auto-calculate Plating Cost D based on secondary weight
   useEffect(() => {
     if (!labor.plating_cost_d_manual_override) {
       const costD = parseFloat((secondaryWeight * 0.60).toFixed(2));
@@ -308,6 +352,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     setCostBreakdown(cost.breakdown);
   }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId]);
 
+  // ... (Methods like handleImageSelect, addRawMaterial, etc. - Keep as is)
+  // [KEEP lines 457-797 from previous file]
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -321,7 +367,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     if (materials.length > 0) {
       setRecipe([...recipe, { type: 'raw', id: materials[0].id, quantity: 1 }]);
     } else {
-        // No materials exist, prompt creation
         setIsCreatingMaterial(true);
     }
   };
@@ -350,7 +395,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const addMold = (code: string) => {
       const existing = selectedMolds.find(m => m.code === code);
-      if (existing) return; // Already added
+      if (existing) return;
       setSelectedMolds([...selectedMolds, { code, quantity: 1 }]);
   };
 
@@ -398,7 +443,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           
           await queryClient.invalidateQueries({ queryKey: ['materials'] });
           
-          // Auto-add to recipe
           if (data) {
               setRecipe([...recipe, { type: 'raw', id: data.id, quantity: 1 }]);
           }
@@ -413,7 +457,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       }
   };
 
-  // SMART MOLD SUGGESTIONS
   const { suggestedMolds, otherMolds } = useMemo(() => {
     const upperSku = sku.toUpperCase();
     let suggestionKeyword: string | null = null;
@@ -451,15 +494,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     others.sort(sortFn);
 
     return { suggestedMolds: suggested, otherMolds: others };
-  }, [molds, moldSearch, sku]); // Removed selectedMolds dependency so they don't filter out
+  }, [molds, moldSearch, sku]);
 
-  // --- VARIANT MANAGEMENT ---
-  
-  // Auto-analyze suffix for new variant - UPDATED LOGIC with Gender Awareness
   useEffect(() => {
       if (newVariantSuffix) {
           const desc = analyzeSuffix(newVariantSuffix, gender as Gender);
-          // Always update description if analysis finds a match, enabling dynamic updates as user types (e.g., P -> P-Code)
           if (desc) setNewVariantDesc(desc);
       }
   }, [newVariantSuffix, gender]);
@@ -470,7 +509,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       const upperSuffix = newVariantSuffix.toUpperCase();
       if (variants.some(v => v.suffix === upperSuffix)) { showToast("Αυτή η παραλλαγή υπάρχει ήδη.", "error"); return; }
 
-      // Calculate Estimated Cost
       const tempMaster: Product = {
           sku: detectedMasterSku || sku,
           prefix: sku.substring(0, 2),
@@ -507,7 +545,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           description: newVariantDesc,
           stock_qty: 0,
           active_price: parseFloat(estimatedCost.toFixed(2)),
-          selling_price: newVariantPrice > 0 ? newVariantPrice : sellingPrice // Use input price
+          selling_price: newVariantPrice > 0 ? newVariantPrice : sellingPrice 
       };
 
       setVariants([...variants, newV]);
@@ -515,7 +553,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       setNewVariantDesc('');
       showToast(`Προστέθηκε η παραλλαγή ${upperSuffix}`, "success");
       
-      // Focus back to Suffix Input for rapid entry
       if (suffixInputRef.current) {
           suffixInputRef.current.focus();
       }
@@ -532,10 +569,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   };
 
   const handleSubmit = async () => {
-    // FAILSAFE: Weight Check
     if (!weight || weight <= 0) { 
         showToast("Το Βάρος (g) είναι υποχρεωτικό.", "error"); 
-        setCurrentStep(1); // Auto-navigate back to step 1
+        setCurrentStep(1); 
         return; 
     }
 
@@ -564,7 +600,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             finalImageUrl = await uploadProductImage(compressedBlob, finalMasterSku);
         }
 
-        // Persist Master
         const { error: prodError } = await supabase.from('products').upsert({
             sku: finalMasterSku,
             prefix: finalMasterSku.substring(0, 2),
@@ -588,18 +623,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             technician_cost_manual_override: labor.technician_cost_manual_override,
             plating_cost_x_manual_override: labor.plating_cost_x_manual_override,
             plating_cost_d_manual_override: labor.plating_cost_d_manual_override,
-            // New Fields
             production_type: productionType,
             supplier_id: productionType === ProductionType.Imported ? supplierId : null,
             supplier_cost: productionType === ProductionType.Imported ? supplierCost : null,
-            labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null // New column
+            labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null 
         });
 
         if (prodError) throw prodError;
 
         if (variants.length > 0) {
             for (const v of variants) {
-                // Fetch existing stock to preserve it
                 const { data: existV } = await supabase.from('product_variants').select('stock_qty').match({ product_sku: finalMasterSku, suffix: v.suffix }).single();
                 const vStock = existV ? existV.stock_qty : 0;
 
@@ -616,7 +649,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             }
         }
         
-        // Handle Recipes
         await supabase.from('recipes').delete().eq('parent_sku', finalMasterSku);
         if (productionType === ProductionType.InHouse && recipe.length > 0) {
             const recipeInserts = recipe.map(r => ({
@@ -629,7 +661,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              await supabase.from('recipes').insert(recipeInserts);
         }
         
-        // Handle Molds (Updated for Quantity) - ONLY IF IN-HOUSE
         await supabase.from('product_molds').delete().eq('product_sku', finalMasterSku);
         if (productionType === ProductionType.InHouse && selectedMolds.length > 0) {
              const moldInserts = selectedMolds.map(m => ({ 
@@ -681,6 +712,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
+      {/* ... Header and Steps navigation (same as before) ... */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             {onCancel && (
@@ -720,6 +752,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {/* STEP 1: BASIC INFO & IMAGE */}
             {currentStep === 1 && (
                 <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
+                    {/* ... (Existing Step 1 UI) ... */}
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
                         <span>1. Βασικά Στοιχεία</span>
                         {/* Production Type Toggle */}
@@ -739,6 +772,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </h3>
                     <div className="flex flex-col lg:flex-row gap-8">
+                        {/* ... Image & Inputs (Same as previous file lines 975-1070) ... */}
                         <div className="w-full lg:w-1/3">
                             <label className="block text-sm font-bold text-slate-700 mb-2">Φωτογραφία</label>
                             <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden hover:border-amber-400 transition-all cursor-pointer shadow-inner">
@@ -811,22 +845,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
                     </div>
-                    
-                    {/* MOLD SELECTOR (Only for InHouse) */}
+                    {/* ... (Mold Selector - same as previous) ... */}
+                    {/* [KEEP lines 1073-1130] */}
                     {productionType === ProductionType.InHouse && (
                         <div className="pt-4 border-t border-slate-100">
+                            {/* ... Molds UI ... */}
                             <label className="block text-sm font-bold text-amber-700 mb-3">Λάστιχα</label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
+                                    {/* ... Search ... */}
                                     <div className="relative shrink-0">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Αναζήτηση..."
-                                            value={moldSearch}
-                                            onChange={e => setMoldSearch(e.target.value)}
-                                            className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
-                                        />
+                                        <input type="text" placeholder="Αναζήτηση..." value={moldSearch} onChange={e => setMoldSearch(e.target.value)} className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
                                     </div>
                                     <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
                                         {/* MOLD LIST ITEMS */}
@@ -834,14 +864,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                             const selected = selectedMolds.find(sm => sm.code === m.code);
                                             return (
                                                 <div key={m.code} className={`flex items-center gap-2 text-sm p-2 rounded-lg border mb-1 transition-colors ${selected ? 'bg-amber-50 border-amber-200' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                                                    <div 
-                                                        onClick={() => addMold(m.code)}
-                                                        className="flex-1 cursor-pointer flex items-center gap-2"
-                                                    >
+                                                    <div onClick={() => addMold(m.code)} className="flex-1 cursor-pointer flex items-center gap-2">
                                                         <span className={`font-mono font-bold ${selected ? 'text-amber-800' : 'text-slate-700'}`}>{m.code}</span>
                                                         <span className="text-xs text-slate-400 truncate">{m.description}</span>
                                                     </div>
-                                                    
                                                     {selected ? (
                                                         <div className="flex items-center gap-1 bg-white rounded-md border border-amber-200 shadow-sm">
                                                             <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-slate-100 text-slate-500 ${selected.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={selected.quantity === 1}><Minus size={12}/></button>
@@ -858,45 +884,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         })}
                                     </div>
                                 </div>
-                                
-                                {/* Mini Mold Creator */}
                                 <div className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 hover:border-amber-300 transition-all group flex flex-col gap-3 h-full">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 group-hover:text-amber-500 uppercase tracking-wide transition-colors">
-                                        <Plus size={14} /> Νέο Λάστιχο
-                                    </div>
-                                    
-                                    <input 
-                                        type="text" 
-                                        placeholder="Κωδικός *" 
-                                        value={newMoldCode} 
-                                        onChange={e => setNewMoldCode(e.target.value.toUpperCase())} 
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all uppercase placeholder-slate-400"
-                                    />
-                                    
+                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 group-hover:text-amber-500 uppercase tracking-wide transition-colors"><Plus size={14} /> Νέο Λάστιχο</div>
+                                    <input type="text" placeholder="Κωδικός *" value={newMoldCode} onChange={e => setNewMoldCode(e.target.value.toUpperCase())} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all uppercase placeholder-slate-400"/>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Τοποθεσία" 
-                                            value={newMoldLoc} 
-                                            onChange={e => setNewMoldLoc(e.target.value)} 
-                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
-                                        />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Περιγραφή" 
-                                            value={newMoldDesc} 
-                                            onChange={e => setNewMoldDesc(e.target.value)} 
-                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"
-                                        />
+                                        <input type="text" placeholder="Τοποθεσία" value={newMoldLoc} onChange={e => setNewMoldLoc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
+                                        <input type="text" placeholder="Περιγραφή" value={newMoldDesc} onChange={e => setNewMoldDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
                                     </div>
-                                    
-                                    <button 
-                                        onClick={handleQuickCreateMold} 
-                                        disabled={isCreatingMold}
-                                        className="mt-auto w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center"
-                                    >
-                                        {isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : 'Δημιουργία & Επιλογή'}
-                                    </button>
+                                    <button onClick={handleQuickCreateMold} disabled={isCreatingMold} className="mt-auto w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center">{isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : 'Δημιουργία & Επιλογή'}</button>
                                 </div>
                             </div>
                         </div>
@@ -907,11 +902,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {/* STEP 2: RECIPE (ONLY FOR IN-HOUSE) */}
             {currentStep === 2 && productionType === ProductionType.InHouse && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
+                    {/* ... (Existing Recipe UI) ... */}
+                    {/* [KEEP lines 1146-1215] */}
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
                         2. Συνταγή (Bill of Materials)
                     </h3>
                     
-                    {/* Always show Silver */}
                     <div className="flex items-center gap-3 p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
                         <div className="p-2 rounded-lg bg-white text-slate-600"><Coins size={20} /></div>
                         <div className="flex-1">
@@ -925,26 +921,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </div>
 
                     {recipe.map((item, idx) => {
-                        // Resolve selected material to show icon
                         const selectedMat = item.type === 'raw' ? materials.find(m => m.id === item.id) : null;
-                        
                         return (
                         <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100 hover:border-blue-200 transition-all">
                             <div className="flex-1">
                                 <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 ml-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
                                 <div className="flex gap-2 items-center">
-                                    {/* Icon Indicator */}
-                                    {item.type === 'raw' && selectedMat && (
-                                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                            {getMaterialIcon(selectedMat.type)}
-                                        </div>
-                                    )}
-                                    {item.type === 'component' && (
-                                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                            {getMaterialIcon('Component')}
-                                        </div>
-                                    )}
-
+                                    {item.type === 'raw' && selectedMat && (<div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{getMaterialIcon(selectedMat.type)}</div>)}
+                                    {item.type === 'component' && (<div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{getMaterialIcon('Component')}</div>)}
                                     {item.type === 'raw' ? (
                                         <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
                                             {materials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
@@ -954,38 +938,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                             {products.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
                                         </select>
                                     )}
-                                    {/* QUICK ADD BUTTON NEXT TO SELECT */}
-                                    {item.type === 'raw' && (
-                                        <button 
-                                            onClick={() => setIsCreatingMaterial(true)} 
-                                            className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200 transition-colors" 
-                                            title="Νέο Υλικό"
-                                        >
-                                            <Plus size={16}/>
-                                        </button>
-                                    )}
+                                    {item.type === 'raw' && (<button onClick={() => setIsCreatingMaterial(true)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200 transition-colors" title="Νέο Υλικό"><Plus size={16}/></button>)}
                                 </div>
                             </div>
                             <div className="w-24">
                                 <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Ποσότητα</label>
-                                <input 
-                                    type="number" 
-                                    value={item.quantity} 
-                                    onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} 
-                                    className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center outline-none border border-slate-200 focus:border-blue-400"
-                                />
+                                <input type="number" value={item.quantity} onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center outline-none border border-slate-200 focus:border-blue-400"/>
                             </div>
-                            <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto">
-                                <Trash2 size={18} />
-                            </button>
+                            <button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto"><Trash2 size={18} /></button>
                         </div>
                     )})}
                     
-                    {recipe.length === 0 && (
-                        <div className="text-center italic text-slate-400 py-4 text-xs">
-                            Μόνο Υλικό Βάσης (Ασήμι).
-                        </div>
-                    )}
+                    {recipe.length === 0 && <div className="text-center italic text-slate-400 py-4 text-xs">Μόνο Υλικό Βάσης (Ασήμι).</div>}
 
                     <div className="flex gap-2 pt-4 border-t border-slate-100">
                         <button type="button" onClick={addRawMaterial} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button>
@@ -999,15 +963,26 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">2. Κοστολόγηση Εισαγωγής</h3>
                     
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    {/* PRIMARY COST CARD */}
+                    <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
+                                <DollarSign size={24} />
+                            </div>
+                            <div>
+                                <h4 className="font-black text-lg text-slate-800">Τιμή Αγοράς (Purchase Price)</h4>
+                                <p className="text-xs text-slate-500 font-medium">Το κόστος κτήσης του προϊόντος (Βάση υπολογισμού).</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
                                 <Globe size={14} /> Προμηθευτής
                             </label>
                             <select 
                                 value={supplierId} 
                                 onChange={e => setSupplierId(e.target.value)}
-                                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800"
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800"
                             >
                                 <option value="">Επιλέξτε Προμηθευτή...</option>
                                 {suppliers?.map(s => (
@@ -1016,21 +991,43 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </select>
                         </div>
 
-                        <LaborCostCard icon={<Globe size={14}/>} label="Κόστος Αγοράς (Supplier Cost) (€)" value={supplierCost} onChange={val => setSupplierCost(val)} hint="Τιμή αγοράς ανά τεμάχιο από τον προμηθευτή"/>
+                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                            <label className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Κόστος Ανά Τεμάχιο (€)</label>
+                            <input 
+                                type="number" step="0.01" 
+                                value={supplierCost} 
+                                onChange={e => setSupplierCost(parseFloat(e.target.value) || 0)}
+                                className="w-full bg-transparent font-mono font-black text-3xl text-emerald-700 outline-none mt-1"
+                                placeholder="0.00"
+                            />
+                        </div>
+                    </div>
+
+                    {/* SMART AUDIT SECTION */}
+                    {costBreakdown && costBreakdown.smart_analysis && (
+                        <SmartAnalysisCard analysis={costBreakdown.smart_analysis} />
+                    )}
+
+                    {/* SUPPLIER BREAKDOWN CARD (INFO ONLY) */}
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 opacity-90">
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
+                            <Info size={18} className="text-slate-400" />
+                            <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide">Ανάλυση Κόστους Προμηθευτή (Πληροφοριακά)</h4>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-4 italic">
+                            Τα παρακάτω κόστη είναι εσωτερικά του προμηθευτή και <strong>δεν προστίθενται</strong> στο συνολικό κόστος αγοράς.
+                        </p>
                         
-                        <div className="border-t border-slate-200 pt-4 mt-4">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Πρόσθετα Κόστη (Προαιρετικά)</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <LaborCostCard icon={<Hammer size={14}/>} label="Γενικά Εργατικά (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val, technician_cost_manual_override: true})} hint="Εργατικά ελέγχου, συσκευασίας κλπ."/>
-                                <LaborCostCard icon={<Gem size={14}/>} label="Πέτρα + Καρφωτικά (€)" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Κόστος πέτρας και καρφώματος (αν γίνεται εδώ)"/>
-                                <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val, plating_cost_x_manual_override: true})} hint="Αν επιμεταλλώνεται εδώ (ανά τεμ)"/>
-                            </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <LaborCostCard icon={<Hammer size={14}/>} label="Εργατικά" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val, technician_cost_manual_override: true})} hint="Labor breakdown" readOnly={false}/>
+                            <LaborCostCard icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Setting breakdown" readOnly={false}/>
+                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val, plating_cost_x_manual_override: true})} hint="Plating breakdown" readOnly={false}/>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* QUICK MATERIAL MODAL */}
+            {/* QUICK MATERIAL MODAL - [KEEP lines 1269-1318] */}
             {isCreatingMaterial && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
@@ -1039,18 +1036,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <button onClick={() => setIsCreatingMaterial(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
                         </div>
                         <div className="space-y-3">
-                            <input 
-                                type="text" 
-                                placeholder="Όνομα Υλικού" 
-                                value={newMatName} 
-                                onChange={e => setNewMatName(e.target.value)}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
-                            />
-                            <select 
-                                value={newMatType}
-                                onChange={(e) => setNewMatType(e.target.value as MaterialType)}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
-                            >
+                            <input type="text" placeholder="Όνομα Υλικού" value={newMatName} onChange={e => setNewMatName(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"/>
+                            <select value={newMatType} onChange={(e) => setNewMatType(e.target.value as MaterialType)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20">
                                 <option value={MaterialType.Stone}>Πέτρα</option>
                                 <option value={MaterialType.Cord}>Κορδόνι</option>
                                 <option value={MaterialType.Chain}>Αλυσίδα</option>
@@ -1058,27 +1045,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <option value={MaterialType.Enamel}>Σμάλτο</option>
                             </select>
                             <div className="flex gap-2">
-                                <input 
-                                    type="number" 
-                                    step="0.01" 
-                                    placeholder="Κόστος (€)" 
-                                    value={newMatCost} 
-                                    onChange={e => setNewMatCost(parseFloat(e.target.value))}
-                                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-center"
-                                />
-                                <input 
-                                    type="text" 
-                                    placeholder="Μονάδα" 
-                                    value={newMatUnit} 
-                                    onChange={e => setNewMatUnit(e.target.value)}
-                                    className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-center"
-                                />
+                                <input type="number" step="0.01" placeholder="Κόστος (€)" value={newMatCost} onChange={e => setNewMatCost(parseFloat(e.target.value))} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-center"/>
+                                <input type="text" placeholder="Μονάδα" value={newMatUnit} onChange={e => setNewMatUnit(e.target.value)} className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-center"/>
                             </div>
-                            <button 
-                                onClick={handleQuickCreateMaterial}
-                                disabled={isSavingMat}
-                                className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold mt-2 hover:bg-black transition-all flex items-center justify-center gap-2"
-                            >
+                            <button onClick={handleQuickCreateMaterial} disabled={isSavingMat} className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold mt-2 hover:bg-black transition-all flex items-center justify-center gap-2">
                                 {isSavingMat ? <Loader2 size={16} className="animate-spin"/> : <Plus size={16}/>}
                                 {isSavingMat ? 'Αποθήκευση...' : 'Δημιουργία & Χρήση'}
                             </button>
@@ -1087,11 +1057,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
 
-            {/* STEP 3: LABOR & WEIGHT (ONLY FOR IN-HOUSE) */}
+            {/* STEP 3: LABOR & WEIGHT (ONLY FOR IN-HOUSE) - [KEEP lines 1321-1335] */}
             {currentStep === 3 && productionType === ProductionType.InHouse && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
-                    
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                         <h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18}/> Κόστη Εργατικών</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1105,26 +1074,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 4 (or 3 for Imported): VARIANTS */}
+            {/* STEP 4 (or 3 for Imported): VARIANTS - [KEEP lines 1338-1393] */}
             {currentStep === (productionType === ProductionType.Imported ? 3 : 4) && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">
                         {productionType === ProductionType.Imported ? '3. Παραλλαγές' : '4. Παραλλαγές'}
                     </h3>
-                    
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                         <h4 className="font-bold text-sm text-slate-600 mb-2">Προσθήκη Νέας Παραλλαγής</h4>
                         <div className="grid grid-cols-[100px_1fr_120px_auto] gap-2 w-full items-end">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Κατάληξη (Suffix) *</label>
-                                <input 
-                                    ref={suffixInputRef}
-                                    type="text" 
-                                    placeholder="π.χ. P, XKR" 
-                                    value={newVariantSuffix} 
-                                    onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} 
-                                    className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"
-                                />
+                                <input ref={suffixInputRef} type="text" placeholder="π.χ. P, XKR" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"/>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Περιγραφή</label>
@@ -1142,18 +1103,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         {variants.map((variant, index) => (
                             <div key={index} className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
                             <div className="font-mono font-bold text-lg text-emerald-600 w-16 text-center bg-emerald-50 rounded-lg py-2">{variant.suffix}</div>
-                            <input 
-                                type="text" 
-                                value={variant.description}
-                                onChange={e => updateVariant(index, 'description', e.target.value)}
-                                placeholder="Περιγραφή"
-                                className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"
-                            />
+                            <input type="text" value={variant.description} onChange={e => updateVariant(index, 'description', e.target.value)} placeholder="Περιγραφή" className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"/>
                                 <div className="text-xs text-slate-400">Κόστος: <span className="font-bold text-slate-600">{(variant.active_price || 0).toFixed(2)}€</span></div>
                                 <div className="text-xs text-slate-400">Χονδρική: <span className="font-bold text-slate-600">{(variant.selling_price || 0).toFixed(2)}€</span></div>
-                            <button onClick={() => removeVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto">
-                                <Trash2 size={18}/>
-                            </button>
+                            <button onClick={() => removeVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto"><Trash2 size={18}/></button>
                             </div>
                         ))}
                         {variants.length === 0 && <div className="text-center text-slate-400 py-6 italic text-sm">Δεν υπάρχουν παραλλαγές. Θα αποθηκευτεί μόνο το Master προϊόν.</div>}
@@ -1161,17 +1114,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* FINAL STEP: SUMMARY & SAVE */}
+            {/* FINAL STEP: SUMMARY & SAVE - [KEEP lines 1396-1498] */}
             {currentStep === finalStepId && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                    {/* Header with Basic Info */}
+                    {/* ... (Existing Summary UI - Headers, Image, Title) ... */}
                     <div className="flex gap-6 items-start">
                         <div className="w-32 h-32 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
-                             {imagePreview ? (
-                                <img src={imagePreview} className="w-full h-full object-cover"/> 
-                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>
-                             )}
+                             {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>}
                         </div>
                         <div className="flex-1">
                             <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -1203,8 +1152,22 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     </>
                                 ) : (
                                     <>
-                                        <SummaryRow label="Αγορά (Supplier)" value={costBreakdown?.supplier_cost || 0} color="bg-purple-400" />
-                                        <SummaryRow label="Γενικά Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" />
+                                        <SummaryRow label="Τιμή Αγοράς (Base)" value={costBreakdown?.supplier_cost || 0} color="bg-emerald-500" />
+                                        {/* Smart Analysis Summary */}
+                                        {costBreakdown?.smart_analysis && (
+                                            <div className="mt-3 p-2 bg-white rounded border border-slate-200 text-xs">
+                                                <div className="flex justify-between font-bold text-slate-600 mb-1">
+                                                    <span>Premium</span>
+                                                    <span>{costBreakdown.smart_analysis.premiumPercent}%</span>
+                                                </div>
+                                                <div className={`text-right font-black uppercase text-[10px] ${
+                                                    costBreakdown.smart_analysis.verdict === 'Excellent' ? 'text-emerald-600' :
+                                                    costBreakdown.smart_analysis.verdict === 'Fair' ? 'text-blue-600' : 'text-orange-600'
+                                                }`}>
+                                                    {costBreakdown.smart_analysis.verdict}
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
                                 )}
                                 
@@ -1216,27 +1179,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </div>
                                 )}
                                     
-                                {/* Conditional Plating Cost Display */}
-                                {(labor.plating_cost_x > 0 || labor.plating_cost_d > 0) && (
+                                {/* ... Plating costs display ... */}
+                                {productionType === ProductionType.InHouse && (labor.plating_cost_x > 0 || labor.plating_cost_d > 0) && (
                                     <div className="mt-2 pt-2 border-t border-slate-200 border-dashed">
                                         <div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Προσθετα (Ανα Παραλλαγη)</div>
-                                        {labor.plating_cost_x > 0 && (
-                                            <div className="flex justify-between text-[10px] text-amber-600 font-medium">
-                                                <span>Επιμετάλλωση (X/H)</span>
-                                                <span>+{labor.plating_cost_x.toFixed(2)}€</span>
-                                            </div>
-                                        )}
-                                        {labor.plating_cost_d > 0 && (
-                                            <div className="flex justify-between text-[10px] text-amber-600 font-medium">
-                                                <span>Επιμετάλλωση (D)</span>
-                                                <span>+{labor.plating_cost_d.toFixed(2)}€</span>
-                                            </div>
-                                        )}
+                                        {labor.plating_cost_x > 0 && <div className="flex justify-between text-[10px] text-amber-600 font-medium"><span>Επιμετάλλωση (X/H)</span><span>+{labor.plating_cost_x.toFixed(2)}€</span></div>}
+                                        {labor.plating_cost_d > 0 && <div className="flex justify-between text-[10px] text-amber-600 font-medium"><span>Επιμετάλλωση (D)</span><span>+{labor.plating_cost_d.toFixed(2)}€</span></div>}
                                     </div>
                                 )}
                             </div>
                             <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center">
-                                <span className="font-bold text-slate-600 text-sm uppercase">Σύνολο</span>
+                                <span className="font-bold text-slate-600 text-sm uppercase">Σύνολο Κόστους</span>
                                 <span className="font-black text-xl text-slate-800">{masterEstimatedCost.toFixed(2)}€</span>
                             </div>
                         </div>
@@ -1250,7 +1203,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <div>
                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Συνταγή</div>
                                     {productionType === ProductionType.Imported ? (
-                                        <div className="text-xs text-slate-500 italic">Προϊόν Εισαγωγής (Resale)</div>
+                                        <div className="text-xs text-slate-500 italic">Προϊόν Εισαγωγής (Έτοιμο προς Πώληση)</div>
                                     ) : (
                                         recipe.length > 0 ? (
                                             <div className="space-y-1">
@@ -1269,10 +1222,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
                                                     return (
                                                         <div key={i} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100">
-                                                            <div className="flex items-center gap-2 min-w-0">
-                                                                {iconNode}
-                                                                <span className="text-slate-700 truncate">{matName}</span>
-                                                            </div>
+                                                            <div className="flex items-center gap-2 min-w-0">{iconNode}<span className="text-slate-700 truncate">{matName}</span></div>
                                                             <span className="font-mono font-bold text-slate-500 pl-2">x{r.quantity}</span>
                                                         </div>
                                                     );
@@ -1400,18 +1350,3 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     </div>
   );
 }
-
-const CostBreakdownItem = ({label, value, total, color}: {label: string, value: number, total: number, color: string}) => {
-    const percentage = total > 0 ? (value / total) * 100 : 0;
-    return (
-        <div className="space-y-1">
-            <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-600">{label}</span>
-                <span className="font-mono font-bold text-slate-800">{value.toFixed(2)}€</span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-1.5">
-                <div className={`${color} h-1.5 rounded-full`} style={{width: `${percentage}%`}}></div>
-            </div>
-        </div>
-    );
-};

@@ -1,23 +1,19 @@
 
-
-
-
-
-
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import JsBarcode from 'jsbarcode';
+
+// ... (Previous PrintModal, BarcodeRow components remain identical - omitted for brevity, keeping all existing imports and helper components)
+// [KEEP PrintModal, BarcodeRow, getSuffixPriority, PLATING_LABELS, etc from previous file lines 26-177]
 
 interface PrintModalProps {
     product: Product;
@@ -49,21 +45,18 @@ const getMaterialIcon = (type?: string) => {
     }
 };
 
-// Priority Sort Helper
 const getSuffixPriority = (suffix: string) => {
     const s = suffix.toUpperCase();
-    if (!s) return 0; // Master/Lustre (First)
-    if (s.includes('P')) return 1; // Patina (Second - Prevalent)
-    if (s.includes('D')) return 2; // Two-Tone (Third)
-    if (s.includes('X')) return 2; // Gold (Third - Equal to D)
-    if (s.includes('H')) return 3; // Platinum (Fourth)
-    return 4; // Others
+    if (!s) return 0; 
+    if (s.includes('P')) return 1; 
+    if (s.includes('D')) return 2; 
+    if (s.includes('X')) return 2; 
+    if (s.includes('H')) return 3; 
+    return 4; 
 };
 
 const PrintModal: React.FC<PrintModalProps> = ({ product, onClose, onPrint }) => {
     const hasVariants = product.variants && product.variants.length > 0;
-    
-    // Sort variants for the print modal list as well
     const sortedVariants = hasVariants 
         ? [...product.variants!].sort((a, b) => getSuffixPriority(a.suffix) - getSuffixPriority(b.suffix))
         : [];
@@ -170,6 +163,62 @@ const BarcodeRow: React.FC<{ product: Product, variant?: ProductVariant }> = ({ 
     );
 };
 
+const SmartAuditCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+    const color = 
+        analysis.verdict === 'Excellent' ? 'emerald' : 
+        analysis.verdict === 'Fair' ? 'blue' : 
+        analysis.verdict === 'Expensive' ? 'orange' : 'rose';
+
+    const Icon = 
+        analysis.verdict === 'Excellent' ? ThumbsUp : 
+        analysis.verdict === 'Fair' ? CheckCircle : 
+        analysis.verdict === 'Expensive' ? Info : AlertTriangle;
+
+    return (
+        <div className="space-y-6">
+            <div className={`border-2 border-${color}-100 bg-${color}-50/30 rounded-2xl p-5`}>
+                <div className="flex items-center gap-3 border-b border-${color}-200/50 pb-3 mb-4">
+                    <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
+                        <Icon size={22} />
+                    </div>
+                    <div>
+                        <h4 className={`text-base font-bold uppercase text-${color}-800`}>Έξυπνη Αξιολόγηση</h4>
+                        <p className={`text-xs font-medium text-${color}-600`}>Βάσει τιμής μετάλλου & κατασκευής</p>
+                    </div>
+                    <div className={`ml-auto px-4 py-1.5 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide shadow-sm border border-${color}-200`}>
+                        {analysis.verdict === 'Excellent' && 'Εξαιρετικη Τιμη'}
+                        {analysis.verdict === 'Fair' && 'Δικαιη Τιμη'}
+                        {analysis.verdict === 'Expensive' && 'Ακριβο'}
+                        {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημενο'}
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center text-sm bg-white/60 p-2 rounded-lg">
+                        <span className="text-slate-500 font-medium">Αξία Μετάλλου (Melt)</span>
+                        <span className="font-bold text-slate-800">{formatCurrency(analysis.intrinsicValue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm bg-white/60 p-2 rounded-lg">
+                        <span className="text-slate-500 font-medium">Θεωρητικό Κόστος Κατασκευής</span>
+                        <span className="font-bold text-slate-800">{formatCurrency(analysis.theoreticalMakeCost)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 border-dashed">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-400 uppercase">Premium Προμηθευτή</span>
+                            <span className={`font-black text-lg text-${color}-700`}>{formatCurrency(analysis.supplierPremium)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full mt-2 overflow-hidden flex">
+                            <div className="bg-slate-400 h-full" style={{ width: `${Math.min(100, (analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100)}%` }} />
+                            <div className={`bg-${color}-500 h-full`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 text-right">Markup: {analysis.premiumPercent}%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface Props {
   product: Product;
   allProducts: Product[];
@@ -184,6 +233,8 @@ interface Props {
 }
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
+  // ... (Keep existing state/effects/handlers - lines 242-780)
+  // [OMITTED FOR BREVITY - NO CHANGES HERE except inside the render]
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
@@ -267,7 +318,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type]);
 
-  // Auto-calculate plating costs
   useEffect(() => {
     const costX = parseFloat((editedProduct.weight_g * 0.60).toFixed(2));
     const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
@@ -333,8 +383,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const variants = editedProduct.variants || [];
   const hasVariants = variants.length > 0;
-  
-  // Sorted variants list for display in lists and sidebar switching
   const sortedVariantsList = useMemo(() => {
       if (!hasVariants) return [];
       return [...variants].sort((a, b) => getSuffixPriority(a.suffix) - getSuffixPriority(b.suffix));
@@ -411,9 +459,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const applyReprice = async () => {
       if (calculatedPrice <= 0) return;
-      
       const targetName = isVariantView ? `παραλλαγή ${currentViewVariant?.suffix}` : 'βασικό προϊόν';
-
       const confirmed = await confirm({
           title: 'Ενημέρωση Τιμής',
           message: `Θέλετε να αλλάξετε την τιμή για ${targetName} από ${displayedPrice.toFixed(2)}€ σε ${calculatedPrice.toFixed(2)}€;`,
@@ -436,7 +482,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }
   };
 
-  // --- RECIPE EDITING HANDLERS ---
   const addRecipeItem = (type: 'raw' | 'component') => {
     let newItem: RecipeItem;
     if (type === 'raw') {
@@ -479,7 +524,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         recipe: prev.recipe.filter((_, i) => i !== index)
     }));
   };
-  // --- END RECIPE EDITING HANDLERS ---
 
   const handleSave = async () => {
     try {
@@ -502,12 +546,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             production_type: editedProduct.production_type,
             supplier_id: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_id : null,
             supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
-            labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null // New
+            labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
         }).eq('sku', editedProduct.sku);
 
-        // --- NEW RECIPE SAVE LOGIC ---
+        // --- RECIPES ---
         await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
-        if (editedProduct.recipe.length > 0 && editedProduct.production_type === ProductionType.InHouse) {
+        // Save recipes for BOTH InHouse and Imported (to track stone value for intelligence)
+        if (editedProduct.recipe.length > 0) {
             const recipeInserts = editedProduct.recipe.map(r => ({
                 parent_sku: editedProduct.sku,
                 type: r.type,
@@ -518,7 +563,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await supabase.from('recipes').insert(recipeInserts);
         }
         
-        // --- NEW MOLD SAVE LOGIC (WITH QUANTITY) ---
         await supabase.from('product_molds').delete().eq('product_sku', editedProduct.sku);
         if (editedProduct.molds && editedProduct.molds.length > 0 && editedProduct.production_type === ProductionType.InHouse) {
             const moldInserts = editedProduct.molds.map(m => ({
@@ -538,7 +582,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 description: v.description,
                 stock_qty: v.stock_qty || 0,
                 active_price: v.active_price || null,
-                // Ensure selling_price is correctly typed as number or null (handling 0 correctly)
                 selling_price: (v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null
             }));
             await supabase.from('product_variants').insert(newVariantsForDB);
@@ -597,7 +640,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }
   };
 
-  // Improved Smart Add Logic
   const handleSmartAdd = () => {
     if (!smartAddSuffix.trim()) {
         showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
@@ -607,7 +649,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const fullSku = editedProduct.sku + smartAddSuffix.trim().toUpperCase();
     const analysis = analyzeSku(fullSku, editedProduct.gender);
     
-    // Validate if analysis detected something meaningful
     if (!analysis.isVariant) {
       showToast('Δεν αναγνωρίστηκε έγκυρος συνδυασμός.', 'error');
       return;
@@ -666,15 +707,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
   
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
-      // Find the variant in the main array because index from sorted list might differ
       const variantToUpdate = sortedVariantsList[index];
       const realIndex = editedProduct.variants.findIndex(v => v.suffix === variantToUpdate.suffix);
-      
       if (realIndex === -1) return;
-
       const newVariants = [...editedProduct.variants];
-      
-      // Properly handle numeric updates
       if ((field === 'selling_price' || field === 'active_price')) {
            if (value === '' || value === null) {
               value = null;
@@ -694,7 +730,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       setViewIndex(0);
   };
   
-  // Mold Editor Logic
   const addMold = (code: string) => {
       const existing = editedProduct.molds.find(m => m.code === code);
       if (existing) return;
@@ -763,7 +798,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           {/* LEFT SIDEBAR */}
           <div className={`w-1/3 border-r border-slate-200 p-6 flex flex-col overflow-y-auto transition-colors duration-300 ${isVariantView ? 'bg-emerald-50/30' : 'bg-white'}`}>
              
-             {/* Dynamic Header */}
+             {/* ... Dynamic Header & Image - KEEP ... */}
              <div className="flex items-center justify-between mb-4">
                  <div className="min-w-0">
                      <h3 className={`font-black text-xl truncate ${isVariantView ? 'text-emerald-700' : 'text-[#060b00]'}`}>
@@ -863,12 +898,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           <div className="flex-1 p-6 overflow-y-auto">
             <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide">
                 <TabButton name="overview" label="Επισκόπηση" activeTab={activeTab} setActiveTab={setActiveTab} />
-                {viewMode === 'registry' && editedProduct.production_type === ProductionType.InHouse && <TabButton name="recipe" label="Συνταγή (BOM)" activeTab={activeTab} setActiveTab={setActiveTab} />}
-                {viewMode === 'registry' && <TabButton name="labor" label={editedProduct.production_type === ProductionType.Imported ? 'Κοστολόγηση' : 'Εργατικά'} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {/* ALWAYS show recipe tab, even for imports, so users can add stones for valuation */}
+                {viewMode === 'registry' && <TabButton name="recipe" label={editedProduct.production_type === ProductionType.Imported ? "Υλικά (Valuation)" : "Συνταγή (BOM)"} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                
+                {viewMode === 'registry' && <TabButton name="labor" label={editedProduct.production_type === ProductionType.Imported ? 'Έλεγχος Τιμής' : 'Εργατικά'} activeTab={activeTab} setActiveTab={setActiveTab} />}
                 <TabButton name="variants" label="Παραλλαγές & Τιμές" activeTab={activeTab} setActiveTab={setActiveTab} />
                 <TabButton name="barcodes" label="Barcodes" activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
             
+            {/* ... Overview Tab ... */}
             {activeTab === 'overview' && (
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -901,7 +939,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         )}
                         <InfoCard label="Κατηγορία" value={editedProduct.category} />
-                        
                         <div className="bg-white p-4 rounded-xl border border-slate-200 relative group">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
                             <div className="relative mt-1">
@@ -917,7 +954,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-slate-600" size={16} />
                             </div>
                         </div>
-                        
                         <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200 relative">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τύπος Παραγωγής</label>
                             <div className="flex gap-2 mt-2">
@@ -925,9 +961,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 <button onClick={() => setEditedProduct({...editedProduct, production_type: ProductionType.Imported})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${editedProduct.production_type === ProductionType.Imported ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-500 border-slate-200'}`}>Εισαγωγή (Import)</button>
                             </div>
                         </div>
-
                         <InfoCard label="Επιμετάλλωση" value={displayPlating} />
-                        
                         {displayStones && (
                             <div className="col-span-2 bg-white p-4 rounded-xl border border-slate-200">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2"><Gem size={14}/> Πέτρες</label>
@@ -936,9 +970,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 </div>
                             </div>
                         )}
+                        {editedProduct.production_type === ProductionType.Imported && (
+                            <div className="col-span-2 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                                <label className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-2"><DollarSign size={14}/> Κόστος Αγοράς (Purchase Price)</label>
+                                <div className="mt-1 font-black text-emerald-700 text-2xl leading-snug">
+                                    {editedProduct.supplier_cost ? editedProduct.supplier_cost.toFixed(2) + '€' : '-'}
+                                </div>
+                            </div>
+                        )}
                     </div>
-
-                    {/* Molds Section - Hide if Imported, show Supplier name instead */}
                     {editedProduct.production_type === ProductionType.InHouse ? (
                         !isEditingMolds ? (
                             <div className="bg-white p-4 rounded-xl border border-slate-200">
@@ -1025,7 +1065,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         )
                     ) : (
-                        // Imported Product - Show Supplier Instead
                         <div className="bg-white p-4 rounded-xl border border-slate-200">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
                                 <Globe size={14}/> Προμηθευτής
@@ -1041,7 +1080,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     )}
                 </div>
             )}
-            {activeTab === 'recipe' && viewMode === 'registry' && editedProduct.production_type === ProductionType.InHouse && (
+            {/* RECIPE TAB - Updated to allow for both production types */}
+            {activeTab === 'recipe' && viewMode === 'registry' && (
                 <div className="space-y-3">
                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-white border-slate-200 shadow-sm">
                        <div className="p-2 rounded-lg bg-slate-100 text-slate-600"><Coins size={20} /></div>
@@ -1091,15 +1131,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
                    )})}
 
-                   {editedProduct.recipe.length === 0 && (
-                       <div className="text-center italic text-slate-400 py-4 text-xs">
-                           Μόνο Υλικό Βάσης (Ασήμι).
-                       </div>
-                   )}
                    <div className="flex gap-2 pt-4 border-t border-slate-100">
                         <button type="button" onClick={() => addRecipeItem('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-2.5 rounded-lg font-bold border border-purple-200 flex items-center gap-1 hover:bg-purple-100 transition-colors"><Plus size={14}/> Υλικό</button>
                         <button type="button" onClick={() => addRecipeItem('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-bold border border-blue-200 flex items-center gap-1 hover:bg-blue-100 transition-colors"><Plus size={14}/> STX</button>
                     </div>
+                    {editedProduct.production_type === ProductionType.Imported && (
+                        <p className="text-xs text-slate-400 italic text-center mt-2">
+                            * Για εισαγόμενα προϊόντα, η συνταγή χρησιμοποιείται για τον υπολογισμό της εσωτερικής αξίας (Intrisic Value).
+                        </p>
+                    )}
                 </div>
             )}
             
@@ -1132,8 +1172,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             </div>
                         </div>
                     ) : (
-                        // Imported Costing View
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                        // Imported Smart Audit View
+                        <div className="space-y-4">
                             <div className="bg-white p-4 rounded-xl border border-slate-200">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
                                     <Globe size={14} /> Προμηθευτής
@@ -1152,18 +1192,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             <LaborInput label="Κόστος Αγοράς (Supplier) €" value={editedProduct.supplier_cost || 0} onChange={val => setEditedProduct({...editedProduct, supplier_cost: val})} />
                             
-                            <div className="border-t border-slate-200 pt-4 mt-4">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Πρόσθετα Κόστη (Προαιρετικά)</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <LaborInput label="Γενικά Εργατικά (€)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: val, technician_cost_manual_override: true}})} />
-                                    <LaborInput label="Πέτρα + Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, stone_setting_cost: val}})} />
-                                    <LaborInput label="Επιμετάλλωση (€)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: val}})} />
-                                </div>
-                            </div>
+                            {/* SMART AUDIT CARD */}
+                            {currentCostCalc.breakdown.smart_analysis && (
+                                <SmartAuditCard analysis={currentCostCalc.breakdown.smart_analysis} />
+                            )}
                         </div>
                     )}
                 </div>
             )}
+            
+            {/* ... (Variants and Barcodes tabs remain same) ... */}
+            {/* [KEEP lines 932-1003] */}
             {activeTab === 'variants' && (
               <div className="space-y-6">
                   {/* Quick Add Area */}
@@ -1311,6 +1350,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   );
 }
 
+// ... (Helper Components InfoCard, LaborInput, TabButton - Keep as is)
 const TabButton = ({ name, label, activeTab, setActiveTab }: any) => (
     <button onClick={() => setActiveTab(name)} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition-colors whitespace-nowrap ${activeTab === name ? 'bg-slate-50 border-x border-t border-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
         {label}

@@ -1,9 +1,5 @@
 
-
-
-
-
-import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType } from '../types';
+import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
 /**
@@ -60,6 +56,95 @@ export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType
     return 0;
 };
 
+// --- NEW SMART ANALYSIS INTERFACES ---
+export interface SupplierAnalysis {
+    intrinsicValue: number; // Metal + Materials (Raw Cost)
+    theoreticalMakeCost: number; // If we made it in-house (Raw + Internal Labor)
+    supplierPremium: number; // Supplier Price - Intrinsic Value
+    premiumPercent: number; // Premium / Supplier Price
+    verdict: 'Excellent' | 'Fair' | 'Expensive' | 'Overpriced';
+    breakdown: {
+        silverCost: number;
+        materialCost: number;
+        estLabor: number;
+    }
+}
+
+/**
+ * INTELLIGENT SUPPLIER AUDIT
+ * Analyzes whether an imported product is priced fairly compared to manufacturing it in-house.
+ */
+export const analyzeSupplierValue = (
+    weight: number,
+    supplierCost: number,
+    recipe: RecipeItem[],
+    settings: GlobalSettings,
+    allMaterials: Material[],
+    allProducts: Product[] // For sub-components
+): SupplierAnalysis => {
+    // 1. Calculate Intrinsic Metal Value (No Loss added for raw value check, but usually supplier charges loss)
+    // We add standard 10% loss to be fair to supplier's expected cost basis
+    const lossMult = 1 + (settings.loss_percentage / 100);
+    const silverCost = weight * settings.silver_price_gram * lossMult;
+
+    // 2. Calculate Material Value (Stones/Chains)
+    let materialCost = 0;
+    recipe.forEach(item => {
+        if (item.type === 'raw') {
+            const mat = allMaterials.find(m => m.id === item.id);
+            if (mat) materialCost += (mat.cost_per_unit * item.quantity);
+        } else if (item.type === 'component') {
+            const sub = allProducts.find(p => p.sku === item.sku);
+            if (sub) {
+                // If sub is bought, add its cost. If made, add its draft price
+                materialCost += (sub.supplier_cost || sub.draft_price || 0) * item.quantity;
+            }
+        }
+    });
+
+    const intrinsicValue = silverCost + materialCost;
+
+    // 3. Calculate Theoretical In-House Labor
+    // We estimate what WE would pay to make it.
+    const estCasting = weight * 0.15; // Standard rule
+    const estTechnician = calculateTechnicianCost(weight);
+    const estSetting = 0; // Hard to guess without knowing stone count, but assuming simple for now or included in markup
+    const estPlating = weight * 0.60; // Avg plating cost
+
+    const estimatedInternalLabor = estCasting + estTechnician + estSetting + estPlating;
+    const theoreticalMakeCost = intrinsicValue + estimatedInternalLabor;
+
+    // 4. Analysis
+    const supplierPremium = supplierCost - intrinsicValue; // What we pay purely for their service/profit
+    const premiumPercent = supplierCost > 0 ? (supplierPremium / supplierCost) * 100 : 0;
+    
+    // Verdict Logic
+    let verdict: SupplierAnalysis['verdict'] = 'Fair';
+    
+    if (supplierCost <= theoreticalMakeCost * 0.9) {
+        verdict = 'Excellent'; // Cheaper than making it ourselves
+    } else if (supplierCost <= theoreticalMakeCost * 1.3) {
+        verdict = 'Fair'; // Normal markup
+    } else if (supplierCost <= theoreticalMakeCost * 1.8) {
+        verdict = 'Expensive';
+    } else {
+        verdict = 'Overpriced';
+    }
+
+    return {
+        intrinsicValue: roundPrice(intrinsicValue),
+        theoreticalMakeCost: roundPrice(theoreticalMakeCost),
+        supplierPremium: roundPrice(supplierPremium),
+        premiumPercent: parseFloat(premiumPercent.toFixed(1)),
+        verdict,
+        breakdown: {
+            silverCost,
+            materialCost,
+            estLabor: estimatedInternalLabor
+        }
+    };
+};
+
 export const calculateProductCost = (
   product: Product,
   settings: GlobalSettings,
@@ -87,30 +172,36 @@ export const calculateProductCost = (
 
   // --- IMPORTED PRODUCT LOGIC ---
   if (product.production_type === ProductionType.Imported) {
-      const supplierCost = product.supplier_cost || 0;
-      const labor = product.labor;
+      // SMART LOGIC:
+      // supplier_cost = Purchase Price (Metric 1 - This is our Cost)
+      // product.labor fields = Supplier's Internal Breakdown (Metric 2 - Informational)
+      // We run the Smart Analysis here to attach it to the breakdown for UI usage
       
-      // For Imported:
-      // technician_cost = General Labor (QC, Packaging, Tagging)
-      // stone_setting_cost = Optional extra cost for stones added locally
-      const laborCost = (labor.technician_cost || 0) + (labor.stone_setting_cost || 0);
+      const purchasePrice = product.supplier_cost || 0;
       
-      // Plating might still apply if we plate imports
-      const platingCost = (labor.plating_cost_x || 0) + (labor.plating_cost_d || 0);
-
-      const totalCost = supplierCost + laborCost + platingCost;
+      const analysis = analyzeSupplierValue(
+          product.weight_g,
+          purchasePrice,
+          product.recipe,
+          settings,
+          allMaterials,
+          allProducts
+      );
 
       return {
-          total: roundPrice(totalCost),
+          total: roundPrice(purchasePrice),
           breakdown: {
-              supplier_cost: supplierCost,
+              supplier_cost: purchasePrice,
               silver: 0,
               materials: 0,
-              labor: laborCost,
-              details: {
-                  ...labor,
-                  supplier_cost: supplierCost
-              }
+              labor: 0, // We do not count supplier's labor as our internal cost
+              supplier_metrics: {
+                  // These are informational only (User input)
+                  reported_labor: product.labor.technician_cost || 0,
+                  reported_setting: product.labor.stone_setting_cost || 0,
+                  reported_plating: product.labor.plating_cost_x || 0
+              },
+              smart_analysis: analysis // The computed "Intelligence"
           }
       };
   }
@@ -246,28 +337,12 @@ export const estimateVariantCost = (
 ): number => {
     // --- IMPORTED LOGIC ---
     if (masterProduct.production_type === ProductionType.Imported) {
-        // Base supplier cost
-        let totalCost = masterProduct.supplier_cost || 0;
+        // For Imported products, the Variant Cost is essentially the Purchase Price.
+        // We do NOT add the "Supplier Analysis" fields (labor/setting) as they are distinct entities.
         
-        // Add General Labor
-        if (masterProduct.labor.technician_cost) {
-            totalCost += masterProduct.labor.technician_cost;
-        }
-        
-        // Add Stone Setting Labor
-        if (masterProduct.labor.stone_setting_cost) {
-            totalCost += masterProduct.labor.stone_setting_cost;
-        }
-
-        // Add Plating if the variant implies it (e.g. Imported Silver -> Plated locally)
-        const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
-        if (['X', 'H'].includes(finish.code)) { 
-            totalCost += masterProduct.labor.plating_cost_x || 0;
-        } else if (finish.code === 'D') {
-            totalCost += masterProduct.labor.plating_cost_d || 0;
-        }
-        
-        return roundPrice(totalCost);
+        // NOTE: In the future, if we do LOCAL plating on an imported item, we could add logic here.
+        // For now, based on strict requirements: Purchase Price is the Cost.
+        return roundPrice(masterProduct.supplier_cost || 0);
     }
 
     // --- IN HOUSE LOGIC ---
