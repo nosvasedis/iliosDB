@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
@@ -17,7 +16,6 @@ interface Props {
   onCancel?: () => void;
 }
 
-// Steps are now dynamic based on Production Type
 const getSteps = (type: ProductionType) => {
     if (type === ProductionType.Imported) {
         return [
@@ -35,6 +33,151 @@ const getSteps = (type: ProductionType) => {
         { id: 5, title: 'Σύνοψη & Αποθήκευση' }
     ];
 };
+
+const getMaterialIcon = (type?: string) => {
+    switch (type) {
+        case 'Stone': return <Gem size={16} className="text-emerald-500" />;
+        case 'Cord': return <Activity size={16} className="text-amber-600" />;
+        case 'Chain': return <Link size={16} className="text-slate-500" />;
+        case 'Component': return <Puzzle size={16} className="text-blue-500" />;
+        case 'Enamel': return <Palette size={16} className="text-rose-500" />;
+        default: return <Box size={16} className="text-slate-400" />;
+    }
+};
+
+// --- NEW RECIPE ITEM SELECTOR MODAL ---
+const RecipeItemSelectorModal = ({
+    type, productCategory, allMaterials, allProducts, onClose, onSelect
+}: {
+    type: 'raw' | 'component',
+    productCategory: string,
+    allMaterials: Material[],
+    allProducts: Product[],
+    onClose: () => void,
+    onSelect: (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => void
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
+        'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
+        'Σκουλαρίκια': { types: [MaterialType.Stone], names: ['ζιργκόν', 'πεταλούδα', 'καρφωτάκι'] },
+        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Chain], names: ['κούμπωμα', 'δέρμα'] },
+        'Μενταγιόν': { types: [MaterialType.Chain], names: ['κρίκος', 'κρικάκι'] },
+        'Σταυρός': { types: [], names: ['κρίκος', 'κρικάκι'] }
+    };
+
+    const { suggestions, others } = useMemo(() => {
+        const keywords = Object.entries(suggestionKeywords).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
+        
+        let allItems: any[] = [];
+        if (type === 'raw') {
+            allItems = [...allMaterials];
+        } else {
+            allItems = allProducts.filter(p => p.is_component);
+        }
+
+        const suggestedItems: any[] = [];
+        const otherItems: any[] = [];
+        
+        allItems.forEach(item => {
+            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
+            if (isSuggested) {
+                suggestedItems.push(item);
+            } else {
+                otherItems.push(item);
+            }
+        });
+
+        const filterFn = (item: any) => {
+            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            return name.includes(searchTerm.toLowerCase());
+        };
+
+        return {
+            suggestions: suggestedItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
+            others: otherItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
+        };
+    }, [type, productCategory, allMaterials, allProducts, searchTerm]);
+
+    const handleSelect = (item: any) => {
+        if (type === 'raw') {
+            onSelect({ type: 'raw', id: item.id });
+        } else {
+            onSelect({ type: 'component', sku: item.sku });
+        }
+    };
+    
+    // @FIX: Refactor ListItem from a component-in-component to a render function to avoid React anti-pattern and fix TS error.
+    const renderListItem = (item: any) => {
+        const name = type === 'raw' ? item.name : item.sku;
+        const icon = type === 'raw' ? getMaterialIcon(item.type) : getMaterialIcon('Component');
+        const cost = type === 'raw' ? `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}` : `${item.active_price.toFixed(2)}€`;
+
+        return (
+            <div
+                key={item.id || item.sku}
+                onClick={() => handleSelect(item)}
+                className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors border border-transparent hover:border-emerald-100"
+            >
+                <div className="p-2 bg-slate-100 rounded-lg">{icon}</div>
+                <div className="flex-1">
+                    <div className="font-bold text-slate-800 text-sm">{name}</div>
+                    <div className="text-xs text-slate-400 font-mono">{cost}</div>
+                </div>
+                <div className="p-1 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500">
+                   <Plus size={14}/>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col h-[70vh] animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"><X size={20}/></button>
+                </div>
+                <div className="p-4 border-b border-slate-100">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                        <input
+                            type="text"
+                            placeholder="Αναζήτηση..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            autoFocus
+                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    {suggestions.length > 0 && (
+                        <div className="mb-6">
+                            <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2 ml-2">Προτεινόμενα</h4>
+                            <div className="space-y-1">
+                                {suggestions.map(renderListItem)}
+                            </div>
+                        </div>
+                    )}
+                    {(suggestions.length > 0 || searchTerm) && (
+                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 ml-2">Όλα</h4>
+                    )}
+                    <div className="space-y-1">
+                        {others.map(renderListItem)}
+                    </div>
+                    {suggestions.length === 0 && others.length === 0 && (
+                         <div className="text-center text-slate-400 py-10">
+                             <p>Δεν βρέθηκαν αποτελέσματα.</p>
+                         </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
     const color = 
@@ -132,9 +275,6 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
     );
 };
 
-// ... (Rest of NewProduct.tsx remains largely the same, just keeping it consistent)
-// [No changes needed to LaborCostCard, SummaryRow etc. - reusing existing]
-
 const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOverride, readOnly = false, hint }: {
     icon: React.ReactNode;
     label: string;
@@ -180,19 +320,7 @@ const SummaryRow = ({ label, value, sub, color }: { label: string, value: number
     </div>
 );
 
-const getMaterialIcon = (type?: string) => {
-    switch (type) {
-        case 'Stone': return <Gem size={16} className="text-emerald-500" />;
-        case 'Cord': return <Activity size={16} className="text-amber-600" />;
-        case 'Chain': return <Link size={16} className="text-slate-500" />;
-        case 'Component': return <Puzzle size={16} className="text-blue-500" />;
-        case 'Enamel': return <Palette size={16} className="text-rose-500" />;
-        default: return <Box size={16} className="text-slate-400" />;
-    }
-};
-
 export default function NewProduct({ products, materials, molds = [], onCancel }: Props) {
-  // ... (All state initialization from original file - kept intact)
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers }); 
@@ -217,6 +345,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [sellingPrice, setSellingPrice] = useState(0); 
   
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
+  
   const [labor, setLabor] = useState<LaborCost>({ 
     casting_cost: 0, 
     setter_cost: 0, 
@@ -266,7 +396,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const STEPS = getSteps(productionType);
   const finalStepId = STEPS[STEPS.length - 1].id;
 
-  // ... (Effects and Handlers - kept identical)
   useEffect(() => {
     const skuTrimmed = sku.trim();
     if (skuTrimmed.length >= 2) {
@@ -388,8 +517,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     setCostBreakdown(cost.breakdown);
   }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId]);
 
-  // ... (All other methods: handleImageSelect, addRawMaterial, addComponent, updateRecipeItem, removeRecipeItem, addMold, updateMoldQuantity, removeMold, handleQuickCreateMold, handleQuickCreateMaterial, suggestedMolds, handleAddVariant, updateVariant, removeVariant, handleSubmit, etc. - kept identical)
-  
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -399,21 +526,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   };
 
-  const addRawMaterial = () => {
-    if (materials.length > 0) {
-      setRecipe([...recipe, { type: 'raw', id: materials[0].id, quantity: 1 }]);
+  const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
+    if (item.type === 'raw') {
+        setRecipe([...recipe, { type: 'raw', id: item.id, quantity: 1 }]);
     } else {
-        setIsCreatingMaterial(true);
+        setRecipe([...recipe, { type: 'component', sku: item.sku, quantity: 1 }]);
     }
-  };
-
-  const addComponent = () => {
-    const stxProducts = products.filter(p => p.is_component);
-    if (stxProducts.length > 0) {
-      setRecipe([...recipe, { type: 'component', sku: stxProducts[0].sku, quantity: 1 }]);
-    } else {
-        showToast("Δεν υπάρχουν διαθέσιμα εξαρτήματα (STX).", "error");
-    }
+    setIsRecipeModalOpen(false);
   };
 
   const updateRecipeItem = (index: number, field: string, value: any) => {
@@ -748,7 +867,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
-      {/* ... Header ... */}
+      {isRecipeModalOpen && (
+        <RecipeItemSelectorModal
+            type={isRecipeModalOpen}
+            productCategory={category}
+            allMaterials={materials}
+            allProducts={products}
+            onClose={() => setIsRecipeModalOpen(false)}
+            onSelect={handleSelectRecipeItem}
+        />
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             {onCancel && (
@@ -780,18 +909,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       </div>
 
       <div className="flex-1 overflow-hidden">
-        
-        {/* === MAIN PANEL === */}
         <div className="h-full flex flex-col relative bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
             
-            {/* STEP 1: BASIC INFO & IMAGE - Unchanged */}
             {currentStep === 1 && (
                 <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
-                    {/* ... (Same as original NewProduct.tsx Step 1 content) */}
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
                         <span>1. Βασικά Στοιχεία</span>
-                        {/* Production Type Toggle */}
                         <div className="flex bg-slate-100 p-1 rounded-lg">
                             <button
                                 onClick={() => setProductionType(ProductionType.InHouse)}
@@ -808,7 +932,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </h3>
                     <div className="flex flex-col lg:flex-row gap-8">
-                        {/* ... Image & Inputs ... */}
                         <div className="w-full lg:w-1/3">
                             <label className="block text-sm font-bold text-slate-700 mb-2">Φωτογραφία</label>
                             <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden hover:border-amber-400 transition-all cursor-pointer shadow-inner">
@@ -817,7 +940,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
                         <div className="flex-1 space-y-6">
-                            {/* IDENTITY SECTION (BLUE) */}
                             <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 space-y-4">
                                 <div className="text-xs font-bold text-blue-800 uppercase tracking-wide flex items-center gap-2"><Tag size={14}/> Ταυτότητα Προϊόντος</div>
                                 <div className="relative">
@@ -837,7 +959,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </div>
                             </div>
 
-                            {/* SPECS SECTION (SLATE) */}
                             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
                                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2"><Hammer size={14}/> Τεχνικά Χαρακτηριστικά</div>
                                 <div className="grid grid-cols-2 gap-5">
@@ -866,7 +987,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 </div>
                             </div>
 
-                            {/* PRICING SECTION (GREEN) */}
                             <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 space-y-4">
                                 <div className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-2"><DollarSign size={14}/> Τιμολόγηση</div>
                                 <div className="flex gap-4">
@@ -881,10 +1001,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
                     </div>
-                    {/* ... (Mold Selector) ... */}
                     {productionType === ProductionType.InHouse && (
                         <div className="pt-4 border-t border-slate-100">
-                            {/* ... Molds UI - unchanged ... */}
                             <label className="block text-sm font-bold text-amber-700 mb-3">Λάστιχα</label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
@@ -932,7 +1050,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 2: RECIPE (ONLY FOR IN-HOUSE) - Unchanged */}
             {currentStep === 2 && productionType === ProductionType.InHouse && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
@@ -952,25 +1069,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </div>
 
                     {recipe.map((item, idx) => {
-                        const selectedMat = item.type === 'raw' ? materials.find(m => m.id === item.id) : null;
+                        const itemDetails = item.type === 'raw' 
+                            ? materials.find(m => m.id === item.id) 
+                            : products.find(p => p.sku === item.sku);
+                        // @FIX: Use discriminator `item.type` to correctly access `name` or `sku`.
+                        const name = item.type === 'raw' 
+                            ? (itemDetails as Material | undefined)?.name || "Άγνωστο"
+                            : (itemDetails as Product | undefined)?.sku || "Άγνωστο";
+                        const icon = item.type === 'raw' ? getMaterialIcon((itemDetails as Material)?.type) : getMaterialIcon('Component');
+                        
                         return (
-                        <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100 hover:border-blue-200 transition-all">
+                        <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100">
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{icon}</div>
                             <div className="flex-1">
-                                <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 ml-1">{item.type === 'raw' ? 'Υλικό' : 'Εξάρτημα'}</label>
-                                <div className="flex gap-2 items-center">
-                                    {item.type === 'raw' && selectedMat && (<div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{getMaterialIcon(selectedMat.type)}</div>)}
-                                    {item.type === 'component' && (<div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{getMaterialIcon('Component')}</div>)}
-                                    {item.type === 'raw' ? (
-                                        <select value={item.id} onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
-                                            {materials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
-                                        </select>
-                                    ) : (
-                                        <select value={item.sku} onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)} className="w-full text-sm font-bold outline-none cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 focus:border-blue-400">
-                                            {products.filter(p => p.is_component).map(p => (<option key={p.sku} value={p.sku}>{p.sku}</option>))}
-                                        </select>
-                                    )}
-                                    {item.type === 'raw' && (<button onClick={() => setIsCreatingMaterial(true)} className="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-200 transition-colors" title="Νέο Υλικό"><Plus size={16}/></button>)}
-                                </div>
+                               <div className="font-bold text-slate-800 text-sm">{name}</div>
                             </div>
                             <div className="w-24">
                                 <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Ποσότητα</label>
@@ -983,18 +1095,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     {recipe.length === 0 && <div className="text-center italic text-slate-400 py-4 text-xs">Μόνο Υλικό Βάσης (Ασήμι).</div>}
 
                     <div className="flex gap-2 pt-4 border-t border-slate-100">
-                        <button type="button" onClick={addRawMaterial} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button>
-                        <button type="button" onClick={addComponent} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16}/> Προσθήκη STX</button>
+                        <button type="button" onClick={() => setIsRecipeModalOpen('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button>
+                        <button type="button" onClick={() => setIsRecipeModalOpen('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16}/> Προσθήκη STX</button>
                     </div>
                 </div>
             )}
 
-            {/* STEP 2: COSTING (ONLY FOR IMPORTED) */}
             {currentStep === 2 && productionType === ProductionType.Imported && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">2. Κοστολόγηση Εισαγωγής</h3>
                     
-                    {/* PRIMARY COST CARD */}
                     <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
@@ -1034,12 +1144,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </div>
 
-                    {/* SMART AUDIT SECTION - Upgraded for Forensics */}
                     {costBreakdown && costBreakdown.smart_analysis && (
                         <SmartAnalysisCard analysis={costBreakdown.smart_analysis} />
                     )}
 
-                    {/* SUPPLIER BREAKDOWN CARD (INFO ONLY) */}
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 opacity-90">
                         <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
                             <Info size={18} className="text-slate-400" />
@@ -1058,38 +1166,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
 
-            {/* ... Rest of Steps (3-5) and Modals - kept identical ... */}
-            {/* [Quick Material Modal code...] */}
-            {isCreatingMaterial && (
-                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-slate-800">Νέο Υλικό</h3>
-                            <button onClick={() => setIsCreatingMaterial(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
-                        </div>
-                        <div className="space-y-3">
-                            <input type="text" placeholder="Όνομα Υλικού" value={newMatName} onChange={e => setNewMatName(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"/>
-                            <select value={newMatType} onChange={(e) => setNewMatType(e.target.value as MaterialType)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20">
-                                <option value={MaterialType.Stone}>Πέτρα</option>
-                                <option value={MaterialType.Cord}>Κορδόνι</option>
-                                <option value={MaterialType.Chain}>Αλυσίδα</option>
-                                <option value={MaterialType.Component}>Εξάρτημα</option>
-                                <option value={MaterialType.Enamel}>Σμάλτο</option>
-                            </select>
-                            <div className="flex gap-2">
-                                <input type="number" step="0.01" placeholder="Κόστος (€)" value={newMatCost} onChange={e => setNewMatCost(parseFloat(e.target.value))} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-center"/>
-                                <input type="text" placeholder="Μονάδα" value={newMatUnit} onChange={e => setNewMatUnit(e.target.value)} className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-center"/>
-                            </div>
-                            <button onClick={handleQuickCreateMaterial} disabled={isSavingMat} className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold mt-2 hover:bg-black transition-all flex items-center justify-center gap-2">
-                                {isSavingMat ? <Loader2 size={16} className="animate-spin"/> : <Plus size={16}/>}
-                                {isSavingMat ? 'Αποθήκευση...' : 'Δημιουργία & Χρήση'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ... Steps 3, 4, 5 code... */}
             {currentStep === 3 && productionType === ProductionType.InHouse && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
@@ -1098,7 +1174,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} readOnly hint="Από Συνολικό Βάρος"/>
                             <LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} />
-                            <LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} />
+                            <LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.labor.technician_cost_manual_override}))} />
                             <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} hint="Από Βασικό Βάρος" />
                             <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" />
                         </div>
@@ -1106,7 +1182,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* STEP 4/3 VARIANTS */}
             {currentStep === (productionType === ProductionType.Imported ? 3 : 4) && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">
@@ -1146,7 +1221,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
-            {/* FINAL STEP: SUMMARY */}
             {currentStep === finalStepId && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <div className="flex gap-6 items-start">
@@ -1168,7 +1242,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Cost Summary Column */}
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
                                 <Calculator size={14}/> Ανάλυση Κόστους (Master)
@@ -1183,7 +1256,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 ) : (
                                     <>
                                         <SummaryRow label="Τιμή Αγοράς (Base)" value={costBreakdown?.supplier_cost || 0} color="bg-emerald-500" />
-                                        {/* Smart Analysis Summary */}
                                         {costBreakdown?.smart_analysis && (
                                             <div className="mt-3 p-2 bg-white rounded border border-slate-200 text-xs">
                                                 <div className="flex justify-between font-bold text-slate-600 mb-1">
@@ -1227,7 +1299,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
 
-                        {/* ... (Production Specs - Same as before) */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-100 pb-2">
                                 <Box size={14}/> Προδιαγραφές
@@ -1279,7 +1350,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                         </div>
 
-                        {/* ... (Commercial Column - Same as before) */}
                         <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 shadow-sm flex flex-col">
                             <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
                                 <DollarSign size={14}/> Εμπορική Πολιτική (Master)
@@ -1303,7 +1373,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         </div>
                     </div>
 
-                    {/* ... (Variants Table - Same as before) */}
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                         <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                             <h4 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={16}/> Παραλλαγές ({variants.length})</h4>
@@ -1363,7 +1432,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             )}
             </div>
 
-            {/* FOOTER NAV - Unchanged */}
             <div className="p-6 border-t border-slate-100 bg-white/50 backdrop-blur-sm flex justify-between items-center">
                 <button onClick={prevStep} disabled={currentStep === 1} className="flex items-center gap-2 px-5 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold disabled:opacity-50"><ArrowLeft size={16}/> Πίσω</button>
                 

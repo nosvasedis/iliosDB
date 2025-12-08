@@ -150,7 +150,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             const allExtractedText = pagesText.filter(Boolean).join('\n').trim();
 
             if (allExtractedText) {
-                // FIX: Pass a string to setSkusText instead of a function to match prop type.
+                // @FIX: Pass a string to setSkusText instead of a function to match prop type.
                 setSkusText((skusText.trim() ? skusText.trim() + '\n' : '') + allExtractedText);
                 showToast('Οι κωδικοί από το PDF προστέθηκαν!', 'success');
             } else {

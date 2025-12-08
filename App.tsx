@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -26,7 +27,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 // @FIX: Import 'Collection' type.
-import { Product, ProductVariant, GlobalSettings, Order, ProductionBatch, Mold, Material, RecipeItem, Collection } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, ProductionBatch, Mold, Material, Collection } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
