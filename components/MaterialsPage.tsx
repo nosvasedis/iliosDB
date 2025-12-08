@@ -1,8 +1,7 @@
 
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -27,6 +26,8 @@ export default function MaterialsPage({ settings }: Props) {
   const { data: materials, isLoading } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
 
   const [editableMaterials, setEditableMaterials] = useState<Material[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Variant Pricing Modal State
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
@@ -38,10 +39,32 @@ export default function MaterialsPage({ settings }: Props) {
     }
   }, [materials]);
 
+  // Derived filtered list
+  const filteredMaterials = useMemo(() => {
+      return editableMaterials.filter(m => {
+          const matchesTab = activeTab === 'ALL' || m.type === activeTab;
+          const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
+          return matchesTab && matchesSearch;
+      });
+  }, [editableMaterials, activeTab, searchTerm]);
+
+  // Calculate counts for tabs
+  const counts = useMemo(() => {
+      const c: Record<string, number> = { 'ALL': editableMaterials.length };
+      Object.values(MaterialType).forEach(t => c[t] = 0);
+      editableMaterials.forEach(m => {
+          if (c[m.type] !== undefined) c[m.type]++;
+      });
+      return c;
+  }, [editableMaterials]);
+
   const handleAddMaterial = async () => {
     try {
+        // Default to the active tab type if not "ALL", otherwise Component
+        const defaultType = activeTab !== 'ALL' ? (activeTab as MaterialType) : MaterialType.Component;
+
         const { error } = await supabase.from('materials').insert({
-            name: 'Νέο Υλικό', type: MaterialType.Component, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}
+            name: 'Νέο Υλικό', type: defaultType, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}
         });
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -150,6 +173,15 @@ export default function MaterialsPage({ settings }: Props) {
       }
   };
 
+  const TABS = [
+      { id: 'ALL', label: 'Όλα', icon: Layers },
+      { id: MaterialType.Stone, label: 'Πέτρες', icon: Gem },
+      { id: MaterialType.Component, label: 'Εξαρτήματα', icon: Puzzle },
+      { id: MaterialType.Chain, label: 'Αλυσίδες', icon: Link },
+      { id: MaterialType.Cord, label: 'Κορδόνια', icon: Activity },
+      { id: MaterialType.Enamel, label: 'Σμάλτα', icon: Palette },
+  ];
+
   if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
 
   return (
@@ -165,7 +197,7 @@ export default function MaterialsPage({ settings }: Props) {
            <p className="text-slate-500 mt-1 ml-14">Κατάλογος πρώτων υλών για κοστολόγηση.</p>
         </div>
         <button onClick={handleAddMaterial} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-slate-800 font-bold transition-all hover:shadow-lg hover:-translate-y-0.5">
-            <Plus size={20} /> Νέο Υλικό
+            <Plus size={20} /> Νέο {activeTab !== 'ALL' ? MAT_TYPE_MAP[activeTab as MaterialType] : 'Υλικό'}
         </button>
       </div>
 
@@ -189,82 +221,122 @@ export default function MaterialsPage({ settings }: Props) {
           </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100">
-              <tr>
-                  <th className="p-5 w-16 text-center">#</th>
-                  <th className="p-5">Όνομα</th>
-                  <th className="p-5">Τύπος</th>
-                  <th className="p-5 text-right">Κόστος (€)</th>
-                  <th className="p-5 w-24 text-center">Μονάδα</th>
-                  <th className="p-5 text-center w-32">Ενέργειες</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {editableMaterials.map((m, idx) => (
-                <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
-                  <td className="p-4">
-                      <div className="flex flex-col">
+      <div className="space-y-4">
+          {/* TABS & SEARCH */}
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-end">
+              <div className="flex gap-2 overflow-x-auto pb-2 w-full md:w-auto scrollbar-hide">
+                  {TABS.map(tab => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                          <button
+                              key={tab.id}
+                              onClick={() => setActiveTab(tab.id)}
+                              className={`
+                                  flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all border
+                                  ${isActive 
+                                      ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-200' 
+                                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'}
+                              `}
+                          >
+                              <tab.icon size={16} />
+                              {tab.label}
+                              <span className={`ml-1 text-xs py-0.5 px-1.5 rounded-md ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                  {counts[tab.id] || 0}
+                              </span>
+                          </button>
+                      );
+                  })}
+              </div>
+              
+              <div className="relative w-full md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                  <input 
+                      type="text" 
+                      placeholder="Αναζήτηση..." 
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 text-sm font-medium"
+                  />
+              </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100">
+                  <tr>
+                      <th className="p-5 w-16 text-center">#</th>
+                      <th className="p-5">Όνομα</th>
+                      <th className="p-5">Τύπος</th>
+                      <th className="p-5 text-right">Κόστος (€)</th>
+                      <th className="p-5 w-24 text-center">Μονάδα</th>
+                      <th className="p-5 text-center w-32">Ενέργειες</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredMaterials.map((m, idx) => (
+                    <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
+                      <td className="p-4">
+                          <div className="flex flex-col">
+                              <input 
+                                type="text" 
+                                value={m.name} 
+                                onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
+                                className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
+                              />
+                              {Object.keys(m.variant_prices || {}).length > 0 && (
+                                  <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-1">
+                                      <List size={10}/> {Object.keys(m.variant_prices || {}).length} ειδικές τιμές
+                                  </div>
+                              )}
+                          </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="relative flex items-center gap-2">
+                            {getMaterialIcon(m.type)}
+                            <select 
+                                value={m.type} 
+                                onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 
+                                className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-slate-600 outline-none w-full appearance-none font-medium cursor-pointer"
+                            >
+                                {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
+                            </select>
+                        </div>
+                      </td>
+                      <td className="p-4 text-right">
+                          <input 
+                            type="number" 
+                            step="0.001" 
+                            value={m.cost_per_unit} 
+                            onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} 
+                            className="w-24 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-right text-slate-900 font-mono font-bold outline-none"
+                          />
+                      </td>
+                      <td className="p-4 text-center">
                           <input 
                             type="text" 
-                            value={m.name} 
-                            onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
-                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
+                            value={m.unit} 
+                            onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} 
+                            className="w-16 bg-slate-100 rounded py-1 text-center text-slate-500 text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500/20"
                           />
-                          {Object.keys(m.variant_prices || {}).length > 0 && (
-                              <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-1">
-                                  <List size={10}/> {Object.keys(m.variant_prices || {}).length} ειδικές τιμές
-                              </div>
-                          )}
-                      </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="relative flex items-center gap-2">
-                        {getMaterialIcon(m.type)}
-                        <select 
-                            value={m.type} 
-                            onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 
-                            className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 text-slate-600 outline-none w-full appearance-none font-medium cursor-pointer"
-                        >
-                            {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
-                        </select>
-                    </div>
-                  </td>
-                  <td className="p-4 text-right">
-                      <input 
-                        type="number" 
-                        step="0.001" 
-                        value={m.cost_per_unit} 
-                        onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} 
-                        className="w-24 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 py-1 text-right text-slate-900 font-mono font-bold outline-none"
-                      />
-                  </td>
-                  <td className="p-4 text-center">
-                      <input 
-                        type="text" 
-                        value={m.unit} 
-                        onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} 
-                        className="w-16 bg-slate-100 rounded py-1 text-center text-slate-500 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
-                      />
-                  </td>
-                  <td className="p-4">
-                    <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openVariantEditor(m)} title="Ειδικές Τιμές" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><List size={18} /></button>
-                        <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
-                        <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {materials && materials.length === 0 && (
-                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν υπάρχουν υλικά. Προσθέστε το πρώτο σας υλικό.</span></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openVariantEditor(m)} title="Ειδικές Τιμές" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><List size={18} /></button>
+                            <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                            <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredMaterials.length === 0 && (
+                    <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά σε αυτή την κατηγορία.</span></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
       </div>
 
       {/* Variant Pricing Modal */}
