@@ -1,4 +1,5 @@
 
+// ... imports remain the same ...
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
@@ -9,6 +10,10 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { FINISH_CODES } from '../constants';
+
+// ... (keep Props, getSteps, getMaterialIcon, RecipeItemSelectorModal, SmartAnalysisCard, LaborCostCard, SummaryRow, AnalysisExplainerModal unchanged until NewProduct component) ...
+
+// ... inside NewProduct component ...
 
 interface Props {
   products: Product[];
@@ -182,6 +187,7 @@ const RecipeItemSelectorModal = ({
 
 
 const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+    // ... (unchanged) ...
     const color = 
         analysis.verdict === 'Excellent' ? 'emerald' : 
         analysis.verdict === 'Fair' ? 'blue' : 
@@ -539,6 +545,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   }, [sellingPrice]);
 
   useEffect(() => {
+      // If marked as STX/Component, force selling price to 0
+      if (isSTX) {
+          setSellingPrice(0);
+          setNewVariantPrice(0);
+      }
+  }, [isSTX]);
+
+  useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) {
       const techCost = calculateTechnicianCost(weight);
       setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
@@ -759,7 +773,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           image_url: imagePreview || null,
           active_price: masterEstimatedCost, 
           draft_price: masterEstimatedCost,
-          selling_price: sellingPrice,
+          selling_price: isSTX ? 0 : sellingPrice, // FORCE 0 FOR STX
           stock_qty: 0, 
           sample_qty: 0, 
           molds: [], 
@@ -781,7 +795,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           description: newVariantDesc,
           stock_qty: 0,
           active_price: parseFloat(estimatedCost.toFixed(2)),
-          selling_price: newVariantPrice > 0 ? newVariantPrice : sellingPrice 
+          selling_price: isSTX ? 0 : (newVariantPrice > 0 ? newVariantPrice : sellingPrice)
       };
 
       setVariants([...variants, newV]);
@@ -847,7 +861,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             plating_type: plating,
             active_price: masterEstimatedCost,
             draft_price: masterEstimatedCost,
-            selling_price: sellingPrice,
+            selling_price: isSTX ? 0 : sellingPrice, // FORCE 0 FOR STX
             stock_qty: existingStockQty,
             sample_qty: existingSampleQty,
             is_component: isSTX,
@@ -879,7 +893,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     description: v.description,
                     stock_qty: vStock,
                     active_price: v.active_price,
-                    selling_price: v.selling_price
+                    selling_price: isSTX ? 0 : v.selling_price // FORCE 0 FOR STX VARIANTS
                 }, { onConflict: 'product_sku, suffix' });
                 
                 if (varError) throw varError;
@@ -1077,11 +1091,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     {productionType === ProductionType.InHouse && (
                                         <label className="flex-1 flex items-center gap-3 p-3 border border-emerald-200 rounded-xl bg-white cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-emerald-600 rounded" /><span className="font-bold text-emerald-900">Είναι Εξάρτημα (STX);</span></label>
                                     )}
-                                    <div className="flex-1">
-                                        <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική (Βασική)</label>
-                                        <div className="flex items-center gap-1"><input type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="w-full p-2.5 border border-emerald-200 bg-white rounded-xl font-bold focus:ring-4 focus:ring-emerald-500/20 outline-none"/><span className="text-emerald-600 font-bold">€</span></div>
-                                    </div>
+                                    {!isSTX && (
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική (Βασική)</label>
+                                            <div className="flex items-center gap-1"><input type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="w-full p-2.5 border border-emerald-200 bg-white rounded-xl font-bold focus:ring-4 focus:ring-emerald-500/20 outline-none"/><span className="text-emerald-600 font-bold">€</span></div>
+                                        </div>
+                                    )}
                                 </div>
+                                {isSTX && <div className="text-xs text-emerald-700 italic flex items-center gap-1 bg-emerald-100/50 p-2 rounded"><Info size={14}/> Τα εξαρτήματα (STX) δεν έχουν τιμή πώλησης, μόνο κόστος παραγωγής.</div>}
                             </div>
                         </div>
                     </div>
@@ -1300,7 +1317,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     </h3>
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                         <h4 className="font-bold text-sm text-slate-600 mb-2">Προσθήκη Νέας Παραλλαγής</h4>
-                        <div className="grid grid-cols-[100px_1fr_120px_auto] gap-2 w-full items-end">
+                        <div className={`grid gap-2 w-full items-end ${isSTX ? 'grid-cols-[100px_1fr_auto]' : 'grid-cols-[100px_1fr_120px_auto]'}`}>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Κατάληξη (Suffix) *</label>
                                 <input ref={suffixInputRef} type="text" placeholder="π.χ. P, XKR" value={newVariantSuffix} onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase min-w-0 bg-white text-slate-800"/>
@@ -1309,10 +1326,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Περιγραφή</label>
                                 <input type="text" placeholder="π.χ. Πατίνα, Επίχρυσο - Κορνεόλη" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Χονδρική (€)</label>
-                                <input type="number" value={newVariantPrice} onChange={e => setNewVariantPrice(parseFloat(e.target.value))} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800 font-bold"/>
-                            </div>
+                            {!isSTX && (
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Χονδρική (€)</label>
+                                    <input type="number" value={newVariantPrice} onChange={e => setNewVariantPrice(parseFloat(e.target.value))} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800 font-bold"/>
+                                </div>
+                            )}
                             <button onClick={handleAddVariant} className="bg-[#060b00] text-white px-3 py-2 rounded-lg font-bold text-sm hover:bg-black transition-colors flex items-center justify-center h-10"><Plus size={16}/></button>
                         </div>
                     </div>
@@ -1323,7 +1342,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <div className="font-mono font-bold text-lg text-emerald-600 w-16 text-center bg-emerald-50 rounded-lg py-2">{variant.suffix}</div>
                             <input type="text" value={variant.description} onChange={e => updateVariant(index, 'description', e.target.value)} placeholder="Περιγραφή" className="flex-1 md:w-48 p-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-emerald-500 outline-none text-slate-800"/>
                                 <div className="text-xs text-slate-400">Κόστος: <span className="font-bold text-slate-600">{(variant.active_price || 0).toFixed(2)}€</span></div>
-                                <div className="text-xs text-slate-400">Χονδρική: <span className="font-bold text-slate-600">{(variant.selling_price || 0).toFixed(2)}€</span></div>
+                                {!isSTX && <div className="text-xs text-slate-400">Χονδρική: <span className="font-bold text-slate-600">{(variant.selling_price || 0).toFixed(2)}€</span></div>}
                             <button onClick={() => removeVariant(index)} className="ml-auto md:ml-2 p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto"><Trash2 size={18}/></button>
                             </div>
                         ))}
@@ -1466,20 +1485,28 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <DollarSign size={14}/> Εμπορική Πολιτική (Master)
                             </h4>
                             <div className="flex-1 flex flex-col justify-center space-y-4 text-center">
-                                <div>
-                                    <div className="text-xs font-bold text-amber-700/60 uppercase mb-1">Χονδρική Τιμή</div>
-                                    <div className="text-4xl font-black text-amber-600 tracking-tight">{sellingPrice.toFixed(2)}€</div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="bg-white/60 p-2 rounded-lg">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Κέρδος</div>
-                                        <div className="font-bold text-emerald-600">{(sellingPrice - masterEstimatedCost).toFixed(2)}€</div>
+                                {!isSTX ? (
+                                    <>
+                                    <div>
+                                        <div className="text-xs font-bold text-amber-700/60 uppercase mb-1">Χονδρική Τιμή</div>
+                                        <div className="text-4xl font-black text-amber-600 tracking-tight">{sellingPrice.toFixed(2)}€</div>
                                     </div>
-                                    <div className="bg-white/60 p-2 rounded-lg">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Margin</div>
-                                        <div className="font-bold text-blue-600">{masterMargin.toFixed(0)}%</div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-white/60 p-2 rounded-lg">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Κέρδος</div>
+                                            <div className="font-bold text-emerald-600">{(sellingPrice - masterEstimatedCost).toFixed(2)}€</div>
+                                        </div>
+                                        <div className="bg-white/60 p-2 rounded-lg">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Margin</div>
+                                            <div className="font-bold text-blue-600">{masterMargin.toFixed(0)}%</div>
+                                        </div>
                                     </div>
-                                </div>
+                                    </>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full text-amber-800/50 italic text-sm">
+                                        Εξάρτημα (Internal Cost Only)
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1494,8 +1521,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <th className="p-4 w-24">Suffix</th>
                                     <th className="p-4">Περιγραφή</th>
                                     <th className="p-4 text-right">Κόστος</th>
-                                    <th className="p-4 text-right">Χονδρική</th>
-                                    <th className="p-4 text-right">Κέρδος</th>
+                                    {!isSTX && <th className="p-4 text-right">Χονδρική</th>}
+                                    {!isSTX && <th className="p-4 text-right">Κέρδος</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -1521,17 +1548,19 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="p-4 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>
+                                            {!isSTX && <td className="p-4 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>}
+                                            {!isSTX && (
                                             <td className="p-4 text-right">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                     {margin.toFixed(0)}%
                                                 </span>
                                             </td>
+                                            )}
                                         </tr>
                                     );
                                 }) : (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">
+                                        <td colSpan={isSTX ? 3 : 5} className="p-8 text-center text-slate-400 italic">
                                             Δεν υπάρχουν παραλλαγές. Θα αποθηκευτεί μόνο το Master προϊόν.
                                         </td>
                                     </tr>
