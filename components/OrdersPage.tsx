@@ -20,6 +20,15 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
+const STAGE_TRANSLATIONS: Record<ProductionStage, string> = {
+    [ProductionStage.Waxing]: 'Κεριά',
+    [ProductionStage.Casting]: 'Χυτήριο',
+    [ProductionStage.Setting]: 'Καρφωτής',
+    [ProductionStage.Polishing]: 'Τεχνίτης',
+    [ProductionStage.Labeling]: 'Καρτελάκια',
+    [ProductionStage.Ready]: 'Έτοιμο',
+};
+
 
 export default function OrdersPage({ products, onPrintOrder, materials }: Props) {
   const queryClient = useQueryClient();
@@ -632,7 +641,7 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock }:
                                         )}
                                         {productionQty > 0 && (
                                             <div className="px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-lg text-amber-800 text-xs font-bold flex items-center gap-2">
-                                                <Factory size={14}/> {productionQty} Prod.
+                                                <Factory size={14}/> {productionQty} Παραγ.
                                             </div>
                                         )}
                                     </div>
@@ -645,7 +654,7 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock }:
                                                         <span className="font-mono text-slate-500">{b.id}</span>
                                                         {/* @FIX: Use Greek literal for BatchType comparison. */}
                                                         <span className={`font-bold ${b.type === 'Φρεσκάρισμα' ? 'text-blue-600' : 'text-slate-700'}`}>
-                                                            {b.current_stage} {b.type === 'Φρεσκάρισμα' && '(Φρεσκ.)'}
+                                                            {STAGE_TRANSLATIONS[b.current_stage] || b.current_stage} {b.type === 'Φρεσκάρισμα' && '(Φρεσκ.)'}
                                                         </span>
                                                         <span className="bg-white px-1.5 rounded border border-slate-200">{b.quantity}</span>
                                                     </div>

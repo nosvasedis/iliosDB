@@ -91,10 +91,6 @@ const ProductCard: React.FC<{
                 </div>
             )}
 
-            <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100">
-                {product.category}
-            </div>
-
             <div className="aspect-square bg-slate-50 relative overflow-hidden">
                 {product.image_url ? (
                     <img 
@@ -111,6 +107,10 @@ const ProductCard: React.FC<{
                 {hasVariants && (
                     <div className="absolute inset-0 bg-[#060b00]/0 pointer-events-none group-hover:bg-[#060b00]/5 transition-colors" />
                 )}
+
+                <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100 max-w-[calc(100%-1.5rem)] truncate">
+                    {product.category}
+                </div>
             </div>
 
             <div className="p-5 flex-1 flex flex-col relative">

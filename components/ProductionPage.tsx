@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw } from 'lucide-react';
+import { api, supabase } from '../lib/supabase';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -145,6 +145,75 @@ const OrderGroupCard: React.FC<{
     );
 };
 
+const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number) => void, isProcessing: boolean }) => {
+    const { batch, targetStage } = state;
+    const [quantity, setQuantity] = useState(batch.quantity);
+
+    const sourceStageInfo = STAGES.find(s => s.id === batch.current_stage)!;
+    const targetStageInfo = STAGES.find(s => s.id === targetStage)!;
+
+    const handleConfirmClick = () => {
+        if (quantity > 0 && quantity <= batch.quantity) {
+            onConfirm(quantity);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Μετακίνηση Παρτίδας</h2>
+                        <p className="text-sm text-slate-500 font-mono font-bold">{batch.sku}{batch.variant_suffix}</p>
+                    </div>
+                    <button onClick={onClose} disabled={isProcessing} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
+                </div>
+                <div className="p-8 space-y-6">
+                    <div className="flex items-center justify-around text-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color].bg} ${STAGE_COLORS[sourceStageInfo.color].text}`}>{sourceStageInfo.icon}</div>
+                            <span className="text-xs font-bold">{sourceStageInfo.label}</span>
+                        </div>
+                        <ArrowRight size={24} className="text-slate-300 mx-4 shrink-0"/>
+                        <div className="flex flex-col items-center gap-2">
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[targetStageInfo.color].bg} ${STAGE_COLORS[targetStageInfo.color].text}`}>{targetStageInfo.icon}</div>
+                            <span className="text-xs font-bold">{targetStageInfo.label}</span>
+                        </div>
+                    </div>
+                    <div className="bg-slate-100 p-6 rounded-2xl border border-slate-200 text-center">
+                        <label className="text-sm font-bold text-slate-600 block mb-2">Ποσότητα για μετακίνηση</label>
+                        <p className="text-xs text-slate-400 mb-3">Διαθέσιμα σε αυτή την παρτίδα: {batch.quantity}</p>
+                        <input
+                            type="number"
+                            value={quantity}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (isNaN(val)) setQuantity(1);
+                                else if (val > batch.quantity) setQuantity(batch.quantity);
+                                else if (val < 1) setQuantity(1);
+                                else setQuantity(val);
+                            }}
+                            className="w-48 p-4 text-center font-black text-3xl rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none bg-white text-slate-800"
+                            autoFocus
+                            onKeyDown={(e) => e.key === 'Enter' && handleConfirmClick()}
+                        />
+                    </div>
+                </div>
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                    <button onClick={onClose} disabled={isProcessing} className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors">
+                        Ακύρωση
+                    </button>
+                    <button onClick={handleConfirmClick} disabled={isProcessing} className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-200">
+                        {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                        {isProcessing ? 'Μετακίνηση...' : 'Επιβεβαίωση'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -153,6 +222,12 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
   const [groupByOrder, setGroupByOrder] = useState(false);
+  const [isProcessingSplit, setIsProcessingSplit] = useState(false);
+
+  const [splitModalState, setSplitModalState] = useState<{
+      batch: ProductionBatch;
+      targetStage: ProductionStage;
+  } | null>(null);
 
   const enhancedBatches: ProductionBatch[] = useMemo(() => {
     return batches?.map(b => {
@@ -195,13 +270,46 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
           return;
       }
       
-      try {
-          await api.updateBatchStage(batch.id, targetStage);
-          queryClient.invalidateQueries({ queryKey: ['batches'] });
-          queryClient.invalidateQueries({ queryKey: ['orders'] });
-      } catch (e: any) {
-          showToast(`Σφάλμα: ${e.message}`, 'error');
-      }
+      setSplitModalState({ batch, targetStage });
+  };
+
+  const handleConfirmSplit = async (quantityToMove: number) => {
+    if (!splitModalState) return;
+
+    const { batch, targetStage } = splitModalState;
+    setIsProcessingSplit(true);
+
+    try {
+        if (quantityToMove >= batch.quantity) {
+            // Move the whole batch
+            await api.updateBatchStage(batch.id, targetStage);
+        } else {
+            // Split the batch
+            const originalNewQty = batch.quantity - quantityToMove;
+            const { product_details, product_image, diffHours, isDelayed, ...dbBatch } = batch;
+            
+            const newBatchData: Omit<ProductionBatch, 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'> = {
+                ...dbBatch,
+                id: `BAT-${Date.now().toString(36).substr(2, 9).toUpperCase()}`,
+                quantity: quantityToMove,
+                current_stage: targetStage,
+                created_at: batch.created_at,
+                updated_at: new Date().toISOString(),
+            };
+
+            await api.splitBatch(batch.id, originalNewQty, newBatchData);
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['batches'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        showToast('Η παρτίδα μετακινήθηκε.', 'success');
+        setSplitModalState(null);
+
+    } catch (e: any) {
+        showToast(`Σφάλμα: ${e.message}`, 'error');
+    } finally {
+        setIsProcessingSplit(false);
+    }
   };
 
   const getGroupedBatches = (stageBatches: ProductionBatch[]) => {
@@ -306,6 +414,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 })}
             </div>
         </div>
+        {splitModalState && (
+            <SplitBatchModal 
+                state={splitModalState}
+                onClose={() => setSplitModalState(null)}
+                onConfirm={handleConfirmSplit}
+                isProcessing={isProcessingSplit}
+            />
+        )}
     </div>
   );
 }

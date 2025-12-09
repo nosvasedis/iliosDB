@@ -571,6 +571,33 @@ export const api = {
         }
     },
     
+    splitBatch: async (originalBatchId: string, originalBatchNewQty: number, newBatchData: Omit<ProductionBatch, 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'>): Promise<void> => {
+        const { error: updateError } = await supabase
+            .from('production_batches')
+            .update({ quantity: originalBatchNewQty, updated_at: new Date().toISOString() })
+            .eq('id', originalBatchId);
+
+        if (updateError) {
+            console.error("Error updating original batch quantity during split:", updateError);
+            throw updateError;
+        }
+
+        const { error: insertError } = await supabase.from('production_batches').insert(newBatchData);
+        
+        if (insertError) {
+            console.error("Error inserting new split batch:", insertError);
+            // Attempt to revert the quantity change on the original batch
+            const { error: revertError } = await supabase
+                .from('production_batches')
+                .update({ quantity: originalBatchNewQty + newBatchData.quantity })
+                .eq('id', originalBatchId);
+            if (revertError) {
+                console.error("CRITICAL: Failed to revert original batch quantity after split failure.", revertError);
+            }
+            throw insertError;
+        }
+    },
+
     deleteProductionBatch: async (batchId: string): Promise<void> => {
         const { error } = await supabase.from('production_batches').delete().eq('id', batchId);
         if (error) { console.error("Error deleting batch:", error); throw error; }
