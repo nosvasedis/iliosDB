@@ -1254,67 +1254,37 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">2. Κοστολόγηση Εισαγωγής</h3>
                     
-                    <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
-                                <DollarSign size={24} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Left: Inputs */}
+                        <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50 space-y-4">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl"> <Calculator size={24} /> </div>
+                                <div>
+                                    <h4 className="font-black text-lg text-slate-800">Υπολογισμός Κόστους</h4>
+                                    <p className="text-xs text-slate-500 font-medium">Συμπληρώστε τα παρακάτω πεδία.</p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-black text-lg text-slate-800">Τιμή Αγοράς (Purchase Price)</h4>
-                                <p className="text-xs text-slate-500 font-medium">Το κόστος κτήσης του προϊόντος (Βάση υπολογισμού).</p>
-                            </div>
-                        </div>
 
-                        <div className="mb-4">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
-                                <Globe size={14} /> Προμηθευτής
-                            </label>
-                            <select 
-                                value={supplierId} 
-                                onChange={e => setSupplierId(e.target.value)}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800"
-                            >
-                                <option value="">Επιλέξτε Προμηθευτή...</option>
-                                {suppliers?.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
+                            <LaborCostCard icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} hint="Κόστος εργασίας ανά γραμμάριο"/>
+                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} hint="Κόστος επιμετάλλωσης ανά γραμμάριο"/>
+                            <LaborCostCard icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες (€)" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Σταθερό κόστος"/>
                         </div>
-
-                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-                            <label className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Κόστος Ανά Τεμάχιο (€)</label>
-                            <input 
-                                type="number" step="0.01" 
-                                value={supplierCost} 
-                                onChange={e => setSupplierCost(parseFloat(e.target.value) || 0)}
-                                className="w-full bg-transparent font-mono font-black text-3xl text-emerald-700 outline-none mt-1"
-                                placeholder="0.00"
-                            />
-                        </div>
-                    </div>
-
-                    {costBreakdown && costBreakdown.smart_analysis && (
-                        <SmartAnalysisCard analysis={costBreakdown.smart_analysis} />
-                    )}
-
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 opacity-90">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                            <div className="flex items-center gap-2">
-                                <Info size={18} className="text-slate-400" />
-                                <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide">Ανάλυση Κόστους Προμηθευτή</h4>
-                            </div>
-                            <button onClick={() => setShowAnalysisHelp(true)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-blue-600 transition-colors">
-                                <HelpCircle size={18} />
-                            </button>
-                        </div>
-                        <p className="text-xs text-slate-400 mb-4 italic">
-                            Συμπληρώστε τα παρακάτω για να ενεργοποιήσετε την <strong>Ιατροδικαστική Ανάλυση Κόστους</strong>. Τα ποσά αυτά θεωρούνται ότι συμπεριλαμβάνονται ήδη στην "Τιμή Αγοράς" παραπάνω.
-                        </p>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <LaborCostCard icon={<Hammer size={14}/>} label="Εργατικά" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val, technician_cost_manual_override: true})} hint="Εκτιμώμενο κόστος εργασίας" readOnly={false}/>
-                            <LaborCostCard icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={labor.stone_setting_cost} onChange={val => setLabor({...labor, stone_setting_cost: val})} hint="Κόστος τοποθέτησης" readOnly={false}/>
-                            <LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val, plating_cost_x_manual_override: true})} hint="Κόστος επιμετάλλωσης" readOnly={false}/>
+                        {/* Right: Breakdown */}
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
+                                <Calculator size={14}/> Ανάλυση Κόστους (Live)
+                            </h4>
+                            <div className="space-y-1 flex-1">
+                                <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
+                                <SummaryRow label="Εργατικά" value={costBreakdown?.details?.technician_cost || 0} sub={`${formatDecimal(labor.technician_cost)}€ x ${weight}g`} color="bg-blue-400" />
+                                <SummaryRow label="Επιμετάλλωση" value={costBreakdown?.details?.plating_cost_x || 0} sub={`${formatDecimal(labor.plating_cost_x)}€ x ${weight}g`} color="bg-amber-400" />
+                                <SummaryRow label="Καρφωτικά" value={costBreakdown?.details?.stone_setting_cost || 0} sub="Σταθερό" color="bg-purple-400" />
+                            </div>
+                            <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center">
+                                <span className="font-bold text-slate-600 text-sm uppercase">Συνολο Κοστους</span>
+                                <span className="font-black text-2xl text-emerald-700">{formatCurrency(masterEstimatedCost)}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1448,25 +1418,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     </>
                                 ) : (
                                     <>
-                                        <SummaryRow label="Τιμή Αγοράς (Base)" value={costBreakdown?.supplier_cost || 0} color="bg-emerald-500" />
-                                        {costBreakdown?.smart_analysis && (
-                                            <div className="mt-3 p-2 bg-white rounded border border-slate-200 text-xs">
-                                                <div className="flex justify-between font-bold text-slate-600 mb-1">
-                                                    <span>Επιπλέον Χρέωση</span>
-                                                    <span>{costBreakdown.smart_analysis.premiumPercent}%</span>
-                                                </div>
-                                                <div className={`text-right font-black uppercase text-[10px] ${
-                                                    costBreakdown.smart_analysis.verdict === 'Excellent' ? 'text-emerald-600' :
-                                                    costBreakdown.smart_analysis.verdict === 'Fair' ? 'text-blue-600' : 'text-orange-600'
-                                                }`}>
-                                                    {
-                                                        costBreakdown.smart_analysis.verdict === 'Excellent' ? 'Εξαιρετική Τιμή' :
-                                                        costBreakdown.smart_analysis.verdict === 'Fair' ? 'Δίκαιη Τιμή' :
-                                                        costBreakdown.smart_analysis.verdict === 'Expensive' ? 'Ακριβό' : 'Υπερκοστολογημένο'
-                                                    }
-                                                </div>
-                                            </div>
-                                        )}
+                                        <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
+                                        <SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" />
+                                        <SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" />
                                     </>
                                 )}
                                 

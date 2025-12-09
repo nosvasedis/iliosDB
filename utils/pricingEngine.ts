@@ -214,33 +214,28 @@ export const calculateProductCost = (
 
   if (depth > 10) return { total: 0, breakdown: {} };
 
-  // --- IMPORTED PRODUCT LOGIC ---
+  // --- [NEW] IMPORTED PRODUCT LOGIC ---
   if (product.production_type === ProductionType.Imported) {
-      const purchasePrice = product.supplier_cost || 0;
+      const lossMultiplier = 1 + (settings.loss_percentage / 100);
+      const silverCost = product.weight_g * (settings.silver_price_gram * lossMultiplier);
       
-      const analysis = analyzeSupplierValue(
-          product.weight_g,
-          purchasePrice,
-          product.recipe,
-          settings,
-          allMaterials,
-          allProducts,
-          product.labor // Pass the full labor object for forensics
-      );
+      const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
+      const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
+      const stoneCost = product.labor.stone_setting_cost || 0;
+      
+      const totalCost = silverCost + technicianCost + platingCost + stoneCost;
 
       return {
-          total: roundPrice(purchasePrice),
+          total: roundPrice(totalCost),
           breakdown: {
-              supplier_cost: purchasePrice,
-              silver: 0,
-              materials: 0,
-              labor: 0, 
-              supplier_metrics: {
-                  reported_labor: product.labor.technician_cost || 0,
-                  reported_setting: product.labor.stone_setting_cost || 0,
-                  reported_plating: product.labor.plating_cost_x || 0
-              },
-              smart_analysis: analysis 
+              silver: silverCost,
+              labor: technicianCost + platingCost,
+              materials: stoneCost,
+              details: {
+                  technician_cost: technicianCost,
+                  plating_cost_x: platingCost,
+                  stone_setting_cost: stoneCost,
+              }
           }
       };
   }
@@ -373,8 +368,9 @@ export const estimateVariantCost = (
     allProducts: Product[],
 ): { total: number; breakdown: { silver: number; materials: number; labor: number } } => {
     if (masterProduct.production_type === ProductionType.Imported) {
-        const total = roundPrice(masterProduct.supplier_cost || 0);
-        return { total, breakdown: { silver: 0, materials: total, labor: 0 } };
+        const { total, breakdown } = calculateProductCost(masterProduct, settings, allMaterials, allProducts);
+        // For imported variants, we assume cost is same as master, as per-variant cost is not defined by the new formula
+        return { total, breakdown };
     }
 
     const lossMultiplier = 1 + (settings.loss_percentage / 100);

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users } from 'lucide-react';
+// @FIX: Added missing `Flame` icon to `lucide-react` imports.
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -227,6 +228,101 @@ const LaborCostInput = ({ label, value, onChange, override, onToggleOverride, re
         </div>
     </div>
 );
+
+const SummaryRow = ({ label, value, sub, color }: { label: string, value: string, sub?: string, color: string }) => (
+    <div className="flex items-center justify-between py-1">
+        <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${color}`}></div>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</span>
+        </div>
+        <div className="text-right">
+            <div className="font-mono font-bold text-slate-800 text-sm">{value}</div>
+            {sub && <div className="text-[10px] text-slate-400 font-medium">{sub}</div>}
+        </div>
+    </div>
+);
+
+
+const PrintQueue = ({ product, variants, onPrint }: { product: Product; variants: ProductVariant[]; onPrint: (items: any[]) => void; }) => {
+    const [queue, setQueue] = useState<{ variant?: ProductVariant; quantity: number }[]>([]);
+
+    const updateQuantity = (suffix: string | null, delta: number) => {
+        setQueue(prev => {
+            const newQueue = [...prev];
+            const index = newQueue.findIndex(item => (item.variant?.suffix || null) === (suffix || null));
+
+            if (index !== -1) {
+                newQueue[index].quantity += delta;
+                if (newQueue[index].quantity <= 0) {
+                    return newQueue.filter((_, i) => i !== index);
+                }
+            } else if (delta > 0) {
+                if (suffix) {
+                    const variant = variants.find(v => v.suffix === suffix);
+                    if (variant) newQueue.push({ variant, quantity: delta });
+                } else {
+                    newQueue.push({ quantity: delta });
+                }
+            }
+            return newQueue;
+        });
+    };
+
+    const handlePrint = () => {
+        const itemsToPrint = queue.map(item => ({
+            product: product,
+            variant: item.variant,
+            quantity: item.quantity,
+            format: 'standard' as const,
+        }));
+        onPrint(itemsToPrint);
+    };
+
+    const totalLabels = queue.reduce((sum, item) => sum + item.quantity, 0);
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col">
+                <h4 className="font-bold text-slate-700 mb-4 border-b border-slate-200 pb-2">Επιλογή Ετικετών</h4>
+                <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    {!product.variants || product.variants.length === 0 ? (
+                        <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
+                             <span className="font-bold text-sm text-slate-800">{product.sku} (Βασικό)</span>
+                             <div className="flex items-center gap-2">
+                                 <button onClick={() => updateQuantity(null, -1)} className="p-1.5 bg-slate-100 rounded-md hover:bg-slate-200">-</button>
+                                 <span className="font-bold w-6 text-center"> {queue.find(q => !q.variant)?.quantity || 0} </span>
+                                 <button onClick={() => updateQuantity(null, 1)} className="p-1.5 bg-slate-100 rounded-md hover:bg-slate-200">+</button>
+                             </div>
+                        </div>
+                    ) : (
+                        variants.map(v => (
+                            <div key={v.suffix} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
+                                <div>
+                                    <span className="font-bold text-sm text-slate-800">{v.suffix}</span>
+                                    <span className="text-xs text-slate-500 ml-2">{v.description}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => updateQuantity(v.suffix, -1)} className="p-1.5 bg-slate-100 rounded-md hover:bg-slate-200">-</button>
+                                    <span className="font-bold w-6 text-center">{queue.find(q => q.variant?.suffix === v.suffix)?.quantity || 0}</span>
+                                    <button onClick={() => updateQuantity(v.suffix, 1)} className="p-1.5 bg-slate-100 rounded-md hover:bg-slate-200">+</button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 flex flex-col items-center justify-center text-center">
+                <h4 className="font-bold text-slate-700">Σύνολο</h4>
+                <p className="text-6xl font-black text-emerald-600 my-4">{totalLabels}</p>
+                <p className="text-sm text-slate-500 mb-6">ετικέτες στην ουρά</p>
+                <button onClick={handlePrint} disabled={totalLabels === 0} className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 disabled:opacity-50">
+                    <Printer size={18}/> Εκτύπωση
+                </button>
+            </div>
+        </div>
+    );
+};
+
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
   const queryClient = useQueryClient();
@@ -1035,41 +1131,34 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        </div>
                                     </>
                                    ) : (
-                                    <div className="space-y-6">
-                                        <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50">
-                                            <div className="flex items-center gap-3 mb-6">
-                                                <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl"><DollarSign size={24} /></div>
-                                                <div>
-                                                    <h4 className="font-black text-lg text-slate-800">Τιμή Αγοράς (Purchase Price)</h4>
-                                                    <p className="text-xs text-slate-500 font-medium">Το κόστος κτήσης του προϊόντος (Βάση υπολογισμού).</p>
-                                                </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
+                                                <Calculator size={14}/> Κοστολόγηση Εισαγωγής
+                                            </h4>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12}/> Βάρος (g)</label>
+                                                <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
                                             </div>
-                                            <div className="mb-4">
-                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Προμηθευτής</label>
-                                                <select value={editedProduct.supplier_id || ''} onChange={e => setEditedProduct({...editedProduct, supplier_id: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800">
-                                                    <option value="">Επιλέξτε...</option>
-                                                    {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                </select>
+                                            <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} />
+                                            <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} />
+                                            <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} />
+                                       </div>
+                                       <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col">
+                                            <h4 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200 pb-2">
+                                                <Calculator size={14}/> Ανάλυση Κόστους
+                                            </h4>
+                                            <div className="space-y-1 flex-1">
+                                                <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
+                                                <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
+                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
+                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
                                             </div>
-                                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-                                                <label className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Κόστος Ανά Τεμάχιο (€)</label>
-                                                <input type="number" step="0.01" value={editedProduct.supplier_cost} onChange={e => setEditedProduct({...editedProduct, supplier_cost: parseFloat(e.target.value) || 0})} className="w-full bg-transparent font-mono font-black text-3xl text-emerald-700 outline-none mt-1" placeholder="0.00" />
+                                            <div className="pt-3 mt-3 border-t border-emerald-200 flex justify-between items-center">
+                                                <span className="font-bold text-emerald-700 text-sm uppercase">Τελικο Κοστος</span>
+                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
                                             </div>
-                                        </div>
-                                         {currentCostCalc.breakdown.smart_analysis && (
-                                            <SmartAnalysisCard analysis={currentCostCalc.breakdown.smart_analysis} />
-                                        )}
-                                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 opacity-90">
-                                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                                                <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide flex items-center gap-2"><Info size={18}/> Ανάλυση Κόστους Προμηθευτή (Forensics)</h4>
-                                                <button onClick={() => setShowAnalysisHelp(true)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-blue-600 transition-colors"><HelpCircle size={18} /></button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} readOnly={false}/>
-                                                <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} readOnly={false}/>
-                                                <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} readOnly={false}/>
-                                            </div>
-                                        </div>
+                                       </div>
                                     </div>
                                    )}
                                </div>
@@ -1157,4 +1246,75 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                </div>
                            )}
 
-                           {
+                           {activeTab === 'labor' && (
+                               <div className="space-y-4 animate-in fade-in">
+                                   <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: v}})} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} icon={<Flame size={14}/>}/>
+                                   <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: v}})} icon={<Gem size={14}/>}/>
+                                   <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: v}})} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override}}))} icon={<Hammer size={14}/>}/>
+                                   <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: v}})} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} icon={<Coins size={14}/>}/>
+                                   <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_d: v}})} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override}}))} icon={<Coins size={14}/>}/>
+                                   <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, subcontract_cost: v}})} icon={<Users size={14}/>}/>
+                               </div>
+                           )}
+
+                           {activeTab === 'variants' && (
+                               <div className="space-y-4 animate-in fade-in">
+                                   {/* Smart Add */}
+                                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                       <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-amber-500"/> Έξυπνη Προσθήκη</h4>
+                                       <div className="flex gap-2">
+                                           <input type="text" placeholder="Εισάγετε Suffix (π.χ. XKR)..." value={smartAddSuffix} onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
+                                           <button onClick={handleSmartAdd} className="bg-amber-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-amber-600">Add</button>
+                                       </div>
+                                   </div>
+                                   
+                                   {/* Manual Add */}
+                                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                       <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Plus size={16}/> Χειροκίνητη Προσθήκη</h4>
+                                       <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
+                                           <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => { setNewVariantSuffix(e.target.value.toUpperCase()); setManualSuffixAnalysis(analyzeSuffix(e.target.value, editedProduct.gender)); }} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
+                                           <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm"/>
+                                           <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black">Add</button>
+                                       </div>
+                                       {manualSuffixAnalysis && <div className="text-xs text-blue-600 mt-2 ml-1">Πρόταση: {manualSuffixAnalysis}</div>}
+                                   </div>
+                                   
+                                   <div className="pt-4 border-t border-slate-100 space-y-2">
+                                       {sortedVariantsList.map((v, index) => (
+                                           <div key={v.suffix} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200">
+                                               <span className="font-mono font-bold w-20 text-center">{v.suffix}</span>
+                                               <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 p-1 bg-slate-50 rounded border border-slate-200 text-sm outline-none focus:border-blue-500"/>
+                                               <div className="text-xs text-slate-400">Κόστος: <span className="font-bold text-slate-600">{formatCurrency(v.active_price)}</span></div>
+                                               {!editedProduct.is_component && <input type="number" step="0.1" value={v.selling_price || ''} onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} className="w-20 p-1 bg-emerald-50 rounded border border-emerald-200 text-sm font-bold text-emerald-800 outline-none focus:border-emerald-500"/>}
+                                               <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                           </div>
+                                       ))}
+                                   </div>
+                               </div>
+                           )}
+
+                            {activeTab === 'barcodes' && (
+                                <div className="animate-in fade-in">
+                                    <PrintQueue product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems}/>
+                                </div>
+                            )}
+                       </div>
+                   </div>
+               </div>
+           </div>
+
+           {/* Footer */}
+           <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm shrink-0">
+               <div className="flex gap-2">
+                   <button onClick={() => setPrintItems([{ product: editedProduct, variant: currentViewVariant || undefined, quantity: 1, format: 'simple' }])} className="text-sm bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors">Print Simple</button>
+                   <button onClick={handlePrintAll} className="text-sm bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors">Print All Variants</button>
+               </div>
+               <button onClick={handleSave} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100">
+                   <Save size={18}/> Αποθήκευση
+               </button>
+           </div>
+        </div>
+      </div>,
+      document.body
+  );
+}
