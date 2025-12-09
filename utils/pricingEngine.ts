@@ -1,6 +1,3 @@
-
-
-
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -267,15 +264,26 @@ export const calculateProductCost = (
     }
   });
 
-  // FIX: Type labor as Partial<LaborCost> to prevent type errors when product.labor is undefined.
   const labor: Partial<LaborCost> = product.labor || {};
   
-  const technicianCost = labor.technician_cost_manual_override
-    ? (labor.technician_cost || 0)
-    : calculateTechnicianCost(product.weight_g);
-
-  const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-  const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+  let technicianCost;
+  if (labor.technician_cost_manual_override) {
+      technicianCost = labor.technician_cost || 0;
+  } else if (product.is_component) {
+      technicianCost = 0.50;
+  } else {
+      technicianCost = calculateTechnicianCost(product.weight_g);
+  }
+  
+  let castingCost;
+  if (labor.casting_cost_manual_override) {
+      castingCost = labor.casting_cost || 0;
+  } else if (product.is_component) {
+      castingCost = 0;
+  } else {
+      const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+      castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+  }
 
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost;
   const totalCost = silverBaseCost + materialsCost + laborTotal;
@@ -289,6 +297,7 @@ export const calculateProductCost = (
       details: {
         ...(product.labor || {}),
         casting_cost: castingCost,
+        setter_cost: labor.setter_cost || 0,
         technician_cost: technicianCost 
       }
     }

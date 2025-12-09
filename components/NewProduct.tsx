@@ -337,7 +337,7 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                         <BookOpen size={24} />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Πώς λειτουργεί ο Έλεγχος Τιμής;</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Πώς λειτουργεί ο Έλεγχos Τιμής;</h2>
                         <p className="text-sm text-slate-500">Οδηγός Ανάλυσης Κόστους Προμηθευτή</p>
                     </div>
                 </div>
@@ -554,22 +554,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) {
-      if (isSTX) {
-          setLabor(prevLabor => ({...prevLabor, technician_cost: 0.50}));
-      } else {
-          const techCost = calculateTechnicianCost(weight);
-          setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
-      }
+        const techCost = calculateTechnicianCost(weight);
+        setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
     }
-  }, [weight, labor.technician_cost_manual_override, productionType, isSTX]);
+  }, [weight, labor.technician_cost_manual_override, productionType]);
   
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.casting_cost_manual_override) {
         const totalWeight = (weight || 0) + (secondaryWeight || 0);
-        const castCost = isSTX ? 0 : parseFloat((totalWeight * 0.15).toFixed(2));
+        const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
         setLabor(prevLabor => ({...prevLabor, casting_cost: castCost}));
     }
-  }, [weight, secondaryWeight, productionType, isSTX, labor.casting_cost_manual_override]);
+  }, [weight, secondaryWeight, productionType, labor.casting_cost_manual_override]);
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
@@ -1422,9 +1418,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 
                                 {productionType === ProductionType.InHouse && (
                                 <div className="ml-4 pl-4 border-l-2 border-slate-200 mt-1 space-y-1">
-                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{labor.casting_cost.toFixed(2)}€</span></div>
-                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{labor.setter_cost.toFixed(2)}€</span></div>
-                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{labor.technician_cost.toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{(costBreakdown?.details?.casting_cost || 0).toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{(costBreakdown?.details?.setter_cost || 0).toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{(costBreakdown?.details?.technician_cost || 0).toFixed(2)}€</span></div>
                                 </div>
                                 )}
                                     
