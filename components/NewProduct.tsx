@@ -431,7 +431,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
   
-  // @FIX: Add missing 'subcontract_cost' property.
   const [labor, setLabor] = useState<LaborCost>({ 
     casting_cost: 0, 
     setter_cost: 0, 
@@ -1476,6 +1475,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{(costBreakdown?.details?.casting_cost || 0).toFixed(2)}€</span></div>
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{(costBreakdown?.details?.setter_cost || 0).toFixed(2)}€</span></div>
                                     <div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{(costBreakdown?.details?.technician_cost || 0).toFixed(2)}€</span></div>
+                                    <div className="flex justify-between text-[10px] text-slate-500"><span>Φασόν</span><span>{(costBreakdown?.details?.subcontract_cost || 0).toFixed(2)}€</span></div>
                                 </div>
                                 )}
                                     
