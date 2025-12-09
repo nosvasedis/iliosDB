@@ -543,7 +543,8 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock }:
                 quantity: qty,
                 current_stage: ProductionStage.Polishing,
                 priority: 'High',
-                type: 'Refurbish',
+                // @FIX: Use Greek literal for BatchType.
+                type: 'Φρεσκάρισμα',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
                 requires_setting: false,
@@ -642,8 +643,9 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock }:
                                                 {relatedBatches.map(b => (
                                                     <div key={b.id} className="text-[10px] flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
                                                         <span className="font-mono text-slate-500">{b.id}</span>
-                                                        <span className={`font-bold ${b.type === 'Refurbish' ? 'text-blue-600' : 'text-slate-700'}`}>
-                                                            {b.current_stage} {b.type === 'Refurbish' && '(Φρεσκ.)'}
+                                                        {/* @FIX: Use Greek literal for BatchType comparison. */}
+                                                        <span className={`font-bold ${b.type === 'Φρεσκάρισμα' ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                            {b.current_stage} {b.type === 'Φρεσκάρισμα' && '(Φρεσκ.)'}
                                                         </span>
                                                         <span className="bg-white px-1.5 rounded border border-slate-200">{b.quantity}</span>
                                                     </div>
@@ -739,7 +741,8 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                         updated_at: new Date().toISOString(),
                         priority: 'High', 
                         requires_setting: false,
-                        type: 'Refurbish',
+                        // @FIX: Use Greek literal for BatchType.
+                        type: 'Φρεσκάρισμα',
                         notes: 'Από Στοκ - Χρήζει Φρεσκαρίσματος'
                     };
                     await api.createProductionBatch(batch);
@@ -760,7 +763,8 @@ const FulfillmentModal = ({ order, products, materials, onClose }: { order: Orde
                         updated_at: new Date().toISOString(),
                         priority: 'Normal',
                         requires_setting: hasStones,
-                        type: 'New'
+                        // @FIX: Use Greek literal for BatchType.
+                        type: 'Νέα'
                     };
                     await api.createProductionBatch(batch);
                 }

@@ -547,7 +547,7 @@ export const api = {
             created_at: batch.created_at,
             updated_at: batch.updated_at,
             requires_setting: batch.requires_setting,
-            type: batch.type || 'New',
+            type: batch.type || 'Νέα',
             notes: batch.notes
         });
 

@@ -91,7 +91,10 @@ export default function AggregatedProductionView({ data }: Props) {
                                                 {batch.product_image && <img src={batch.product_image} className="w-full h-full object-cover" />}
                                             </div>
                                         </td>
-                                        <td className="py-1.5 pr-2 font-mono font-bold text-slate-700">{batch.sku}{batch.variant_suffix}</td>
+                                        <td className="py-1.5 pr-2 font-mono text-slate-700">
+                                            <div className="font-bold">{batch.sku}{batch.variant_suffix}</div>
+                                            {batch.notes && <div className="text-[9px] text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
+                                        </td>
                                         <td className="py-1.5 px-2 text-center font-bold text-slate-900">{batch.quantity}</td>
                                         <td className="py-1.5 px-2 text-right font-mono text-slate-500">{formatCurrency(batch.cost_per_piece)}</td>
                                         <td className="py-1.5 pl-2 text-right font-mono font-bold text-slate-800">{formatCurrency(batch.total_cost)}</td>

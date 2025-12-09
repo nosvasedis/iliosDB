@@ -164,6 +164,7 @@ export interface OrderItem {
   quantity: number;
   price_at_order: number; 
   product_details?: Product; 
+  notes?: string;
 }
 
 export interface Order {
@@ -198,7 +199,7 @@ export enum ProductionStage {
   Ready = 'Ready'          
 }
 
-export type BatchType = 'New' | 'Refurbish';
+export type BatchType = 'Νέα' | 'Φρεσκάρισμα';
 
 export interface ProductionBatch {
   id: string;

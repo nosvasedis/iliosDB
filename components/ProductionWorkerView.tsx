@@ -60,7 +60,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                 </div>
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                        {batch.type === 'Refurbish' ? <RefreshCcw size={18} className="text-blue-600"/> : <Factory size={18} />}
+                        {batch.type === 'Φρεσκάρισμα' ? <RefreshCcw size={18} className="text-blue-600"/> : <Factory size={18} />}
                         Εντολη Παραγωγησ
                     </h1>
                     <p className="text-slate-500 font-mono font-bold">#{batch.id}</p>
@@ -169,16 +169,19 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
 
                 {/* Right Column: Checklists & Notes */}
                 <div className="space-y-6">
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 h-full break-inside-avoid flex flex-col">
-                        <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2 pb-2 border-b border-slate-100">
-                            <Tag size={18} className="text-emerald-500" /> Σημειώσεις
-                        </h3>
-                        <div className="flex-1 bg-slate-50 rounded-lg p-3 text-slate-700 text-sm leading-relaxed border border-slate-100 min-h-[100px]">
-                            {batch.notes || 'Καμία σημείωση.'}
-                        </div>
-                    </div>
+                    {/* EMPTY for now */}
                 </div>
             </main>
+            
+            <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid mt-6">
+                <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                    <Tag size={18} className="text-emerald-500" /> Σημειώσεις Παραγγελίας
+                </h3>
+                <div className="text-slate-700 text-sm leading-relaxed min-h-[50px] bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    {batch.notes || 'Καμία σημείωση.'}
+                </div>
+            </div>
+
 
             <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
                 <p className="text-xs text-slate-400">Εντολή Παραγωγής - Ilios Kosmima ERP</p>

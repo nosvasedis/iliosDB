@@ -46,7 +46,8 @@ interface BatchCardProps {
 }
 
 const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) => {
-    const isRefurbish = batch.type === 'Refurbish';
+    // @FIX: Use Greek literal for BatchType comparison.
+    const isRefurbish = batch.type === 'Φρεσκάρισμα';
     
     return (
     <div 
@@ -110,7 +111,8 @@ const OrderGroupCard: React.FC<{
 }> = ({ orderId, batches, onDragStart, onPrint }) => {
     const [expanded, setExpanded] = useState(false);
     const totalQty = batches.reduce((acc, b) => acc + b.quantity, 0);
-    const hasRefurbish = batches.some(b => b.type === 'Refurbish');
+    // @FIX: Use Greek literal for BatchType comparison.
+    const hasRefurbish = batches.some(b => b.type === 'Φρεσκάρισμα');
 
     return (
         <div className={`bg-white rounded-2xl shadow-sm border transition-all ${expanded ? 'ring-2 ring-slate-200' : 'border-slate-200 hover:shadow-md'}`}>
