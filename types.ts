@@ -68,6 +68,7 @@ export interface LaborCost {
   stone_setting_cost: number; // New: For Imported items requiring stones
   plating_cost_x: number; 
   plating_cost_d: number; 
+  subcontract_cost: number;
   casting_cost_manual_override?: boolean;
   technician_cost_manual_override?: boolean;
   plating_cost_x_manual_override?: boolean;

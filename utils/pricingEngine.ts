@@ -285,7 +285,7 @@ export const calculateProductCost = (
       castingCost = totalWeight * 0.15;
   }
 
-  const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost;
+  const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
   const totalCost = silverBaseCost + materialsCost + laborTotal;
 
   return {
@@ -298,7 +298,8 @@ export const calculateProductCost = (
         ...(product.labor || {}),
         casting_cost: castingCost,
         setter_cost: labor.setter_cost || 0,
-        technician_cost: technicianCost 
+        technician_cost: technicianCost,
+        subcontract_cost: labor.subcontract_cost || 0
       }
     }
   };
@@ -410,7 +411,7 @@ export const estimateVariantCost = (
     const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
     const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
 
-    let laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost;
+    let laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
 
     const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
     if (['X', 'H'].includes(finish.code)) { 

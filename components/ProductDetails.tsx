@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
@@ -15,8 +15,8 @@ import BarcodeView from './BarcodeView';
 // CONSTANTS
 const PLATING_LABELS: Record<string, string> = {
     [PlatingType.None]: 'Λουστρέ',
-    [PlatingType.GoldPlated]: 'Επίχρυσο',
-    [PlatingType.TwoTone]: 'Δίχρωμο',
+    [PlatingType.GoldPlated]: 'Επίхρυσο',
+    [PlatingType.TwoTone]: 'Δíхρωμο',
     [PlatingType.Platinum]: 'Πλατίνα'
 };
 
@@ -239,6 +239,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const [editedProduct, setEditedProduct] = useState<Product>(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
+    // @FIX: Add missing required property 'subcontract_cost'.
     return { 
         ...product,
         variants: product.variants || [],
@@ -256,6 +257,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             stone_setting_cost: 0,
             plating_cost_x: 0,
             plating_cost_d: 0,
+            subcontract_cost: 0,
             casting_cost_manual_override: false,
             technician_cost_manual_override: false,
             plating_cost_x_manual_override: false,
@@ -293,6 +295,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   useEffect(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
+    // @FIX: Add missing required property 'subcontract_cost'.
     setEditedProduct({ 
       ...product,
       variants: product.variants || [],
@@ -310,6 +313,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             stone_setting_cost: 0,
             plating_cost_x: 0,
             plating_cost_d: 0,
+            subcontract_cost: 0,
             casting_cost_manual_override: false,
             technician_cost_manual_override: false,
             plating_cost_x_manual_override: false,
@@ -832,14 +836,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
                <div>
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                       {editedProduct.sku}
+                       <span>{displayedSku}</span>
+                       {hasVariants && variants.length > 1 && (
+                            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                                <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                    <ChevronLeft size={18} />
+                                </button>
+                                <span className="text-xs font-mono text-slate-500 w-10 text-center">
+                                    {viewIndex + 1}/{maxViews}
+                                </span>
+                                <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                    <ChevronRight size={18} />
+                                </button>
+                            </div>
+                        )}
                        {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
                        {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Εισαγόμενο</span>}
                    </h2>
                    <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
                        <span>{editedProduct.category}</span>
                        <span>•</span>
-                       <span>{editedProduct.gender}</span>
+                       <span className="font-bold text-slate-600">{displayedLabel}</span>
                    </div>
                </div>
                <div className="flex items-center gap-2">
@@ -949,8 +966,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
                                                 <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
                                                     <option value={PlatingType.None}>Λουστρέ</option>
-                                                    <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                    <option value={PlatingType.TwoTone}>Δíχρωμο</option>
+                                                    <option value={PlatingType.GoldPlated}>Επίхρυσο</option>
+                                                    <option value={PlatingType.TwoTone}>Δíхρωμο</option>
                                                     <option value={PlatingType.Platinum}>Πλατίνα</option>
                                                 </select>
                                             </div>
@@ -1060,6 +1077,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                            {activeTab === 'recipe' && (
                                <div className="space-y-4 animate-in fade-in">
+                                   <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
+                                       <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
+                                           <Coins size={16} />
+                                       </div>
+                                       <div className="flex-1">
+                                           <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
+                                           <div className="text-xs text-slate-400 font-mono">
+                                               {formatDecimal(editedProduct.weight_g)}g @ {formatDecimal(settings.silver_price_gram, 3)}€/g (+{formatDecimal(settings.loss_percentage, 1)}%)
+                                           </div>
+                                       </div>
+                                       <div className="text-right">
+                                           <div className="font-mono font-bold text-slate-800 text-lg">
+                                               {formatCurrency(currentCostCalc.breakdown.silver)}
+                                           </div>
+                                       </div>
+                                   </div>
                                    {editedProduct.recipe.map((item, idx) => {
                                        const isRaw = item.type === 'raw';
                                        const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);

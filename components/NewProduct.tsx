@@ -1,7 +1,7 @@
 // ... imports remain the same ...
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -431,6 +431,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [recipe, setRecipe] = useState<RecipeItem[]>([]);
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
   
+  // @FIX: Add missing 'subcontract_cost' property.
   const [labor, setLabor] = useState<LaborCost>({ 
     casting_cost: 0, 
     setter_cost: 0, 
@@ -438,6 +439,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     stone_setting_cost: 0,
     plating_cost_x: 0, 
     plating_cost_d: 0,
+    subcontract_cost: 0,
     casting_cost_manual_override: false,
     technician_cost_manual_override: false,
     plating_cost_x_manual_override: false,
@@ -1101,7 +1103,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         onChange={(e) => { setPlating(e.target.value as PlatingType); }} 
                                         className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-4 focus:ring-slate-500/20 outline-none">
                                         <option value={PlatingType.None}>{platingNoneLabel}</option>
-                                        <option value={PlatingType.GoldPlated}>Επίχρυσο (Gold)</option>
+                                        <option value={PlatingType.GoldPlated}>Επίхρυσο (Gold)</option>
                                         <option value={PlatingType.TwoTone}>Δίχρωμο (Two-Tone)</option>
                                         <option value={PlatingType.Platinum}>Επιπλατινωμένο (Platinum)</option>
                                     </select>
@@ -1180,15 +1182,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         2. Συνταγή (Bill of Materials)
                     </h3>
                     
-                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-slate-100 border-slate-200 shadow-sm">
-                        <div className="p-2 rounded-lg bg-white text-slate-600"><Coins size={20} /></div>
+                    <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
+                            <Coins size={16} />
+                        </div>
                         <div className="flex-1">
-                            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Υλικό Βάσης</label>
-                            <span className="font-bold text-slate-800">Ασήμι 925 (Βάση)</span>
+                            <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
+                            <div className="text-xs text-slate-400 font-mono">
+                                {formatDecimal(weight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g (+{formatDecimal(settings?.loss_percentage, 1)}%)
+                            </div>
                         </div>
                         <div className="text-right">
-                            <div className="font-mono font-bold">{costBreakdown?.silver.toFixed(2)}€</div>
-                            <div className="text-xs text-slate-400">{weight}g @ {settings?.silver_price_gram}€/g (+{settings?.loss_percentage}%)</div>
+                            <div className="font-mono font-bold text-slate-800 text-lg">
+                                {formatCurrency(costBreakdown?.silver)}
+                            </div>
                         </div>
                     </div>
 
@@ -1355,7 +1362,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Περιγραφή</label>
-                                <input type="text" placeholder="π.χ. Πατίνα, Επίχρυσο - Κορνεόλη" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
+                                <input type="text" placeholder="π.χ. Πατίνα, Επίхρυσο - Κορνεόλη" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm min-w-0 bg-white text-slate-800"/>
                             </div>
                             {!isSTX && (
                                 <div>

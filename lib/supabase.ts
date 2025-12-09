@@ -1,9 +1,5 @@
 
 
-
-
-
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -368,6 +364,7 @@ export const api = {
                     technician_cost: Number(p.labor_technician),
                     plating_cost_x: Number(p.labor_plating_x || 0),
                     plating_cost_d: Number(p.labor_plating_d || 0),
+                    subcontract_cost: Number(p.labor_subcontract || 0),
                     technician_cost_manual_override: p.labor_technician_manual_override,
                     plating_cost_x_manual_override: p.labor_plating_x_manual_override,
                     plating_cost_d_manual_override: p.labor_plating_d_manual_override,

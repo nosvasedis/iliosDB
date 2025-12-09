@@ -98,13 +98,15 @@ export const MOCK_PRODUCTS: Product[] = [
         { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
     ],
     // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 1.5,
       setter_cost: 0.5,
       technician_cost: 1.0,
       plating_cost_x: 0,
       plating_cost_d: 0,
-      stone_setting_cost: 0
+      stone_setting_cost: 0,
+      subcontract_cost: 0
     }
   },
   {
@@ -125,19 +127,21 @@ export const MOCK_PRODUCTS: Product[] = [
     is_component: false,
     variants: [
         { suffix: 'P', description: 'Πατίνα (Σκέτο)', stock_qty: 2 },
-        { suffix: 'X', description: 'Επίχρυσο', stock_qty: 3 }
+        { suffix: 'X', description: 'Επίхρυσο', stock_qty: 3 }
     ],
     recipe: [
       { type: 'raw', id: '1', quantity: 10 }
     ],
     // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 2.0,
       setter_cost: 3.5,
       technician_cost: 2.0,
       plating_cost_x: 1.5,
       plating_cost_d: 0,
-      stone_setting_cost: 0
+      stone_setting_cost: 0,
+      subcontract_cost: 0
     }
   },
   {
@@ -165,13 +169,15 @@ export const MOCK_PRODUCTS: Product[] = [
         { type: 'component', sku: 'STX-505', quantity: 2 } 
     ],
     // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 5.0,
       setter_cost: 0,
       technician_cost: 4.0,
       plating_cost_x: 0,
       plating_cost_d: 0,
-      stone_setting_cost: 0
+      stone_setting_cost: 0,
+      subcontract_cost: 0
     }
   }
 ];
