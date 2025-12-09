@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -26,12 +25,12 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-// @FIX: Import 'Collection' type.
-import { Product, ProductVariant, GlobalSettings, Order, ProductionBatch, Mold, Material, Collection } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem } from './types';
 import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import SetupScreen from './components/SetupScreen';
+import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -55,13 +54,23 @@ import AggregatedProductionView from './components/AggregatedProductionView';
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
-interface AggregatedData {
-  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
-  materials: Map<string, { name: string; unit: string; totalQuantity: number; usedIn: Map<string, number> }>;
-  components: Map<string, { sku: string; totalQuantity: number; usedIn: Map<string, number> }>;
-  totalSilver: number;
-  batches: ProductionBatch[];
+// Updated Interfaces for Aggregated Data
+export interface AggregatedBatch extends ProductionBatch {
+    cost_per_piece: number;
+    total_cost: number;
 }
+export interface AggregatedData {
+  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
+  materials: Map<string, { name: string; unit: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  components: Map<string, { sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  totalSilverWeight: number;
+  batches: AggregatedBatch[];
+  totalProductionCost: number;
+  totalSilverCost: number;
+  totalMaterialsCost: number;
+  totalLaborCost: number;
+}
+
 
 // --- AUTH GUARD COMPONENT ---
 function AuthGuard({ children }: { children?: React.ReactNode }) {
@@ -87,7 +96,6 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
     return <>{children}</>;
 }
 
-// FIX: Define NavItem component
 const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
   <button
     onClick={onClick}
@@ -122,6 +130,7 @@ function AppContent() {
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
 
+
   // Batch Print state (lifted for persistence)
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
 
@@ -139,7 +148,6 @@ function AppContent() {
 
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
-  // Generic Print Effect
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData;
     if (shouldPrint) {
@@ -163,13 +171,21 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
-  const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
-    if (!molds || !materials) return;
+// @FIX: The `handlePrintAggregated` function was updated to calculate detailed costs for production, silver, materials, and labor. The `AggregatedData` interface was also updated to support these new fields, resolving a type mismatch error when setting the `aggregatedPrintData` state.
+const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
+    if (!molds || !materials || !products || !settings) return;
     
+    // Initialize aggregators
     const aggregatedMolds: AggregatedData['molds'] = new Map();
     const aggregatedMaterials: AggregatedData['materials'] = new Map();
     const aggregatedComponents: AggregatedData['components'] = new Map();
-    let totalSilver = 0;
+    let totalSilverWeight = 0;
+    let totalProductionCost = 0;
+    let totalSilverCost = 0;
+    let totalMaterialsCost = 0;
+    let totalLaborCost = 0;
+
+    const batchesWithCost: AggregatedBatch[] = [];
 
     for (const batch of batchesToPrint) {
         const product = batch.product_details;
@@ -177,23 +193,39 @@ function AppContent() {
 
         const batchQuantity = batch.quantity;
         const fullSku = product.sku + (batch.variant_suffix || '');
+        
+        // --- COST CALCULATION ---
+        let costResult;
+        if (batch.variant_suffix) {
+            costResult = estimateVariantCost(product, batch.variant_suffix, settings, materials, products);
+        } else {
+            costResult = calculateProductCost(product, settings, materials, products);
+        }
+        
+        const costPerPiece = costResult.total;
+        const totalBatchCost = costPerPiece * batchQuantity;
+        
+        batchesWithCost.push({ ...batch, cost_per_piece: costPerPiece, total_cost: totalBatchCost });
 
-        totalSilver += batchQuantity * product.weight_g;
+        // --- AGGREGATE TOTALS ---
+        totalProductionCost += totalBatchCost;
+        if (costResult.breakdown) {
+            totalSilverCost += (costResult.breakdown.silver || 0) * batchQuantity;
+            totalMaterialsCost += (costResult.breakdown.materials || 0) * batchQuantity;
+            totalLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+        }
+
+        totalSilverWeight += batchQuantity * product.weight_g;
 
         // Molds
         for (const pm of product.molds) {
-            const moldCode = pm.code;
-            const moldDetails = molds.find(m => m.code === moldCode);
+            const moldDetails = molds.find(m => m.code === pm.code);
             if (!moldDetails) continue;
 
-            if (aggregatedMolds.has(moldCode)) {
-                aggregatedMolds.get(moldCode)!.usedIn.add(fullSku);
-            } else {
-                aggregatedMolds.set(moldCode, {
-                    ...moldDetails,
-                    usedIn: new Set([fullSku])
-                });
+            if (!aggregatedMolds.has(pm.code)) {
+                aggregatedMolds.set(pm.code, { ...moldDetails, usedIn: new Set() });
             }
+            aggregatedMolds.get(pm.code)!.usedIn.add(fullSku);
         }
 
         // Recipe
@@ -203,28 +235,39 @@ function AppContent() {
             if (recipeItem.type === 'raw') {
                 const materialDetails = materials.find(m => m.id === recipeItem.id);
                 if (!materialDetails) continue;
+                
+                const itemTotalCost = requiredQuantity * materialDetails.cost_per_unit;
 
                 if (aggregatedMaterials.has(materialDetails.id)) {
                     const existing = aggregatedMaterials.get(materialDetails.id)!;
                     existing.totalQuantity += requiredQuantity;
+                    existing.totalCost += itemTotalCost;
                     existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
                 } else {
                     aggregatedMaterials.set(materialDetails.id, {
                         name: materialDetails.name,
                         unit: materialDetails.unit,
                         totalQuantity: requiredQuantity,
+                        totalCost: itemTotalCost,
                         usedIn: new Map([[fullSku, requiredQuantity]])
                     });
                 }
             } else if (recipeItem.type === 'component') {
+                const componentDetails = products.find(p => p.sku === recipeItem.sku);
+                if (!componentDetails) continue;
+                
+                const itemTotalCost = requiredQuantity * componentDetails.active_price;
+
                 if (aggregatedComponents.has(recipeItem.sku)) {
                     const existing = aggregatedComponents.get(recipeItem.sku)!;
                     existing.totalQuantity += requiredQuantity;
+                    existing.totalCost += itemTotalCost;
                     existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
                 } else {
                     aggregatedComponents.set(recipeItem.sku, {
                         sku: recipeItem.sku,
                         totalQuantity: requiredQuantity,
+                        totalCost: itemTotalCost,
                         usedIn: new Map([[fullSku, requiredQuantity]])
                     });
                 }
@@ -236,10 +279,15 @@ function AppContent() {
         molds: aggregatedMolds,
         materials: aggregatedMaterials,
         components: aggregatedComponents,
-        totalSilver: totalSilver,
-        batches: batchesToPrint,
+        totalSilverWeight: totalSilverWeight,
+        batches: batchesWithCost,
+        totalProductionCost,
+        totalSilverCost,
+        totalMaterialsCost,
+        totalLaborCost
     });
 };
+
 
 
   if (isLoading) {
@@ -259,7 +307,6 @@ function AppContent() {
 
   return (
     <>
-      {/* Print View Layer */}
       <div className="print-view">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {batchToPrint && (
@@ -288,7 +335,6 @@ function AppContent() {
         )}
       </div>
       
-      {/* Main Application Container */}
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans selection:bg-amber-100">
         {/* Mobile Overlay */}
         {isSidebarOpen && (
@@ -350,7 +396,6 @@ function AppContent() {
               onClick={() => handleNav('dashboard')} 
             />
             
-            {/* AI Studio Highlight */}
             <div className="my-2 mx-2">
                 <button
                     onClick={() => handleNav('ai-studio')}
@@ -447,6 +492,7 @@ function AppContent() {
               onClick={() => handleNav('batch-print')} 
             />
             <div className="mt-auto pt-6">
+              
               <NavItem 
                 icon={<SettingsIcon size={22} />} 
                 label="Ρυθμίσεις" 
@@ -524,11 +570,11 @@ function AppContent() {
               
               {activePage === 'resources' && (
                 <div className="space-y-6">
-                    <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0">
-                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
+                        <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <Gem size={18} /> Υλικά
                         </button>
-                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <MapPin size={18} /> Λάστιχα
                         </button>
                     </div>

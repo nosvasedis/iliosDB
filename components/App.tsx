@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -30,35 +29,45 @@ import { UIProvider } from './UIProvider';
 import { AuthProvider, useAuth } from './AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './AuthScreen';
 import SetupScreen from './SetupScreen';
+import { calculateProductCost, estimateVariantCost } from '../utils/pricingEngine';
 
 // Pages
-import Dashboard from './Dashboard';
-import Inventory from './Inventory';
-import ProductRegistry from './ProductRegistry'; 
-import PricingManager from './PricingManager';
-import SettingsPage from './SettingsPage';
-import MaterialsPage from './MaterialsPage';
-import MoldsPage from './MoldsPage';
-import CollectionsPage from './CollectionsPage';
-import BarcodeView from './BarcodeView';
-import BatchPrintPage from './BatchPrintPage';
-import OrdersPage from './OrdersPage';
-import ProductionPage from './ProductionPage';
-import CustomersPage from './CustomersPage';
-import AiStudio from './AiStudio';
-import OrderInvoiceView from './OrderInvoiceView';
-import ProductionWorkerView from './ProductionWorkerView';
-import AggregatedProductionView from './AggregatedProductionView';
+import Dashboard from './components/Dashboard';
+import Inventory from './components/Inventory';
+import ProductRegistry from './components/ProductRegistry'; 
+import PricingManager from './components/PricingManager';
+import SettingsPage from './components/SettingsPage';
+import MaterialsPage from './components/MaterialsPage';
+import MoldsPage from './components/MoldsPage';
+import CollectionsPage from './components/CollectionsPage';
+import BarcodeView from './components/BarcodeView';
+import BatchPrintPage from './components/BatchPrintPage';
+import OrdersPage from './components/OrdersPage';
+import ProductionPage from './components/ProductionPage';
+import CustomersPage from './components/CustomersPage';
+import AiStudio from './components/AiStudio';
+import OrderInvoiceView from './components/OrderInvoiceView';
+import ProductionWorkerView from './components/ProductionWorkerView';
+import AggregatedProductionView from './components/AggregatedProductionView';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
 
-interface AggregatedData {
+// Updated Interfaces for Aggregated Data
+export interface AggregatedBatch extends ProductionBatch {
+    cost_per_piece: number;
+    total_cost: number;
+}
+export interface AggregatedData {
   molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
-  materials: Map<string, { name: string; unit: string; totalQuantity: number; usedIn: Map<string, number> }>;
-  components: Map<string, { sku: string; totalQuantity: number; usedIn: Map<string, number> }>;
-  totalSilver: number;
-  batches: ProductionBatch[];
+  materials: Map<string, { name: string; unit: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  components: Map<string, { sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  totalSilverWeight: number;
+  batches: AggregatedBatch[];
+  totalProductionCost: number;
+  totalSilverCost: number;
+  totalMaterialsCost: number;
+  totalLaborCost: number;
 }
 
 
@@ -161,13 +170,20 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
-  const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
-    if (!molds || !materials) return;
+const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
+    if (!molds || !materials || !products || !settings) return;
     
+    // Initialize aggregators
     const aggregatedMolds: AggregatedData['molds'] = new Map();
     const aggregatedMaterials: AggregatedData['materials'] = new Map();
     const aggregatedComponents: AggregatedData['components'] = new Map();
-    let totalSilver = 0;
+    let totalSilverWeight = 0;
+    let totalProductionCost = 0;
+    let totalSilverCost = 0;
+    let totalMaterialsCost = 0;
+    let totalLaborCost = 0;
+
+    const batchesWithCost: AggregatedBatch[] = [];
 
     for (const batch of batchesToPrint) {
         const product = batch.product_details;
@@ -175,23 +191,39 @@ function AppContent() {
 
         const batchQuantity = batch.quantity;
         const fullSku = product.sku + (batch.variant_suffix || '');
+        
+        // --- COST CALCULATION ---
+        let costResult;
+        if (batch.variant_suffix) {
+            costResult = estimateVariantCost(product, batch.variant_suffix, settings, materials, products);
+        } else {
+            costResult = calculateProductCost(product, settings, materials, products);
+        }
+        
+        const costPerPiece = costResult.total;
+        const totalBatchCost = costPerPiece * batchQuantity;
+        
+        batchesWithCost.push({ ...batch, cost_per_piece: costPerPiece, total_cost: totalBatchCost });
 
-        totalSilver += batchQuantity * product.weight_g;
+        // --- AGGREGATE TOTALS ---
+        totalProductionCost += totalBatchCost;
+        if (costResult.breakdown) {
+            totalSilverCost += (costResult.breakdown.silver || 0) * batchQuantity;
+            totalMaterialsCost += (costResult.breakdown.materials || 0) * batchQuantity;
+            totalLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+        }
+
+        totalSilverWeight += batchQuantity * product.weight_g;
 
         // Molds
         for (const pm of product.molds) {
-            const moldCode = pm.code;
-            const moldDetails = molds.find(m => m.code === moldCode);
+            const moldDetails = molds.find(m => m.code === pm.code);
             if (!moldDetails) continue;
 
-            if (aggregatedMolds.has(moldCode)) {
-                aggregatedMolds.get(moldCode)!.usedIn.add(fullSku);
-            } else {
-                aggregatedMolds.set(moldCode, {
-                    ...moldDetails,
-                    usedIn: new Set([fullSku])
-                });
+            if (!aggregatedMolds.has(pm.code)) {
+                aggregatedMolds.set(pm.code, { ...moldDetails, usedIn: new Set() });
             }
+            aggregatedMolds.get(pm.code)!.usedIn.add(fullSku);
         }
 
         // Recipe
@@ -201,28 +233,39 @@ function AppContent() {
             if (recipeItem.type === 'raw') {
                 const materialDetails = materials.find(m => m.id === recipeItem.id);
                 if (!materialDetails) continue;
+                
+                const itemTotalCost = requiredQuantity * materialDetails.cost_per_unit;
 
                 if (aggregatedMaterials.has(materialDetails.id)) {
                     const existing = aggregatedMaterials.get(materialDetails.id)!;
                     existing.totalQuantity += requiredQuantity;
+                    existing.totalCost += itemTotalCost;
                     existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
                 } else {
                     aggregatedMaterials.set(materialDetails.id, {
                         name: materialDetails.name,
                         unit: materialDetails.unit,
                         totalQuantity: requiredQuantity,
+                        totalCost: itemTotalCost,
                         usedIn: new Map([[fullSku, requiredQuantity]])
                     });
                 }
             } else if (recipeItem.type === 'component') {
+                const componentDetails = products.find(p => p.sku === recipeItem.sku);
+                if (!componentDetails) continue;
+                
+                const itemTotalCost = requiredQuantity * componentDetails.active_price;
+
                 if (aggregatedComponents.has(recipeItem.sku)) {
                     const existing = aggregatedComponents.get(recipeItem.sku)!;
                     existing.totalQuantity += requiredQuantity;
+                    existing.totalCost += itemTotalCost;
                     existing.usedIn.set(fullSku, (existing.usedIn.get(fullSku) || 0) + requiredQuantity);
                 } else {
                     aggregatedComponents.set(recipeItem.sku, {
                         sku: recipeItem.sku,
                         totalQuantity: requiredQuantity,
+                        totalCost: itemTotalCost,
                         usedIn: new Map([[fullSku, requiredQuantity]])
                     });
                 }
@@ -234,10 +277,15 @@ function AppContent() {
         molds: aggregatedMolds,
         materials: aggregatedMaterials,
         components: aggregatedComponents,
-        totalSilver: totalSilver,
-        batches: batchesToPrint,
+        totalSilverWeight: totalSilverWeight,
+        batches: batchesWithCost,
+        totalProductionCost,
+        totalSilverCost,
+        totalMaterialsCost,
+        totalLaborCost
     });
 };
+
 
 
   if (isLoading) {
@@ -543,5 +591,21 @@ function AppContent() {
         </main>
       </div>
     </>
+  );
+}
+
+export default function App() {
+  if (!isConfigured) {
+      return <SetupScreen />;
+  }
+
+  return (
+    <UIProvider>
+      <AuthProvider>
+        <AuthGuard>
+          <AppContent />
+        </AuthGuard>
+      </AuthProvider>
+    </UIProvider>
   );
 }

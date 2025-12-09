@@ -371,9 +371,10 @@ export const estimateVariantCost = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-): number => {
+): { total: number; breakdown: { silver: number; materials: number; labor: number } } => {
     if (masterProduct.production_type === ProductionType.Imported) {
-        return roundPrice(masterProduct.supplier_cost || 0);
+        const total = roundPrice(masterProduct.supplier_cost || 0);
+        return { total, breakdown: { silver: 0, materials: total, labor: 0 } };
     }
 
     const lossMultiplier = 1 + (settings.loss_percentage / 100);
@@ -402,7 +403,6 @@ export const estimateVariantCost = (
         }
     });
 
-    // FIX: Type labor as Partial<LaborCost> to prevent type errors when masterProduct.labor is undefined.
     const labor: Partial<LaborCost> = masterProduct.labor || {};
     const technicianCost = labor.technician_cost_manual_override
         ? (labor.technician_cost || 0)
@@ -421,8 +421,17 @@ export const estimateVariantCost = (
     }
 
     const totalCost = silverCost + materialsCost + laborTotal;
-    return roundPrice(totalCost);
+    
+    return {
+        total: roundPrice(totalCost),
+        breakdown: {
+            silver: silverCost,
+            materials: materialsCost,
+            labor: laborTotal,
+        }
+    };
 };
+
 
 export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {
     if (!variants || variants.length === 0) return null;

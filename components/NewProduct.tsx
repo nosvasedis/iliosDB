@@ -808,7 +808,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           labor
       };
 
-      const estimatedCost = estimateVariantCost(
+      const { total: estimatedCost } = estimateVariantCost(
           tempMaster, 
           upperSuffix, 
           settings!, 

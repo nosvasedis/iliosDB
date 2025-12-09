@@ -381,7 +381,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
           let hasChanges = false;
           const updatedVariants = prev.variants.map(v => {
-              const estimated = estimateVariantCost(
+              const { total: estimated } = estimateVariantCost(
                   editedProduct, 
                   v.suffix,
                   settings,
@@ -708,7 +708,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       return;
     }
 
-    const estimatedCost = estimateVariantCost(
+    const { total: estimatedCost } = estimateVariantCost(
         editedProduct, 
         analysis.suffix, 
         settings, 
@@ -734,7 +734,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       const upperSuffix = newVariantSuffix.toUpperCase();
       if (editedProduct.variants.some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
       
-      const estimatedCost = estimateVariantCost(
+      const { total: estimatedCost } = estimateVariantCost(
           editedProduct, 
           upperSuffix, 
           settings, 
@@ -1157,148 +1157,4 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                </div>
                            )}
 
-                           {activeTab === 'labor' && (
-                               <div className="space-y-4 animate-in fade-in">
-                                   <div className="grid grid-cols-2 gap-4">
-                                       <LaborCostInput 
-                                            label="Χυτήριο" 
-                                            value={editedProduct.labor.casting_cost}
-                                            onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost: v}}))} 
-                                            override={editedProduct.labor.casting_cost_manual_override} 
-                                            onToggleOverride={() => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} 
-                                       />
-                                       <LaborCostInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, setter_cost: v}}))} />
-                                       <LaborCostInput 
-                                           label="Τεχνίτης" 
-                                           value={editedProduct.labor.technician_cost} 
-                                           onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: v}}))} 
-                                           override={editedProduct.labor.technician_cost_manual_override} 
-                                           onToggleOverride={() => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override}}))} 
-                                       />
-                                       <LaborCostInput 
-                                           label="Επιμετάλλωση" 
-                                           value={editedProduct.labor.plating_cost_x} 
-                                           onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: v}}))} 
-                                           override={editedProduct.labor.plating_cost_x_manual_override}
-                                           onToggleOverride={() => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} 
-                                       />
-                                       <LaborCostInput 
-                                           label="Φασόν / Έξτρα" 
-                                           icon={<Users size={14}/>}
-                                           value={editedProduct.labor.subcontract_cost || 0}
-                                           onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, subcontract_cost: v}}))} 
-                                       />
-                                   </div>
-                               </div>
-                           )}
-
-                           {activeTab === 'variants' && (
-                               <div className="space-y-4 animate-in fade-in h-full flex flex-col">
-                                   <div className="flex gap-2 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                       <div className="flex-1">
-                                           <label className="text-[10px] font-bold text-slate-400 uppercase">Νέα Παραλλαγή (Suffix)</label>
-                                           <div className="flex gap-2 mt-1">
-                                               <input 
-                                                   value={newVariantSuffix} 
-                                                   onChange={e => setNewVariantSuffix(e.target.value.toUpperCase())}
-                                                   placeholder="π.χ. PKR" 
-                                                   className="flex-1 p-2 border border-slate-200 rounded-lg text-sm uppercase font-mono font-bold outline-none focus:border-emerald-500"
-                                               />
-                                               <button onClick={handleManualAdd} className="bg-emerald-600 text-white px-4 rounded-lg font-bold hover:bg-emerald-700 transition-colors"><Plus/></button>
-                                           </div>
-                                       </div>
-                                       <div className="w-px bg-slate-200 mx-2"></div>
-                                       <div className="flex-1">
-                                           <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Wand2 size={10} className="text-purple-500"/> Smart Add</label>
-                                           <div className="flex gap-2 mt-1">
-                                               <input 
-                                                   value={smartAddSuffix} 
-                                                   onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                                   placeholder="π.χ. XKR" 
-                                                   className="flex-1 p-2 border border-slate-200 rounded-lg text-sm uppercase font-mono font-bold outline-none focus:border-purple-500"
-                                               />
-                                               <button onClick={handleSmartAdd} className="bg-purple-600 text-white px-4 rounded-lg font-bold hover:bg-purple-700 transition-colors"><Plus/></button>
-                                           </div>
-                                       </div>
-                                   </div>
-
-                                   <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[300px]">
-                                       {sortedVariantsList.map((variant, index) => (
-                                           <div key={index} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm group hover:border-slate-300 transition-colors">
-                                               <div className="font-mono font-bold text-emerald-700 w-12 text-center">{variant.suffix}</div>
-                                               <input 
-                                                   value={variant.description} 
-                                                   onChange={e => updateVariant(index, 'description', e.target.value)}
-                                                   className="flex-1 text-sm bg-transparent outline-none border-b border-transparent hover:border-slate-200 focus:border-emerald-500 transition-all text-slate-700"
-                                               />
-                                               <div className="text-xs font-mono text-slate-400">
-                                                   <span className="font-bold text-slate-600">{variant.active_price?.toFixed(2)}€</span> κόστος
-                                               </div>
-                                               {!editedProduct.is_component && (
-                                                   <div className="flex items-center gap-1">
-                                                       <input 
-                                                           type="number" step="0.01" 
-                                                           value={variant.selling_price || ''} 
-                                                           onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))}
-                                                           className="w-16 text-right font-bold text-emerald-600 text-sm bg-slate-50 rounded p-1 outline-none focus:ring-1 focus:ring-emerald-500"
-                                                       />
-                                                       <span className="text-xs font-bold text-emerald-600">€</span>
-                                                   </div>
-                                               )}
-                                               <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
-                                                   <Trash2 size={16}/>
-                                               </button>
-                                           </div>
-                                       ))}
-                                       {sortedVariantsList.length === 0 && <div className="text-center text-slate-400 text-sm italic py-10">Δεν υπάρχουν παραλλαγές.</div>}
-                                   </div>
-                               </div>
-                           )}
-
-                           {activeTab === 'barcodes' && (
-                               <div className="h-full flex flex-col">
-                                   <div className="flex justify-end mb-4">
-                                       <button onClick={handlePrintAll} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-black transition-colors shadow-lg">
-                                           <Printer size={16}/> Εκτύπωση Όλων
-                                       </button>
-                                   </div>
-                                   <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-4">
-                                       {sortedVariantsList.length === 0 && (
-                                           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors" onClick={() => setPrintItems([{ product: editedProduct, quantity: 1 }])}>
-                                               <div className="w-full h-24 mb-2 bg-white rounded border border-slate-100 flex items-center justify-center overflow-hidden">
-                                                   <BarcodeView product={editedProduct} width={settings.barcode_width_mm} height={settings.barcode_height_mm} />
-                                               </div>
-                                               <span className="font-bold text-sm text-slate-700">Master SKU</span>
-                                           </div>
-                                       )}
-                                       {sortedVariantsList.map((v, i) => (
-                                           <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors" onClick={() => setPrintItems([{ product: editedProduct, variant: v, quantity: 1 }])}>
-                                               <div className="w-full h-24 mb-2 bg-white rounded border border-slate-100 flex items-center justify-center overflow-hidden">
-                                                   <BarcodeView product={editedProduct} variant={v} width={settings.barcode_width_mm} height={settings.barcode_height_mm} />
-                                               </div>
-                                               <span className="font-bold text-sm text-slate-700">{v.suffix}</span>
-                                           </div>
-                                       ))}
-                                   </div>
-                               </div>
-                           )}
-                       </div>
-                   </div>
-               </div>
-           </div>
-
-           {/* Footer */}
-           <div className="p-6 border-t border-slate-100 bg-white z-10 shrink-0 flex justify-end gap-4">
-               <button onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">
-                   Ακύρωση
-               </button>
-               <button onClick={handleSave} className="px-8 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all hover:-translate-y-0.5 flex items-center gap-2">
-                   <Save size={18}/> Αποθήκευση Αλλαγών
-               </button>
-           </div>
-
-        </div>
-      </div>,
-      document.body
-  );
-}
+                           {
