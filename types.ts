@@ -1,4 +1,5 @@
 
+
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -67,6 +68,7 @@ export interface LaborCost {
   stone_setting_cost: number; // New: For Imported items requiring stones
   plating_cost_x: number; 
   plating_cost_d: number; 
+  casting_cost_manual_override?: boolean;
   technician_cost_manual_override?: boolean;
   plating_cost_x_manual_override?: boolean;
   plating_cost_d_manual_override?: boolean;

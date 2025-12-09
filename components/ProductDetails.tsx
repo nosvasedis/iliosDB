@@ -207,6 +207,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             stone_setting_cost: 0,
             plating_cost_x: 0,
             plating_cost_d: 0,
+            casting_cost_manual_override: false,
             technician_cost_manual_override: false,
             plating_cost_x_manual_override: false,
             plating_cost_d_manual_override: false,
@@ -260,6 +261,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             stone_setting_cost: 0,
             plating_cost_x: 0,
             plating_cost_d: 0,
+            casting_cost_manual_override: false,
             technician_cost_manual_override: false,
             plating_cost_x_manual_override: false,
             plating_cost_d_manual_override: false,
@@ -280,7 +282,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
   
   useEffect(() => {
-    if (editedProduct.production_type === ProductionType.InHouse) {
+    if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
         const totalWeight = (editedProduct.weight_g || 0) + (editedProduct.secondary_weight_g || 0);
         const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
         setEditedProduct(prev => ({
@@ -288,7 +290,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor: { ...prev.labor, casting_cost: castCost }
         }));
     }
-  }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type]);
+  }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type, editedProduct.labor.casting_cost_manual_override]);
 
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_x_manual_override) {
@@ -508,6 +510,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_technician: editedProduct.labor.technician_cost,
             labor_plating_x: editedProduct.labor.plating_cost_x,
             labor_plating_d: editedProduct.labor.plating_cost_d,
+            labor_casting_manual_override: editedProduct.labor.casting_cost_manual_override,
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
             labor_plating_x_manual_override: editedProduct.labor.plating_cost_x_manual_override,
             labor_plating_d_manual_override: editedProduct.labor.plating_cost_d_manual_override,
@@ -1036,7 +1039,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            {activeTab === 'labor' && (
                                <div className="space-y-4 animate-in fade-in">
                                    <div className="grid grid-cols-2 gap-4">
-                                       <LaborCostInput label="Χυτήριο" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost: v}}))} readOnly/>
+                                       <LaborCostInput 
+                                            label="Χυτήριο" 
+                                            value={editedProduct.labor.casting_cost}
+                                            onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost: v}}))} 
+                                            override={editedProduct.labor.casting_cost_manual_override} 
+                                            onToggleOverride={() => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} 
+                                       />
                                        <LaborCostInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, setter_cost: v}}))} />
                                        <LaborCostInput 
                                            label="Τεχνίτης" 

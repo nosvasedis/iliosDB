@@ -437,7 +437,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     technician_cost: 0, 
     stone_setting_cost: 0,
     plating_cost_x: 0, 
-    plating_cost_d: 0, 
+    plating_cost_d: 0,
+    casting_cost_manual_override: false,
     technician_cost_manual_override: false,
     plating_cost_x_manual_override: false,
     plating_cost_d_manual_override: false
@@ -563,12 +564,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   }, [weight, labor.technician_cost_manual_override, productionType, isSTX]);
   
   useEffect(() => {
-    if (productionType === ProductionType.InHouse) {
+    if (productionType === ProductionType.InHouse && !labor.casting_cost_manual_override) {
         const totalWeight = (weight || 0) + (secondaryWeight || 0);
         const castCost = isSTX ? 0 : parseFloat((totalWeight * 0.15).toFixed(2));
         setLabor(prevLabor => ({...prevLabor, casting_cost: castCost}));
     }
-  }, [weight, secondaryWeight, productionType, isSTX]);
+  }, [weight, secondaryWeight, productionType, isSTX, labor.casting_cost_manual_override]);
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
@@ -873,6 +874,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_technician: Number(labor.technician_cost),
             labor_plating_x: Number(labor.plating_cost_x || 0),
             labor_plating_d: Number(labor.plating_cost_d || 0),
+            labor_casting_manual_override: labor.casting_cost_manual_override,
             labor_technician_manual_override: labor.technician_cost_manual_override,
             labor_plating_x_manual_override: labor.plating_cost_x_manual_override,
             labor_plating_d_manual_override: labor.plating_cost_d_manual_override,
@@ -1280,7 +1282,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                         <h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18}/> Κόστη Εργατικών</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} readOnly hint="Από Συνολικό Βάρος"/>
+                            <LaborCostCard 
+                                icon={<Flame size={14}/>} 
+                                label="Χυτήριο (€)" 
+                                value={labor.casting_cost}
+                                onChange={val => setLabor({...labor, casting_cost: val})} 
+                                isOverridden={labor.casting_cost_manual_override} 
+                                onToggleOverride={() => setLabor(prev => ({...prev, casting_cost_manual_override: !prev.casting_cost_manual_override}))} 
+                                hint="Από Συνολικό Βάρος"
+                            />
                             <LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} />
                             <LaborCostCard 
                                 icon={<Hammer size={14}/>} 
