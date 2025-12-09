@@ -189,7 +189,7 @@ const SubFilterButton = ({ label, value, activeValue, onClick }: { label: string
         onClick={() => onClick(value)}
         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
             ${activeValue === value
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                ? 'bg-[#060b00] text-white border-[#060b00] shadow-md'
                 : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
         `}
     >
@@ -216,6 +216,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       plating: 'all',
   });
   
+  const [showSubFilters, setShowSubFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showStxOnly, setShowStxOnly] = useState(false);
@@ -269,6 +270,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const handleParentCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       setFilterParentCategory(e.target.value);
       setSubFilters({ category: 'all', stone: 'all', plating: 'all' });
+      setShowSubFilters(false);
   };
   
   const handleSubFilterChange = (type: keyof typeof subFilters, value: string) => {
@@ -341,6 +343,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   }, [baseProducts, searchTerm, filterParentCategory, filterGender, subFilters, materials]);
   
   const activeSubCategories = groupedCategories.children.get(filterParentCategory);
+  const activeSubFilterCount = Object.values(subFilters).filter(val => val !== 'all').length;
 
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
@@ -424,20 +427,39 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                       {groupedCategories.parents.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
               </div>
-              <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                  <input 
-                    type="text" 
-                    placeholder="Αναζήτηση Κωδικού..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white transition-all text-slate-900"
-                  />
+              <div className="flex items-center gap-2">
+                <div className="relative group flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                    <input 
+                        type="text" 
+                        placeholder="Αναζήτηση Κωδικού..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white transition-all text-slate-900"
+                    />
+                </div>
+                {filterParentCategory !== 'All' && (
+                    <button
+                        onClick={() => setShowSubFilters(prev => !prev)}
+                        className={`relative shrink-0 px-4 py-3 rounded-xl font-bold text-sm transition-all border flex items-center gap-2 ${(showSubFilters || activeSubFilterCount > 0) ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                        <Filter size={16} />
+                        <span>Φίλτρα</span>
+                        {(activeSubFilterCount > 0 && !showSubFilters) && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-black border-2 border-white">
+                                {activeSubFilterCount}
+                            </span>
+                        )}
+                    </button>
+                )}
               </div>
           </div>
           
-          {filterParentCategory !== 'All' && (
-              <div className="border-t border-slate-100 pt-4 space-y-4 animate-in fade-in">
+          {showSubFilters && filterParentCategory !== 'All' && (
+              <div className="relative border-t border-slate-100 pt-4 space-y-4 animate-in fade-in">
+                  <button onClick={() => setShowSubFilters(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full z-10">
+                      <X size={16}/>
+                  </button>
                   {activeSubCategories && activeSubCategories.size > 0 && (
                       <div className="flex items-center gap-3 flex-wrap">
                           <span className="text-xs font-bold text-slate-400 uppercase shrink-0">Τύπος:</span>
