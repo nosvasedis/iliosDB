@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold } from '../types';
+import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll } from 'lucide-react';
@@ -39,16 +39,135 @@ interface Props {
   viewMode?: 'registry' | 'warehouse';
 }
 
-const LaborCostInput = ({ label, value, onChange, override, onToggleOverride }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void }) => (
+const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+    const color = 
+        analysis.verdict === 'Excellent' ? 'emerald' : 
+        analysis.verdict === 'Fair' ? 'blue' : 
+        analysis.verdict === 'Expensive' ? 'orange' : 'rose';
+
+    const Icon = 
+        analysis.verdict === 'Excellent' ? ThumbsUp : 
+        analysis.verdict === 'Fair' ? CheckCircle : 
+        analysis.verdict === 'Expensive' ? Info : AlertTriangle;
+
+    const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
+
+    return (
+        <div className={`border-2 border-${color}-100 bg-${color}-50/50 rounded-2xl p-5 space-y-4`}>
+            <div className="flex items-center gap-3 border-b border-${color}-200 pb-3">
+                <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
+                    <Icon size={20} />
+                </div>
+                <div>
+                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Έξυπνη Ανάλυση</h4>
+                    <p className={`text-xs font-medium text-${color}-600`}>Αξιολόγηση Τιμής Προμηθευτή</p>
+                </div>
+                <div className={`ml-auto px-3 py-1 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide`}>
+                    {analysis.verdict === 'Excellent' && 'Εξαιρετική Τιμή'}
+                    {analysis.verdict === 'Fair' && 'Δίκαιη Τιμή'}
+                    {analysis.verdict === 'Expensive' && 'Ακριβό'}
+                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημένο'}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Θεωρητικό Κόστος (Make)</div>
+                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.theoreticalMakeCost)}</div>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-slate-100">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Αξία Υλικών (Melt)</div>
+                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.intrinsicValue)}</div>
+                </div>
+            </div>
+
+            {hasReportedLabor && (
+                <div className="bg-white/60 p-3 rounded-xl border border-slate-100 space-y-2">
+                    <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-100 pb-1 mb-2">Ανάλυση Εργατικών (Forensics)</h5>
+                    
+                    <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
+                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' : 
+                                'bg-slate-100 text-slate-600'
+                            }`}>
+                                {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {analysis.effectiveSilverPrice > 0 && (
+                        <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100/50">
+                            <span className="text-slate-500">Πραγματική Χρέωση Ασημιού:</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
+                                    {analysis.effectiveSilverPrice.toFixed(2)}€/g
+                                </span>
+                                {analysis.hasHiddenMarkup && <AlertTriangle size={12} className="text-red-500" title="Κρυφή χρέωση στο μέταλλο"/>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="space-y-2 pt-1">
+                <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
+                    <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-slate-400" style={{ width: `${(analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100}%` }} title="Υλικά" />
+                    <div className={`h-full bg-${color}-500`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} title="Premium" />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
+                    <span>Περιθώριο: {analysis.premiumPercent}%</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
+    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-xl shadow-sm text-blue-600">
+                        <BookOpen size={24} />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Πώς λειτουργεί ο Έλεγχos Τιμής;</h2>
+                        <p className="text-sm text-slate-500">Οδηγός Ανάλυσης Κόστους Προμηθευτή</p>
+                    </div>
+                </div>
+                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm transition-all"><X size={20}/></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                <div className="space-y-4">
+                    <p className="text-slate-600 leading-relaxed">
+                        Το σύστημα χρησιμοποιεί μια μέθοδο <strong>Reverse Engineering</strong> (Αντίστροφης Μηχανικής) για να αναλύσει την τιμή που σας δίνει ο προμηθευτής. Συγκρίνει την τιμή αγοράς με το πραγματικό κόστος των υλικών και της εργασίας.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+const LaborCostInput = ({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14}/> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
     <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-        <span className="text-sm text-slate-600 font-medium">{label}</span>
+        <span className="text-sm text-slate-600 font-medium flex items-center gap-2">{icon} {label}</span>
         <div className="flex items-center gap-2">
             <input 
                 type="number" step="0.01" 
                 value={value} 
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)} 
-                readOnly={onToggleOverride && !override}
-                className={`w-20 text-right bg-white border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-500 ${onToggleOverride && !override ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
+                readOnly={readOnly || (onToggleOverride && !override)}
+                className={`w-20 text-right bg-white border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-500 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
             />
             {onToggleOverride && (
                 <button onClick={onToggleOverride} className="text-slate-400 hover:text-amber-600 transition-colors">
@@ -101,12 +220,26 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [calculatedPrice, setCalculatedPrice] = useState(0);
 
   const [isAddingMold, setIsAddingMold] = useState(false);
+  const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [smartAddSuffix, setSmartAddSuffix] = useState(''); 
   const [newVariantSuffix, setNewVariantSuffix] = useState('');
   const [newVariantDesc, setNewVariantDesc] = useState('');
   const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
+  
+  const TABS = useMemo(() => {
+    const baseTabs = [
+        { id: 'overview', label: 'Στοιχεία', icon: Info },
+    ];
+    if (editedProduct.production_type === ProductionType.InHouse) {
+        baseTabs.push({ id: 'recipe', label: 'Συνταγή', icon: Box });
+        baseTabs.push({ id: 'labor', label: 'Εργατικά', icon: Hammer });
+    }
+    baseTabs.push({ id: 'variants', label: `Παραλλαγές (${editedProduct.variants?.length || 0})`, icon: Layers });
+    baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
+    return baseTabs;
+  }, [editedProduct.production_type, editedProduct.variants?.length]);
 
   useEffect(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
@@ -165,7 +298,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [editedProduct.weight_g, editedProduct.labor.plating_cost_x_manual_override]);
 
   useEffect(() => {
-    // @FIX: Fix typo from 'plating_d_manual_override' to 'plating_cost_d_manual_override'
     if (!editedProduct.labor.plating_cost_d_manual_override) {
         const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
         setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
@@ -622,6 +754,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   // RENDER
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+        {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
         <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
            
@@ -631,6 +764,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                        {editedProduct.sku}
                        {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
+                       {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Εισαγόμενο</span>}
                    </h2>
                    <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
                        <span>{editedProduct.category}</span>
@@ -703,13 +837,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        
                        {/* TABS */}
                        <div className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
-                           {[
-                               { id: 'overview', label: 'Στοιχεία', icon: Info },
-                               { id: 'recipe', label: 'Συνταγή', icon: Box },
-                               { id: 'labor', label: 'Εργατικά', icon: Hammer },
-                               { id: 'variants', label: `Παραλλαγές (${variants.length})`, icon: Layers },
-                               { id: 'barcodes', label: 'Barcodes', icon: ScanBarcode },
-                           ].map(tab => (
+                           {TABS.map(tab => (
                                <button 
                                    key={tab.id}
                                    onClick={() => setActiveTab(tab.id as any)}
@@ -724,66 +852,64 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
                            {activeTab === 'overview' && (
                                <div className="space-y-6 animate-in fade-in">
-                                   <div className="grid grid-cols-2 gap-6">
-                                       <div>
-                                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
-                                           <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({...editedProduct, category: e.target.value})} />
-                                       </div>
-                                       <div>
-                                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος (g)</label>
-                                           <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
-                                       </div>
-                                       <div>
-                                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
-                                           <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0})} />
-                                       </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
-                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({...editedProduct, gender: e.target.value as Gender})}>
-                                                <option value={Gender.Women}>Γυναικείο</option>
-                                                <option value={Gender.Men}>Ανδρικό</option>
-                                                <option value={Gender.Unisex}>Unisex</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
-                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
-                                                <option value={PlatingType.None}>Λουστρέ</option>
-                                                <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                <option value={PlatingType.TwoTone}>Δίχρωμο</option>
-                                                <option value={PlatingType.Platinum}>Πλατίνα</option>
-                                            </select>
-                                        </div>
-                                       {!editedProduct.is_component && (
+                                   {editedProduct.production_type === ProductionType.InHouse ? (
+                                    <>
+                                       <div className="grid grid-cols-2 gap-6">
                                            <div>
-                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τιμή Πώλησης (€)</label>
-                                               <div className="flex gap-2">
-                                                   <input type="number" step="0.01" className="w-full p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} />
-                                                   <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600"><Calculator size={20}/></button>
+                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
+                                               <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({...editedProduct, category: e.target.value})} />
+                                           </div>
+                                           <div>
+                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος (g)</label>
+                                               <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
+                                           </div>
+                                           <div>
+                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
+                                               <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0})} />
+                                           </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
+                                                <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({...editedProduct, gender: e.target.value as Gender})}>
+                                                    <option value={Gender.Women}>Γυναικείο</option>
+                                                    <option value={Gender.Men}>Ανδρικό</option>
+                                                    <option value={Gender.Unisex}>Unisex</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
+                                                <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
+                                                    <option value={PlatingType.None}>Λουστρέ</option>
+                                                    <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
+                                                    <option value={PlatingType.TwoTone}>Δίχρωμο</option>
+                                                    <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                                </select>
+                                            </div>
+                                           {!editedProduct.is_component && (
+                                               <div>
+                                                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τιμή Πώλησης (€)</label>
+                                                   <div className="flex gap-2">
+                                                       <input type="number" step="0.01" className="w-full p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} />
+                                                       <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600"><Calculator size={20}/></button>
+                                                   </div>
+                                               </div>
+                                           )}
+                                       </div>
+                                        {showRepriceTool && (
+                                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 animate-in slide-in-from-top-2">
+                                               <h4 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
+                                               <div className="flex items-end gap-4">
+                                                   <div>
+                                                       <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
+                                                       <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center"/>
+                                                   </div>
+                                                   <div>
+                                                       <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
+                                                       <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
+                                                   </div>
+                                                   <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
                                                </div>
                                            </div>
                                        )}
-                                   </div>
-
-                                   {showRepriceTool && (
-                                       <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 animate-in slide-in-from-top-2">
-                                           <h4 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
-                                           <div className="flex items-end gap-4">
-                                               <div>
-                                                   <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
-                                                   <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center"/>
-                                               </div>
-                                               <div>
-                                                   <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
-                                                   <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
-                                               </div>
-                                               <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
-                                           </div>
-                                       </div>
-                                   )}
-                                   
-                                   {/* Molds Section - Only for InHouse */}
-                                   {editedProduct.production_type === ProductionType.InHouse && (
                                        <div>
                                             <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
                                                 <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</span>
@@ -796,7 +922,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     const moldDetails = allMolds.find(mold => mold.code === m.code);
                                                     const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
                                                     return (
-                                                        <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                        <div key={m.code} title={tooltipText} className="cursor-pointer bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
                                                             {m.code} {m.quantity > 1 && `(x${m.quantity})`}
                                                             <div className="flex flex-col gap-0.5 ml-1">
                                                                 <button onClick={() => updateMoldQuantity(m.code, 1)} className="text-amber-400 hover:text-amber-600"><ChevronLeft size={10} className="rotate-90"/></button>
@@ -820,6 +946,44 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                </div>
                                            )}
                                        </div>
+                                    </>
+                                   ) : (
+                                    <div className="space-y-6">
+                                        <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl"><DollarSign size={24} /></div>
+                                                <div>
+                                                    <h4 className="font-black text-lg text-slate-800">Τιμή Αγοράς (Purchase Price)</h4>
+                                                    <p className="text-xs text-slate-500 font-medium">Το κόστος κτήσης του προϊόντος (Βάση υπολογισμού).</p>
+                                                </div>
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Προμηθευτής</label>
+                                                <select value={editedProduct.supplier_id || ''} onChange={e => setEditedProduct({...editedProduct, supplier_id: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800">
+                                                    <option value="">Επιλέξτε...</option>
+                                                    {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                                                <label className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Κόστος Ανά Τεμάχιο (€)</label>
+                                                <input type="number" step="0.01" value={editedProduct.supplier_cost} onChange={e => setEditedProduct({...editedProduct, supplier_cost: parseFloat(e.target.value) || 0})} className="w-full bg-transparent font-mono font-black text-3xl text-emerald-700 outline-none mt-1" placeholder="0.00" />
+                                            </div>
+                                        </div>
+                                         {currentCostCalc.breakdown.smart_analysis && (
+                                            <SmartAnalysisCard analysis={currentCostCalc.breakdown.smart_analysis} />
+                                        )}
+                                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 opacity-90">
+                                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                                                <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide flex items-center gap-2"><Info size={18}/> Ανάλυση Κόστους Προμηθευτή (Forensics)</h4>
+                                                <button onClick={() => setShowAnalysisHelp(true)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-blue-600 transition-colors"><HelpCircle size={18} /></button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} readOnly={false}/>
+                                                <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά/Πέτρες" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} readOnly={false}/>
+                                                <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} readOnly={false}/>
+                                            </div>
+                                        </div>
+                                    </div>
                                    )}
                                </div>
                            )}
@@ -872,7 +1036,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            {activeTab === 'labor' && (
                                <div className="space-y-4 animate-in fade-in">
                                    <div className="grid grid-cols-2 gap-4">
-                                       <LaborCostInput label="Χυτήριο" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost: v}}))} />
+                                       <LaborCostInput label="Χυτήριο" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, casting_cost: v}}))} readOnly/>
                                        <LaborCostInput label="Καρφωτής" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, setter_cost: v}}))} />
                                        <LaborCostInput 
                                            label="Τεχνίτης" 
