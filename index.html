@@ -35,51 +35,28 @@
           background: white;
         }
 
-        /* Hide all direct children of body (Modals/Portals) except the React Root */
-        body > *:not(#root) {
-            display: none !important;
-        }
-
-        /* Inside Root: Hide the App Interface */
+        /* Hide the main app, show only the print view */
         #app-container {
             display: none !important;
         }
-
-        /* Ensure Root is visible for Print View content */
-        #root {
-            display: block !important;
-            visibility: visible !important;
-            width: 100%;
-            height: auto;
-            position: static;
-        }
-
-        /* Show the Print View */
         .print-view {
           display: block !important;
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          background: white;
-          z-index: 9999;
-          visibility: visible !important;
         }
-
+        
+        /* Keep barcode-specific styles */
         .print-area {
             display: flex;
             flex-wrap: wrap;
             align-content: flex-start;
             gap: 0;
         }
-
         .print-area > * {
           break-inside: avoid;
           page-break-inside: avoid;
         }
 
         @page {
-          size: auto;
+          size: A4;
           margin: 0;
         }
       }

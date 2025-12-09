@@ -207,6 +207,18 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
           case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
       }
   };
+    
+    const getAvailableStock = (item: OrderItem) => {
+        const product = products.find(p => p.sku === item.sku);
+        if (!product) return 0;
+
+        if (item.variant_suffix) {
+            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+            return variant?.location_stock?.[SYSTEM_IDS.CENTRAL] || variant?.stock_qty || 0;
+        }
+        return product.location_stock?.[SYSTEM_IDS.CENTRAL] || product.stock_qty || 0;
+    };
+
 
   if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500"/></div>;
 
@@ -494,6 +506,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
             order={managingOrder}
             products={products}
             onClose={() => setManagingOrder(null)}
+            getAvailableStock={getAvailableStock}
           />
       )}
     </div>
@@ -501,7 +514,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
 }
 
 // Order Production Manager Modal (Interactive)
-const OrderProductionManager = ({ order, products, onClose }: { order: Order, products: Product[], onClose: () => void }) => {
+const OrderProductionManager = ({ order, products, onClose, getAvailableStock }: { order: Order, products: Product[], onClose: () => void, getAvailableStock: (item: OrderItem) => number }) => {
     const { showToast } = useUI();
     const queryClient = useQueryClient();
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -567,7 +580,7 @@ const OrderProductionManager = ({ order, products, onClose }: { order: Order, pr
                         <div className="text-2xl font-black text-amber-900">{inProduction}</div>
                     </div>
                     <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                        <div className="text-xs font-bold text-emerald-700 uppercase">Απο Stock / Ετοιμα</div>
+                        <div className="text-xs font-bold text-emerald-700 uppercase">Εκτελεσμένα (από Stock)</div>
                         <div className="text-2xl font-black text-emerald-900">{fulfilledFromStock > 0 ? fulfilledFromStock : 0}</div>
                     </div>
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-center text-center">
@@ -583,7 +596,8 @@ const OrderProductionManager = ({ order, products, onClose }: { order: Order, pr
                         {order.items.map((item, idx) => {
                             const relatedBatches = orderBatches.filter(b => b.sku === item.sku && b.variant_suffix === item.variant_suffix);
                             const productionQty = relatedBatches.reduce((acc, b) => acc + b.quantity, 0);
-                            const stockQty = item.quantity - productionQty;
+                            const fulfilledFromStockQty = item.quantity - productionQty;
+                            const currentStock = getAvailableStock(item);
                             
                             return (
                                 <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center gap-4">
@@ -598,13 +612,16 @@ const OrderProductionManager = ({ order, products, onClose }: { order: Order, pr
                                     </div>
 
                                     <div className="flex gap-4 items-center">
-                                        {stockQty > 0 && (
+                                        {fulfilledFromStockQty > 0 && (
                                             <div className="flex items-center gap-2">
-                                                <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-xs font-bold flex items-center gap-2">
-                                                    <CheckCircle size={14}/> {stockQty} Stock
+                                                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 border ${
+                                                    currentStock < fulfilledFromStockQty ? 'bg-orange-50 text-orange-800 border-orange-100' : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                                                }`}>
+                                                    {currentStock < fulfilledFromStockQty ? <AlertTriangle size={14}/> : <CheckCircle size={14}/>}
+                                                    {fulfilledFromStockQty} από Stock (Διαθ: {currentStock})
                                                 </div>
                                                 <button 
-                                                    onClick={() => handleCreateRefurbishBatch(item, stockQty)}
+                                                    onClick={() => handleCreateRefurbishBatch(item, fulfilledFromStockQty)}
                                                     className="bg-blue-50 text-blue-600 p-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
                                                     title="Στείλε για φρεσκάρισμα"
                                                 >
