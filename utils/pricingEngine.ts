@@ -38,7 +38,7 @@ export const calculateTechnicianCost = (weight_g: number): number => {
   } else { // 8.3 and up
     cost = weight_g * 0.50;
   }
-  return parseFloat(cost.toFixed(2));
+  return cost;
 };
 
 /**
@@ -48,7 +48,7 @@ export const calculateTechnicianCost = (weight_g: number): number => {
 export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
     // Replicating logic from other parts of the app (e.g., ProductDetails.tsx) for consistency.
     if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
-        return parseFloat((weight_g * 0.60).toFixed(2));
+        return weight_g * 0.60;
     }
     // Two-tone often depends on a secondary weight, which isn't available in the context
     // where this function is called. Returning 0 as a safe default.
@@ -270,7 +270,7 @@ export const calculateProductCost = (
   if (labor.technician_cost_manual_override) {
       technicianCost = labor.technician_cost || 0;
   } else if (product.is_component) {
-      technicianCost = 0.50;
+      technicianCost = product.weight_g * 0.50;
   } else {
       technicianCost = calculateTechnicianCost(product.weight_g);
   }
@@ -282,7 +282,7 @@ export const calculateProductCost = (
       castingCost = 0;
   } else {
       const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-      castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+      castingCost = totalWeight * 0.15;
   }
 
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost;
@@ -291,9 +291,9 @@ export const calculateProductCost = (
   return {
     total: roundPrice(totalCost),
     breakdown: {
-      silver: parseFloat(silverBaseCost.toFixed(2)),
-      materials: parseFloat(materialsCost.toFixed(2)),
-      labor: parseFloat(laborTotal.toFixed(2)),
+      silver: silverBaseCost,
+      materials: materialsCost,
+      labor: laborTotal,
       details: {
         ...(product.labor || {}),
         casting_cost: castingCost,

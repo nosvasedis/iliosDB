@@ -554,29 +554,33 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) {
-        const techCost = calculateTechnicianCost(weight);
-        setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
+      if (isSTX) {
+          setLabor(prevLabor => ({...prevLabor, technician_cost: weight * 0.50}));
+      } else {
+          const techCost = calculateTechnicianCost(weight);
+          setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
+      }
     }
-  }, [weight, labor.technician_cost_manual_override, productionType]);
+  }, [weight, labor.technician_cost_manual_override, productionType, isSTX]);
   
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.casting_cost_manual_override) {
         const totalWeight = (weight || 0) + (secondaryWeight || 0);
-        const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
+        const castCost = isSTX ? 0 : totalWeight * 0.15;
         setLabor(prevLabor => ({...prevLabor, casting_cost: castCost}));
     }
-  }, [weight, secondaryWeight, productionType, labor.casting_cost_manual_override]);
+  }, [weight, secondaryWeight, productionType, isSTX, labor.casting_cost_manual_override]);
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
-      const costX = parseFloat((weight * 0.60).toFixed(2));
+      const costX = weight * 0.60;
       setLabor(prev => ({ ...prev, plating_cost_x: costX }));
     }
   }, [weight, labor.plating_cost_x_manual_override]);
 
   useEffect(() => {
     if (!labor.plating_cost_d_manual_override) {
-        const costD = parseFloat((secondaryWeight * 0.60).toFixed(2));
+        const costD = (secondaryWeight || 0) * 0.60;
         setLabor(prev => ({ ...prev, plating_cost_d: costD }));
     }
   }, [secondaryWeight, labor.plating_cost_d_manual_override]);
@@ -913,7 +917,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              await supabase.from('recipes').insert(recipeInserts);
         }
         
-        await supabase.from('product_molds').delete().eq('product_sku', finalMasterSku);
+        await supabase.from('product_molds').delete().eq('parent_sku', finalMasterSku);
         if (productionType === ProductionType.InHouse && selectedMolds.length > 0) {
              const moldInserts = selectedMolds.map(m => ({ 
                  product_sku: finalMasterSku, 
