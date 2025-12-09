@@ -573,17 +573,35 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
-      const costX = weight * 0.60;
+        let totalPlatingWeight = weight;
+        recipe.forEach(item => {
+            if (item.type === 'component') {
+                const subProduct = products.find(p => p.sku === item.sku);
+                if (subProduct) {
+                    totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                }
+            }
+        });
+      const costX = totalPlatingWeight * 0.60;
       setLabor(prev => ({ ...prev, plating_cost_x: costX }));
     }
-  }, [weight, labor.plating_cost_x_manual_override]);
+  }, [weight, recipe, products, labor.plating_cost_x_manual_override]);
 
   useEffect(() => {
     if (!labor.plating_cost_d_manual_override) {
-        const costD = (secondaryWeight || 0) * 0.60;
+        let totalSecondaryWeight = secondaryWeight || 0;
+        recipe.forEach(item => {
+            if (item.type === 'component') {
+                const subProduct = products.find(p => p.sku === item.sku);
+                if (subProduct) {
+                    totalSecondaryWeight += ((subProduct.secondary_weight_g || 0) * item.quantity);
+                }
+            }
+        });
+        const costD = totalSecondaryWeight * 0.60;
         setLabor(prev => ({ ...prev, plating_cost_d: costD }));
     }
-  }, [secondaryWeight, labor.plating_cost_d_manual_override]);
+  }, [secondaryWeight, recipe, products, labor.plating_cost_d_manual_override]);
 
 
   // Cost Calculator Effect - VITAL: Passes 'labor' to calculation

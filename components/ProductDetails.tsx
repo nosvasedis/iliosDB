@@ -343,17 +343,35 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_x_manual_override) {
-        const costX = parseFloat((editedProduct.weight_g * 0.60).toFixed(2));
+        let totalPlatingWeight = editedProduct.weight_g;
+        editedProduct.recipe.forEach(item => {
+            if (item.type === 'component') {
+                const subProduct = allProducts.find(p => p.sku === item.sku);
+                if (subProduct) {
+                    totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                }
+            }
+        });
+        const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
         setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
     }
-  }, [editedProduct.weight_g, editedProduct.labor.plating_cost_x_manual_override]);
+  }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override]);
 
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_d_manual_override) {
-        const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
+        let totalSecondaryWeight = editedProduct.secondary_weight_g || 0;
+        editedProduct.recipe.forEach(item => {
+            if (item.type === 'component') {
+                const subProduct = allProducts.find(p => p.sku === item.sku);
+                if (subProduct) {
+                    totalSecondaryWeight += ((subProduct.secondary_weight_g || 0) * item.quantity);
+                }
+            }
+        });
+        const costD = parseFloat((totalSecondaryWeight * 0.60).toFixed(2));
         setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
     }
-  }, [editedProduct.secondary_weight_g, editedProduct.labor.plating_cost_d_manual_override]);
+  }, [editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_d_manual_override]);
 
   useEffect(() => {
       setEditedProduct(prev => {
@@ -932,7 +950,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
                                                     <option value={PlatingType.None}>Λουστρέ</option>
                                                     <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                    <option value={PlatingType.TwoTone}>Δίχρωμο</option>
+                                                    <option value={PlatingType.TwoTone}>Δíχρωμο</option>
                                                     <option value={PlatingType.Platinum}>Πλατίνα</option>
                                                 </select>
                                             </div>
