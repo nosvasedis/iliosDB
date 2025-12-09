@@ -54,9 +54,8 @@ export default function OrderInvoiceView({ order }: Props) {
     // Hardcoded Company Info
     const company = {
         name: "ILIOS KOSMIMA",
-        address: "Κολωνός 12-14, 10437 Αθήνα",
-        vat: "EL123456789",
-        phone: "210 1234567"
+        address: "Αβέρωφ 73, Κορυδαλλός, 18120",
+        phone: "2104905405"
     };
 
     return (
@@ -67,7 +66,6 @@ export default function OrderInvoiceView({ order }: Props) {
                     <img src={APP_LOGO} alt="ILIOS" className="w-full object-contain" />
                     <div className="text-[9px] text-slate-500 mt-2 space-y-0.5">
                         <p>{company.address}</p>
-                        <p>ΑΦΜ: {company.vat}</p>
                         <p>Τηλ: {company.phone}</p>
                     </div>
                 </div>
