@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -38,6 +38,7 @@ const getMaterialIcon = (type?: string) => {
         case 'Chain': return <Link size={16} className="text-slate-500" />;
         case 'Component': return <Puzzle size={16} className="text-blue-500" />;
         case 'Enamel': return <Palette size={16} className="text-rose-500" />;
+        case 'Leather': return <Scroll size={16} className="text-amber-700" />;
         default: return <Box size={16} className="text-slate-400" />;
     }
 };

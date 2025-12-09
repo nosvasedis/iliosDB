@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search, Scroll } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -13,7 +13,8 @@ const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Cord]: 'Κορδόνι',
     [MaterialType.Chain]: 'Αλυσίδα',
     [MaterialType.Component]: 'Εξάρτημα',
-    [MaterialType.Enamel]: 'Σμάλτο'
+    [MaterialType.Enamel]: 'Σμάλτο',
+    [MaterialType.Leather]: 'Δέρμα'
 };
 
 interface Props {
@@ -169,6 +170,7 @@ export default function MaterialsPage({ settings }: Props) {
           case MaterialType.Chain: return <Link size={16} className="text-slate-500" />;
           case MaterialType.Component: return <Puzzle size={16} className="text-blue-500" />;
           case MaterialType.Enamel: return <Palette size={16} className="text-rose-500" />;
+          case MaterialType.Leather: return <Scroll size={16} className="text-amber-700" />;
           default: return <Box size={16} className="text-slate-400" />;
       }
   };
@@ -179,6 +181,7 @@ export default function MaterialsPage({ settings }: Props) {
       { id: MaterialType.Component, label: 'Εξαρτήματα', icon: Puzzle },
       { id: MaterialType.Chain, label: 'Αλυσίδες', icon: Link },
       { id: MaterialType.Cord, label: 'Κορδόνια', icon: Activity },
+      { id: MaterialType.Leather, label: 'Δέρματα', icon: Scroll },
       { id: MaterialType.Enamel, label: 'Σμάλτα', icon: Palette },
   ];
 

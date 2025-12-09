@@ -1,5 +1,4 @@
 
-
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -11,7 +10,8 @@ export enum MaterialType {
   Cord = 'Cord',
   Chain = 'Chain',
   Component = 'Component',
-  Enamel = 'Enamel'
+  Enamel = 'Enamel',
+  Leather = 'Leather'
 }
 
 export enum PlatingType {

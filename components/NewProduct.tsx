@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis } from '../utils/pricingEngine';
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -42,6 +42,7 @@ const getMaterialIcon = (type?: string) => {
         case 'Chain': return <Link size={16} className="text-slate-500" />;
         case 'Component': return <Puzzle size={16} className="text-blue-500" />;
         case 'Enamel': return <Palette size={16} className="text-rose-500" />;
+        case 'Leather': return <Scroll size={16} className="text-amber-700" />;
         default: return <Box size={16} className="text-slate-400" />;
     }
 };
@@ -62,8 +63,8 @@ const RecipeItemSelectorModal = ({
     const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
         'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
         'Σκουλαρίκια': { types: [MaterialType.Stone], names: ['ζιργκόν', 'πεταλούδα', 'καρφωτάκι'] },
-        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Chain], names: ['κούμπωμα', 'δέρμα'] },
-        'Μενταγιόν': { types: [MaterialType.Chain], names: ['κρίκος', 'κρικάκι'] },
+        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Chain, MaterialType.Leather], names: ['κούμπωμα', 'δέρμα'] },
+        'Μενταγιόν': { types: [MaterialType.Chain, MaterialType.Leather], names: ['κρίκος', 'κρικάκι', 'κορδόνι'] },
         'Σταυρός': { types: [], names: ['κρίκος', 'κρικάκι'] }
     };
 
