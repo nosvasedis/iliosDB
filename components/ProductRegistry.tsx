@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle } from 'lucide-react';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +17,19 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Ανδρικά', value: Gender.Men, icon: <User size={16} /> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16} /> },
     { label: 'Unisex', value: Gender.Unisex, icon: <UsersIcon size={16} /> },
+];
+
+const platingFilters = [
+    { label: 'Όλα', value: 'all' },
+    { label: 'Λουστρέ / Πατίνα', value: 'lustre' },
+    { label: 'Επίχρυσο', value: 'gold' },
+    { label: 'Επιπλατινωμένο', value: 'platinum' }
+];
+
+const stoneFilters = [
+    { label: 'Όλα', value: 'all' },
+    { label: 'Με Πέτρες', value: 'with' },
+    { label: 'Χωρίς Πέτρες', value: 'without' }
 ];
 
 // --- Sub-Component: Product Card with Smart Variant Switching ---
@@ -171,6 +184,20 @@ const ProductCard: React.FC<{
     );
 };
 
+const SubFilterButton = ({ label, value, activeValue, onClick }: { label: string, value: string, activeValue: string, onClick: (value: string) => void }) => (
+    <button
+        onClick={() => onClick(value)}
+        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
+            ${activeValue === value
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
+        `}
+    >
+        {label}
+    </button>
+);
+
+
 export default function ProductRegistry({ setPrintItems }: Props) {
   const queryClient = useQueryClient();
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -180,26 +207,30 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [filterParentCategory, setFilterParentCategory] = useState<string>('All');
   const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
+  
+  const [subFilters, setSubFilters] = useState({
+      category: 'all',
+      stone: 'all',
+      plating: 'all',
+  });
+  
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showStxOnly, setShowStxOnly] = useState(false);
   
-  // Floating Action Button State
   const [showFab, setShowFab] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // The main scrollable container is defined in App.tsx
     const scrollContainer = document.querySelector('main > div.overflow-y-auto');
     if (!scrollContainer) return;
 
     const handleScroll = () => {
       if (headerRef.current) {
-        // Show FAB when the top header is scrolled out of view
         const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
-        setShowFab(headerBottomPosition < 20); // Show when header is mostly off-screen
+        setShowFab(headerBottomPosition < 20);
       }
     };
 
@@ -214,21 +245,81 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
   }, [products, showStxOnly]);
 
-  const categories = useMemo(() => {
-    if (!baseProducts) return [];
-    const cats = new Set(baseProducts.map(p => p.category));
-    return Array.from(cats).sort();
+  const groupedCategories = useMemo(() => {
+      if (!baseProducts) return { parents: [], children: new Map() };
+      const parents = new Set<string>();
+      const children = new Map<string, Set<string>>();
+      const allCategories = new Set(baseProducts.map(p => p.category));
+      
+      const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός'];
+
+      allCategories.forEach(cat => {
+          const parent = parentKeywords.find(p => cat.startsWith(p));
+          if (parent) {
+              parents.add(parent);
+              if (!children.has(parent)) children.set(parent, new Set());
+              if (cat !== parent) children.get(parent)!.add(cat);
+          } else {
+              parents.add(cat);
+          }
+      });
+      return { parents: Array.from(parents).sort(), children };
   }, [baseProducts]);
 
+  const handleParentCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setFilterParentCategory(e.target.value);
+      setSubFilters({ category: 'all', stone: 'all', plating: 'all' });
+  };
+  
+  const handleSubFilterChange = (type: keyof typeof subFilters, value: string) => {
+      setSubFilters(prev => ({ ...prev, [type]: value }));
+  };
+
   const filteredProducts = useMemo(() => {
-    if (!baseProducts) return [];
+    if (!baseProducts || !materials) return [];
+    
+    // Helper functions for sub-filtering
+    const productHasStones = (p: Product): boolean => {
+        return p.recipe.some(item => {
+            if (item.type !== 'raw') return false;
+            const mat = materials.find(m => m.id === item.id);
+            return mat?.type === MaterialType.Stone;
+        });
+    };
+
+    const getProductPlatingTypes = (p: Product): Set<string> => {
+        const types = new Set<string>();
+        const { finish: masterFinish } = getVariantComponents(p.sku, p.gender);
+        if (p.plating_type === PlatingType.GoldPlated) types.add('X');
+        if (p.plating_type === PlatingType.Platinum) types.add('H');
+        if (p.plating_type === PlatingType.None) types.add(masterFinish.code || '');
+
+        (p.variants || []).forEach(v => {
+            const { finish } = getVariantComponents(v.suffix, p.gender);
+            types.add(finish.code);
+        });
+        return types;
+    };
     
     const filtered = baseProducts.filter(p => {
         const matchesGender = filterGender === 'All' || p.gender === filterGender;
-        const matchesCat = filterCategory === 'All' || p.category === filterCategory;
+        const matchesParentCat = filterParentCategory === 'All' || p.category.startsWith(filterParentCategory);
         const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
         
-        return matchesGender && matchesCat && matchesSearch;
+        if (!matchesGender || !matchesParentCat || !matchesSearch) return false;
+
+        // Sub-filters
+        if (subFilters.category !== 'all' && p.category !== subFilters.category) return false;
+        if (subFilters.stone === 'with' && !productHasStones(p)) return false;
+        if (subFilters.stone === 'without' && productHasStones(p)) return false;
+        if (subFilters.plating !== 'all') {
+            const platingTypes = getProductPlatingTypes(p);
+            if (subFilters.plating === 'lustre' && !platingTypes.has('') && !platingTypes.has('P')) return false;
+            if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
+            if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
+        }
+        
+        return true;
     });
 
     const naturalSort = (a: Product, b: Product) => {
@@ -247,7 +338,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     
     return filtered.sort(naturalSort);
 
-  }, [baseProducts, searchTerm, filterCategory, filterGender]);
+  }, [baseProducts, searchTerm, filterParentCategory, filterGender, subFilters, materials]);
+  
+  const activeSubCategories = groupedCategories.children.get(filterParentCategory);
 
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
@@ -266,7 +359,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
             <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
@@ -298,7 +390,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
          </div>
       </div>
       
-      {/* FILTER BAR */}
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
           {!showStxOnly && (
             <div>
@@ -325,12 +416,12 @@ export default function ProductRegistry({ setPrintItems }: Props) {
               <div className="relative group">
                   <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <select 
-                     value={filterCategory}
-                     onChange={(e) => setFilterCategory(e.target.value)}
+                     value={filterParentCategory}
+                     onChange={handleParentCategoryChange}
                      className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white appearance-none cursor-pointer text-slate-700 font-medium"
                   >
                       <option value="All">Όλες οι Κατηγορίες</option>
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      {groupedCategories.parents.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
               </div>
               <div className="relative group">
@@ -344,6 +435,29 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                   />
               </div>
           </div>
+          
+          {filterParentCategory !== 'All' && (
+              <div className="border-t border-slate-100 pt-4 space-y-4 animate-in fade-in">
+                  {activeSubCategories && activeSubCategories.size > 0 && (
+                      <div className="flex items-center gap-3 flex-wrap">
+                          <span className="text-xs font-bold text-slate-400 uppercase shrink-0">Τύπος:</span>
+                          <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
+                          {/* @FIX: Add explicit type `string` to `subCat` to resolve TypeScript error. */}
+                          {Array.from(activeSubCategories).map((subCat: string) => (
+                              <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
+                          ))}
+                      </div>
+                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Gem size={12}/> Πέτρες:</span>
+                      {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => handleSubFilterChange('stone', v)}/>)}
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Palette size={12}/> Φινίρισμα:</span>
+                      {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => handleSubFilterChange('plating', v)}/>)}
+                  </div>
+              </div>
+          )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -372,15 +486,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           allProducts={products}
           allMaterials={materials}
           onClose={() => setSelectedProduct(null)}
-          setPrintItems={setPrintItems || (() => {})} // Pass the prop function
+          setPrintItems={setPrintItems || (() => {})}
           settings={settings}
           collections={collections}
           allMolds={molds}
-          viewMode="registry" // Hides stock
+          viewMode="registry"
         />
       )}
 
-      {/* FLOATING ACTION BUTTON */}
       <div 
         className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
       >

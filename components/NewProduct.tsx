@@ -256,7 +256,8 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                                 <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
                                     {analysis.effectiveSilverPrice.toFixed(2)}€/g
                                 </span>
-                                {analysis.hasHiddenMarkup && <AlertTriangle size={12} className="text-red-500" title="Κρυφή χρέωση στο μέταλλο"/>}
+                                {/* @FIX: The `title` prop is not supported by lucide-react icons. Wrap the icon in a `span` with a `title` attribute for tooltip functionality. */}
+                                {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500"/></span>}
                             </div>
                         </div>
                     )}
