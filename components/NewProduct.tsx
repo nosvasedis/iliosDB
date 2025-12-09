@@ -1,4 +1,3 @@
-
 // ... imports remain the same ...
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
@@ -554,18 +553,22 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   useEffect(() => {
     if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) {
-      const techCost = calculateTechnicianCost(weight);
-      setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
+      if (isSTX) {
+          setLabor(prevLabor => ({...prevLabor, technician_cost: 0.50}));
+      } else {
+          const techCost = calculateTechnicianCost(weight);
+          setLabor(prevLabor => ({...prevLabor, technician_cost: techCost}));
+      }
     }
-  }, [weight, labor.technician_cost_manual_override, productionType]);
+  }, [weight, labor.technician_cost_manual_override, productionType, isSTX]);
   
   useEffect(() => {
     if (productionType === ProductionType.InHouse) {
         const totalWeight = (weight || 0) + (secondaryWeight || 0);
-        const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
+        const castCost = isSTX ? 0 : parseFloat((totalWeight * 0.15).toFixed(2));
         setLabor(prevLabor => ({...prevLabor, casting_cost: castCost}));
     }
-  }, [weight, secondaryWeight, productionType]);
+  }, [weight, secondaryWeight, productionType, isSTX]);
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold } from '../types';
@@ -101,7 +100,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [targetMargin, setTargetMargin] = useState(50);
   const [calculatedPrice, setCalculatedPrice] = useState(0);
 
-  const [moldSearch, setMoldSearch] = useState('');
+  const [isAddingMold, setIsAddingMold] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [smartAddSuffix, setSmartAddSuffix] = useState(''); 
@@ -166,6 +165,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   }, [editedProduct.weight_g, editedProduct.labor.plating_cost_x_manual_override]);
 
   useEffect(() => {
+    // @FIX: Fix typo from 'plating_d_manual_override' to 'plating_cost_d_manual_override'
     if (!editedProduct.labor.plating_cost_d_manual_override) {
         const costD = parseFloat(((editedProduct.secondary_weight_g || 0) * 0.60).toFixed(2));
         setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
@@ -358,14 +358,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const handleSave = async () => {
     try {
+        const isComponent = editedProduct.sku.toUpperCase().startsWith('STX');
         const currentCost = calculateProductCost(editedProduct, settings, allMaterials, allProducts).total;
 
-        await supabase.from('products').update({
-            gender: editedProduct.gender,
+        const { error: productUpdateError } = await supabase.from('products').update({
+            // Editable fields
             category: editedProduct.category,
+            gender: editedProduct.gender,
             weight_g: editedProduct.weight_g,
             secondary_weight_g: editedProduct.secondary_weight_g || null,
-            selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price, // FORCE 0 FOR COMPONENTS
+            selling_price: isComponent ? 0 : editedProduct.selling_price,
+            plating_type: editedProduct.plating_type,
+            
+            // Labor
             labor_casting: editedProduct.labor.casting_cost,
             labor_setter: editedProduct.labor.setter_cost,
             labor_technician: editedProduct.labor.technician_cost,
@@ -374,13 +379,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
             labor_plating_x_manual_override: editedProduct.labor.plating_cost_x_manual_override,
             labor_plating_d_manual_override: editedProduct.labor.plating_cost_d_manual_override,
+
+            // Recalculated / System fields
             active_price: currentCost,
             draft_price: currentCost,
+            is_component: isComponent,
+
+            // Production Strategy
             production_type: editedProduct.production_type,
             supplier_id: (editedProduct.production_type === ProductionType.Imported && editedProduct.supplier_id) ? editedProduct.supplier_id : null,
             supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
             labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
         }).eq('sku', editedProduct.sku);
+
+        if (productUpdateError) throw productUpdateError;
 
         await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
         if (editedProduct.recipe.length > 0) {
@@ -578,8 +590,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const availableMolds = useMemo(() => {
       const usedCodes = new Set(editedProduct.molds.map(m => m.code));
-      return allMolds.filter(m => !usedCodes.has(m.code) && (m.code.includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase())));
-  }, [allMolds, editedProduct.molds, moldSearch]);
+      return allMolds
+        .filter(m => !usedCodes.has(m.code))
+        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [allMolds, editedProduct.molds]);
 
   const secondaryWeightLabel = useMemo(() => {
     if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
@@ -677,7 +691,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                <div className="w-full h-px bg-slate-100"></div>
                                <div className="flex justify-between items-center text-xs">
                                    <span className="font-bold text-slate-400 uppercase">Περιθωριο</span>
-                                   <span className={`font-black ${displayedMargin >= 50 ? 'text-emerald-500' : 'text-amber-500'}`}>{displayedMargin.toFixed(0)}%</span>
+                                   <span className={`font-black ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{displayedMargin.toFixed(0)}%</span>
                                </div>
                                </>
                            )}
@@ -723,6 +737,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
                                            <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0})} />
                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
+                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({...editedProduct, gender: e.target.value as Gender})}>
+                                                <option value={Gender.Women}>Γυναικείο</option>
+                                                <option value={Gender.Men}>Ανδρικό</option>
+                                                <option value={Gender.Unisex}>Unisex</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
+                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
+                                                <option value={PlatingType.None}>Λουστρέ</option>
+                                                <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
+                                                <option value={PlatingType.TwoTone}>Δίχρωμο</option>
+                                                <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                            </select>
+                                        </div>
                                        {!editedProduct.is_component && (
                                            <div>
                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τιμή Πώλησης (€)</label>
@@ -754,32 +785,38 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                    {/* Molds Section - Only for InHouse */}
                                    {editedProduct.production_type === ProductionType.InHouse && (
                                        <div>
-                                           <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
-                                               <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</span>
-                                               <input placeholder="Αναζήτηση..." value={moldSearch} onChange={e => setMoldSearch(e.target.value)} className="text-xs p-1.5 border border-slate-200 rounded-lg outline-none font-normal w-32 focus:w-48 transition-all"/>
-                                           </h4>
+                                            <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
+                                                <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</span>
+                                                <button onClick={() => setIsAddingMold(prev => !prev)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors">
+                                                    {isAddingMold ? 'Ακύρωση' : 'Προσθήκη'}
+                                                </button>
+                                            </h4>
                                            <div className="flex flex-wrap gap-2 mb-4">
-                                               {editedProduct.molds.map(m => (
-                                                   <div key={m.code} className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
-                                                       {m.code} {m.quantity > 1 && `(x${m.quantity})`}
-                                                       <div className="flex flex-col gap-0.5 ml-1">
-                                                           <button onClick={() => updateMoldQuantity(m.code, 1)} className="text-amber-400 hover:text-amber-600"><ChevronLeft size={10} className="rotate-90"/></button>
-                                                           <button onClick={() => updateMoldQuantity(m.code, -1)} className="text-amber-400 hover:text-amber-600"><ChevronRight size={10} className="rotate-90"/></button>
-                                                       </div>
-                                                       <button onClick={() => removeMold(m.code)} className="text-amber-400 hover:text-red-500 ml-1"><X size={14}/></button>
-                                                   </div>
-                                               ))}
+                                                {editedProduct.molds.map(m => {
+                                                    const moldDetails = allMolds.find(mold => mold.code === m.code);
+                                                    const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
+                                                    return (
+                                                        <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                            {m.code} {m.quantity > 1 && `(x${m.quantity})`}
+                                                            <div className="flex flex-col gap-0.5 ml-1">
+                                                                <button onClick={() => updateMoldQuantity(m.code, 1)} className="text-amber-400 hover:text-amber-600"><ChevronLeft size={10} className="rotate-90"/></button>
+                                                                <button onClick={() => updateMoldQuantity(m.code, -1)} className="text-amber-400 hover:text-amber-600"><ChevronRight size={10} className="rotate-90"/></button>
+                                                            </div>
+                                                            <button onClick={() => removeMold(m.code)} className="text-amber-400 hover:text-red-500 ml-1"><X size={14}/></button>
+                                                        </div>
+                                                    );
+                                                })}
                                                {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic">Κανένα λάστιχο.</span>}
                                            </div>
-                                           {moldSearch && (
-                                               <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-1">
+                                           {isAddingMold && (
+                                               <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-1 animate-in fade-in">
                                                    {availableMolds.map(m => (
                                                        <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
                                                            <span className="font-bold text-slate-700">{m.code}</span>
                                                            <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
                                                        </button>
                                                    ))}
-                                                   {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν βρέθηκαν λάστιχα.</div>}
+                                                   {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν υπάρχουν άλλα διαθέσιμα λάστιχα.</div>}
                                                </div>
                                            )}
                                        </div>
