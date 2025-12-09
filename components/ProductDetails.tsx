@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCcw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -239,7 +239,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const [editedProduct, setEditedProduct] = useState<Product>(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
-    // @FIX: Add missing required property 'subcontract_cost'.
     return { 
         ...product,
         variants: product.variants || [],
@@ -295,7 +294,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   useEffect(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
-    // @FIX: Add missing required property 'subcontract_cost'.
     setEditedProduct({ 
       ...product,
       variants: product.variants || [],
@@ -412,6 +410,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       editedProduct.labor.stone_setting_cost,
       editedProduct.labor.plating_cost_x,
       editedProduct.labor.plating_cost_d,
+      editedProduct.labor.subcontract_cost,
       editedProduct.plating_type,
       editedProduct.recipe,
       editedProduct.variants?.length,
@@ -446,8 +445,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       displayedSku = `${editedProduct.sku}${currentViewVariant.suffix}`;
       displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
       
-      if (currentViewVariant.active_price) displayedCost = currentViewVariant.active_price;
-      if (currentViewVariant.selling_price) displayedPrice = currentViewVariant.selling_price;
+      if (currentViewVariant.active_price != null) displayedCost = currentViewVariant.active_price;
+      if (currentViewVariant.selling_price != null) displayedPrice = currentViewVariant.selling_price;
   }
 
   const displayedProfit = displayedPrice - displayedCost;
@@ -581,6 +580,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_technician: editedProduct.labor.technician_cost,
             labor_plating_x: editedProduct.labor.plating_cost_x,
             labor_plating_d: editedProduct.labor.plating_cost_d,
+            labor_subcontract: editedProduct.labor.subcontract_cost,
             labor_casting_manual_override: editedProduct.labor.casting_cost_manual_override,
             labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
             labor_plating_x_manual_override: editedProduct.labor.plating_cost_x_manual_override,
@@ -899,15 +899,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            </h3>
                            
                            <div className="flex justify-between items-center text-sm">
-                               <span className="text-slate-500">Κόστος (Master)</span>
-                               <span className="font-mono font-bold text-slate-800">{formatCurrency(masterCost)}</span>
+                               <span className="text-slate-500">Κόστος</span>
+                               <span className="font-mono font-bold text-slate-800">{formatCurrency(displayedCost)}</span>
                            </div>
                            
                            {!editedProduct.is_component && (
                                <>
                                <div className="flex justify-between items-center text-sm">
                                    <span className="text-slate-500">Τιμή Πώλησης</span>
-                                   <span className="font-mono font-bold text-emerald-600">{formatCurrency(editedProduct.selling_price)}</span>
+                                   <span className="font-mono font-bold text-emerald-600">{formatCurrency(displayedPrice)}</span>
                                </div>
                                <div className="w-full h-px bg-slate-100"></div>
                                <div className="flex justify-between items-center text-xs">
@@ -1097,6 +1097,26 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        const isRaw = item.type === 'raw';
                                        const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
                                        
+                                        let itemCost = 0;
+                                        if (isRaw) {
+                                            const mat = details as Material | undefined;
+                                            if (mat) {
+                                                let unitCost = mat.cost_per_unit;
+                                                if (currentViewVariant?.suffix) {
+                                                    const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
+                                                    if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
+                                                        unitCost = mat.variant_prices[stone.code];
+                                                    }
+                                                }
+                                                itemCost = unitCost * item.quantity;
+                                            }
+                                        } else { // component
+                                            const subProduct = details as Product | undefined;
+                                            if (subProduct) {
+                                                itemCost = (subProduct.active_price || 0) * item.quantity;
+                                            }
+                                        }
+
                                        return (
                                            <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                                                <div className="p-2 bg-white rounded-lg border border-slate-100">
@@ -1121,6 +1141,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                        </select>
                                                    )}
                                                </div>
+                                                <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
                                                <div className="flex items-center gap-2">
                                                    <input type="number" className="w-16 p-1 text-center font-bold bg-white rounded border border-slate-200 outline-none" value={item.quantity} onChange={e => updateRecipeItem(idx, 'quantity', e.target.value)}/>
                                                    <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
@@ -1160,6 +1181,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                            onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: v}}))} 
                                            override={editedProduct.labor.plating_cost_x_manual_override}
                                            onToggleOverride={() => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} 
+                                       />
+                                       <LaborCostInput 
+                                           label="Φασόν / Έξτρα" 
+                                           icon={<Users size={14}/>}
+                                           value={editedProduct.labor.subcontract_cost || 0}
+                                           onChange={v => setEditedProduct(p => ({...p, labor: {...p.labor, subcontract_cost: v}}))} 
                                        />
                                    </div>
                                </div>
@@ -1205,7 +1232,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                    className="flex-1 text-sm bg-transparent outline-none border-b border-transparent hover:border-slate-200 focus:border-emerald-500 transition-all text-slate-700"
                                                />
                                                <div className="text-xs font-mono text-slate-400">
-                                                   <span className="font-bold text-slate-600">{variant.active_price?.toFixed(2)}€</span> cost
+                                                   <span className="font-bold text-slate-600">{variant.active_price?.toFixed(2)}€</span> κόστος
                                                </div>
                                                {!editedProduct.is_component && (
                                                    <div className="flex items-center gap-1">
