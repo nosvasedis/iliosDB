@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -185,6 +184,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [showStxOnly, setShowStxOnly] = useState(false);
   
   // Floating Action Button State
   const [showFab, setShowFab] = useState(false);
@@ -209,16 +209,21 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     };
   }, []);
   
-  const categories = useMemo(() => {
+  const baseProducts = useMemo(() => {
     if (!products) return [];
-    const cats = new Set(products.map(p => p.category));
+    return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
+  }, [products, showStxOnly]);
+
+  const categories = useMemo(() => {
+    if (!baseProducts) return [];
+    const cats = new Set(baseProducts.map(p => p.category));
     return Array.from(cats).sort();
-  }, [products]);
+  }, [baseProducts]);
 
   const filteredProducts = useMemo(() => {
-    if (!products) return [];
+    if (!baseProducts) return [];
     
-    const filtered = products.filter(p => {
+    const filtered = baseProducts.filter(p => {
         const matchesGender = filterGender === 'All' || p.gender === filterGender;
         const matchesCat = filterCategory === 'All' || p.category === filterCategory;
         const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -242,7 +247,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     
     return filtered.sort(naturalSort);
 
-  }, [products, searchTerm, filterCategory, filterGender]);
+  }, [baseProducts, searchTerm, filterCategory, filterGender]);
 
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
@@ -270,17 +275,33 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 </div>
                 Μητρώο Κωδικών
             </h1>
-            <p className="text-slate-500 mt-1 ml-14">Αποκλειστική διαχείριση προδιαγραφών και κοστολόγησης.</p>
+            <p className="text-slate-500 mt-1 ml-14">
+                {showStxOnly 
+                    ? `Προβολή εξαρτημάτων (STX) που χρησιμοποιούνται στις συνταγές.` 
+                    : `Αποκλειστική διαχείριση προδιαγραφών και κοστολόγησης.`
+                }
+            </p>
          </div>
          
-         <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg w-full md:w-auto">
-            <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο Προϊόν</span>
-         </button>
+         <div className="flex items-center gap-3 self-stretch md:self-auto w-full md:w-auto">
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button onClick={() => setShowStxOnly(false)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <Database size={16}/> Προϊόντα
+                </button>
+                <button onClick={() => setShowStxOnly(true)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <Puzzle size={16}/> Εξαρτήματα (STX)
+                </button>
+            </div>
+            <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg w-full md:w-auto">
+                <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο Προϊόν</span>
+            </button>
+         </div>
       </div>
       
       {/* FILTER BAR */}
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div>
+          {!showStxOnly && (
+            <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide ml-1 mb-2 block">Φύλο</label>
               <div className="flex items-center gap-2 flex-wrap">
                   {genderFilters.map(filter => (
@@ -298,7 +319,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                       </button>
                   ))}
               </div>
-          </div>
+            </div>
+          )}
           <div className="grid sm:grid-cols-2 gap-4">
               <div className="relative group">
                   <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

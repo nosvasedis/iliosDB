@@ -733,6 +733,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const { suggestedMolds, otherMolds } = useMemo(() => {
     const upperSku = sku.toUpperCase();
+    const usedMoldCodes = new Set(selectedMolds.map(m => m.code));
+    const availableMolds = molds.filter(m => !usedMoldCodes.has(m.code));
+    
     let suggestionKeyword: string | null = null;
 
     if (upperSku.startsWith('PN') || upperSku.startsWith('MN')) {
@@ -741,7 +744,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         suggestionKeyword = 'καβαλάρης';
     }
 
-    const allMoldsFilteredBySearch = molds
+    const allMoldsFilteredBySearch = availableMolds
       .filter(m => 
           (m.code.toUpperCase().includes(moldSearch.toUpperCase()) || 
           m.description.toLowerCase().includes(moldSearch.toLowerCase()))
@@ -768,7 +771,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     others.sort(sortFn);
 
     return { suggestedMolds: suggested, otherMolds: others };
-  }, [molds, moldSearch, sku]);
+  }, [molds, moldSearch, sku, selectedMolds]);
 
   useEffect(() => {
       if (newVariantSuffix) {
@@ -894,6 +897,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_technician: Number(labor.technician_cost),
             labor_plating_x: Number(labor.plating_cost_x || 0),
             labor_plating_d: Number(labor.plating_cost_d || 0),
+            labor_subcontract: Number(labor.subcontract_cost || 0),
             labor_casting_manual_override: labor.casting_cost_manual_override,
             labor_technician_manual_override: labor.technician_cost_manual_override,
             labor_plating_x_manual_override: labor.plating_cost_x_manual_override,
@@ -1130,35 +1134,51 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                     {productionType === ProductionType.InHouse && (
                         <div className="pt-4 border-t border-slate-100">
                             <label className="block text-sm font-bold text-amber-700 mb-3">Λάστιχα</label>
+                            
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
-                                    <div className="relative shrink-0">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                                        <input type="text" placeholder="Αναζήτηση..." value={moldSearch} onChange={e => setMoldSearch(e.target.value)} className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
-                                    </div>
-                                    <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
-                                        {otherMolds.concat(suggestedMolds).map(m => {
-                                            const selected = selectedMolds.find(sm => sm.code === m.code);
-                                            return (
-                                                <div key={m.code} className={`flex items-center gap-2 text-sm p-2 rounded-lg border mb-1 transition-colors ${selected ? 'bg-amber-50 border-amber-200' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                                                    <div onClick={() => addMold(m.code)} className="flex-1 cursor-pointer flex items-center gap-2">
-                                                        <span className={`font-mono font-bold ${selected ? 'text-amber-800' : 'text-slate-700'}`}>{m.code}</span>
-                                                        <span className="text-xs text-slate-400 truncate">{m.description}</span>
+                                <div className="space-y-4">
+                                    {selectedMolds.length > 0 && (
+                                        <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                                            <h5 className="text-xs font-bold text-amber-700 uppercase mb-2">Επιλεγμένα</h5>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedMolds.map(m => (
+                                                    <div key={m.code} className="bg-white border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
+                                                        {m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}
+                                                        <button onClick={() => removeMold(m.code)} className="text-amber-400 hover:text-red-500 ml-1"><X size={14}/></button>
                                                     </div>
-                                                    {selected ? (
-                                                        <div className="flex items-center gap-1 bg-white rounded-md border border-amber-200 shadow-sm">
-                                                            <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-slate-100 text-slate-500 ${selected.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={selected.quantity === 1}><Minus size={12}/></button>
-                                                            <span className="text-xs font-bold w-6 text-center">{selected.quantity}</span>
-                                                            <button onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-slate-100 text-slate-500"><Plus size={12}/></button>
-                                                            <div className="w-px h-4 bg-slate-100 mx-1"></div>
-                                                            <button onClick={() => removeMold(m.code)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-r-md"><X size={12}/></button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 h-64 flex flex-col gap-3">
+                                        <div className="relative shrink-0">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                            <input type="text" placeholder="Αναζήτηση..." value={moldSearch} onChange={e => setMoldSearch(e.target.value)} className="w-full pl-9 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder-slate-400"/>
+                                        </div>
+                                        <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
+                                            {otherMolds.concat(suggestedMolds).map(m => {
+                                                const selected = selectedMolds.find(sm => sm.code === m.code);
+                                                return (
+                                                    <div key={m.code} className={`flex items-center gap-2 text-sm p-2 rounded-lg border mb-1 transition-colors ${selected ? 'bg-amber-50 border-amber-200' : 'bg-white border-transparent hover:border-slate-200'}`}>
+                                                        <div onClick={() => addMold(m.code)} className="flex-1 cursor-pointer flex items-center gap-2">
+                                                            <span className={`font-mono font-bold ${selected ? 'text-amber-800' : 'text-slate-700'}`}>{m.code}</span>
+                                                            <span className="text-xs text-slate-400 truncate">{m.description}</span>
                                                         </div>
-                                                    ) : (
-                                                        <button onClick={() => addMold(m.code)} className="text-slate-300 hover:text-amber-500"><Plus size={16}/></button>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+                                                        {selected ? (
+                                                            <div className="flex items-center gap-1 bg-white rounded-md border border-amber-200 shadow-sm">
+                                                                <button onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-slate-100 text-slate-500 ${selected.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={selected.quantity === 1}><Minus size={12}/></button>
+                                                                <span className="text-xs font-bold w-6 text-center">{selected.quantity}</span>
+                                                                <button onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-slate-100 text-slate-500"><Plus size={12}/></button>
+                                                                <div className="w-px h-4 bg-slate-100 mx-1"></div>
+                                                                <button onClick={() => removeMold(m.code)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-r-md"><X size={12}/></button>
+                                                            </div>
+                                                        ) : (
+                                                            <button onClick={() => addMold(m.code)} className="text-slate-300 hover:text-amber-500"><Plus size={16}/></button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 hover:border-amber-300 transition-all group flex flex-col gap-3 h-full">
@@ -1342,6 +1362,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 isOverridden={labor.plating_cost_d_manual_override} 
                                 onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} 
                                 hint="Από Β' Βάρος" 
+                            />
+                            <LaborCostCard 
+                                icon={<Users size={14}/>} 
+                                label="Φασόν / Έξτρα (€)" 
+                                value={labor.subcontract_cost} 
+                                onChange={val => setLabor({...labor, subcontract_cost: val})} 
                             />
                         </div>
                     </div>
