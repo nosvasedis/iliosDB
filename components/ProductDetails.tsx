@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
@@ -580,7 +581,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             active_price: currentCost,
             draft_price: currentCost,
             production_type: editedProduct.production_type,
-            supplier_id: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_id : null,
+            // Ensure supplier_id is valid UUID or null
+            supplier_id: (editedProduct.production_type === ProductionType.Imported && editedProduct.supplier_id) ? editedProduct.supplier_id : null,
             supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
             labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
         }).eq('sku', editedProduct.sku);

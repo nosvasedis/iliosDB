@@ -780,7 +780,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             labor_plating_x_manual_override: labor.plating_cost_x_manual_override,
             labor_plating_d_manual_override: labor.plating_cost_d_manual_override,
             production_type: productionType,
-            supplier_id: productionType === ProductionType.Imported ? supplierId : null,
+            // Ensure supplier_id is valid UUID or null
+            supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null,
             supplier_cost: productionType === ProductionType.Imported ? supplierCost : null,
             labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null 
         });
