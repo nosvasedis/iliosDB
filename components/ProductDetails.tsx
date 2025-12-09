@@ -588,6 +588,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     return "Β' Βάρος (g)";
   }, [editedProduct.gender, editedProduct.category]);
 
+  // Handle Print All (Smart)
+  const handlePrintAll = () => {
+      if (sortedVariantsList.length > 0) {
+          // If variants exist, queue 1 of each variant
+          const items = sortedVariantsList.map(v => ({
+              product: editedProduct,
+              variant: v,
+              quantity: 1,
+              format: 'standard' as const
+          }));
+          setPrintItems(items);
+      } else {
+          // If no variants, queue 1 master
+          setPrintItems([{ product: editedProduct, quantity: 1, format: 'standard' }]);
+      }
+  };
+
   // RENDER
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -904,17 +921,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            {activeTab === 'barcodes' && (
                                <div className="h-full flex flex-col">
                                    <div className="flex justify-end mb-4">
-                                       <button onClick={() => setPrintItems([{ product: editedProduct, quantity: 1 }])} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-black transition-colors shadow-lg">
+                                       <button onClick={handlePrintAll} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-black transition-colors shadow-lg">
                                            <Printer size={16}/> Εκτύπωση Όλων
                                        </button>
                                    </div>
                                    <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-4">
-                                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors" onClick={() => setPrintItems([{ product: editedProduct, quantity: 1 }])}>
-                                           <div className="w-full h-24 mb-2 bg-white rounded border border-slate-100 flex items-center justify-center overflow-hidden">
-                                               <BarcodeView product={editedProduct} width={settings.barcode_width_mm} height={settings.barcode_height_mm} />
+                                       {sortedVariantsList.length === 0 && (
+                                           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors" onClick={() => setPrintItems([{ product: editedProduct, quantity: 1 }])}>
+                                               <div className="w-full h-24 mb-2 bg-white rounded border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                   <BarcodeView product={editedProduct} width={settings.barcode_width_mm} height={settings.barcode_height_mm} />
+                                               </div>
+                                               <span className="font-bold text-sm text-slate-700">Master SKU</span>
                                            </div>
-                                           <span className="font-bold text-sm text-slate-700">Master SKU</span>
-                                       </div>
+                                       )}
                                        {sortedVariantsList.map((v, i) => (
                                            <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors" onClick={() => setPrintItems([{ product: editedProduct, variant: v, quantity: 1 }])}>
                                                <div className="w-full h-24 mb-2 bg-white rounded border border-slate-100 flex items-center justify-center overflow-hidden">
