@@ -220,6 +220,7 @@ export interface ProductionBatch {
   notes?: string;
   
   requires_setting: boolean; 
+  size_info?: string; // Added size info for production tracking
   
   product_image?: string | null;
   product_details?: Product;

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AggregatedData } from '../App';
 import { APP_LOGO } from '../constants';
@@ -101,13 +102,16 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 <tr className="font-bold text-slate-400 text-xs">
                                     <th className="py-1 pr-2 w-12"></th>
                                     <th className="py-1 pr-2">SKU</th>
-                                    <th className="py-1 px-2 text-center">Ποσότητα</th>
-                                    <th className="py-1 px-2 text-right">Κόστος/τεμ</th>
+                                    <th className="py-1 px-2 text-center">Ποσ.</th>
+                                    <th className="py-1 px-2 text-center">Βάρος (g)</th>
+                                    <th className="py-1 px-2 text-right">Κόστος</th>
                                     <th className="py-1 pl-2 text-right">Σύνολο</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => (
+                                {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => {
+                                    const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
+                                    return (
                                     <tr key={batch.id} className="border-t border-slate-100">
                                         <td className="py-1.5 pr-2">
                                             <div className="w-12 h-12 rounded bg-slate-100 overflow-hidden border border-slate-200">
@@ -115,14 +119,21 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                             </div>
                                         </td>
                                         <td className="py-1.5 pr-2 font-mono text-slate-700">
-                                            <div className="font-bold text-base">{batch.sku}{batch.variant_suffix}</div>
+                                            <div className="font-bold text-base flex items-center gap-1">
+                                                {batch.sku}{batch.variant_suffix}
+                                                {batch.size_info && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 rounded border border-slate-200">{batch.size_info}</span>}
+                                            </div>
                                             {batch.notes && <div className="text-xs text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
                                         </td>
                                         <td className="py-1.5 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
+                                        <td className="py-1.5 px-2 text-center text-slate-600 font-mono">
+                                            <span className="font-bold">{formatDecimal(totalWeight, 1)}</span>
+                                            <span className="text-[9px] block text-slate-400">({formatDecimal(batch.product_details?.weight_g)}/τ)</span>
+                                        </td>
                                         <td className="py-1.5 px-2 text-right font-mono text-slate-500">{formatCurrency(batch.cost_per_piece)}</td>
                                         <td className="py-1.5 pl-2 text-right font-mono font-bold text-slate-800">{formatCurrency(batch.total_cost)}</td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { Order, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
@@ -135,13 +136,11 @@ export default function OrderInvoiceView({ order }: Props) {
                                         </div>
                                     </td>
                                     <td className="py-3 px-2 align-top">
-                                        <div className="font-bold text-slate-800 text-sm">{fullSku}</div>
+                                        <div className="font-bold text-slate-800 text-sm flex items-center gap-1">
+                                            {fullSku}
+                                            {item.size_info && <span className="text-xs font-normal text-slate-500 bg-slate-100 px-1.5 rounded">({item.size_info})</span>}
+                                        </div>
                                         <div className="text-slate-500 text-xs mt-0.5">{description}</div>
-                                        {item.size_info && sizingInfo && (
-                                            <div className="text-blue-600 font-bold text-xs mt-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">
-                                                {sizingInfo.type}: {item.size_info}
-                                            </div>
-                                        )}
                                         <div className="h-8 flex items-center mt-1">
                                             <BarcodeCanvas sku={fullSku} />
                                         </div>
