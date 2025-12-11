@@ -36,8 +36,18 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain" />
                 </div>
                 <div className="text-right">
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Συγκεντρωτικη Εντολη Παραγωγησ</h1>
-                    <p className="text-slate-500 text-xs mt-1">Ημερομηνία Εκτύπωσης: <span className="font-bold">{formatDate(new Date().toISOString())}</span></p>
+                    {data.orderId ? (
+                        <>
+                            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Εντολη Παραγωγησ</h1>
+                            <p className="text-slate-500 font-mono font-bold text-lg mt-1">#{data.orderId}</p>
+                            <p className="text-slate-500 text-sm mt-1">Πελάτης: <span className="font-bold">{data.customerName}</span></p>
+                        </>
+                    ) : (
+                        <>
+                            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Συγκεντρωτικη Εντολη Παραγωγησ</h1>
+                            <p className="text-slate-500 text-xs mt-1">Ημερομηνία Εκτύπωσης: <span className="font-bold">{formatDate(new Date().toISOString())}</span></p>
+                        </>
+                    )}
                 </div>
             </header>
 
@@ -84,7 +94,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <table className="w-full text-left text-sm">
                             <thead>
                                 <tr className="font-bold text-slate-400 text-xs">
-                                    <th className="py-1 pr-2 w-8"></th>
+                                    <th className="py-1 pr-2 w-12"></th>
                                     <th className="py-1 pr-2">SKU</th>
                                     <th className="py-1 px-2 text-center">Ποσότητα</th>
                                     <th className="py-1 px-2 text-right">Κόστος/τεμ</th>
@@ -95,7 +105,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => (
                                     <tr key={batch.id} className="border-t border-slate-100">
                                         <td className="py-1.5 pr-2">
-                                            <div className="w-8 h-8 rounded bg-slate-100 overflow-hidden border border-slate-200">
+                                            <div className="w-12 h-12 rounded bg-slate-100 overflow-hidden border border-slate-200">
                                                 {batch.product_image && <img src={batch.product_image} className="w-full h-full object-cover" />}
                                             </div>
                                         </td>

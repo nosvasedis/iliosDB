@@ -10,7 +10,7 @@ interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
   materials: Material[];
-  onPrintAggregated: (batches: ProductionBatch[]) => void;
+  onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -153,8 +153,15 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           return;
       }
 
+      const now = new Date();
+      const year = now.getFullYear().toString().slice(-2);
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const newOrderId = `${year}${month}${day}${random}`;
+
       const newOrder: Order = {
-          id: `ORD-${Date.now().toString().slice(-6)}`,
+          id: newOrderId,
           customer_id: selectedCustomerId || undefined,
           customer_name: customerName,
           customer_phone: customerPhone,
@@ -525,7 +532,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 }
 
 // Order Production Manager Modal (Interactive)
-const OrderProductionManager = ({ order, products, onClose, getAvailableStock, onPrintAggregated }: { order: Order, products: Product[], onClose: () => void, getAvailableStock: (item: OrderItem) => number, onPrintAggregated: (batches: ProductionBatch[]) => void; }) => {
+const OrderProductionManager = ({ order, products, onClose, getAvailableStock, onPrintAggregated }: { order: Order, products: Product[], onClose: () => void, getAvailableStock: (item: OrderItem) => number, onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void; }) => {
     const { showToast } = useUI();
     const queryClient = useQueryClient();
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -571,9 +578,9 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock, o
     const handlePrint = () => {
         const enrichedBatches = orderBatches.map(b => {
             const product = products.find(p => p.sku === b.sku);
-            return { ...b, product_details: product };
+            return { ...b, product_details: product, product_image: product?.image_url };
         });
-        onPrintAggregated(enrichedBatches);
+        onPrintAggregated(enrichedBatches, { orderId: order.id, customerName: order.customer_name });
         onClose();
     };
 

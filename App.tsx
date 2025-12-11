@@ -72,6 +72,8 @@ export interface AggregatedData {
   totalInHouseLaborCost: number;
   totalImportedLaborCost: number;
   totalSubcontractCost: number;
+  orderId?: string;
+  customerName?: string;
 }
 
 
@@ -174,7 +176,7 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
-const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
+const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
     if (!molds || !materials || !products || !settings) return;
     
     // Initialize aggregators
@@ -299,7 +301,9 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
         totalMaterialsCost,
         totalInHouseLaborCost,
         totalImportedLaborCost,
-        totalSubcontractCost
+        totalSubcontractCost,
+        orderId: orderDetails?.orderId,
+        customerName: orderDetails?.customerName
     });
 };
 
