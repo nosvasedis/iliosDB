@@ -106,7 +106,6 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                                 <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
                                     {analysis.effectiveSilverPrice.toFixed(2)}€/g
                                 </span>
-                                {/* @FIX: The `title` prop is not supported by lucide-react icons. Wrap the icon in a `span` with a `title` attribute for tooltip functionality. */}
                                 {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500"/></span>}
                             </div>
                         </div>
@@ -998,10 +997,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                        {/* TAB CONTENT */}
                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
-                           {/* ... (Overview, Recipe, Labor, Variants tabs remain unchanged) ... */}
                            {activeTab === 'overview' && (
                                <div className="space-y-6 animate-in fade-in">
-                                   {/* ... (Overview tab content same as provided code) ... */}
                                    {editedProduct.production_type === ProductionType.InHouse ? (
                                     <>
                                        <div className="grid grid-cols-2 gap-6">
@@ -1098,33 +1095,65 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        </div>
                                     </>
                                    ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
-                                                <Calculator size={14}/> Κοστολόγηση Εισαγωγής
-                                            </h4>
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12}/> Βάρος (g)</label>
-                                                <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
-                                            </div>
-                                            <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} />
-                                            <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} />
-                                            <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} />
+                                    <div className="space-y-6">
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                                                <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
+                                                    <Calculator size={14}/> Κοστολόγηση Εισαγωγής
+                                                </h4>
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12}/> Βάρος (g)</label>
+                                                    <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
+                                                </div>
+                                                <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} />
+                                                <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} />
+                                                <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} />
+                                           </div>
+                                           <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col">
+                                                <h4 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200 pb-2">
+                                                    <Calculator size={14}/> Ανάλυση Κόστους
+                                                </h4>
+                                                <div className="space-y-1 flex-1">
+                                                    <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
+                                                    <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
+                                                    <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
+                                                    <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                                </div>
+                                                <div className="pt-3 mt-3 border-t border-emerald-200 flex justify-between items-center">
+                                                    <span className="font-bold text-emerald-700 text-sm uppercase">Τελικο Κοστος</span>
+                                                    <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
+                                                </div>
+                                           </div>
                                        </div>
-                                       <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col">
-                                            <h4 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200 pb-2">
-                                                <Calculator size={14}/> Ανάλυση Κόστους
+                                       <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm">
+                                            <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
+                                                <DollarSign size={14}/> Εμπορική Πολιτική
                                             </h4>
-                                            <div className="space-y-1 flex-1">
-                                                <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
-                                                <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
-                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
-                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                            <div className="grid grid-cols-2 gap-6 items-end">
+                                               <div>
+                                                   <label className="text-xs font-bold text-slate-500 uppercase">Τιμή Πώλησης (€)</label>
+                                                   <div className="flex gap-2">
+                                                       <input type="number" step="0.01" className="w-full p-3 bg-white border border-amber-200 text-amber-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} />
+                                                       <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-white hover:bg-amber-50 border border-amber-200 rounded-xl text-slate-600"><Calculator size={20}/></button>
+                                                   </div>
+                                               </div>
                                             </div>
-                                            <div className="pt-3 mt-3 border-t border-emerald-200 flex justify-between items-center">
-                                                <span className="font-bold text-emerald-700 text-sm uppercase">Τελικο Κοστος</span>
-                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
-                                            </div>
+                                            {showRepriceTool && (
+                                               <div className="bg-amber-100/50 p-4 rounded-xl border border-amber-200 animate-in slide-in-from-top-2 mt-4">
+                                                   <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
+                                                   <div className="flex items-end gap-4">
+                                                       <div>
+                                                           <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Margin (%)</label>
+                                                           <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white"/>
+                                                       </div>
+                                                       <div>
+                                                           <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
+                                                           <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
+                                                       </div>
+                                                       <button onClick={applyReprice} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-700">Εφαρμογή</button>
+                                                   </div>
+                                               </div>
+                                           )}
                                        </div>
                                     </div>
                                    )}

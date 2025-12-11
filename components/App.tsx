@@ -315,7 +315,8 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
                 allMaterials={materials}
             />
         )}
-        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} />}
+        {/* @FIX: Pass settings prop to AggregatedProductionView */}
+        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         
         {printItems.length > 0 && (
             <div className="print-area">

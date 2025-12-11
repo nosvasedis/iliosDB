@@ -184,7 +184,13 @@ const ProductCard: React.FC<{
     );
 };
 
-const SubFilterButton = ({ label, value, activeValue, onClick }: { label: string, value: string, activeValue: string, onClick: (value: string) => void }) => (
+// @FIX: Convert to React.FC to correctly type the component and handle the `key` prop, resolving assignment errors.
+const SubFilterButton: React.FC<{
+    label: string;
+    value: string;
+    activeValue: string;
+    onClick: (value: string) => void;
+}> = ({ label, value, activeValue, onClick }) => (
     <button
         onClick={() => onClick(value)}
         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
@@ -254,7 +260,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       
       const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός'];
 
-      allCategories.forEach(cat => {
+      // @FIX: Explicitly type `cat` as a string to resolve type inference issue.
+      allCategories.forEach((cat: string) => {
           const parent = parentKeywords.find(p => cat.startsWith(p));
           if (parent) {
               parents.add(parent);

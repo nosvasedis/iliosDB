@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -171,7 +172,6 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
-// @FIX: The `handlePrintAggregated` function was updated to calculate detailed costs for production, silver, materials, and labor. The `AggregatedData` interface was also updated to support these new fields, resolving a type mismatch error when setting the `aggregatedPrintData` state.
 const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
     if (!molds || !materials || !products || !settings) return;
     
@@ -317,7 +317,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
                 allMaterials={materials}
             />
         )}
-        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} />}
+        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         
         {printItems.length > 0 && (
             <div className="print-area">
