@@ -47,7 +47,9 @@ export default function OrderInvoiceView({ order }: Props) {
         });
     };
     
-    const subtotal = order.total_price;
+    // Dynamically calculate totals to ensure they match edited items, 
+    // even if the database total_price field hasn't fully propagated yet in this view context
+    const subtotal = order.items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const vatAmount = subtotal * 0.24;
     const grandTotal = subtotal + vatAmount;
 

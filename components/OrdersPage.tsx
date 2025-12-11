@@ -21,16 +21,6 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
-const STAGE_TRANSLATIONS: Record<ProductionStage, string> = {
-    [ProductionStage.Waxing]: 'Κεριά',
-    [ProductionStage.Casting]: 'Χυτήριο',
-    [ProductionStage.Setting]: 'Καρφωτής',
-    [ProductionStage.Polishing]: 'Τεχνίτης',
-    [ProductionStage.Labeling]: 'Καρτελάκια',
-    [ProductionStage.Ready]: 'Έτοιμο',
-};
-
-
 export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
@@ -46,6 +36,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
   
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerResults, setShowCustomerResults] = useState(false);
@@ -74,12 +65,14 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
       setShowCustomerResults(false);
   };
 
+  // --- NEW: Handle Edit Mode ---
   const handleEditOrder = (order: Order) => {
       setEditingOrder(order);
       setCustomerName(order.customer_name);
       setCustomerPhone(order.customer_phone || '');
       setSelectedCustomerId(order.customer_id || null);
-      // Deep copy items to avoid mutating the cached order object directly during edits
+      setOrderNotes(order.notes || '');
+      // Deep copy to allow editing without mutating cache directly
       setSelectedItems(JSON.parse(JSON.stringify(order.items)));
       setIsCreating(true);
   };
@@ -167,20 +160,20 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 
       try {
           if (editingOrder) {
-              // UPDATE EXISTING ORDER
+              // --- UPDATE EXISTING ---
               const updatedOrder: Order = {
                   ...editingOrder,
                   customer_id: selectedCustomerId || undefined,
                   customer_name: customerName,
                   customer_phone: customerPhone,
                   items: selectedItems,
-                  total_price: calculateTotal()
+                  total_price: calculateTotal(),
+                  notes: orderNotes
               };
-              
               await api.updateOrder(updatedOrder);
-              showToast('Η παραγγελία ενημερώθηκε επιτυχώς.', 'success');
+              showToast('Η παραγγελία ενημερώθηκε.', 'success');
           } else {
-              // CREATE NEW ORDER
+              // --- CREATE NEW ---
               const now = new Date();
               const year = now.getFullYear().toString().slice(-2);
               const month = (now.getMonth() + 1).toString().padStart(2, '0');
@@ -196,7 +189,8 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                   created_at: new Date().toISOString(),
                   status: OrderStatus.Pending,
                   items: selectedItems,
-                  total_price: calculateTotal()
+                  total_price: calculateTotal(),
+                  notes: orderNotes
               };
 
               await api.saveOrder(newOrder);
@@ -210,6 +204,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           setEditingOrder(null);
           setCustomerName(''); 
           setCustomerPhone(''); 
+          setOrderNotes('');
           setSelectedItems([]); 
           setSelectedCustomerId(null);
 
@@ -227,7 +222,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 
     const confirmed = await confirm({
         title: 'Διαγραφή Παραγγελίας',
-        message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την παραγγελία ${order.id}; Αυτή η ενέργεια θα διαγράψει και τις σχετικές παρτίδες παραγωγής.`,
+        message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την παραγγελία ${order.id};`,
         isDestructive: true,
         confirmText: 'Διαγραφή'
     });
@@ -291,7 +286,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
             </h1>
             <p className="text-slate-500 mt-1 ml-14">Διαχείριση λιανικής και χονδρικής.</p>
           </div>
-          <button onClick={() => { setEditingOrder(null); setIsCreating(true); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
+          <button onClick={() => { setEditingOrder(null); setIsCreating(true); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setSelectedItems([]); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
               <Plus size={20} /> Νέα Παραγγελία
           </button>
       </div>
@@ -299,7 +294,8 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
       {isCreating ? (
           <div className="bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 flex-1">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                  <h2 className="text-xl font-bold text-slate-800">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      {editingOrder ? <Edit size={24} className="text-emerald-600"/> : <Plus size={24} className="text-[#060b00]"/>}
                       {editingOrder ? `Επεξεργασία Παραγγελίας #${editingOrder.id}` : 'Δημιουργία Παραγγελίας'}
                   </h2>
                   <button onClick={() => { setIsCreating(false); setEditingOrder(null); }} className="p-2 hover:bg-slate-200 rounded-full"><X size={20}/></button>
@@ -350,6 +346,16 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                               <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"/>
                           </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Σημειώσεις</label>
+                          <textarea 
+                            value={orderNotes}
+                            onChange={e => setOrderNotes(e.target.value)}
+                            placeholder="Ειδικές οδηγίες..."
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm h-24 resize-none"
+                          />
                       </div>
                       
                       <div className="bg-gradient-to-br from-[#060b00]/5 to-emerald-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -423,7 +429,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 
                       <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl bg-slate-50/50 p-2 space-y-2">
                           {selectedItems.map((item, idx) => (
-                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between animate-in slide-in-from-bottom-1">
                                   <div className="flex items-center gap-3">
                                       {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>}
                                       <div>
@@ -495,11 +501,11 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                       {order.total_price.toFixed(2)}€
                                   </td>
                                   <td className="p-4 text-center">
-                                      <div className="flex items-center justify-center gap-2">
+                                      <div className="flex items-center justify-center gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
                                           <button
                                             onClick={() => handleEditOrder(order)}
                                             className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                            title="Επεξεργασία Παραγγελίας"
+                                            title="Επεξεργασία"
                                           >
                                             <Edit size={16} />
                                           </button>
@@ -516,7 +522,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                               <button 
                                                 onClick={() => onPrintOrder(order)} 
                                                 className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                                                title="Εκτύπωση Παραγγελίας"
+                                                title="Εκτύπωση"
                                               >
                                                   <Printer size={16} />
                                               </button>
@@ -525,7 +531,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                           <button
                                             onClick={() => handleDeleteOrder(order)}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Διαγραφή Παραγγελίας"
+                                            title="Διαγραφή"
                                           >
                                             <Trash2 size={16} />
                                           </button>
@@ -591,10 +597,10 @@ interface FulfillmentModalProps {
 
 const FulfillmentModal: React.FC<FulfillmentModalProps> = ({ order, onClose }) => {
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-2xl">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">Εκτέλεση Παραγγελίας #{order.id}</h3>
+                    <h3 className="text-xl font-bold text-slate-800">Εκτέλεση Παραγγελίας #{order.id}</h3>
                     <button onClick={onClose}><X size={20}/></button>
                 </div>
                 <div className="space-y-4 text-center py-8">
@@ -615,10 +621,10 @@ interface OrderProductionManagerProps {
 
 const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, onClose }) => {
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-4xl h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-xl p-6 w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">Διαχείριση Παραγωγής #{order.id}</h3>
+                    <h3 className="text-xl font-bold text-slate-800">Διαχείριση Παραγωγής #{order.id}</h3>
                     <button onClick={onClose}><X size={20}/></button>
                 </div>
                 <div className="flex-1 overflow-auto flex items-center justify-center text-slate-400">
