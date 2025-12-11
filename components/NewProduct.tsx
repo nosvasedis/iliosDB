@@ -1207,7 +1207,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="flex-1">
                             <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
                             <div className="text-xs text-slate-400 font-mono">
-                                {formatDecimal(weight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g (+{formatDecimal(settings?.loss_percentage, 1)}%)
+                                {formatDecimal(weight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g
                             </div>
                         </div>
                         <div className="text-right">

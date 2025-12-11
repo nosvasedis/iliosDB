@@ -1,5 +1,6 @@
 
 
+
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
@@ -9,7 +10,7 @@ export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.de
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {
   silver_price_gram: 0.82,
-  loss_percentage: 10.0,
+  loss_percentage: 0.0, // Updated to 0 as requested
   barcode_width_mm: 50,
   barcode_height_mm: 30,
 };

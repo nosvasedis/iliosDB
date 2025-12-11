@@ -1,5 +1,6 @@
 
 
+
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key } from 'lucide-react';
@@ -151,16 +152,6 @@ export default function SettingsPage() {
                     <Info size={14} className="shrink-0 mt-0.5" />
                     <p>Η τιμή ενημερώνεται σε πραγματικό χρόνο από το χρηματιστήριο μετάλλων μέσω του Ilios Worker.</p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Ποσοστό Απώλειας (%)</label>
-                <input 
-                  type="number" step="0.1"
-                  value={settings.loss_percentage}
-                  onChange={(e) => setSettings({...settings, loss_percentage: parseFloat(e.target.value)})}
-                  className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-bold"
-                />
-                <p className="text-xs text-slate-400 mt-2 ml-1">Πρόσθετη επιβάρυνση βάρους (φύρα).</p>
               </div>
             </div>
           </div>

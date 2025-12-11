@@ -93,8 +93,8 @@ export const analyzeSupplierValue = (
     reportedLabor: LaborCost // NEW: Supplier's claimed breakdown
 ): SupplierAnalysis => {
     // 1. Calculate Intrinsic Metal Value (Our standard)
-    const lossMult = 1 + (settings.loss_percentage / 100);
-    const silverCost = weight * settings.silver_price_gram * lossMult;
+    // Loss removed as per request
+    const silverCost = weight * settings.silver_price_gram;
 
     // 2. Calculate Material Value (Stones/Chains)
     let materialCost = 0;
@@ -154,7 +154,7 @@ export const analyzeSupplierValue = (
 
     if (reportedTotalExtras > 0 && weight > 0) {
         const residualForMetal = supplierCost - materialCost - reportedTotalExtras;
-        effectiveSilverPrice = residualForMetal / (weight * lossMult); // Compare to raw price
+        effectiveSilverPrice = residualForMetal / weight; // Compare to raw price
         
         // If effective price is > 15% higher than market silver, they are hiding profit in the metal
         if (effectiveSilverPrice > (settings.silver_price_gram * 1.15)) {
@@ -217,8 +217,8 @@ export const calculateProductCost = (
 
   // --- [NEW] IMPORTED PRODUCT LOGIC ---
   if (product.production_type === ProductionType.Imported) {
-      const lossMultiplier = 1 + (settings.loss_percentage / 100);
-      const silverCost = product.weight_g * (settings.silver_price_gram * lossMultiplier);
+      // Loss removed
+      const silverCost = product.weight_g * settings.silver_price_gram;
       
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
       const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
@@ -243,8 +243,8 @@ export const calculateProductCost = (
 
   // --- IN-HOUSE PRODUCTION LOGIC ---
   const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-  const lossMultiplier = 1 + (settings.loss_percentage / 100);
-  const silverBaseCost = totalWeight * (settings.silver_price_gram * lossMultiplier);
+  // Loss removed
+  const silverBaseCost = totalWeight * settings.silver_price_gram;
 
   let materialsCost = 0;
   
@@ -375,8 +375,8 @@ export const estimateVariantCost = (
     }
 
     const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
-    const lossMultiplier = 1 + (settings.loss_percentage / 100);
-    const silverCost = totalWeight * (settings.silver_price_gram * lossMultiplier);
+    // Loss removed
+    const silverCost = totalWeight * settings.silver_price_gram;
 
     let materialsCost = 0;
     const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
