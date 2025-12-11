@@ -671,9 +671,8 @@ const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, 
             .filter(b => b.order_id === order.id)
             .map(b => {
                 const product_details = products.find(p => p.sku === b.sku);
-                return { ...b, product_details };
+                return { ...b, product_details, product_image: product_details?.image_url };
             })
-            // @FIX: This expression is not callable. Type 'String' has no call signatures.
             .sort((a,b) => {
                 const skuA = a.sku + (a.variant_suffix || '');
                 const skuB = b.sku + (b.variant_suffix || '');
