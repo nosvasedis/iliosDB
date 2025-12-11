@@ -1,13 +1,8 @@
 import React from 'react';
-// @FIX: Corrected import path for AggregatedData
 import { AggregatedData } from '../App';
-// @FIX: Corrected import path for APP_LOGO
 import { APP_LOGO } from '../constants';
-// @FIX: Removed GlobalSettings from lucide-react import
 import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight } from 'lucide-react';
-// @FIX: Corrected import path for formatCurrency and formatDecimal
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
-// @FIX: Imported GlobalSettings from the correct types file
 import { GlobalSettings } from '../types';
 
 interface Props {
@@ -141,7 +136,6 @@ export default function AggregatedProductionView({ data, settings }: Props) {
     );
 }
 
-// @FIX: Converted dynamic Tailwind classes to a static map to ensure compatibility with PurgeCSS in production builds.
 const colorClasses = {
     emerald: {
       bg: 'bg-emerald-50',

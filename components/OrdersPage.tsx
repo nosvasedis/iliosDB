@@ -1,10 +1,12 @@
+
 import React, { useState } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
+import { getSizingInfo, isSizable } from '../utils/sizing';
 
 interface Props {
   products: Product[];
@@ -90,8 +92,17 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           product_details: product
       };
       
-      const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix);
-      if (existingIdx >= 0) {
+      // If product is sizable, we don't merge immediately unless size is also same (which is undefined initially)
+      // Actually, standard behavior is to merge same sku+variant. Sizing is an attribute.
+      // We'll just add it, user can set size.
+      
+      const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
+      
+      // If product is sizable, we prefer adding a NEW row so they can choose a different size
+      // unless they haven't picked a size for the existing row yet.
+      if (isSizable(product)) {
+           setSelectedItems([...selectedItems, newItem]);
+      } else if (existingIdx >= 0) {
           const updated = [...selectedItems];
           updated[existingIdx].quantity += 1;
           setSelectedItems(updated);
@@ -144,6 +155,12 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           updated[index].quantity = qty;
           setSelectedItems(updated);
       }
+  };
+  
+  const updateItemSize = (index: number, size: string) => {
+      const updated = [...selectedItems];
+      updated[index].size_info = size;
+      setSelectedItems(updated);
   };
 
   const calculateTotal = () => selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
@@ -429,22 +446,38 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                       </div>
 
                       <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl bg-slate-50/50 p-2 space-y-2">
-                          {selectedItems.map((item, idx) => (
-                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between animate-in slide-in-from-bottom-1">
-                                  <div className="flex items-center gap-3">
-                                      {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100"/>}
-                                      <div>
-                                          <div className="font-bold text-slate-800 text-lg leading-none">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
+                          {selectedItems.map((item, idx) => {
+                              const sizingInfo = item.product_details ? getSizingInfo(item.product_details) : null;
+                              return (
+                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-bottom-1">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0"/>}
+                                      <div className="min-w-0">
+                                          <div className="font-bold text-slate-800 text-lg leading-none truncate">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
                                           <div className="text-xs text-slate-500 mt-1">{item.price_at_order.toFixed(2)}€ / τεμ</div>
                                       </div>
                                   </div>
+                                  
                                   <div className="flex items-center gap-3">
+                                      {sizingInfo && (
+                                          <div className="flex flex-col items-start w-24">
+                                              <label className="text-[9px] text-slate-400 uppercase font-bold flex items-center gap-1"><Ruler size={9}/> {sizingInfo.type}</label>
+                                              <select 
+                                                value={item.size_info || ''} 
+                                                onChange={(e) => updateItemSize(idx, e.target.value)}
+                                                className="w-full text-xs font-bold p-1.5 rounded border border-slate-200 bg-slate-50 outline-none focus:border-emerald-500"
+                                              >
+                                                  <option value="">Προεπιλογή</option>
+                                                  {sizingInfo.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                              </select>
+                                          </div>
+                                      )}
                                       <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-2 bg-white border border-slate-200 rounded-lg text-center font-bold outline-none focus:border-emerald-500 transition-colors"/>
                                       <div className="font-black w-20 text-right text-slate-800 text-lg">{(item.price_at_order * item.quantity).toFixed(2)}€</div>
                                       <button onClick={() => updateQuantity(idx, 0)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
                                   </div>
                               </div>
-                          ))}
+                          )})}
                           {selectedItems.length === 0 && (
                               <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-60">
                                   <Package size={64} className="mb-3"/>

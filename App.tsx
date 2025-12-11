@@ -336,7 +336,6 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
                 allMaterials={materials}
             />
         )}
-        {/* @FIX: Pass settings prop to AggregatedProductionView */}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         
         {printItems.length > 0 && (

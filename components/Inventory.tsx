@@ -1,14 +1,14 @@
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BarcodeScanner from './BarcodeScanner';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { getSizingInfo, isSizable } from '../utils/sizing';
 
 interface Props {
   products: Product[];
@@ -60,6 +60,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [scanSuggestion, setScanSuggestion] = useState('');
   const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
   const [scanQty, setScanQty] = useState(1);
+  const [scanSize, setScanSize] = useState('');
+  
   const inputRef = useRef<HTMLInputElement>(null);
 
   const getWarehouseNameClean = (w: Warehouse) => {
@@ -219,16 +221,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               if (viewWarehouseId === SYSTEM_IDS.CENTRAL) {
                   movementAmount = item.locationStock[SYSTEM_IDS.CENTRAL] || 0;
                   if (item.isSingleVariantMode) {
-                       await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
-                       if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                       await supabase.from('products').update({ stock_qty: 0, stock_by_size: {} }).eq('sku', sku);
+                       if (suffix) await supabase.from('product_variants').update({ stock_qty: 0, stock_by_size: {} }).match({ product_sku: sku, suffix });
                   } else if (suffix) {
-                      await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                      await supabase.from('product_variants').update({ stock_qty: 0, stock_by_size: {} }).match({ product_sku: sku, suffix });
                   } else {
-                      await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+                      await supabase.from('products').update({ stock_qty: 0, stock_by_size: {} }).eq('sku', sku);
                   }
               } else if (viewWarehouseId === SYSTEM_IDS.SHOWROOM) {
                    movementAmount = item.locationStock[SYSTEM_IDS.SHOWROOM] || 0;
-                   await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
+                   await supabase.from('products').update({ sample_qty: 0, sample_stock_by_size: {} }).eq('sku', sku);
               } else {
                    movementAmount = item.locationStock[viewWarehouseId] || 0;
                    await clearCustomStock(viewWarehouseId);
@@ -238,14 +240,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               }
           } else {
               if (item.isSingleVariantMode) {
-                   await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
-                   if (suffix) await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                   await supabase.from('products').update({ stock_qty: 0, stock_by_size: {} }).eq('sku', sku);
+                   if (suffix) await supabase.from('product_variants').update({ stock_qty: 0, stock_by_size: {} }).match({ product_sku: sku, suffix });
               } else if (suffix) {
-                  await supabase.from('product_variants').update({ stock_qty: 0 }).match({ product_sku: sku, suffix });
+                  await supabase.from('product_variants').update({ stock_qty: 0, stock_by_size: {} }).match({ product_sku: sku, suffix });
               } else {
-                  await supabase.from('products').update({ stock_qty: 0 }).eq('sku', sku);
+                  await supabase.from('products').update({ stock_qty: 0, stock_by_size: {} }).eq('sku', sku);
               }
-              await supabase.from('products').update({ sample_qty: 0 }).eq('sku', sku);
+              await supabase.from('products').update({ sample_qty: 0, sample_stock_by_size: {} }).eq('sku', sku);
               await clearCustomStock();
               if (item.totalStock > 0) {
                 await recordStockMovement(sku, -item.totalStock, 'Μαζική Εκκαθάριση', suffix);
@@ -261,6 +263,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value.toUpperCase();
       setScanInput(val);
+      setScanSize(''); // Reset size when input changes
       if (val.length > 0) {
           let match = rawInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
           if (!match) {
@@ -297,55 +300,97 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       }
   };
 
-  const executeQuickAdd = async () => {
+  const getScanProductInfo = () => {
       const targetCode = scanSuggestion || scanInput;
       const product = products.find(p => targetCode.startsWith(p.sku));
-      if (!product) {
-          showToast(`Ο κωδικός ${targetCode} δεν βρέθηκε.`, "error");
-          return;
-      }
+      if (!product) return null;
       let variantSuffix = targetCode.replace(product.sku, '');
       let variant = product.variants?.find(v => v.suffix === variantSuffix);
+      
+      // Auto-detect variant if only one exists
       if (product.variants && product.variants.length === 1 && !variantSuffix) {
           variant = product.variants[0];
           variantSuffix = variant.suffix;
       }
+      
+      return { product, variant, variantSuffix };
+  };
+
+  const scanProductInfo = getScanProductInfo();
+  const scanSizingInfo = scanProductInfo ? getSizingInfo(scanProductInfo.product) : null;
+
+  const executeQuickAdd = async () => {
+      const info = getScanProductInfo();
+      if (!info) {
+          showToast(`Ο κωδικός δεν βρέθηκε.`, "error");
+          return;
+      }
+      const { product, variant, variantSuffix } = info;
+
       if (product.variants && product.variants.length > 0 && !variant && variantSuffix) {
            showToast(`Η παραλλαγή ${variantSuffix} δεν βρέθηκε.`, "error");
            return;
       }
+      
+      // Require size if sizable
+      if (scanSizingInfo && !scanSize) {
+          showToast(`Παρακαλώ επιλέξτε ${scanSizingInfo.type}.`, "error");
+          return;
+      }
+
       try {
           const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
+          
           if (variant) {
                const currentStock = variant.location_stock?.[scanTargetId] || 0;
                let newQty = 0;
+               
                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                   // Update stock map for Central
+                   const currentMap = variant.stock_by_size || {};
+                   if (scanSize) {
+                       currentMap[scanSize] = (currentMap[scanSize] || 0) + scanQty;
+                   }
+                   
                    newQty = (variant.stock_qty || 0) + scanQty;
-                   await supabase.from('product_variants').update({ stock_qty: newQty }).match({ product_sku: product.sku, suffix: variant.suffix });
+                   await supabase.from('product_variants').update({ stock_qty: newQty, stock_by_size: currentMap }).match({ product_sku: product.sku, suffix: variant.suffix });
                } else {
                    newQty = currentStock + scanQty;
                    await supabase.from('product_stock').upsert({ 
                       product_sku: product.sku, 
                       variant_suffix: variant.suffix, 
                       warehouse_id: scanTargetId, 
-                      quantity: newQty 
+                      quantity: newQty,
+                      size_info: scanSize || null 
                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
                }
                await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
           } else {
               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                  const currentMap = product.stock_by_size || {};
+                  if (scanSize) {
+                      currentMap[scanSize] = (currentMap[scanSize] || 0) + scanQty;
+                  }
+                  
                   const newQty = product.stock_qty + scanQty;
-                  await supabase.from('products').update({ stock_qty: newQty }).eq('sku', product.sku);
+                  await supabase.from('products').update({ stock_qty: newQty, stock_by_size: currentMap }).eq('sku', product.sku);
               } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) {
+                  // Assuming sample stock might theoretically have sizes, but mostly handled as sample_qty
+                  const currentMap = product.sample_stock_by_size || {};
+                  if (scanSize) {
+                      currentMap[scanSize] = (currentMap[scanSize] || 0) + scanQty;
+                  }
+                  
                   const newQty = (product.sample_qty || 0) + scanQty;
-                  await supabase.from('products').update({ sample_qty: newQty }).eq('sku', product.sku);
+                  await supabase.from('products').update({ sample_qty: newQty, sample_stock_by_size: currentMap }).eq('sku', product.sku);
               } else {
                   const currentStock = product.location_stock?.[scanTargetId] || 0;
                   const newQty = currentStock + scanQty;
                   await supabase.from('product_stock').upsert({ 
                       product_sku: product.sku, 
                       warehouse_id: scanTargetId, 
-                      quantity: newQty 
+                      quantity: newQty,
+                      size_info: scanSize || null 
                   });
               }
               await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`);
@@ -354,6 +399,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           showToast(`Προστέθηκε ${scanQty} τεμ. στον κωδικό ${product.sku}${variant ? variant.suffix : ''}`, "success");
           setScanInput('');
           setScanSuggestion('');
+          setScanSize('');
           setScanQty(1);
           inputRef.current?.focus();
       } catch (err) {
@@ -469,8 +515,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                       <span className="uppercase tracking-wider text-sm">Γρήγορη Εισαγωγή</span>
                   </div>
                   
-                  <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                       <div className="md:col-span-3">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Αποθήκη Στόχος</label>
                           <select 
                             value={scanTargetId} 
                             onChange={(e) => setScanTargetId(e.target.value)}
@@ -482,8 +529,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                           </select>
                       </div>
 
-                      <div className="md:col-span-6 relative">
-                          <div className="absolute inset-0 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center">
+                      <div className="md:col-span-5 relative">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Κωδικός Προϊόντος</label>
+                          <div className="absolute inset-x-0 bottom-0 top-6 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center">
                               <span className="text-transparent">{scanInput}</span>
                               <span className="text-slate-600">
                                   {scanSuggestion.startsWith(scanInput) ? scanSuggestion.substring(scanInput.length) : ''}
@@ -496,29 +544,48 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               value={scanInput}
                               onChange={handleScanInput}
                               onKeyDown={handleScanKeyDown}
-                              placeholder="Πληκτρολογήστε Κωδικό (π.χ. XR...)"
+                              placeholder="π.χ. XR..."
                               className="w-full p-3 bg-white text-slate-900 font-mono text-lg font-bold rounded-xl outline-none focus:ring-4 focus:ring-amber-500/50 uppercase tracking-wider placeholder-slate-400"
                           />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
+                          <div className="absolute right-3 top-[65%] -translate-y-1/2 flex gap-1">
                              {scanSuggestion && scanInput !== scanSuggestion && (
                                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">Δεξί Βέλος ➜</span>
                              )}
                           </div>
                       </div>
 
-                      <div className="md:col-span-3 flex gap-2">
-                          <input 
-                              type="number" 
-                              min="1" 
-                              value={scanQty} 
-                              onChange={(e) => setScanQty(parseInt(e.target.value) || 1)}
-                              className="w-20 p-3 text-center font-bold rounded-xl outline-none bg-slate-800 text-white border border-slate-700 focus:ring-2 focus:ring-amber-500"
-                          />
+                      {scanSizingInfo && (
+                          <div className="md:col-span-2">
+                              <label className="text-[10px] text-amber-400 font-bold uppercase mb-1 block flex items-center gap-1"><Ruler size={10}/> {scanSizingInfo.type}</label>
+                              <select 
+                                value={scanSize}
+                                onChange={(e) => setScanSize(e.target.value)}
+                                className="w-full bg-slate-800 text-amber-400 font-bold p-3 rounded-xl border border-amber-500/50 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+                              >
+                                  <option value="">Επιλογή</option>
+                                  {scanSizingInfo.sizes.map(size => (
+                                      <option key={size} value={size}>{size}</option>
+                                  ))}
+                              </select>
+                          </div>
+                      )}
+
+                      <div className={`${scanSizingInfo ? 'md:col-span-2' : 'md:col-span-4'} flex gap-2`}>
+                          <div className="w-24">
+                            <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Ποσότητα</label>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                value={scanQty} 
+                                onChange={(e) => setScanQty(parseInt(e.target.value) || 1)}
+                                className="w-full p-3 text-center font-bold rounded-xl outline-none bg-slate-800 text-white border border-slate-700 focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
                           <button 
                              onClick={executeQuickAdd}
-                             className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-900/20"
+                             className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-900/20 mt-6"
                           >
-                              <Plus size={20} /> Προσθήκη
+                              <Plus size={20} />
                           </button>
                       </div>
                   </div>
