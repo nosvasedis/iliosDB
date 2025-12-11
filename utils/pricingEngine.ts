@@ -19,11 +19,14 @@ export const formatCurrency = (num: number | null | undefined): string => {
 };
 
 /**
- * Rounds a price up to the nearest 10 cents (e.g., 11.47 -> 11.50).
+ * Rounds a price to the nearest 10 cents.
+ * Standard rounding: 0-4 rounds down, 5-9 rounds up.
+ * e.g., 21.51 -> 21.50, 21.55 -> 21.60
  */
 export const roundPrice = (price: number): number => {
   if (price === 0) return 0;
-  return parseFloat((Math.ceil(price * 10) / 10).toFixed(2));
+  // Use Math.round for standard rounding logic
+  return parseFloat((Math.round(price * 10) / 10).toFixed(2));
 };
 
 export const calculateTechnicianCost = (weight_g: number): number => {
@@ -44,15 +47,11 @@ export const calculateTechnicianCost = (weight_g: number): number => {
 
 /**
  * Calculates a suggested plating cost based on weight.
- * This is a heuristic used for suggesting a value when creating new products.
  */
 export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
-    // Replicating logic from other parts of the app (e.g., ProductDetails.tsx) for consistency.
     if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
         return weight_g * 0.60;
     }
-    // Two-tone often depends on a secondary weight, which isn't available in the context
-    // where this function is called. Returning 0 as a safe default.
     return 0;
 };
 
@@ -63,26 +62,18 @@ export interface SupplierAnalysis {
     supplierPremium: number; // Total Gap
     premiumPercent: number;
     verdict: 'Excellent' | 'Fair' | 'Expensive' | 'Overpriced';
-    
-    // Detailed Forensics
-    effectiveSilverPrice: number; // What we are paying per gram after deducting labor
+    effectiveSilverPrice: number;
     hasHiddenMarkup: boolean;
     laborEfficiency: 'Cheaper' | 'Similar' | 'More Expensive';
     platingEfficiency: 'Cheaper' | 'Similar' | 'More Expensive';
-    
     breakdown: {
         silverCost: number;
         materialCost: number;
         estLabor: number;
-        supplierReportedTotalLabor: number; // Sum of reported labor
+        supplierReportedTotalLabor: number;
     }
 }
 
-/**
- * INTELLIGENT SUPPLIER AUDIT
- * Analyzes whether an imported product is priced fairly compared to manufacturing it in-house.
- * Now factors in reported supplier labor costs for forensic analysis.
- */
 export const analyzeSupplierValue = (
     weight: number,
     supplierCost: number,
@@ -90,13 +81,12 @@ export const analyzeSupplierValue = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-    reportedLabor: LaborCost // NEW: Supplier's claimed breakdown
+    reportedLabor: LaborCost
 ): SupplierAnalysis => {
-    // 1. Calculate Intrinsic Metal Value (Our standard)
-    // Loss removed as per request
+    // 1. Calculate Intrinsic Metal Value
     const silverCost = weight * settings.silver_price_gram;
 
-    // 2. Calculate Material Value (Stones/Chains)
+    // 2. Calculate Material Value
     let materialCost = 0;
     recipe.forEach(item => {
         if (item.type === 'raw') {
@@ -112,12 +102,12 @@ export const analyzeSupplierValue = (
 
     const intrinsicValue = silverCost + materialCost;
 
-    // 3. Calculate Theoretical In-House Labor (Benchmark)
+    // 3. Calculate Theoretical In-House Labor
     const estCasting = weight * 0.15;
     const estTechnician = calculateTechnicianCost(weight);
     const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0) 
         ? calculatePlatingCost(weight, PlatingType.GoldPlated) 
-        : 0; // Only calculate benchmark if item is plated
+        : 0;
 
     const estimatedInternalLabor = estCasting + estTechnician + estPlating;
     const theoreticalMakeCost = intrinsicValue + estimatedInternalLabor;
@@ -129,9 +119,7 @@ export const analyzeSupplierValue = (
                                  (reportedLabor.plating_cost_d || 0);
     const reportedTotalExtras = reportedLaborTotal + reportedPlatingTotal;
 
-    // 5. Forensic Calculations
-    
-    // A. Labor Efficiency
+    // 5. Forensics
     let laborEfficiency: SupplierAnalysis['laborEfficiency'] = 'Similar';
     const laborDiff = reportedLaborTotal - (estCasting + estTechnician);
     if (reportedLaborTotal > 0) {
@@ -139,7 +127,6 @@ export const analyzeSupplierValue = (
         else if (laborDiff > 1.0) laborEfficiency = 'More Expensive';
     }
 
-    // B. Plating Efficiency
     let platingEfficiency: SupplierAnalysis['platingEfficiency'] = 'Similar';
     const platingDiff = reportedPlatingTotal - estPlating;
     if (reportedPlatingTotal > 0) {
@@ -147,36 +134,25 @@ export const analyzeSupplierValue = (
         else if (platingDiff > 0.5) platingEfficiency = 'More Expensive';
     }
 
-    // C. Effective Silver Price (The "Hidden Markup" Detector)
-    // If we deduct materials and their claimed labor from the total price, what are we paying for the metal?
     let effectiveSilverPrice = 0;
     let hasHiddenMarkup = false;
 
     if (reportedTotalExtras > 0 && weight > 0) {
         const residualForMetal = supplierCost - materialCost - reportedTotalExtras;
-        effectiveSilverPrice = residualForMetal / weight; // Compare to raw price
-        
-        // If effective price is > 15% higher than market silver, they are hiding profit in the metal
+        effectiveSilverPrice = residualForMetal / weight;
         if (effectiveSilverPrice > (settings.silver_price_gram * 1.15)) {
             hasHiddenMarkup = true;
         }
     }
 
-    // 6. Verdict Logic (Enhanced)
     const supplierPremium = supplierCost - intrinsicValue;
     const premiumPercent = supplierCost > 0 ? (supplierPremium / supplierCost) * 100 : 0;
     
     let verdict: SupplierAnalysis['verdict'] = 'Fair';
-    
-    if (supplierCost <= theoreticalMakeCost * 0.95) {
-        verdict = 'Excellent'; 
-    } else if (supplierCost <= theoreticalMakeCost * 1.3) {
-        verdict = 'Fair'; 
-    } else if (supplierCost <= theoreticalMakeCost * 1.8) {
-        verdict = 'Expensive';
-    } else {
-        verdict = 'Overpriced';
-    }
+    if (supplierCost <= theoreticalMakeCost * 0.95) verdict = 'Excellent'; 
+    else if (supplierCost <= theoreticalMakeCost * 1.3) verdict = 'Fair'; 
+    else if (supplierCost <= theoreticalMakeCost * 1.8) verdict = 'Expensive';
+    else verdict = 'Overpriced';
 
     return {
         intrinsicValue: roundPrice(intrinsicValue),
@@ -215,11 +191,9 @@ export const calculateProductCost = (
 
   if (depth > 10) return { total: 0, breakdown: {} };
 
-  // --- [NEW] IMPORTED PRODUCT LOGIC ---
+  // --- IMPORTED PRODUCT LOGIC ---
   if (product.production_type === ProductionType.Imported) {
-      // Loss removed
       const silverCost = product.weight_g * settings.silver_price_gram;
-      
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
       const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
       const stoneCost = product.labor.stone_setting_cost || 0;
@@ -242,9 +216,14 @@ export const calculateProductCost = (
   }
 
   // --- IN-HOUSE PRODUCTION LOGIC ---
-  const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-  // Loss removed
-  const silverBaseCost = totalWeight * settings.silver_price_gram;
+  const baseWeight = product.weight_g;
+  const secondaryWeight = product.secondary_weight_g || 0;
+  const totalWeight = baseWeight + secondaryWeight;
+
+  // Explicitly calculate silver cost components separately as requested
+  const silverBaseCost = baseWeight * settings.silver_price_gram;
+  const silverSecondaryCost = secondaryWeight * settings.silver_price_gram;
+  const totalSilverCost = silverBaseCost + silverSecondaryCost;
 
   let materialsCost = 0;
   
@@ -278,16 +257,19 @@ export const calculateProductCost = (
   } else if (product.is_component) {
       castingCost = 0;
   } else {
-      castingCost = totalWeight * 0.15;
+      // Explicitly calculate casting cost components separately
+      const castBase = baseWeight * 0.15;
+      const castSecondary = secondaryWeight * 0.15;
+      castingCost = castBase + castSecondary;
   }
 
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
-  const totalCost = silverBaseCost + materialsCost + laborTotal;
+  const totalCost = totalSilverCost + materialsCost + laborTotal;
 
   return {
     total: roundPrice(totalCost),
     breakdown: {
-      silver: silverBaseCost,
+      silver: totalSilverCost, // Return unrounded precise value
       materials: materialsCost,
       labor: laborTotal,
       details: {
@@ -301,9 +283,6 @@ export const calculateProductCost = (
   };
 };
 
-/**
- * Transliterates Greek characters in a string to their Latin equivalents for barcode generation.
- */
 export const transliterateForBarcode = (input: string): string => {
     const greekToLatinMap: Record<string, string> = {
         'Α': 'A', 'Β': 'V', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'TH',
@@ -314,15 +293,9 @@ export const transliterateForBarcode = (input: string): string => {
         'ρ': 'r', 'σ': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
         'ς': 's'
     };
-
     return input.split('').map(char => greekToLatinMap[char] || char).join('');
 };
 
-
-/**
- * PARSES a suffix string (e.g. "PKR" or "PAX") and returns its isolated components.
- * ... (rest of file remains unchanged)
- */
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let relevantStones = {};
     if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
@@ -370,13 +343,17 @@ export const estimateVariantCost = (
 ): { total: number; breakdown: any } => {
     if (masterProduct.production_type === ProductionType.Imported) {
         const { total, breakdown } = calculateProductCost(masterProduct, settings, allMaterials, allProducts);
-        // For imported variants, we assume cost is same as master, as per-variant cost is not defined by the new formula
         return { total, breakdown };
     }
 
-    const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
-    // Loss removed
-    const silverCost = totalWeight * settings.silver_price_gram;
+    const baseWeight = masterProduct.weight_g;
+    const secondaryWeight = masterProduct.secondary_weight_g || 0;
+    const totalWeight = baseWeight + secondaryWeight;
+
+    // Explicit Calculation Logic for Silver
+    const silverBaseCost = baseWeight * settings.silver_price_gram;
+    const silverSecondaryCost = secondaryWeight * settings.silver_price_gram;
+    const totalSilverCost = silverBaseCost + silverSecondaryCost;
 
     let materialsCost = 0;
     const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
@@ -423,7 +400,10 @@ export const estimateVariantCost = (
         }
     }
 
-    const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+    // Explicit Calculation Logic for Casting
+    const castBase = baseWeight * 0.15;
+    const castSecondary = secondaryWeight * 0.15;
+    const castingCost = castBase + castSecondary;
     
     let platingCost = 0;
     if (finish.code === 'D') {
@@ -433,12 +413,12 @@ export const estimateVariantCost = (
     }
 
     const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
-    const totalCost = silverCost + materialsCost + laborTotal;
+    const totalCost = totalSilverCost + materialsCost + laborTotal;
     
     return {
-        total: roundPrice(totalCost),
+        total: roundPrice(totalCost), // Final rounding happens here
         breakdown: {
-            silver: silverCost,
+            silver: totalSilverCost, // Precise value
             materials: materialsCost,
             labor: laborTotal,
             details: {
@@ -453,7 +433,6 @@ export const estimateVariantCost = (
         }
     };
 };
-
 
 export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {
     if (!variants || variants.length === 0) return null;
@@ -507,7 +486,6 @@ const PLATING_MAP: Record<string, PlatingType> = {
 
 export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
-    
     let gender = forcedGender;
     if (!gender) {
         const meta = parseSku(cleanSku);
