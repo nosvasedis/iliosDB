@@ -98,7 +98,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         </h3>
                         <table className="w-full text-left text-sm">
                             <thead className="font-bold text-slate-800 text-xs">
-                                <tr className="font-bold text-slate-400 text-xs">
+                                <tr className="font-bold text-slate-800 text-xs">
                                     <th className="py-1 pr-2 w-12"></th>
                                     <th className="py-1 pr-2">SKU</th>
                                     <th className="py-1 px-2 text-center">Ποσ.</th>
@@ -111,7 +111,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => {
                                     const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
                                     return (
-                                    <tr key={batch.id} className="border-t border-slate-100">
+                                    <tr key={batch.id} className="border-t border-slate-100 break-inside-avoid">
                                         <td className="py-1.5 pr-2">
                                             <div className="w-12 h-12 rounded bg-slate-100 overflow-hidden border border-slate-200">
                                                 {batch.product_image && <img src={batch.product_image} className="w-full h-full object-cover" />}

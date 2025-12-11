@@ -55,6 +55,12 @@
           page-break-inside: avoid;
         }
 
+        /* NEW: Utility class to prevent elements from breaking across pages */
+        .break-inside-avoid {
+            break-inside: avoid;
+            page-break-inside: avoid; /* fallback */
+        }
+
         @page {
           size: A4;
           margin: 0;
