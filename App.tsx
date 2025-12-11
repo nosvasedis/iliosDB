@@ -70,6 +70,7 @@ export interface AggregatedData {
   totalSilverCost: number;
   totalMaterialsCost: number;
   totalLaborCost: number;
+  totalSubcontractCost: number;
 }
 
 
@@ -184,6 +185,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
     let totalSilverCost = 0;
     let totalMaterialsCost = 0;
     let totalLaborCost = 0;
+    let totalSubcontractCost = 0;
 
     const batchesWithCost: AggregatedBatch[] = [];
 
@@ -213,6 +215,9 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
             totalSilverCost += (costResult.breakdown.silver || 0) * batchQuantity;
             totalMaterialsCost += (costResult.breakdown.materials || 0) * batchQuantity;
             totalLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+            if (costResult.breakdown.details) {
+                totalSubcontractCost += (costResult.breakdown.details.subcontract_cost || 0) * batchQuantity;
+            }
         }
 
         totalSilverWeight += batchQuantity * product.weight_g;
@@ -284,7 +289,8 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
         totalProductionCost,
         totalSilverCost,
         totalMaterialsCost,
-        totalLaborCost
+        totalLaborCost,
+        totalSubcontractCost
     });
 };
 
@@ -565,7 +571,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               

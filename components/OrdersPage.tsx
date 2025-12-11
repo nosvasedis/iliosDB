@@ -10,6 +10,7 @@ interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
   materials: Material[];
+  onPrintAggregated: (batches: ProductionBatch[]) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -30,7 +31,7 @@ const STAGE_TRANSLATIONS: Record<ProductionStage, string> = {
 };
 
 
-export default function OrdersPage({ products, onPrintOrder, materials }: Props) {
+export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -516,6 +517,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
             products={products}
             onClose={() => setManagingOrder(null)}
             getAvailableStock={getAvailableStock}
+            onPrintAggregated={onPrintAggregated}
           />
       )}
     </div>
@@ -523,7 +525,7 @@ export default function OrdersPage({ products, onPrintOrder, materials }: Props)
 }
 
 // Order Production Manager Modal (Interactive)
-const OrderProductionManager = ({ order, products, onClose, getAvailableStock }: { order: Order, products: Product[], onClose: () => void, getAvailableStock: (item: OrderItem) => number }) => {
+const OrderProductionManager = ({ order, products, onClose, getAvailableStock, onPrintAggregated }: { order: Order, products: Product[], onClose: () => void, getAvailableStock: (item: OrderItem) => number, onPrintAggregated: (batches: ProductionBatch[]) => void; }) => {
     const { showToast } = useUI();
     const queryClient = useQueryClient();
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -566,16 +568,33 @@ const OrderProductionManager = ({ order, products, onClose, getAvailableStock }:
         }
     };
 
+    const handlePrint = () => {
+        const enrichedBatches = orderBatches.map(b => {
+            const product = products.find(p => p.sku === b.sku);
+            return { ...b, product_details: product };
+        });
+        onPrintAggregated(enrichedBatches);
+        onClose();
+    };
+
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 h-[85vh]">
                 <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <LayoutList size={22} className="text-blue-600"/>
-                            Διαχείριση Παραγωγής
-                        </h2>
-                        <p className="text-sm text-slate-500 font-mono mt-1">Παραγγελία #{order.id} • {order.customer_name}</p>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <LayoutList size={22} className="text-blue-600"/>
+                          <div>
+                            <h2 className="text-xl font-bold text-slate-800">Διαχείριση Παραγωγής</h2>
+                            <p className="text-sm text-slate-500 font-mono mt-1">Παραγγελία #{order.id} • {order.customer_name}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handlePrint}
+                          className="flex items-center gap-2 bg-slate-200 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-300 font-bold transition-all text-sm"
+                        >
+                          <Printer size={16} /> Εκτύπωση Εντολής
+                        </button>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
                 </div>

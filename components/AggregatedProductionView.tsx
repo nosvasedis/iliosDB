@@ -53,7 +53,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             <main className="grid grid-cols-12 gap-6 text-xs leading-normal">
                 {/* LEFT: RESOURCES */}
                 <div className="col-span-5 space-y-4">
-                    <ResourceList title="Λάστιχα" data={sortedMolds} icon={<MapPin />} renderItem={item => `${item.code} - ${item.location} (${item.description})`}/>
+                    <ResourceList title="Λάστιχα" data={sortedMolds} icon={<MapPin />} renderItem={item => <><span className="font-bold">{item.code}</span> - {item.location} ({item.description})</>}/>
                     <ResourceList title="Υλικά" data={sortedMaterials} icon={<Coins />} renderItem={item => `${item.name} (${item.totalQuantity.toFixed(0)} ${item.unit}) - ${formatCurrency(item.totalCost)}`}/>
                     <ResourceList title="Εξαρτήματα" data={sortedComponents} icon={<Box />} renderItem={item => `${item.sku} (${item.totalQuantity} τεμ) - ${formatCurrency(item.totalCost)}`}/>
                 </div>
@@ -67,7 +67,8 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <div className="space-y-2 text-sm">
                             <CostRow label="Κόστος Ασημιού" value={data.totalSilverCost} />
                             <CostRow label="Υλικά & Εξαρτήματα" value={data.totalMaterialsCost} />
-                            <CostRow label="Εργατικά" value={data.totalLaborCost} />
+                            <CostRow label="Εργατικά" value={data.totalLaborCost - data.totalSubcontractCost} />
+                            <CostRow label="Φασόν" value={data.totalSubcontractCost} />
                             <div className="!mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
                                 <span className="font-bold text-slate-800 text-base">Γενικό Σύνολο</span>
                                 <span className="font-black text-lg text-emerald-700">{formatCurrency(data.totalProductionCost)}</span>
@@ -170,7 +171,7 @@ const SummaryCard: React.FC<{ title: string; value: string | number; icon: React
 };
 
 
-const ResourceList = ({ title, data, icon, renderItem }: { title: string, data: any[], icon: React.ReactNode, renderItem: (item: any) => string }) => (
+const ResourceList = ({ title, data, icon, renderItem }: { title: string, data: any[], icon: React.ReactNode, renderItem: (item: any) => React.ReactNode }) => (
     <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
             {icon} {title} ({data.length})
