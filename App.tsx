@@ -69,7 +69,8 @@ export interface AggregatedData {
   totalProductionCost: number;
   totalSilverCost: number;
   totalMaterialsCost: number;
-  totalLaborCost: number;
+  totalInHouseLaborCost: number;
+  totalImportedLaborCost: number;
   totalSubcontractCost: number;
 }
 
@@ -184,7 +185,8 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
     let totalProductionCost = 0;
     let totalSilverCost = 0;
     let totalMaterialsCost = 0;
-    let totalLaborCost = 0;
+    let totalInHouseLaborCost = 0;
+    let totalImportedLaborCost = 0;
     let totalSubcontractCost = 0;
 
     const batchesWithCost: AggregatedBatch[] = [];
@@ -214,7 +216,13 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
         if (costResult.breakdown) {
             totalSilverCost += (costResult.breakdown.silver || 0) * batchQuantity;
             totalMaterialsCost += (costResult.breakdown.materials || 0) * batchQuantity;
-            totalLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+            
+            if (product.production_type === 'Imported') {
+                totalImportedLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+            } else {
+                totalInHouseLaborCost += (costResult.breakdown.labor || 0) * batchQuantity;
+            }
+
             if (costResult.breakdown.details) {
                 totalSubcontractCost += (costResult.breakdown.details.subcontract_cost || 0) * batchQuantity;
             }
@@ -289,7 +297,8 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[]) => {
         totalProductionCost,
         totalSilverCost,
         totalMaterialsCost,
-        totalLaborCost,
+        totalInHouseLaborCost,
+        totalImportedLaborCost,
         totalSubcontractCost
     });
 };

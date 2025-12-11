@@ -67,7 +67,8 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <div className="space-y-2 text-sm">
                             <CostRow label="Κόστος Ασημιού" value={data.totalSilverCost} />
                             <CostRow label="Υλικά & Εξαρτήματα" value={data.totalMaterialsCost} />
-                            <CostRow label="Εργατικά" value={data.totalLaborCost - data.totalSubcontractCost} />
+                            <CostRow label="Εργατικά (Εργαστήριο)" value={data.totalInHouseLaborCost - data.totalSubcontractCost} />
+                            {data.totalImportedLaborCost > 0 && <CostRow label="Εργατικά (Εισαγωγής)" value={data.totalImportedLaborCost} />}
                             <CostRow label="Φασόν" value={data.totalSubcontractCost} />
                             <div className="!mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
                                 <span className="font-bold text-slate-800 text-base">Γενικό Σύνολο</span>
