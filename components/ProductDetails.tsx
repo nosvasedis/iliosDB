@@ -513,7 +513,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       return [...variants].sort((a, b) => getPriority(a.suffix) - getPriority(b.suffix));
   }, [variants, editedProduct.gender]);
 
-  const maxViews = hasVariants ? sortedVariantsList.length : 1;
+  const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
+  const showPager = hasVariants && variants.length > 1;
+  const initialViewIndex = 0; // Always start at the most prevalent variant
+
+  useEffect(() => {
+      setViewIndex(initialViewIndex);
+  }, [product.sku]);
 
   const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
   const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
@@ -905,6 +911,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
 
+  const analyticalCostingItems = useMemo(() => {
+    if (hasVariants) {
+        return sortedVariantsList.map(v => ({
+            key: v.suffix,
+            title: `${product.sku}${v.suffix} (${v.description})`,
+            costResult: estimateVariantCost(editedProduct, v.suffix, settings, allMaterials, allProducts)
+        }));
+    } else {
+        return [{
+            key: 'master-lustre',
+            title: `${product.sku} (Λουστρέ)`,
+            costResult: currentCostCalc
+        }];
+    }
+  }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
+
   // RENDER
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
@@ -917,7 +939,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                <div>
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                        <span>{displayedSku}</span>
-                       {hasVariants && variants.length > 1 && (
+                       {showPager && (
                             <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
                                 <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
                                     <ChevronLeft size={18} />
@@ -1277,7 +1299,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            {activeTab === 'labor' && (
                                <div className="space-y-6 animate-in fade-in">
                                    <div>
-                                       <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών (Master)</h3>
+                                       <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών</h3>
                                        <div className="space-y-2">
                                             <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: v}})} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} icon={<Flame size={14}/>}/>
                                             <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: v}})} icon={<Gem size={14}/>}/>
@@ -1290,18 +1312,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     <div className="mt-8 pt-6 border-t border-slate-100">
                                         <h3 className="font-bold text-slate-800 mb-4">Αναλυτική Κοστολόγηση Παραλλαγών</h3>
                                         <div className="space-y-4">
-                                            {[
-                                                { variant: null, isMaster: true },
-                                                ...sortedVariantsList.map(v => ({ variant: v, isMaster: false }))
-                                            ].map(({ variant, isMaster }) => {
-                                                const costResult = isMaster
-                                                    ? currentCostCalc
-                                                    : estimateVariantCost(editedProduct, variant!.suffix, settings, allMaterials, allProducts);
-                                                
-                                                const title = isMaster ? `${product.sku} (Master)` : `${product.sku}${variant!.suffix} (${variant!.description})`;
-
+                                            {analyticalCostingItems.map(item => {
+                                                const { key, title, costResult } = item;
                                                 return (
-                                                    <div key={title} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div key={key} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
                                                         <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
                                                             <span className="font-bold text-slate-800 text-sm">{title}</span>
                                                             <span className="font-black text-lg text-emerald-700">{formatCurrency(costResult.total)}</span>
