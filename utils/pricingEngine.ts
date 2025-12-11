@@ -28,6 +28,7 @@ export const roundPrice = (price: number): number => {
 
 export const calculateTechnicianCost = (weight_g: number): number => {
   let cost = 0;
+  if (weight_g <= 0) return 0;
   // New Logic based on specific weight ranges
   if (weight_g <= 2.2) {
     cost = weight_g * 1.30;
@@ -241,8 +242,9 @@ export const calculateProductCost = (
   }
 
   // --- IN-HOUSE PRODUCTION LOGIC ---
+  const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
   const lossMultiplier = 1 + (settings.loss_percentage / 100);
-  const silverBaseCost = product.weight_g * (settings.silver_price_gram * lossMultiplier);
+  const silverBaseCost = totalWeight * (settings.silver_price_gram * lossMultiplier);
 
   let materialsCost = 0;
   
@@ -267,7 +269,7 @@ export const calculateProductCost = (
   } else if (product.is_component) {
       technicianCost = product.weight_g * 0.50;
   } else {
-      technicianCost = calculateTechnicianCost(product.weight_g);
+      technicianCost = calculateTechnicianCost(totalWeight);
   }
   
   let castingCost;
@@ -276,7 +278,6 @@ export const calculateProductCost = (
   } else if (product.is_component) {
       castingCost = 0;
   } else {
-      const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
       castingCost = totalWeight * 0.15;
   }
 
@@ -373,8 +374,9 @@ export const estimateVariantCost = (
         return { total, breakdown };
     }
 
+    const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
     const lossMultiplier = 1 + (settings.loss_percentage / 100);
-    const silverCost = masterProduct.weight_g * (settings.silver_price_gram * lossMultiplier);
+    const silverCost = totalWeight * (settings.silver_price_gram * lossMultiplier);
 
     let materialsCost = 0;
     const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
@@ -400,22 +402,37 @@ export const estimateVariantCost = (
     });
 
     const labor: Partial<LaborCost> = masterProduct.labor || {};
-    const technicianCost = labor.technician_cost_manual_override
-        ? (labor.technician_cost || 0)
-        : calculateTechnicianCost(masterProduct.weight_g);
-    
-    const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
-    const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
-
-    let laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
-
     const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
-    if (['X', 'H'].includes(finish.code)) { 
-        laborTotal += labor.plating_cost_x || 0;
-    } else if (finish.code === 'D') {
-        laborTotal += labor.plating_cost_d || 0;
+
+    let technicianCost;
+    const technicianCalculation: any = { type: 'simple', base: 0, secondary: 0, totalWeight: 0 };
+
+    if (labor.technician_cost_manual_override) {
+        technicianCost = labor.technician_cost || 0;
+        technicianCalculation.type = 'override';
+    } else {
+        if (finish.code === 'D') {
+            technicianCalculation.type = 'split';
+            technicianCalculation.base = calculateTechnicianCost(masterProduct.weight_g);
+            technicianCalculation.secondary = calculateTechnicianCost(masterProduct.secondary_weight_g || 0);
+            technicianCost = technicianCalculation.base + technicianCalculation.secondary;
+        } else {
+            technicianCalculation.type = 'total';
+            technicianCalculation.totalWeight = totalWeight;
+            technicianCost = calculateTechnicianCost(totalWeight);
+        }
     }
 
+    const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+    
+    let platingCost = 0;
+    if (finish.code === 'D') {
+        platingCost = labor.plating_cost_d || 0;
+    } else if (['X', 'H'].includes(finish.code)) {
+        platingCost = labor.plating_cost_x || 0;
+    }
+
+    const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
     const totalCost = silverCost + materialsCost + laborTotal;
     
     return {
@@ -425,8 +442,13 @@ export const estimateVariantCost = (
             materials: materialsCost,
             labor: laborTotal,
             details: {
-                ...(masterProduct.labor || {}),
-                subcontract_cost: labor.subcontract_cost || 0
+                casting_cost: castingCost,
+                setter_cost: labor.setter_cost || 0,
+                technician_cost: technicianCost,
+                subcontract_cost: labor.subcontract_cost || 0,
+                plating_cost: platingCost,
+                technician_calculation: technicianCalculation,
+                total_weight: totalWeight
             }
         }
     };
