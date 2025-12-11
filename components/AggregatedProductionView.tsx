@@ -64,7 +64,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 {/* LEFT: RESOURCES */}
                 <div className="col-span-5 space-y-4">
                     <ResourceList title="Λάστιχα" data={sortedMolds} icon={<MapPin />} renderItem={item => <><span className="font-bold">{item.code}</span> - {item.location} ({item.description})</>}/>
-                    <ResourceList title="Υλικά" data={sortedMaterials} icon={<Coins />} renderItem={item => `${item.name} (${item.totalQuantity.toFixed(0)} ${item.unit}) - ${formatCurrency(item.totalCost)}`}/>
+                    <ResourceList title="Υλικά" data={sortedMaterials} icon={<Coins />} renderItem={item => `${item.name} (${item.unit === 'Τεμ' ? item.totalQuantity.toFixed(0) : parseFloat(item.totalQuantity.toFixed(2))} ${item.unit}) - ${formatCurrency(item.totalCost)}`}/>
                     <ResourceList title="Εξαρτήματα" data={sortedComponents} icon={<Box />} renderItem={item => `${item.sku} (${item.totalQuantity} τεμ) - ${formatCurrency(item.totalCost)}`}/>
                 </div>
 

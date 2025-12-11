@@ -425,6 +425,7 @@ export const estimateVariantCost = (
             materials: materialsCost,
             labor: laborTotal,
             details: {
+                ...(masterProduct.labor || {}),
                 subcontract_cost: labor.subcontract_cost || 0
             }
         }
