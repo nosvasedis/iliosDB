@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -157,14 +154,53 @@ function AppContent() {
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData;
     if (shouldPrint) {
-      const timer = setTimeout(() => {
-        window.print();
+      const originalTitle = document.title;
+      let newTitle = "Ilios_Kosmima_ERP_Εκτύπωση";
+      const today = new Date().toISOString().split('T')[0];
+
+      const sanitize = (name: string) => name.replace(/[^a-zA-Z0-9-Α-Ωα-ω\s]/g, '_').replace(/\s+/g, '_');
+
+      const handleAfterPrint = () => {
+        document.title = originalTitle;
         setPrintItems([]);
         setOrderToPrint(null);
         setBatchToPrint(null);
         setAggregatedPrintData(null);
+        window.removeEventListener('afterprint', handleAfterPrint);
+      };
+      
+      window.addEventListener('afterprint', handleAfterPrint);
+
+      if (orderToPrint) {
+        newTitle = `ΠΑΡΑΓΓΕΛΙΑ_${orderToPrint.id}_${sanitize(orderToPrint.customer_name)}`;
+      } else if (batchToPrint) {
+        newTitle = `ΕΝΤΟΛΗ_${batchToPrint.sku}${batchToPrint.variant_suffix || ''}_${batchToPrint.id.substring(0, 8)}`;
+      } else if (aggregatedPrintData) {
+        if (aggregatedPrintData.orderId && aggregatedPrintData.customerName) {
+          newTitle = `ΠΑΡΑΓΩΓΗ_ΠΑΡΑΓΓΕΛΙΑ_${aggregatedPrintData.orderId}_${sanitize(aggregatedPrintData.customerName)}`;
+        } else {
+          newTitle = `ΣΥΓΚΕΝΤΡΩΤΙΚΗ_ΠΑΡΑΓΩΓΗ_${today}`;
+        }
+      } else if (printItems.length > 0) {
+        const totalLabels = printItems.reduce((acc, item) => acc + item.quantity, 0);
+        newTitle = `ΕΤΙΚΕΤΕΣ_${totalLabels}_τεμ_${today}`;
+      }
+      
+      document.title = newTitle;
+
+      const timer = setTimeout(() => {
+        window.print();
+        // Fallback for browsers that don't support 'afterprint' event
+        if (!('onafterprint' in window)) {
+             setTimeout(handleAfterPrint, 1000);
+        }
       }, 500);
-      return () => clearTimeout(timer);
+      
+      return () => {
+          clearTimeout(timer);
+          window.removeEventListener('afterprint', handleAfterPrint);
+          document.title = originalTitle;
+      };
     }
   }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData]);
 
