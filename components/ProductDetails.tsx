@@ -20,12 +20,6 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.Platinum]: 'Πλατίνα'
 };
 
-const getSuffixPriority = (suffix: string) => {
-    if (suffix.includes('P')) return 1;
-    if (suffix.includes('X')) return 2;
-    return 3;
-};
-
 interface Props {
   product: Product;
   allProducts: Product[];
@@ -501,10 +495,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   const variants = editedProduct.variants || [];
   const hasVariants = variants.length > 0;
+  
   const sortedVariantsList = useMemo(() => {
       if (!hasVariants) return [];
-      return [...variants].sort((a, b) => getSuffixPriority(a.suffix) - getSuffixPriority(b.suffix));
-  }, [variants]);
+      
+      const getPriority = (suffix: string) => {
+        const { finish } = getVariantComponents(suffix, editedProduct.gender);
+        switch (finish.code) {
+            case 'P': return 1;
+            case 'D': return 2;
+            case 'X': return 3;
+            case 'H': return 4;
+            default: return 5;
+        }
+      };
+      
+      return [...variants].sort((a, b) => getPriority(a.suffix) - getPriority(b.suffix));
+  }, [variants, editedProduct.gender]);
 
   const maxViews = hasVariants ? sortedVariantsList.length : 1;
 
@@ -549,9 +556,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       if (finishCodes.size === 0 && editedProduct.plating_type) {
           return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
       }
+      
+      const getPriority = (code: string) => {
+        switch (code) {
+          case 'P': return 1;
+          case 'D': return 2;
+          case 'X': return 3;
+          case 'H': return 4;
+          default: return 5;
+        }
+      };
 
       const sortedFinishNames = Array.from(finishCodes)
-        .sort((a, b) => getSuffixPriority(a) - getSuffixPriority(b))
+        .sort((a, b) => getPriority(a) - getPriority(b))
         .map(code => FINISH_CODES[code] || FINISH_CODES[''] /* Lustre if empty */);
 
       return {
@@ -1025,15 +1042,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <option value={Gender.Unisex}>Unisex</option>
                                                 </select>
                                             </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
-                                                <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
-                                                    <option value={PlatingType.None}>Λουστρέ</option>
-                                                    <option value={PlatingType.GoldPlated}>Επίхρυσο</option>
-                                                    <option value={PlatingType.TwoTone}>Δíхρωμο</option>
-                                                    <option value={PlatingType.Platinum}>Πλατίνα</option>
-                                                </select>
-                                            </div>
+                                            {hasVariants ? (
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Διαθέσιμες Επιμεταλλώσεις</label>
+                                                    <div className="w-full p-3 bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-xl mt-1">
+                                                        {displayPlating}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
+                                                    <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
+                                                        <option value={PlatingType.None}>Λουστρέ</option>
+                                                        <option value={PlatingType.GoldPlated}>Επίхρυσο</option>
+                                                        <option value={PlatingType.TwoTone}>Δíхρωμο</option>
+                                                        <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                            {!editedProduct.is_component && (
                                                <div>
                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τιμή Πώλησης (€)</label>
