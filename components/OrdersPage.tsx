@@ -65,14 +65,14 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
       setShowCustomerResults(false);
   };
 
-  // --- NEW: Handle Edit Mode ---
+  // --- EDIT HANDLER ---
   const handleEditOrder = (order: Order) => {
       setEditingOrder(order);
       setCustomerName(order.customer_name);
       setCustomerPhone(order.customer_phone || '');
       setSelectedCustomerId(order.customer_id || null);
       setOrderNotes(order.notes || '');
-      // Deep copy to allow editing without mutating cache directly
+      // Deep copy to ensure we don't mutate state directly before saving
       setSelectedItems(JSON.parse(JSON.stringify(order.items)));
       setIsCreating(true);
   };
@@ -160,7 +160,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 
       try {
           if (editingOrder) {
-              // --- UPDATE EXISTING ---
+              // UPDATE EXISTING ORDER
               const updatedOrder: Order = {
                   ...editingOrder,
                   customer_id: selectedCustomerId || undefined,
@@ -170,10 +170,11 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                   total_price: calculateTotal(),
                   notes: orderNotes
               };
+              
               await api.updateOrder(updatedOrder);
               showToast('Η παραγγελία ενημερώθηκε.', 'success');
           } else {
-              // --- CREATE NEW ---
+              // CREATE NEW ORDER
               const now = new Date();
               const year = now.getFullYear().toString().slice(-2);
               const month = (now.getMonth() + 1).toString().padStart(2, '0');
