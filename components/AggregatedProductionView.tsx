@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AggregatedData } from '../App';
 import { APP_LOGO } from '../constants';
@@ -98,7 +97,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                            <Factory size={16} /> Λίστα Παραγωγής ({data.batches.length})
                         </h3>
                         <table className="w-full text-left text-sm">
-                            <thead>
+                            <thead className="font-bold text-slate-800 text-xs">
                                 <tr className="font-bold text-slate-400 text-xs">
                                     <th className="py-1 pr-2 w-12"></th>
                                     <th className="py-1 pr-2">SKU</th>
@@ -126,11 +125,11 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                             {batch.notes && <div className="text-xs text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
                                         </td>
                                         <td className="py-1.5 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
-                                        <td className="py-1.5 px-2 text-center text-slate-600 font-mono">
+                                        <td className="py-1.5 px-2 text-center text-slate-700 font-mono">
                                             <span className="font-bold">{formatDecimal(totalWeight, 1)}</span>
-                                            <span className="text-[9px] block text-slate-400">({formatDecimal(batch.product_details?.weight_g)}/τ)</span>
+                                            <span className="text-[9px] block text-slate-500">({formatDecimal(batch.product_details?.weight_g)}/τ)</span>
                                         </td>
-                                        <td className="py-1.5 px-2 text-right font-mono text-slate-500">{formatCurrency(batch.cost_per_piece)}</td>
+                                        <td className="py-1.5 px-2 text-right font-mono text-slate-600">{formatCurrency(batch.cost_per_piece)}</td>
                                         <td className="py-1.5 pl-2 text-right font-mono font-bold text-slate-800">{formatCurrency(batch.total_cost)}</td>
                                     </tr>
                                 )})}
@@ -141,7 +140,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             </main>
 
             <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
-                <p className="text-xs text-slate-400">Συγκεντρωτική Εντολή Παραγωγής - Ilios Kosmima ERP</p>
+                <p className="text-xs text-slate-500">Συγκεντρωτική Εντολή Παραγωγής - Ilios Kosmima ERP</p>
             </footer>
         </div>
     );
@@ -153,7 +152,7 @@ const colorClasses = {
       border: 'border-emerald-100',
       iconBg: 'bg-emerald-100',
       iconText: 'text-emerald-600',
-      titleText: 'text-emerald-800/60',
+      titleText: 'text-emerald-700',
       valueText: 'text-emerald-800',
     },
     blue: {
@@ -161,7 +160,7 @@ const colorClasses = {
       border: 'border-blue-100',
       iconBg: 'bg-blue-100',
       iconText: 'text-blue-600',
-      titleText: 'text-blue-800/60',
+      titleText: 'text-blue-700',
       valueText: 'text-blue-800',
     },
     slate: {
@@ -169,7 +168,7 @@ const colorClasses = {
       border: 'border-slate-100',
       iconBg: 'bg-slate-100',
       iconText: 'text-slate-600',
-      titleText: 'text-slate-800/60',
+      titleText: 'text-slate-700',
       valueText: 'text-slate-800',
     },
     amber: {
@@ -177,7 +176,7 @@ const colorClasses = {
       border: 'border-amber-100',
       iconBg: 'bg-amber-100',
       iconText: 'text-amber-600',
-      titleText: 'text-amber-800/60',
+      titleText: 'text-amber-700',
       valueText: 'text-amber-800',
     }
 };

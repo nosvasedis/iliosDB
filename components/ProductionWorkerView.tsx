@@ -63,8 +63,8 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                         {batch.type === 'Φρεσκάρισμα' ? <RefreshCcw size={18} className="text-blue-600"/> : <Factory size={18} />}
                         Εντολη Παραγωγησ
                     </h1>
-                    <p className="text-slate-500 font-mono font-bold">#{batch.id}</p>
-                    <p className="text-slate-500 text-xs mt-1">Ημερομηνία: <span className="font-bold">{formatDate(batch.created_at)}</span></p>
+                    <p className="text-slate-600 font-mono font-bold">#{batch.id}</p>
+                    <p className="text-slate-600 text-xs mt-1">Ημερομηνία: <span className="font-bold">{formatDate(batch.created_at)}</span></p>
                 </div>
             </header>
 
@@ -107,12 +107,12 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     {/* MOLDS */}
                     {product.production_type === ProductionType.InHouse && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
-                            <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
                                 <MapPin size={18} className="text-amber-500" /> Λάστιχα ({requiredMolds.length})
                             </h3>
                             {requiredMolds.length > 0 ? (
                                 <table className="w-full text-left">
-                                    <thead className="text-xs font-bold text-slate-400">
+                                    <thead className="text-xs font-bold text-slate-700">
                                         <tr>
                                             <th className="py-1 pr-2 w-1/4">Κωδ.</th>
                                             <th className="py-1 px-2 w-1/4">Τοποθεσία</th>
@@ -135,7 +135,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                      {/* SUPPLIER INFO for IMPORTED */}
                     {product.production_type === ProductionType.Imported && product.supplier_details && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
-                            <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
                                 <Globe size={18} className="text-purple-500" /> Προμηθευτής
                             </h3>
                             <p className="font-bold text-slate-800">{product.supplier_details.name}</p>
@@ -147,7 +147,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     {/* RECIPE */}
                     {product.production_type === ProductionType.InHouse && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
-                            <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
                                 <Box size={18} className="text-purple-500" /> Υλικά ανά τεμάχιο ({recipeItems.length})
                             </h3>
                             {recipeItems.length > 0 ? (
@@ -174,7 +174,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
             </main>
             
             <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid mt-6">
-                <h3 className="text-base font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
                     <Tag size={18} className="text-emerald-500" /> Σημειώσεις Παραγγελίας
                 </h3>
                 <div className="text-slate-700 text-sm leading-relaxed min-h-[50px] bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -184,7 +184,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
 
 
             <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
-                <p className="text-xs text-slate-400">Εντολή Παραγωγής - Ilios Kosmima ERP</p>
+                <p className="text-xs text-slate-500">Εντολή Παραγωγής - Ilios Kosmima ERP</p>
             </footer>
         </div>
     );

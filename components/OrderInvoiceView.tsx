@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { Order, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
@@ -76,14 +75,14 @@ export default function OrderInvoiceView({ order }: Props) {
                 
                 <div className="text-right">
                     <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Παραστατικο Παραγγελιας</h1>
-                    <p className="text-slate-500 font-mono font-bold text-lg mt-1">#{order.id}</p>
+                    <p className="text-slate-600 font-mono font-bold text-lg mt-1">#{order.id}</p>
                 </div>
             </header>
             
             {/* INFO SECTION */}
             <section className="grid grid-cols-2 gap-8 mb-8">
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Στοιχεια Πελατη</h3>
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Στοιχεια Πελατη</h3>
                     <p className="text-lg font-bold text-slate-800">{customer?.full_name || order.customer_name}</p>
                     {customer?.address && <p className="text-slate-600 text-sm mt-1 flex items-center gap-2"><MapPin size={12}/> {customer.address}</p>}
                     {(customer?.phone || order.customer_phone) && <p className="text-slate-600 text-sm mt-1 flex items-center gap-2"><Phone size={12}/> {customer?.phone || order.customer_phone}</p>}
@@ -91,9 +90,9 @@ export default function OrderInvoiceView({ order }: Props) {
                     {customer?.vat_number && <p className="text-slate-600 text-sm mt-1">ΑΦΜ: {customer.vat_number}</p>}
                 </div>
                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-right">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Ημερομηνιες</h3>
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Ημερομηνιες</h3>
                     <p className="font-semibold text-slate-700">Ημ/νία Παραγγελίας:</p>
-                    <p className="text-slate-500 mb-2">{formatDate(order.created_at)}</p>
+                    <p className="text-slate-600 mb-2">{formatDate(order.created_at)}</p>
                 </div>
             </section>
 
@@ -123,7 +122,7 @@ export default function OrderInvoiceView({ order }: Props) {
 
                             return (
                                 <tr key={fullSku + item.size_info} className="border-b border-slate-100">
-                                    <td className="py-3 pr-2 text-center text-slate-400 font-bold">{index + 1}</td>
+                                    <td className="py-3 pr-2 text-center text-slate-500 font-bold">{index + 1}</td>
                                     <td className="py-3 px-2">
                                         <div className="w-12 h-12 bg-slate-100 rounded-md overflow-hidden border border-slate-200">
                                             {imageUrl ? (
@@ -140,13 +139,13 @@ export default function OrderInvoiceView({ order }: Props) {
                                             {fullSku}
                                             {item.size_info && <span className="text-xs font-normal text-slate-500 bg-slate-100 px-1.5 rounded">({item.size_info})</span>}
                                         </div>
-                                        <div className="text-slate-500 text-xs mt-0.5">{description}</div>
+                                        <div className="text-slate-600 text-xs mt-0.5">{description}</div>
                                         <div className="h-8 flex items-center mt-1">
                                             <BarcodeCanvas sku={fullSku} />
                                         </div>
                                     </td>
                                     <td className="py-3 px-2 text-center align-middle font-bold text-slate-700 text-base">{item.quantity}</td>
-                                    <td className="py-3 px-2 text-right align-middle text-slate-600 font-mono">{item.price_at_order.toFixed(2).replace('.', ',')}€</td>
+                                    <td className="py-3 px-2 text-right align-middle text-slate-700 font-mono">{item.price_at_order.toFixed(2).replace('.', ',')}€</td>
                                     <td className="py-3 pl-2 text-right align-middle font-bold text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}€</td>
                                 </tr>
                             );
@@ -157,16 +156,16 @@ export default function OrderInvoiceView({ order }: Props) {
 
             {/* FOOTER */}
             <footer className="mt-8 pt-6 border-t border-slate-200 flex justify-between items-start">
-                <div className="text-[9px] text-slate-400 max-w-xs">
+                <div className="text-[9px] text-slate-600 max-w-xs">
                     <h4 className="font-bold text-slate-500 mb-1">Σημειώσεις</h4>
                     <p>{order.notes || "Καμία σημείωση."}</p>
                 </div>
                 <div className="w-64 space-y-2 text-sm">
-                    <div className="flex justify-between items-center text-slate-600 font-medium">
+                    <div className="flex justify-between items-center text-slate-700 font-medium">
                         <span>Καθαρή Αξία:</span>
                         <span className="font-mono">{subtotal.toFixed(2).replace('.', ',')}€</span>
                     </div>
-                    <div className="flex justify-between items-center text-slate-600 font-medium">
+                    <div className="flex justify-between items-center text-slate-700 font-medium">
                         <span>Φ.Π.Α. (24%):</span>
                         <span className="font-mono">{vatAmount.toFixed(2).replace('.', ',')}€</span>
                     </div>
@@ -176,7 +175,7 @@ export default function OrderInvoiceView({ order }: Props) {
                     </div>
                 </div>
             </footer>
-             <div className="mt-10 text-center text-[8px] text-slate-400 border-t border-slate-100 pt-2">
+             <div className="mt-10 text-center text-[8px] text-slate-500 border-t border-slate-100 pt-2">
                 ILIOS KOSMIMA ERP - Σας ευχαριστούμε για τη συνεργασία.
             </div>
         </div>
