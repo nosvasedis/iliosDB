@@ -366,7 +366,7 @@ export const estimateVariantCost = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-): { total: number; breakdown: { silver: number; materials: number; labor: number } } => {
+): { total: number; breakdown: any } => {
     if (masterProduct.production_type === ProductionType.Imported) {
         const { total, breakdown } = calculateProductCost(masterProduct, settings, allMaterials, allProducts);
         // For imported variants, we assume cost is same as master, as per-variant cost is not defined by the new formula
@@ -424,6 +424,9 @@ export const estimateVariantCost = (
             silver: silverCost,
             materials: materialsCost,
             labor: laborTotal,
+            details: {
+                subcontract_cost: labor.subcontract_cost || 0
+            }
         }
     };
 };
