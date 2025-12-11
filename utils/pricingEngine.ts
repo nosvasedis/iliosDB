@@ -19,11 +19,12 @@ export const formatCurrency = (num: number | null | undefined): string => {
 };
 
 /**
- * Rounds a price up to the nearest 10 cents (e.g., 11.47 -> 11.50).
+ * Rounds a price to the nearest 10 cents (e.g., 21.54 -> 21.50, 21.56 -> 21.60).
  */
 export const roundPrice = (price: number): number => {
   if (price === 0) return 0;
-  return parseFloat((Math.ceil(price * 10) / 10).toFixed(2));
+  // Rounds to the nearest 10 cents. E.g., 21.54 -> 21.50, 21.56 -> 21.60
+  return parseFloat((Math.round(price * 10) / 10).toFixed(2));
 };
 
 export const calculateTechnicianCost = (weight_g: number): number => {
@@ -278,7 +279,9 @@ export const calculateProductCost = (
   } else if (product.is_component) {
       castingCost = 0;
   } else {
-      castingCost = totalWeight * 0.15;
+      const baseCastingCost = product.weight_g * 0.15;
+      const secondaryCastingCost = (product.secondary_weight_g || 0) * 0.15;
+      castingCost = baseCastingCost + secondaryCastingCost;
   }
 
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
@@ -423,7 +426,7 @@ export const estimateVariantCost = (
         }
     }
 
-    const castingCost = parseFloat((totalWeight * 0.15).toFixed(2));
+    const castingCost = (masterProduct.weight_g * 0.15) + ((masterProduct.secondary_weight_g || 0) * 0.15);
     
     let platingCost = 0;
     if (finish.code === 'D') {

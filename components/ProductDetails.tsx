@@ -411,8 +411,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   useEffect(() => {
     if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
-        const totalWeight = (editedProduct.weight_g || 0) + (editedProduct.secondary_weight_g || 0);
-        const castCost = parseFloat((totalWeight * 0.15).toFixed(2));
+        const baseCastingCost = editedProduct.weight_g * 0.15;
+        const secondaryCastingCost = (editedProduct.secondary_weight_g || 0) * 0.15;
+        const castCost = baseCastingCost + secondaryCastingCost;
         setEditedProduct(prev => ({
             ...prev,
             labor: { ...prev.labor, casting_cost: castCost }
@@ -882,8 +883,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
         return "Βάρος Καπακιού (g)";
     }
-    return "Β' Βάρος (g)";
+    return "Β' Βáρος (g)";
   }, [editedProduct.gender, editedProduct.category]);
+
+  const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
 
   // RENDER
   return createPortal(
@@ -1169,7 +1172,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        <div className="flex-1">
                                            <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
                                            <div className="text-xs text-slate-400 font-mono">
-                                               {formatDecimal(editedProduct.weight_g)}g @ {formatDecimal(settings.silver_price_gram, 3)}€/g (+{formatDecimal(settings.loss_percentage, 1)}%)
+                                                {totalWeightForSilver > editedProduct.weight_g
+                                                    ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
+                                                    : `${formatDecimal(totalWeightForSilver)}g`
+                                                } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
                                            </div>
                                        </div>
                                        <div className="text-right">
@@ -1243,13 +1249,63 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            )}
 
                            {activeTab === 'labor' && (
-                               <div className="space-y-4 animate-in fade-in">
-                                   <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: v}})} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} icon={<Flame size={14}/>}/>
-                                   <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: v}})} icon={<Gem size={14}/>}/>
-                                   <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: v}})} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override}}))} icon={<Hammer size={14}/>}/>
-                                   <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: v}})} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} icon={<Coins size={14}/>}/>
-                                   <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_d: v}})} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override}}))} icon={<Coins size={14}/>}/>
-                                   <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, subcontract_cost: v}})} icon={<Users size={14}/>}/>
+                               <div className="space-y-6 animate-in fade-in">
+                                   <div>
+                                       <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών (Master)</h3>
+                                       <div className="space-y-2">
+                                            <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: v}})} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} icon={<Flame size={14}/>}/>
+                                            <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: v}})} icon={<Gem size={14}/>}/>
+                                            <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: v}})} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override}}))} icon={<Hammer size={14}/>}/>
+                                            <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: v}})} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} icon={<Coins size={14}/>}/>
+                                            <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_d: v}})} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override}}))} icon={<Coins size={14}/>}/>
+                                            <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, subcontract_cost: v}})} icon={<Users size={14}/>}/>
+                                       </div>
+                                   </div>
+                                    <div className="mt-8 pt-6 border-t border-slate-100">
+                                        <h3 className="font-bold text-slate-800 mb-4">Αναλυτική Κοστολόγηση Παραλλαγών</h3>
+                                        <div className="space-y-4">
+                                            {[
+                                                { variant: null, isMaster: true },
+                                                ...sortedVariantsList.map(v => ({ variant: v, isMaster: false }))
+                                            ].map(({ variant, isMaster }) => {
+                                                const costResult = isMaster
+                                                    ? currentCostCalc
+                                                    : estimateVariantCost(editedProduct, variant!.suffix, settings, allMaterials, allProducts);
+                                                
+                                                const title = isMaster ? `${product.sku} (Master)` : `${product.sku}${variant!.suffix} (${variant!.description})`;
+
+                                                return (
+                                                    <div key={title} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                        <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
+                                                            <span className="font-bold text-slate-800 text-sm">{title}</span>
+                                                            <span className="font-black text-lg text-emerald-700">{formatCurrency(costResult.total)}</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                <div className="text-[10px] font-bold text-slate-400">ΑΣΗΜΙ</div>
+                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.silver)}</div>
+                                                            </div>
+                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                <div className="text-[10px] font-bold text-slate-400">ΥΛΙΚΑ</div>
+                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.materials)}</div>
+                                                            </div>
+                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                <div className="text-[10px] font-bold text-slate-400">ΕΡΓΑΤΙΚΑ</div>
+                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.labor)}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-2 text-xs text-slate-500 font-mono bg-white rounded p-2 border border-slate-100">
+                                                            Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)} |
+                                                            Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)} |
+                                                            Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)} |
+                                                            Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)} |
+                                                            Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                </div>
                            )}
 
