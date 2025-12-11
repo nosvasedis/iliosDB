@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import JsBarcode from 'jsbarcode';
 import { ImageIcon, Phone, Mail, MapPin } from 'lucide-react';
+import { getSizingInfo } from '../utils/sizing';
 
 interface Props {
     order: Order;
@@ -117,9 +118,10 @@ export default function OrderInvoiceView({ order }: Props) {
                             const fullSku = item.sku + (item.variant_suffix || '');
                             const imageUrl = product?.image_url;
                             const description = variant?.description || product?.category || 'Προϊόν';
+                            const sizingInfo = product ? getSizingInfo(product) : null;
 
                             return (
-                                <tr key={fullSku} className="border-b border-slate-100">
+                                <tr key={fullSku + item.size_info} className="border-b border-slate-100">
                                     <td className="py-3 pr-2 text-center text-slate-400 font-bold">{index + 1}</td>
                                     <td className="py-3 px-2">
                                         <div className="w-12 h-12 bg-slate-100 rounded-md overflow-hidden border border-slate-200">
@@ -135,6 +137,11 @@ export default function OrderInvoiceView({ order }: Props) {
                                     <td className="py-3 px-2 align-top">
                                         <div className="font-bold text-slate-800 text-sm">{fullSku}</div>
                                         <div className="text-slate-500 text-xs mt-0.5">{description}</div>
+                                        {item.size_info && sizingInfo && (
+                                            <div className="text-blue-600 font-bold text-xs mt-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">
+                                                {sizingInfo.type}: {item.size_info}
+                                            </div>
+                                        )}
                                         <div className="h-8 flex items-center mt-1">
                                             <BarcodeCanvas sku={fullSku} />
                                         </div>

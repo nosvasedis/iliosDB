@@ -79,6 +79,7 @@ export interface ProductVariant {
   suffix: string; 
   description: string; 
   stock_qty: number;
+  stock_by_size?: Record<string, number>; // e.g. { "52": 10, "54": 5 }
   location_stock?: Record<string, number>; 
   active_price?: number | null; 
   selling_price?: number | null; 
@@ -114,6 +115,8 @@ export interface Product {
   // Inventory
   stock_qty: number; 
   sample_qty: number; 
+  stock_by_size?: Record<string, number>;
+  sample_stock_by_size?: Record<string, number>;
   
   location_stock?: Record<string, number>; 
 
@@ -148,6 +151,7 @@ export interface WarehouseStock {
     product_sku: string;
     variant_suffix?: string; 
     quantity: number;
+    size_info?: string;
 }
 
 export enum OrderStatus {
@@ -164,6 +168,7 @@ export interface OrderItem {
   quantity: number;
   price_at_order: number; 
   product_details?: Product; 
+  size_info?: string; // e.g., "58" or "19cm"
   notes?: string;
 }
 
