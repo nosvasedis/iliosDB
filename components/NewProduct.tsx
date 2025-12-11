@@ -1,4 +1,3 @@
-// ... imports remain the same ...
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
@@ -256,7 +255,6 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                                 <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
                                     {analysis.effectiveSilverPrice.toFixed(2)}€/g
                                 </span>
-                                {/* @FIX: The `title` prop is not supported by lucide-react icons. Wrap the icon in a `span` with a `title` attribute for tooltip functionality. */}
                                 {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500"/></span>}
                             </div>
                         </div>

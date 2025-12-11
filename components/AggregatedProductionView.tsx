@@ -1,8 +1,14 @@
 import React from 'react';
-import { AggregatedData } from './App';
+// @FIX: Corrected import path for AggregatedData
+import { AggregatedData } from '../App';
+// @FIX: Corrected import path for APP_LOGO
 import { APP_LOGO } from '../constants';
-import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, BarChart2, GlobalSettings } from 'lucide-react';
+// @FIX: Removed GlobalSettings from lucide-react import
+import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight } from 'lucide-react';
+// @FIX: Corrected import path for formatCurrency and formatDecimal
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+// @FIX: Imported GlobalSettings from the correct types file
+import { GlobalSettings } from '../types';
 
 interface Props {
     data: AggregatedData;
@@ -84,7 +90,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.batches.sort((a,b) => (a.sku+a.variant_suffix).localeCompare(b.sku+b.variant_suffix)).map(batch => (
+                                {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => (
                                     <tr key={batch.id} className="border-t border-slate-100">
                                         <td className="py-1.5 pr-2">
                                             <div className="w-8 h-8 rounded bg-slate-100 overflow-hidden border border-slate-200">
@@ -113,21 +119,51 @@ export default function AggregatedProductionView({ data, settings }: Props) {
     );
 }
 
-const SummaryCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => {
-    // @FIX: Tailwind classes must be complete strings. Constructing them dynamically will not work with PurgeCSS. This fix ensures the classes are static.
-    const bg = `bg-${color}-50`;
-    const border = `border-${color}-100`;
-    const iconBg = `bg-${color}-100`;
-    const iconText = `text-${color}-600`;
-    const titleText = `text-${color}-800/60`;
-    const valueText = `text-${color}-800`;
+// @FIX: Converted dynamic Tailwind classes to a static map to ensure compatibility with PurgeCSS in production builds.
+const colorClasses = {
+    emerald: {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-100',
+      iconBg: 'bg-emerald-100',
+      iconText: 'text-emerald-600',
+      titleText: 'text-emerald-800/60',
+      valueText: 'text-emerald-800',
+    },
+    blue: {
+      bg: 'bg-blue-50',
+      border: 'border-blue-100',
+      iconBg: 'bg-blue-100',
+      iconText: 'text-blue-600',
+      titleText: 'text-blue-800/60',
+      valueText: 'text-blue-800',
+    },
+    slate: {
+      bg: 'bg-slate-50',
+      border: 'border-slate-100',
+      iconBg: 'bg-slate-100',
+      iconText: 'text-slate-600',
+      titleText: 'text-slate-800/60',
+      valueText: 'text-slate-800',
+    },
+    amber: {
+      bg: 'bg-amber-50',
+      border: 'border-amber-100',
+      iconBg: 'bg-amber-100',
+      iconText: 'text-amber-600',
+      titleText: 'text-amber-800/60',
+      valueText: 'text-amber-800',
+    }
+};
+
+const SummaryCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: keyof typeof colorClasses }> = ({ title, value, icon, color }) => {
+    const classes = colorClasses[color] || colorClasses.slate;
 
     return (
-        <div className={`rounded-lg p-3 text-left flex items-center gap-3 ${bg} ${border}`}>
-            <div className={`p-2 rounded-md ${iconBg} ${iconText}`}>{icon}</div>
+        <div className={`rounded-lg p-3 text-left flex items-center gap-3 ${classes.bg} ${classes.border}`}>
+            <div className={`p-2 rounded-md ${classes.iconBg} ${classes.iconText}`}>{icon}</div>
             <div>
-                <p className={`text-xs font-bold uppercase tracking-wider ${titleText}`}>{title}</p>
-                <p className={`text-2xl font-black ${valueText}`}>{value}</p>
+                <p className={`text-xs font-bold uppercase tracking-wider ${classes.titleText}`}>{title}</p>
+                <p className={`text-2xl font-black ${classes.valueText}`}>{value}</p>
             </div>
         </div>
     );
