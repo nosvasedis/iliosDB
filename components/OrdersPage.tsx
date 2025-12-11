@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -26,8 +25,9 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
 export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
-  const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+  const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
+  const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
   const [isCreating, setIsCreating] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -290,7 +290,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
     };
 
 
-  if (isLoading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500"/></div>;
+  if (loadingOrders || loadingBatches) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500"/></div>;
 
   return (
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
@@ -608,12 +608,12 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           />
       )}
 
-      {managingOrder && (
+      {managingOrder && batches && (
           <OrderProductionManager
             order={managingOrder}
             products={products}
+            allBatches={batches}
             onClose={() => setManagingOrder(null)}
-            getAvailableStock={getAvailableStock}
             onPrintAggregated={onPrintAggregated}
           />
       )}
@@ -645,24 +645,128 @@ const FulfillmentModal: React.FC<FulfillmentModalProps> = ({ order, onClose }) =
     );
 };
 
+const STAGE_OPTIONS = [
+    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά' },
+    { id: ProductionStage.Casting, label: 'Χυτήριο' },
+    { id: ProductionStage.Setting, label: 'Καρφωτής' },
+    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
+    { id: ProductionStage.Labeling, label: 'Καρτελάκια' },
+];
+
 interface OrderProductionManagerProps {
     order: Order;
     products: Product[];
+    allBatches: ProductionBatch[];
     onClose: () => void;
-    getAvailableStock: (item: OrderItem) => number;
-    onPrintAggregated: (batches: ProductionBatch[]) => void;
+    onPrintAggregated: (batches: ProductionBatch[], orderDetails: { orderId: string, customerName: string }) => void;
 }
 
-const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, onClose }) => {
+const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, products, allBatches, onClose, onPrintAggregated }) => {
+    const queryClient = useQueryClient();
+    const { showToast } = useUI();
+    const [updatingBatchId, setUpdatingBatchId] = useState<string | null>(null);
+
+    const orderBatches = useMemo(() => {
+        return allBatches
+            .filter(b => b.order_id === order.id)
+            .map(b => {
+                const product_details = products.find(p => p.sku === b.sku);
+                return { ...b, product_details };
+            })
+            // @FIX: This expression is not callable. Type 'String' has no call signatures.
+            .sort((a,b) => {
+                const skuA = a.sku + (a.variant_suffix || '');
+                const skuB = b.sku + (b.variant_suffix || '');
+                if (skuA < skuB) return -1;
+                if (skuA > skuB) return 1;
+                return 0;
+            });
+    }, [allBatches, order.id, products]);
+
+    const handleStageChange = async (batchId: string, newStage: ProductionStage) => {
+        setUpdatingBatchId(batchId);
+        try {
+            await api.updateBatchStage(batchId, newStage);
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] }); // To update order status if all are ready
+            showToast('Η κατάσταση ενημερώθηκε.', 'success');
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        } finally {
+            setUpdatingBatchId(null);
+        }
+    };
+
+    const handlePrint = () => {
+        onPrintAggregated(orderBatches, { orderId: order.id, customerName: order.customer_name });
+    };
+
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-xl p-6 w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-slate-800">Διαχείριση Παραγωγής #{order.id}</h3>
-                    <button onClick={onClose}><X size={20}/></button>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl p-0 w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl border border-slate-100">
+                {/* Header */}
+                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Settings size={20} className="text-blue-600"/> Διαχείριση Παραγωγής</h3>
+                        <p className="text-sm text-slate-500 font-mono font-bold mt-1">Παραγγελία #{order.id} - <span className="text-blue-700">{order.customer_name}</span></p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full transition-colors"><X size={20}/></button>
                 </div>
-                <div className="flex-1 overflow-auto flex items-center justify-center text-slate-400">
-                    <p>Η διαχείριση παρτίδων παραγωγής για συγκεκριμένη παραγγελία είναι υπό κατασκευή.</p>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {orderBatches.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                            <Factory size={48} className="opacity-30 mb-4"/>
+                            <p className="font-medium">Δεν υπάρχουν παρτίδες παραγωγής για αυτή την παραγγελία.</p>
+                        </div>
+                    ) : (
+                        orderBatches.map(batch => (
+                            <div key={batch.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden shrink-0">
+                                    {batch.product_details?.image_url && <img src={batch.product_details.image_url} className="w-full h-full object-cover"/>}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        {batch.sku}{batch.variant_suffix}
+                                        {batch.size_info && <span className="text-xs font-normal text-slate-500 bg-slate-100 px-1.5 rounded-md border border-slate-200">{batch.size_info}</span>}
+                                    </div>
+                                    <div className="text-sm text-slate-500">{batch.quantity} τεμάχια</div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative w-48">
+                                        <select
+                                            value={batch.current_stage}
+                                            onChange={(e) => handleStageChange(batch.id, e.target.value as ProductionStage)}
+                                            disabled={updatingBatchId === batch.id}
+                                            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
+                                        >
+                                            {STAGE_OPTIONS.map(stage => (
+                                                <option key={stage.id} value={stage.id}>{stage.label}</option>
+                                            ))}
+                                            <option value={ProductionStage.Ready}>Έτοιμο</option>
+                                        </select>
+                                        {updatingBatchId === batch.id ? (
+                                            <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-blue-600"/>
+                                        ) : (
+                                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex justify-end">
+                    <button 
+                        onClick={handlePrint} 
+                        disabled={orderBatches.length === 0}
+                        className="flex items-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-xl hover:bg-black font-bold transition-all shadow-md disabled:opacity-50"
+                    >
+                        <Printer size={18}/> Εκτύπωση Εντολής
+                    </button>
                 </div>
             </div>
         </div>
