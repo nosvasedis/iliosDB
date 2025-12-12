@@ -453,44 +453,12 @@ export const api = {
         if (isOrderInProductionFlow) {
             const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: order.id });
             if (rpcError) throw new Error("Database function failed to sync production batches.");
-
-            const { data: newBatches } = await supabase.from('production_batches').select('id, sku').eq('order_id', order.id).eq('current_stage', ProductionStage.Waxing);
-            if (newBatches && newBatches.length > 0) {
-                const batchSkus = [...new Set(newBatches.map(b => b.sku))];
-                const { data: products } = await supabase.from('products').select('sku, production_type').in('sku', batchSkus);
-                
-                if (products) {
-                    const importedProductSkus = new Set(products.filter(p => p.production_type === 'Imported').map(p => p.sku));
-                    if (importedProductSkus.size > 0) {
-                        const batchesToUpdate = newBatches.filter(b => importedProductSkus.has(b.sku));
-                        if (batchesToUpdate.length > 0) {
-                            await supabase.from('production_batches').update({ current_stage: ProductionStage.AwaitingDelivery }).in('id', batchesToUpdate.map(b => b.id));
-                        }
-                    }
-                }
-            }
         }
     },
     
     sendOrderToProduction: async (orderId: string): Promise<void> => {
         const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: orderId });
         if (rpcError) throw new Error("Database function failed to create production batches.");
-    
-        const { data: newBatches } = await supabase.from('production_batches').select('id, sku').eq('order_id', orderId).eq('current_stage', ProductionStage.Waxing);
-        if (newBatches && newBatches.length > 0) {
-            const batchSkus = [...new Set(newBatches.map(b => b.sku))];
-            const { data: products } = await supabase.from('products').select('sku, production_type').in('sku', batchSkus);
-            
-            if (products) {
-                const importedProductSkus = new Set(products.filter(p => p.production_type === 'Imported').map(p => p.sku));
-                if (importedProductSkus.size > 0) {
-                    const batchesToUpdate = newBatches.filter(b => importedProductSkus.has(b.sku));
-                    if (batchesToUpdate.length > 0) {
-                        await supabase.from('production_batches').update({ current_stage: ProductionStage.AwaitingDelivery }).in('id', batchesToUpdate.map(b => b.id));
-                    }
-                }
-            }
-        }
     
         const { error: updateError } = await supabase.from('orders').update({ status: OrderStatus.InProduction }).eq('id', orderId);
         if (updateError) throw new Error("Failed to update order status after creating batches.");
