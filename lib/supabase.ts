@@ -426,7 +426,7 @@ export const api = {
         const isOrderInProductionFlow = order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready;
 
         if (isOrderInProductionFlow) {
-            const { data: startedBatches, error: fetchError } = await supabase
+            const { count, error: fetchError } = await supabase
                 .from('production_batches')
                 .select('id', { count: 'exact', head: true })
                 .eq('order_id', order.id)
@@ -434,7 +434,7 @@ export const api = {
                 .neq('current_stage', ProductionStage.AwaitingDelivery);
 
             if (fetchError) throw new Error("Could not verify production status.");
-            if ((startedBatches?.count || 0) > 0) {
+            if ((count || 0) > 0) {
                 throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή.");
             }
         }
@@ -451,8 +451,20 @@ export const api = {
         if (updateError) throw updateError;
 
         if (isOrderInProductionFlow) {
+            // Since the check above passed, we know no batches have started processing.
+            // It's safe to delete them all to make way for the new, synced batches.
+            // This fixes the issue where the RPC function fails if batches already exist.
+            const { error: deleteError } = await supabase.from('production_batches').delete().eq('order_id', order.id);
+            if (deleteError) {
+                console.error("Failed to delete existing unstarted batches:", deleteError);
+                throw new Error("Failed to clear old production items before updating.");
+            }
+
             const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: order.id });
-            if (rpcError) throw new Error("Database function failed to sync production batches.");
+            if (rpcError) {
+                console.error("RPC Error after deleting batches:", rpcError);
+                throw new Error("Database function failed to sync production batches.");
+            }
         }
     },
     
