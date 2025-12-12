@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
-// @FIX: Import 'Globe' icon from lucide-react.
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe } from 'lucide-react';
+// @FIX: Import 'Globe' and 'FileText' icons from lucide-react.
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -115,6 +115,121 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 };
 // --- END: Copied from ProductionPage.tsx ---
 
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, onPrintPreparation, onPrintTechnician, allBatches, showToast }: {
+    order: Order;
+    onClose: () => void;
+    onPrintOrder?: (order: Order) => void;
+    onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
+    onPrintPreparation: (batches: ProductionBatch[]) => void;
+    onPrintTechnician: (batches: ProductionBatch[]) => void;
+    allBatches: ProductionBatch[] | undefined;
+    showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+}) => {
+    const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
+
+    const handlePrintOrder = () => {
+        onPrintOrder?.(order);
+        onClose();
+    };
+
+    const handlePrintProductionSheet = (printFn: (batches: ProductionBatch[], details?: any) => void) => {
+        if (orderBatches.length === 0) {
+            showToast("Η παραγγελία δεν έχει αποσταλεί στην παραγωγή.", "info");
+            return;
+        }
+        if (printFn === onPrintAggregated) {
+            printFn(orderBatches, { orderId: order.id, customerName: order.customer_name });
+        } else {
+            printFn(orderBatches);
+        }
+        onClose();
+    };
+    
+    const productionSheetsDisabled = orderBatches.length === 0;
+
+    const options = [
+        {
+            label: "Εκτύπωση Παραγγελίας",
+            icon: <Printer size={20} />,
+            color: "slate",
+            action: handlePrintOrder,
+            disabled: !onPrintOrder,
+        },
+        {
+            label: "Συγκεντρωτική Παραγωγής",
+            icon: <FileText size={20} />,
+            color: "blue",
+            action: () => handlePrintProductionSheet(onPrintAggregated),
+            disabled: productionSheetsDisabled,
+        },
+        {
+            label: "Φύλλο Προετοιμασίας",
+            icon: <BookOpen size={20} />,
+            color: "purple",
+            action: () => handlePrintProductionSheet(onPrintPreparation),
+            disabled: productionSheetsDisabled,
+        },
+        {
+            label: "Φύλло Τεχνίτη",
+            icon: <Hammer size={20} />,
+            color: "orange",
+            action: () => handlePrintProductionSheet(onPrintTechnician),
+            disabled: productionSheetsDisabled,
+        },
+    ];
+    
+    const colors = {
+        slate: { bg: 'bg-slate-100', text: 'text-slate-700', hover: 'hover:bg-slate-200', border: 'border-slate-200' },
+        blue: { bg: 'bg-blue-50', text: 'text-blue-700', hover: 'hover:bg-blue-100', border: 'border-blue-200' },
+        purple: { bg: 'bg-purple-50', text: 'text-purple-700', hover: 'hover:bg-purple-100', border: 'border-purple-200' },
+        orange: { bg: 'bg-orange-50', text: 'text-orange-700', hover: 'hover:bg-orange-100', border: 'border-orange-200' },
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Επιλογές Εκτύπωσης</h2>
+                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
+                </div>
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {options.map(opt => {
+                        const colorClass = colors[opt.color as keyof typeof colors];
+                        return (
+                            <button 
+                                key={opt.label}
+                                onClick={opt.action}
+                                disabled={opt.disabled}
+                                className={`
+                                    p-6 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 transition-all
+                                    ${opt.disabled
+                                        ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed'
+                                        : `${colorClass.bg} ${colorClass.text} ${colorClass.border} ${colorClass.hover} transform hover:-translate-y-1`
+                                    }
+                                `}
+                            >
+                                <div className="p-3 bg-white rounded-xl shadow-sm">{opt.icon}</div>
+                                <span className="text-sm">{opt.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                {productionSheetsDisabled && (
+                    <div className="px-6 pb-6 -mt-2">
+                        <p className="text-xs text-center text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            Οι εκτυπώσεις παραγωγής είναι διαθέσιμες μόνο για παραγγελίες που έχουν σταλθεί στην παραγωγή.
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
 export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
@@ -144,6 +259,8 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   
   const [moveBatchState, setMoveBatchState] = useState<{ batch: ProductionBatch; targetStage: ProductionStage } | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
+  
+  const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
 
   const filteredProducts = products.filter(p => 
@@ -659,7 +776,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                 <td className="p-4 text-right">
                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => setManagingOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
-                                        <button onClick={() => onPrintOrder && onPrintOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
+                                        <button onClick={() => setPrintModalOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
                                     </div>
                                 </td>
                             </tr>
@@ -751,6 +868,19 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                 </div>
             </div>
         </div>
+      )}
+      
+      {printModalOrder && (
+        <PrintOptionsModal 
+            order={printModalOrder}
+            onClose={() => setPrintModalOrder(null)}
+            onPrintOrder={onPrintOrder}
+            onPrintAggregated={onPrintAggregated}
+            onPrintPreparation={onPrintPreparation}
+            onPrintTechnician={onPrintTechnician}
+            allBatches={batches}
+            showToast={showToast}
+        />
       )}
 
       {moveBatchState && (
