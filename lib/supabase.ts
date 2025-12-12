@@ -166,7 +166,7 @@ const _syncBatchesForOrder = async (order: Order, products: Product[], materials
         return; // No items, no batches.
     }
 
-    const newBatches: Omit<ProductionBatch, 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'>[] = [];
+    const newBatches: Omit<ProductionBatch, 'id' | 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'>[] = [];
     const now = new Date().toISOString();
 
     for (const item of order.items) {
@@ -182,7 +182,6 @@ const _syncBatchesForOrder = async (order: Order, products: Product[], materials
         });
 
         const newBatch = {
-            id: `BAT-${Date.now().toString(36).substring(2, 9).toUpperCase()}${Math.random().toString(36).substring(2, 5)}`,
             order_id: order.id,
             sku: item.sku,
             variant_suffix: item.variant_suffix || null,
@@ -544,20 +543,11 @@ export const api = {
         } catch (e) { return []; }
     },
 
-    createProductionBatch: async (batch: ProductionBatch): Promise<void> => {
+    createProductionBatch: async (batch: Partial<ProductionBatch>): Promise<void> => {
+        const { id, product_details, product_image, diffHours, isDelayed, ...insertData } = batch;
         const { error } = await supabase.from('production_batches').insert({
-            id: batch.id,
-            order_id: batch.order_id,
-            sku: batch.sku,
-            variant_suffix: batch.variant_suffix,
-            quantity: batch.quantity,
-            current_stage: batch.current_stage,
-            priority: batch.priority,
-            created_at: batch.created_at,
-            updated_at: batch.updated_at,
-            requires_setting: batch.requires_setting,
-            type: batch.type || 'Νέα',
-            notes: batch.notes
+            ...insertData,
+            type: batch.type || 'Νέα'
         });
         if (error) throw error;
     },

@@ -286,11 +286,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         } else {
             // Split the batch
             const originalNewQty = batch.quantity - quantityToMove;
-            const { product_details, product_image, diffHours, isDelayed, ...dbBatch } = batch;
+            const { product_details, product_image, diffHours, isDelayed, id, ...dbBatch } = batch;
             
-            const newBatchData: Omit<ProductionBatch, 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'> = {
+            const newBatchData = {
                 ...dbBatch,
-                id: `BAT-${Date.now().toString(36).substr(2, 9).toUpperCase()}`,
                 quantity: quantityToMove,
                 current_stage: targetStage,
                 created_at: batch.created_at,
