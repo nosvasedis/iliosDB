@@ -262,6 +262,14 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
+  // --- CRITICAL FIX: Enrich batches with product details for printing ---
+  const enrichedBatches = useMemo(() => {
+      return batches?.map(b => ({
+          ...b,
+          product_details: products.find(p => p.sku === b.sku)
+      })) || [];
+  }, [batches, products]);
+
 
   const filteredProducts = products.filter(p => 
       !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
@@ -878,7 +886,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
             onPrintAggregated={onPrintAggregated}
             onPrintPreparation={onPrintPreparation}
             onPrintTechnician={onPrintTechnician}
-            allBatches={batches}
+            allBatches={enrichedBatches} 
             showToast={showToast}
         />
       )}

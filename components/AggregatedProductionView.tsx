@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AggregatedData } from '../App';
 import { APP_LOGO } from '../constants';
@@ -11,10 +12,6 @@ interface Props {
 }
 
 export default function AggregatedProductionView({ data, settings }: Props) {
-    const sortedMolds = Array.from(data.molds.values()).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-    const sortedMaterials = Array.from(data.materials.values()).sort((a, b) => a.name.localeCompare(b.name));
-    const sortedComponents = Array.from(data.components.values()).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    
     const totalItems = data.batches.reduce((sum, b) => sum + b.quantity, 0);
 
     const formatDate = (dateString: string) => {
@@ -56,39 +53,22 @@ export default function AggregatedProductionView({ data, settings }: Props) {
 
             {/* MAIN CONTENT */}
             <main className="grid grid-cols-12 gap-6 text-xs leading-normal">
-                {/* LEFT: RESOURCES */}
-                <div className="col-span-5 space-y-4">
-                    <ResourceList title="Λάστιχα" data={sortedMolds} icon={<MapPin />} renderItem={item => <><span className="font-bold">{item.code}</span> - {item.location} ({item.description})</>}/>
-                    <ResourceList 
-                        title="Υλικά" 
-                        data={sortedMaterials} 
-                        icon={<Coins />} 
-                        renderItem={item => `${item.name} (${parseFloat(item.totalQuantity.toFixed(2)).toString().replace('.', ',')} ${item.unit}) - ${formatCurrency(item.totalCost)}`}
-                    />
-                    <ResourceList 
-                        title="Εξαρτήματα" 
-                        data={sortedComponents} 
-                        icon={<Box />} 
-                        renderItem={item => `${item.sku} (${parseFloat(item.totalQuantity.toFixed(2)).toString().replace('.', ',')} τεμ) - ${formatCurrency(item.totalCost)}`}
-                    />
-                </div>
-
-                {/* RIGHT: COSTS & BATCHES */}
-                <div className="col-span-7 space-y-4">
+                {/* RIGHT: COSTS & BATCHES (Expanded to Full Width) */}
+                <div className="col-span-12 space-y-4">
                     <div className="bg-white rounded-xl border border-slate-100 p-4">
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
                            Ανάλυση Κόστους
                         </h3>
-                        <div className="space-y-2 text-sm">
+                        <div className="space-y-2 text-sm grid grid-cols-2 gap-x-8">
                             <CostRow label="Κόστος Ασημιού" value={data.totalSilverCost} />
                             <CostRow label="Υλικά & Εξαρτήματα" value={data.totalMaterialsCost} />
                             <CostRow label="Εργατικά (Εργαστήριο)" value={data.totalInHouseLaborCost - data.totalSubcontractCost} />
                             {data.totalImportedLaborCost > 0 && <CostRow label="Εργατικά (Εισαγωγής)" value={data.totalImportedLaborCost} />}
                             <CostRow label="Φασόν" value={data.totalSubcontractCost} />
-                            <div className="!mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
-                                <span className="font-bold text-slate-800 text-base">Γενικό Σύνολο</span>
-                                <span className="font-black text-lg text-emerald-700">{formatCurrency(data.totalProductionCost)}</span>
-                            </div>
+                        </div>
+                        <div className="!mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
+                            <span className="font-bold text-slate-800 text-base">Γενικό Σύνολο</span>
+                            <span className="font-black text-lg text-emerald-700">{formatCurrency(data.totalProductionCost)}</span>
                         </div>
                     </div>
 
@@ -98,39 +78,39 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         </h3>
                         <table className="w-full text-left text-sm">
                             <thead className="font-bold text-slate-800 text-xs">
-                                <tr className="font-bold text-slate-800 text-xs">
-                                    <th className="py-1 pr-2 w-12"></th>
-                                    <th className="py-1 pr-2">SKU</th>
-                                    <th className="py-1 px-2 text-center">Ποσ.</th>
-                                    <th className="py-1 px-2 text-center">Βάρος (g)</th>
-                                    <th className="py-1 px-2 text-right">Κόστος</th>
-                                    <th className="py-1 pl-2 text-right">Σύνολο</th>
+                                <tr className="font-bold text-slate-800 text-xs border-b border-slate-100">
+                                    <th className="py-2 pr-2 w-12"></th>
+                                    <th className="py-2 pr-2">SKU</th>
+                                    <th className="py-2 px-2 text-center">Ποσ.</th>
+                                    <th className="py-2 px-2 text-center">Βάρος (g)</th>
+                                    <th className="py-2 px-2 text-right">Κόστος</th>
+                                    <th className="py-2 pl-2 text-right">Σύνολο</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map(batch => {
                                     const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
                                     return (
-                                    <tr key={batch.id} className="border-t border-slate-100 break-inside-avoid">
-                                        <td className="py-1.5 pr-2">
-                                            <div className="w-12 h-12 rounded bg-slate-100 overflow-hidden border border-slate-200">
+                                    <tr key={batch.id} className="border-t border-slate-50 break-inside-avoid">
+                                        <td className="py-2 pr-2">
+                                            <div className="w-10 h-10 rounded bg-slate-100 overflow-hidden border border-slate-200">
                                                 {batch.product_details?.image_url && <img src={batch.product_details.image_url} className="w-full h-full object-cover" />}
                                             </div>
                                         </td>
-                                        <td className="py-1.5 pr-2 font-mono text-slate-700">
+                                        <td className="py-2 pr-2 font-mono text-slate-700">
                                             <div className="font-bold text-base flex items-center gap-1">
                                                 {batch.sku}{batch.variant_suffix}
                                                 {batch.size_info && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 rounded border border-slate-200">{batch.size_info}</span>}
                                             </div>
                                             {batch.notes && <div className="text-xs text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
                                         </td>
-                                        <td className="py-1.5 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
-                                        <td className="py-1.5 px-2 text-center text-slate-700 font-mono">
+                                        <td className="py-2 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
+                                        <td className="py-2 px-2 text-center text-slate-700 font-mono">
                                             <span className="font-bold">{formatDecimal(totalWeight, 1)}</span>
                                             <span className="text-[9px] block text-slate-500">({formatDecimal(batch.product_details?.weight_g)}/τ)</span>
                                         </td>
-                                        <td className="py-1.5 px-2 text-right font-mono text-slate-600">{formatCurrency(batch.cost_per_piece)}</td>
-                                        <td className="py-1.5 pl-2 text-right font-mono font-bold text-slate-800">{formatCurrency(batch.total_cost)}</td>
+                                        <td className="py-2 px-2 text-right font-mono text-slate-600">{formatCurrency(batch.cost_per_piece)}</td>
+                                        <td className="py-2 pl-2 text-right font-mono font-bold text-slate-800">{formatCurrency(batch.total_cost)}</td>
                                     </tr>
                                 )})}
                             </tbody>
@@ -195,27 +175,8 @@ const SummaryCard: React.FC<{ title: string; value: string | number; icon: React
     );
 };
 
-
-const ResourceList = ({ title, data, icon, renderItem }: { title: string, data: any[], icon: React.ReactNode, renderItem: (item: any) => React.ReactNode }) => (
-    <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
-        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
-            {icon} {title} ({data.length})
-        </h3>
-        {data.length > 0 ? (
-            <ul className="space-y-1.5">
-                {data.map((item, index) => (
-                    <li key={index} className="flex items-start text-xs">
-                        <span className="text-slate-400 mr-1.5 w-4 text-right">■</span>
-                        <span className="flex-1 text-slate-700">{renderItem(item)}</span>
-                    </li>
-                ))}
-            </ul>
-        ) : <p className="text-center text-slate-400 text-xs italic py-2">Δεν απαιτούνται.</p>}
-    </div>
-);
-
 const CostRow = ({ label, value }: { label: string, value: number }) => (
-    <div className="flex justify-between items-center text-slate-600">
+    <div className="flex justify-between items-center text-slate-600 py-1">
         <span className="font-medium">{label}</span>
         <span className="font-mono font-bold text-slate-800">{formatCurrency(value)}</span>
     </div>
