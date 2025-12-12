@@ -61,7 +61,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                 </div>
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                        {batch.type === 'Φρεσκάρισμα' ? <RefreshCcw size={18} className="text-blue-600"/> : <Factory size={18} />}
+                        {batch.type === 'Φρεσκάρισμα' ? <RefreshCcw size={18} className="text-slate-600"/> : <Factory size={18} />}
                         Εντολη Παραγωγησ
                     </h1>
                     <p className="text-slate-600 font-mono font-bold">#{batch.id}</p>
@@ -114,7 +114,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     {product.production_type === ProductionType.InHouse && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
                             <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
-                                <MapPin size={18} className="text-amber-500" /> Λάστιχα ({requiredMolds.length})
+                                <MapPin size={18} className="text-slate-600" /> Λάστιχα ({requiredMolds.length})
                             </h3>
                             {requiredMolds.length > 0 ? (
                                 <table className="w-full text-left">
@@ -142,7 +142,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     {product.production_type === ProductionType.Imported && product.supplier_details && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
                             <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
-                                <Globe size={18} className="text-purple-500" /> Προμηθευτής
+                                <Globe size={18} className="text-slate-600" /> Προμηθευτής
                             </h3>
                             <p className="font-bold text-slate-800">{product.supplier_details.name}</p>
                             <p className="text-xs text-slate-500">{product.supplier_details.contact_person}</p>
@@ -154,7 +154,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     {product.production_type === ProductionType.InHouse && (
                         <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid">
                             <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
-                                <Box size={18} className="text-purple-500" /> Υλικά ανά τεμάχιο ({recipeItems.length})
+                                <Box size={18} className="text-slate-600" /> Υλικά ανά τεμάχιο ({recipeItems.length})
                             </h3>
                             {recipeItems.length > 0 ? (
                                 <table className="w-full text-left">
@@ -181,7 +181,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
             
             <div className="bg-white rounded-xl border border-slate-100 p-4 break-inside-avoid mt-6">
                 <h3 className="text-base font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-slate-100">
-                    <Tag size={18} className="text-emerald-500" /> Σημειώσεις Παραγγελίας
+                    <Tag size={18} className="text-slate-600" /> Σημειώσεις Παραγγελίας
                 </h3>
                 <div className="text-slate-700 text-sm leading-relaxed min-h-[50px] bg-slate-50 p-3 rounded-lg border border-slate-100">
                     {batch.notes || 'Καμία σημείωση.'}

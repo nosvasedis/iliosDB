@@ -75,7 +75,7 @@ export default function TechnicianView({ batches }: Props) {
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{item.sku}{item.variantSuffix}</p>
-                                <p className="text-[10px] font-bold text-blue-700 mt-0.5 uppercase">{item.platingDesc}</p>
+                                <p className="text-[10px] font-bold text-slate-900 mt-0.5 uppercase">{item.platingDesc}</p>
                             </div>
                             <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden border border-slate-200 shrink-0">
                                 {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}

@@ -45,10 +45,10 @@ export default function AggregatedProductionView({ data, settings }: Props) {
 
             {/* SUMMARY */}
             <section className="grid grid-cols-4 gap-4 mb-6">
-                <SummaryCard title="Συνολικό Κόστος" value={formatCurrency(data.totalProductionCost)} icon={<DollarSign/>} color="emerald"/>
-                <SummaryCard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)}€/g`} icon={<Coins/>} color="blue"/>
-                <SummaryCard title="Σύνολο Τεμαχίων" value={totalItems.toString()} icon={<Package/>} color="slate" />
-                <SummaryCard title="Ασήμι (g)" value={`${formatDecimal(data.totalSilverWeight, 1)}g`} icon={<Weight/>} color="amber" />
+                <SummaryCard title="Συνολικό Κόστος" value={formatCurrency(data.totalProductionCost)} icon={<DollarSign/>} />
+                <SummaryCard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)}€/g`} icon={<Coins/>} />
+                <SummaryCard title="Σύνολο Τεμαχίων" value={totalItems.toString()} icon={<Package/>} />
+                <SummaryCard title="Ασήμι (g)" value={`${formatDecimal(data.totalSilverWeight, 1)}g`} icon={<Weight/>} />
             </section>
 
             {/* MAIN CONTENT */}
@@ -68,7 +68,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         </div>
                         <div className="!mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
                             <span className="font-bold text-slate-800 text-base">Γενικό Σύνολο</span>
-                            <span className="font-black text-lg text-emerald-700">{formatCurrency(data.totalProductionCost)}</span>
+                            <span className="font-black text-lg text-slate-900">{formatCurrency(data.totalProductionCost)}</span>
                         </div>
                     </div>
 
@@ -105,7 +105,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                             {batch.product_details?.supplier_sku && (
                                                 <div className="text-[10px] text-slate-500 font-sans">Code: {batch.product_details.supplier_sku}</div>
                                             )}
-                                            {batch.notes && <div className="text-xs text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
+                                            {batch.notes && <div className="text-xs text-slate-600 font-sans break-all">Σημ: {batch.notes}</div>}
                                         </td>
                                         <td className="py-2 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
                                         <td className="py-2 px-2 text-center text-slate-700 font-mono">
@@ -129,43 +129,15 @@ export default function AggregatedProductionView({ data, settings }: Props) {
     );
 }
 
-const colorClasses = {
-    emerald: {
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-100',
-      iconBg: 'bg-emerald-100',
-      iconText: 'text-emerald-600',
-      titleText: 'text-emerald-700',
-      valueText: 'text-emerald-800',
-    },
-    blue: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-100',
-      iconBg: 'bg-blue-100',
-      iconText: 'text-blue-600',
-      titleText: 'text-blue-700',
-      valueText: 'text-blue-800',
-    },
-    slate: {
+const SummaryCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; }> = ({ title, value, icon }) => {
+    const classes = {
       bg: 'bg-slate-50',
       border: 'border-slate-100',
       iconBg: 'bg-slate-100',
       iconText: 'text-slate-600',
       titleText: 'text-slate-700',
       valueText: 'text-slate-800',
-    },
-    amber: {
-      bg: 'bg-amber-50',
-      border: 'border-amber-100',
-      iconBg: 'bg-amber-100',
-      iconText: 'text-amber-600',
-      titleText: 'text-amber-700',
-      valueText: 'text-amber-800',
-    }
-};
-
-const SummaryCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: keyof typeof colorClasses }> = ({ title, value, icon, color }) => {
-    const classes = colorClasses[color] || colorClasses.slate;
+    };
 
     return (
         <div className={`rounded-lg p-3 text-left flex items-center gap-3 ${classes.bg} ${classes.border}`}>

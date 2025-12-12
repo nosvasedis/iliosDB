@@ -65,7 +65,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                             <div>
                                                 <div className="leading-tight">
                                                     <span className="text-sm font-black text-slate-900 block truncate uppercase">{batch.sku}{batch.variant_suffix || ''}</span>
-                                                    <span className="text-[10px] font-bold text-blue-700 truncate block uppercase">{platingDesc}</span>
+                                                    <span className="text-[10px] font-bold text-slate-900 truncate block uppercase">{platingDesc}</span>
                                                 </div>
                                                 {batch.size_info && <span className="text-[10px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block mt-1">{batch.size_info}</span>}
                                             </div>
@@ -73,22 +73,28 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                             <div className="text-[9px] leading-tight mt-1">
                                                 {/* Materials Inline */}
                                                 {product.recipe.length > 0 ? (
-                                                    <div className="text-slate-800 line-clamp-2">
-                                                        <span className="font-bold">Υλικά: </span>
+                                                    <div className="text-slate-800 line-clamp-2 font-bold">
+                                                        <span>ΥΛΙΚΑ: </span>
                                                         {product.recipe.map((item, idx) => {
                                                             const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
                                                             const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
-                                                            return <span key={idx}>{name} <b>({item.quantity})</b>{idx < product.recipe.length - 1 ? ', ' : ''}</span>;
+                                                            return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
                                                         })}
                                                     </div>
                                                 ) : null}
 
                                                 {/* Molds Inline */}
                                                 {product.molds.length > 0 && (
-                                                    <div className="text-slate-900 mt-0.5 font-bold">
-                                                        <span className="font-normal text-slate-500">Λάστιχα: </span>
-                                                        {product.molds.map((mold, idx) => {
-                                                            return <span key={idx} className="uppercase">{mold.code} (x{mold.quantity}){idx < product.molds.length - 1 ? ', ' : ''}</span>;
+                                                    <div className="text-slate-900 mt-0.5">
+                                                        <span className="font-bold">ΛΑΣΤΙΧΑ:</span>
+                                                        {product.molds.map((productMold) => {
+                                                            const moldDetails = allMolds.find(m => m.code === productMold.code);
+                                                            const locationInfo = moldDetails?.location ? `(${moldDetails.location})` : '';
+                                                            return (
+                                                                <div key={productMold.code} className="font-bold uppercase text-[8px] leading-tight">
+                                                                   <span>(x{productMold.quantity}) {productMold.code} {locationInfo} - {moldDetails?.description || 'N/A'}</span>
+                                                                </div>
+                                                            );
                                                         })}
                                                     </div>
                                                 )}
@@ -111,12 +117,12 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                             if (!product) return null;
                             
                             return (
-                                <div key={batch.id} className="border-2 border-purple-300 bg-purple-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid h-28 overflow-hidden">
+                                <div key={batch.id} className="border-2 border-dashed border-slate-600 bg-slate-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid h-28 overflow-hidden">
                                      <div className="flex flex-col items-center justify-between w-14 shrink-0 h-full">
-                                        <div className="w-14 h-14 bg-white rounded-lg overflow-hidden border border-purple-200 shrink-0">
+                                        <div className="w-14 h-14 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                             {product.image_url && <img src={product.image_url} className="w-full h-full object-cover"/>}
                                         </div>
-                                        <div className="text-2xl font-black text-purple-900 leading-none">x{batch.quantity}</div>
+                                        <div className="text-2xl font-black text-slate-900 leading-none">x{batch.quantity}</div>
                                     </div>
                                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                                         <div>
@@ -126,8 +132,8 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                             )}
                                         </div>
                                         <div className="text-[9px]">
-                                            <p className="font-bold text-purple-800">ΕΙΣΑΓΩΓΗ</p>
-                                            <p className="truncate text-slate-700">Προμ: <b>{product.supplier_details?.name || 'Unknown'}</b></p>
+                                            <p className="font-bold text-slate-800">ΕΙΣΑΓΩΓΗ</p>
+                                            <p className="truncate text-slate-700 font-bold">ΠΡΟΜ: {product.supplier_details?.name || 'Unknown'}</p>
                                         </div>
                                     </div>
                                 </div>
