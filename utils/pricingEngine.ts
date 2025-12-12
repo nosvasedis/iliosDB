@@ -416,13 +416,28 @@ export const estimateVariantCost = (
     } else {
         if (finish.code === 'D') {
             const totalWeightForD = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
-            const costFromTotalWeight = calculateTechnicianCost(totalWeightForD);
+            
+            let rateFromTotalWeight = 0;
+            if (totalWeightForD <= 2.2) {
+                rateFromTotalWeight = 1.30;
+            } else if (totalWeightForD <= 4.2) {
+                rateFromTotalWeight = 0.90;
+            } else if (totalWeightForD <= 8.2) {
+                rateFromTotalWeight = 0.70;
+            } else {
+                rateFromTotalWeight = 0.50;
+            }
+
+            // Component 1: Rate from total weight multiplied by BASE weight only.
+            const costFromBaseWeight = masterProduct.weight_g * rateFromTotalWeight;
+            
+            // Component 2: Standard calculation on SECONDARY weight.
             const costFromSecondaryWeight = calculateTechnicianCost(masterProduct.secondary_weight_g || 0);
             
-            technicianCost = costFromTotalWeight + costFromSecondaryWeight;
+            technicianCost = costFromBaseWeight + costFromSecondaryWeight;
 
             technicianCalculation.type = 'two_tone_special';
-            technicianCalculation.totalWeightComponent = costFromTotalWeight;
+            technicianCalculation.baseWeightComponent = costFromBaseWeight;
             technicianCalculation.secondaryWeightComponent = costFromSecondaryWeight;
         } else {
             technicianCalculation.type = 'total';
