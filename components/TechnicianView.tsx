@@ -54,49 +54,53 @@ export default function TechnicianView({ batches }: Props) {
                     });
                 }
             });
-        return Array.from(map.values()).sort((a,b) => a.sku.localeCompare(b.sku));
+        return Array.from(map.values()).sort((a,b) => (a.sku + (a.variantSuffix || '')).localeCompare(b.sku + (b.variantSuffix || '')));
     }, [batches]);
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-10">
-            <header className="flex justify-between items-start border-b border-slate-200 pb-4 mb-6">
-                <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain" />
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6">
+            <header className="flex justify-between items-start border-b border-slate-200 pb-3 mb-4">
+                <img src={APP_LOGO} alt="ILIOS" className="w-20 object-contain" />
                 <div className="text-right">
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer /> Φύλλο Τεχνίτη</h1>
+                    <h1 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer /> Φύλλο Τεχνίτη</h1>
                     <p className="text-slate-500 text-xs mt-1">Ημερομηνία: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
             </header>
 
-            <main className="space-y-4">
+            <main className="grid grid-cols-2 gap-x-3 gap-y-2">
                 {groupedItems.map(item => (
-                    <div key={item.sku + item.variantSuffix} className="grid grid-cols-12 gap-4 items-center border border-slate-800 rounded-lg p-3 break-inside-avoid">
-                        <div className="col-span-3">
-                            <div className="aspect-square bg-slate-100 rounded-md overflow-hidden border border-slate-200">
-                                {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}
-                            </div>
-                        </div>
-                        <div className="col-span-6">
-                            <p className="text-4xl font-black text-slate-800 tracking-tight">{item.sku}{item.variantSuffix}</p>
-                            <p className="text-lg font-semibold text-blue-700 mt-2">{item.platingDesc}</p>
+                    <div key={item.sku + item.variantSuffix} className="border border-slate-800 rounded-lg p-1.5 flex flex-col break-inside-avoid">
+                        {/* Top part: SKU, Plating, Sizes */}
+                        <div className="flex-1">
+                            <p className="text-lg font-black text-slate-800 tracking-tight leading-tight">{item.sku}{item.variantSuffix}</p>
+                            <p className="text-xs font-semibold text-blue-700 mt-0.5">{item.platingDesc}</p>
                             
                             {Object.keys(item.sizes).length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
+                                <div className="mt-1 flex flex-wrap gap-0.5">
                                     {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
-                                        <div key={size} className="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-sm">
-                                            <span className="font-bold">{size}</span>: <span className="font-mono">{qty} τεμ.</span>
+                                        <div key={size} className="bg-slate-100 border border-slate-200 rounded px-1 py-0.5 text-[8px]">
+                                            <span className="font-bold">{size}</span>: <span className="font-mono">{qty}</span>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
-                        <div className="col-span-3 text-center bg-slate-50 rounded-lg p-4 border border-slate-200">
-                            <p className="text-sm font-bold text-slate-500 uppercase">Ποσότητα</p>
-                            <p className="text-6xl font-black text-slate-800">{item.totalQuantity}</p>
+
+                        {/* Bottom part: Image and Quantity */}
+                        <div className="flex items-end gap-1.5 mt-1.5 pt-1.5 border-t border-slate-200">
+                            <div className="w-10 h-10 bg-slate-100 rounded-md overflow-hidden border border-slate-200 shrink-0">
+                                {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}
+                            </div>
+                            <div className="flex-1"></div> {/* Spacer */}
+                            <div className="text-center pr-1">
+                                <p className="text-[8px] font-bold text-slate-500 uppercase">Ποσότητα</p>
+                                <p className="text-2xl font-black text-slate-800 leading-none">{item.totalQuantity}</p>
+                            </div>
                         </div>
                     </div>
                 ))}
                  {groupedItems.length === 0 && (
-                    <div className="text-center text-slate-400 py-20">
+                    <div className="col-span-2 text-center text-slate-400 py-20">
                         <p className="font-medium">Δεν υπάρχουν προϊόντα για παραγωγή σε αυτή την επιλογή.</p>
                     </div>
                 )}
