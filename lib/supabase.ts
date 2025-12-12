@@ -420,30 +420,27 @@ export const api = {
     },
 
     updateOrder: async (order: Order): Promise<void> => {
-        const { data: existingBatches, error: fetchError } = await supabase
-            .from('production_batches')
-            .select('id', { count: 'exact', head: true })
-            .eq('order_id', order.id);
+        const isOrderInProductionFlow = order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready;
 
-        if (fetchError) {
-            console.error("Error fetching batches for safety check:", fetchError);
-            throw new Error("Could not verify production status.");
-        }
-
-        const hasExistingBatches = (existingBatches?.count || 0) > 0;
-
-        if (hasExistingBatches) {
-            const { data: startedBatches } = await supabase
+        // Safety check: only if it's in production, check if any batches have advanced.
+        if (isOrderInProductionFlow) {
+            const { data: startedBatches, error: fetchError } = await supabase
                 .from('production_batches')
                 .select('id', { count: 'exact', head: true })
                 .eq('order_id', order.id)
                 .neq('current_stage', ProductionStage.Waxing);
-            
+
+            if (fetchError) {
+                console.error("Error fetching batches for safety check:", fetchError);
+                throw new Error("Could not verify production status.");
+            }
+
             if ((startedBatches?.count || 0) > 0) {
                 throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή. Πρέπει πρώτα να επαναφέρετε όλες τις παρτίδες στο αρχικό στάδιο (Κεριά).");
             }
         }
         
+        // Proceed with updating the order itself
         const { error: updateError } = await supabase.from('orders').update({
             customer_id: order.customer_id,
             customer_name: order.customer_name,
@@ -458,7 +455,8 @@ export const api = {
             throw updateError;
         }
 
-        if (hasExistingBatches) {
+        // If the order is in the production flow, always sync batches.
+        if (isOrderInProductionFlow) {
             const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: order.id });
             if (rpcError) {
                 console.error("Error calling sync_order_batches RPC on update:", rpcError);
