@@ -114,7 +114,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                     <tr key={batch.id} className="border-t border-slate-100 break-inside-avoid">
                                         <td className="py-1.5 pr-2">
                                             <div className="w-12 h-12 rounded bg-slate-100 overflow-hidden border border-slate-200">
-                                                {batch.product_image && <img src={batch.product_image} className="w-full h-full object-cover" />}
+                                                {batch.product_details?.image_url && <img src={batch.product_details.image_url} className="w-full h-full object-cover" />}
                                             </div>
                                         </td>
                                         <td className="py-1.5 pr-2 font-mono text-slate-700">
