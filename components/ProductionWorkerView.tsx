@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ProductionBatch, Mold, Product, Material, RecipeItem, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
@@ -85,6 +86,11 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Προϊον</p>
                             <h2 className="text-3xl font-black text-slate-800 tracking-tight mt-1">{fullSku}</h2>
                             <p className="text-slate-600 font-medium mt-1">{description}</p>
+                            {product.supplier_sku && (
+                                <div className="mt-2 inline-block px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700">
+                                    Supplier Code: {product.supplier_sku}
+                                </div>
+                            )}
                         </div>
                         <div className="grid grid-cols-2 gap-4 mt-4 text-center">
                             <div className="bg-white rounded-lg p-2 border border-slate-200">

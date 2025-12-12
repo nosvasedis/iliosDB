@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
@@ -319,6 +320,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         secondary_weight_g: product.secondary_weight_g || 0,
         production_type: product.production_type || ProductionType.InHouse,
         supplier_id: product.supplier_id,
+        supplier_sku: product.supplier_sku,
         supplier_cost: product.supplier_cost || 0,
         labor: {
             casting_cost: 0,
@@ -374,6 +376,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       secondary_weight_g: product.secondary_weight_g || 0,
       production_type: product.production_type || ProductionType.InHouse,
       supplier_id: product.supplier_id,
+      supplier_sku: product.supplier_sku,
       supplier_cost: product.supplier_cost || 0,
       labor: {
             casting_cost: 0,
@@ -695,6 +698,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             // Production Strategy
             production_type: editedProduct.production_type,
             supplier_id: (editedProduct.production_type === ProductionType.Imported && editedProduct.supplier_id) ? editedProduct.supplier_id : null,
+            supplier_sku: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_sku : null,
             supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
             labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
         }).eq('sku', editedProduct.sku);
@@ -1155,6 +1159,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 <div>
                                                     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12}/> Βάρος (g)</label>
                                                     <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Κωδικός Προμηθευτή</label>
+                                                    <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({...editedProduct, supplier_sku: e.target.value})} placeholder="π.χ. ITEM-123"/>
                                                 </div>
                                                 <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} />
                                                 <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} />

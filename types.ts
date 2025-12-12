@@ -1,5 +1,4 @@
 
-
 export enum Gender {
   Men = 'Men',
   Women = 'Women',
@@ -104,6 +103,7 @@ export interface Product {
   // Production Strategy
   production_type: ProductionType;
   supplier_id?: string; // Link to Supplier
+  supplier_sku?: string; // New: Supplier's Product Code
   supplier_cost?: number; 
   supplier_details?: Supplier; // Joined Data
 

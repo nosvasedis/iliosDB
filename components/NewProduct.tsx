@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
@@ -424,6 +425,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
   
   const [supplierId, setSupplierId] = useState<string>(''); 
+  const [supplierSku, setSupplierSku] = useState<string>(''); 
   const [supplierCost, setSupplierCost] = useState(0); 
   const [sellingPrice, setSellingPrice] = useState(0); 
   
@@ -618,6 +620,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       plating_type: plating,
       production_type: productionType,
       supplier_id: supplierId,
+      supplier_sku: supplierSku,
       supplier_cost: supplierCost,
       active_price: 0,
       draft_price: 0,
@@ -632,7 +635,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     const cost = calculateProductCost(tempProduct, settings, materials, products);
     setMasterEstimatedCost(cost.total);
     setCostBreakdown(cost.breakdown);
-  }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId]);
+  }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId, supplierSku]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -794,6 +797,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           plating_type: plating,
           production_type: productionType,
           supplier_id: supplierId,
+          supplier_sku: supplierSku,
           supplier_cost: supplierCost,
           image_url: imagePreview || null,
           active_price: masterEstimatedCost, 
@@ -903,6 +907,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             production_type: productionType,
             // Ensure supplier_id is valid UUID or null
             supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null,
+            supplier_sku: productionType === ProductionType.Imported ? supplierSku : null,
             supplier_cost: productionType === ProductionType.Imported ? supplierCost : null,
             labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null 
         });
@@ -957,7 +962,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         if (onCancel) onCancel();
         else {
             setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0);
-            setSupplierCost(0); setSupplierId('');
+            setSupplierCost(0); setSupplierId(''); setSupplierSku('');
         }
 
     } catch (error: any) {
@@ -1072,6 +1077,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <input type="text" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} className="w-full p-3 border border-blue-200 rounded-xl font-mono uppercase bg-white focus:ring-4 focus:ring-blue-500/20 outline-none font-bold text-lg"/>
                                     {detectedSuffix && <div className="mt-2 text-xs bg-white text-blue-700 p-2 rounded flex items-center gap-1 border border-blue-100"><Lightbulb size={12}/> Η παραλλαγή <strong>{detectedSuffix}</strong> ({detectedVariantDesc}) έχει προετοιμαστεί.</div>}
                                 </div>
+                                
+                                {productionType === ProductionType.Imported && (
+                                    <div>
+                                        <label className="block text-sm font-bold text-blue-900 mb-1.5">Κωδικός Προμηθευτή</label>
+                                        <input type="text" value={supplierSku} onChange={(e) => setSupplierSku(e.target.value)} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" placeholder="π.χ. ITEM-123"/>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-5">
                                     <div>
                                         <label className="block text-sm font-bold text-blue-900 mb-1.5">Φύλο *</label>

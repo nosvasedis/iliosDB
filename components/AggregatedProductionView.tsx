@@ -102,6 +102,9 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                                 {batch.sku}{batch.variant_suffix}
                                                 {batch.size_info && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 rounded border border-slate-200">{batch.size_info}</span>}
                                             </div>
+                                            {batch.product_details?.supplier_sku && (
+                                                <div className="text-[10px] text-slate-500 font-sans">Code: {batch.product_details.supplier_sku}</div>
+                                            )}
                                             {batch.notes && <div className="text-xs text-blue-600 font-sans break-all">Σημ: {batch.notes}</div>}
                                         </td>
                                         <td className="py-2 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
