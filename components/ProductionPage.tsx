@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2 } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
 }
 
 const STAGES = [
+    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', icon: <Globe size={20} />, color: 'indigo' },
     { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', icon: <Package size={20} />, color: 'slate' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', icon: <Flame size={20} />, color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', icon: <Gem size={20} />, color: 'purple' },
@@ -31,6 +32,7 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
 };
 
 const STAGE_COLORS = {
+    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-500', border: 'border-indigo-200' },
     slate: { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
     orange: { bg: 'bg-orange-50', text: 'text-orange-500', border: 'border-orange-200' },
     purple: { bg: 'bg-purple-50', text: 'text-purple-500', border: 'border-purple-200' },
@@ -216,7 +218,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 
 export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated }: Props) {
   const queryClient = useQueryClient();
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
   
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
@@ -260,17 +262,41 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   };
 
   const handleDrop = async (targetStage: ProductionStage) => {
-      if (!draggedBatchId) return;
-      
-      const batch = enhancedBatches.find(b => b.id === draggedBatchId);
-      if (!batch || batch.current_stage === targetStage) return;
+    if (!draggedBatchId) return;
 
-      if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
-          showToast(`Το ${batch.sku} δεν έχει πέτρες. Προχωρήστε στο επόμενο στάδιο.`, 'info');
-          return;
-      }
-      
-      setSplitModalState({ batch, targetStage });
+    const batch = enhancedBatches.find(b => b.id === draggedBatchId);
+    if (!batch || batch.current_stage === targetStage) return;
+
+    if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
+        showToast(`Το ${batch.sku} δεν έχει πέτρες. Προχωρήστε στο επόμενο στάδιο.`, 'info');
+        return;
+    }
+
+    if (batch.current_stage === ProductionStage.AwaitingDelivery) {
+        const targetStageInfo = STAGES.find(s => s.id === targetStage);
+        const confirmed = await confirm({
+            title: 'Παραλαβή Εισαγόμενου',
+            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} και τη μετακίνηση στο στάδιο "${targetStageInfo?.label}"?`,
+            confirmText: 'Επιβεβαίωση'
+        });
+
+        if (confirmed) {
+            setIsProcessingSplit(true);
+            try {
+                await api.updateBatchStage(batch.id, targetStage);
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                showToast('Η παρτίδα μετακινήθηκε.', 'success');
+            } catch (e: any) {
+                showToast(`Σφάλμα: ${e.message}`, 'error');
+            } finally {
+                setIsProcessingSplit(false);
+            }
+        }
+        return; 
+    }
+    
+    setSplitModalState({ batch, targetStage });
   };
 
   const handleConfirmSplit = async (quantityToMove: number) => {

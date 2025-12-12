@@ -196,6 +196,7 @@ export interface Customer {
 }
 
 export enum ProductionStage {
+  AwaitingDelivery = 'Αναμονή Παραλαβής',
   Waxing = 'Waxing',       
   Casting = 'Casting',     
   Setting = 'Setting',     
