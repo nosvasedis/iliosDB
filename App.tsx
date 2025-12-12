@@ -267,7 +267,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             }
         }
 
-        totalSilverWeight += batchQuantity * product.weight_g;
+        totalSilverWeight += (product.weight_g + (product.secondary_weight_g || 0)) * batchQuantity;
 
         // Molds
         for (const pm of product.molds) {
