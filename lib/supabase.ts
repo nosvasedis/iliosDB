@@ -148,6 +148,59 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
     }
 };
 
+/**
+ * Adjusts the initial stage for newly created batches of imported products.
+ * Finds batches in 'Waxing' for a given order, checks if the product is 'Imported',
+ * and moves them to 'AwaitingDelivery'.
+ */
+const adjustImportedProductStages = async (orderId: string): Promise<void> => {
+    try {
+        // Find newly created batches (which default to Waxing stage) for this order
+        const { data: newBatches, error: fetchBatchesError } = await supabase
+            .from('production_batches')
+            .select('id, sku')
+            .eq('order_id', orderId)
+            .eq('current_stage', ProductionStage.Waxing);
+
+        if (fetchBatchesError) throw fetchBatchesError;
+
+        if (!newBatches || newBatches.length === 0) {
+            return; // No new batches to process
+        }
+        
+        const batchSkus = [...new Set(newBatches.map(b => b.sku))];
+        
+        // Get the production type for the associated products
+        const { data: products, error: fetchProductsError } = await supabase
+            .from('products')
+            .select('sku, production_type')
+            .in('sku', batchSkus);
+
+        if (fetchProductsError) throw fetchProductsError;
+        
+        if (products) {
+            const importedProductSkus = new Set(products.filter(p => p.production_type === 'Imported').map(p => p.sku));
+            
+            if (importedProductSkus.size > 0) {
+                const batchesToUpdate = newBatches.filter(b => importedProductSkus.has(b.sku));
+                
+                if (batchesToUpdate.length > 0) {
+                    const updates = batchesToUpdate.map(b => 
+                        supabase
+                            .from('production_batches')
+                            .update({ current_stage: ProductionStage.AwaitingDelivery })
+                            .eq('id', b.id)
+                    );
+                    await Promise.all(updates);
+                }
+            }
+        }
+    } catch (stageUpdateError) {
+        // Log the error but don't re-throw, as the primary operation (order update/sync) might have succeeded.
+        console.error("Error adjusting stages for imported products:", stageUpdateError);
+    }
+};
+
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         try {
@@ -428,7 +481,8 @@ export const api = {
                 .from('production_batches')
                 .select('id', { count: 'exact', head: true })
                 .eq('order_id', order.id)
-                .neq('current_stage', ProductionStage.Waxing);
+                .neq('current_stage', ProductionStage.Waxing)
+                .neq('current_stage', ProductionStage.AwaitingDelivery); // Also allow edits if items are just waiting for delivery
 
             if (fetchError) {
                 console.error("Error fetching batches for safety check:", fetchError);
@@ -436,7 +490,7 @@ export const api = {
             }
 
             if ((startedBatches?.count || 0) > 0) {
-                throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή. Πρέπει πρώτα να επαναφέρετε όλες τις παρτίδες στο αρχικό στάδιο (Κεριά).");
+                throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή. Πρέπει πρώτα να επαναφέρετε όλες τις παρτίδες στο αρχικό στάδιο (Κεριά/Αναμονή).");
             }
         }
         
@@ -462,60 +516,20 @@ export const api = {
                 console.error("Error calling sync_order_batches RPC on update:", rpcError);
                 throw new Error("Database function failed to sync production batches.");
             }
+            // After syncing, adjust stages for any new imported items.
+            await adjustImportedProductStages(order.id);
         }
     },
     
     sendOrderToProduction: async (orderId: string): Promise<void> => {
-        // NOTE TO DEVELOPER: The ideal implementation would be to modify the 'sync_order_batches'
-        // PostgreSQL function to set the correct initial 'current_stage' based on the product's
-        // 'production_type'. The following is a client-side workaround to achieve the same result.
-    
         const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: orderId });
         if (rpcError) {
             console.error("Error calling sync_order_batches RPC:", rpcError);
             throw new Error("Database function failed to create production batches.");
         }
     
-        try {
-            const { data: newBatches, error: fetchBatchesError } = await supabase
-                .from('production_batches')
-                .select('id, sku')
-                .eq('order_id', orderId)
-                .eq('current_stage', ProductionStage.Waxing); // Only fetch batches just created by the RPC
-    
-            if (fetchBatchesError) throw fetchBatchesError;
-    
-            if (newBatches && newBatches.length > 0) {
-                const batchSkus = [...new Set(newBatches.map(b => b.sku))];
-                
-                const { data: products, error: fetchProductsError } = await supabase
-                    .from('products')
-                    .select('sku, production_type')
-                    .in('sku', batchSkus);
-    
-                if (fetchProductsError) throw fetchProductsError;
-                
-                if (products) {
-                    const importedProductSkus = new Set(products.filter(p => p.production_type === 'Imported').map(p => p.sku));
-                    
-                    if (importedProductSkus.size > 0) {
-                        const batchesToUpdate = newBatches.filter(b => importedProductSkus.has(b.sku));
-                        
-                        if (batchesToUpdate.length > 0) {
-                            const updates = batchesToUpdate.map(b => 
-                                supabase
-                                    .from('production_batches')
-                                    .update({ current_stage: ProductionStage.AwaitingDelivery })
-                                    .eq('id', b.id)
-                            );
-                            await Promise.all(updates);
-                        }
-                    }
-                }
-            }
-        } catch (stageUpdateError) {
-            console.error("Error adjusting stages for imported products:", stageUpdateError);
-        }
+        // Use the helper function to set initial stages correctly.
+        await adjustImportedProductStages(orderId);
     
         const { error: updateError } = await supabase
             .from('orders')
