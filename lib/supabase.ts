@@ -40,6 +40,17 @@ export const clearConfiguration = () => {
     window.location.reload();
 };
 
+// UUID Generator Fallback
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
 
 // System Warehouse IDs (Must match SQL Insert)
 export const SYSTEM_IDS = {
@@ -371,8 +382,6 @@ export const api = {
     transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
         // Implementation for stock transfer (simplified for brevity)
         const { data: prod } = await supabase.from('products').select('*').eq('sku', productSku).single();
-        // ... logic handles deducting from source and adding to target ...
-        // Re-using existing logic logic structure if needed, or keeping it basic for now
     },
 
     getCustomers: async (): Promise<Customer[]> => {
@@ -425,6 +434,7 @@ export const api = {
     updateOrder: async (order: Order): Promise<void> => {
         const isOrderInProductionFlow = order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready;
 
+        // First, check if any batches have progressed beyond the point of no return.
         if (isOrderInProductionFlow) {
             const { count, error: fetchError } = await supabase
                 .from('production_batches')
@@ -439,6 +449,7 @@ export const api = {
             }
         }
         
+        // If the check passes, update the order details.
         const { error: updateError } = await supabase.from('orders').update({
             customer_id: order.customer_id,
             customer_name: order.customer_name,
@@ -449,31 +460,80 @@ export const api = {
         }).eq('id', order.id);
         
         if (updateError) throw updateError;
-
-        if (isOrderInProductionFlow) {
-            // Since the check above passed, we know no batches have started processing.
-            // It's safe to delete them all to make way for the new, synced batches.
-            // This fixes the issue where the RPC function fails if batches already exist.
-            const { error: deleteError } = await supabase.from('production_batches').delete().eq('order_id', order.id);
-            if (deleteError) {
-                console.error("Failed to delete existing unstarted batches:", deleteError);
-                throw new Error("Failed to clear old production items before updating.");
-            }
-
-            const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: order.id });
-            if (rpcError) {
-                console.error("RPC Error after deleting batches:", rpcError);
-                throw new Error("Database function failed to sync production batches.");
-            }
-        }
+        
+        // If updating an order already in production, re-sync batches logic would be needed.
+        // For safety, we recommend not changing an active production order's items directly here without full sync logic.
     },
     
-    sendOrderToProduction: async (orderId: string): Promise<void> => {
-        const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: orderId });
-        if (rpcError) throw new Error("Database function failed to create production batches.");
-    
-        const { error: updateError } = await supabase.from('orders').update({ status: OrderStatus.InProduction }).eq('id', orderId);
-        if (updateError) throw new Error("Failed to update order status after creating batches.");
+    // REDEFINED: Client-side Logic for Robustness
+    sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
+        try {
+            // 1. Fetch Order
+            const { data: order, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
+            if (orderError) throw new Error(`Could not fetch order: ${orderError.message}`);
+            if (!order) throw new Error("Order not found");
+
+            // 2. Clear existing initial batches
+            const { error: deleteError } = await supabase.from('production_batches')
+                .delete()
+                .eq('order_id', orderId)
+                .or(`current_stage.eq.${ProductionStage.Waxing},current_stage.eq.${ProductionStage.AwaitingDelivery}`);
+            
+            if (deleteError) throw new Error(`Failed to clear old batches: ${deleteError.message}`);
+
+            // 3. Create new batches
+            const batchesToInsert = [];
+            
+            for (const item of order.items) {
+                const product = allProducts.find(p => p.sku === item.sku);
+                if (!product) continue;
+
+                let requiresSetting = false;
+                let initialStage = ProductionStage.Waxing;
+
+                if (product.production_type === 'Imported') {
+                    requiresSetting = (product.labor.stone_setting_cost || 0) > 0;
+                    initialStage = ProductionStage.AwaitingDelivery;
+                } else {
+                    // Check recipe for stones
+                    requiresSetting = product.recipe.some(r => {
+                        if (r.type !== 'raw') return false;
+                        const mat = allMaterials.find(m => m.id === r.id);
+                        return mat?.type === 'Stone';
+                    });
+                    initialStage = ProductionStage.Waxing;
+                }
+
+                batchesToInsert.push({
+                    id: generateUUID(), // Generate client-side to be safe
+                    order_id: orderId,
+                    sku: item.sku,
+                    variant_suffix: item.variant_suffix || '',
+                    quantity: item.quantity,
+                    current_stage: initialStage,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    priority: 'Normal',
+                    type: 'Νέα',
+                    notes: item.notes || '',
+                    requires_setting: requiresSetting,
+                    size_info: item.size_info || null
+                });
+            }
+
+            if (batchesToInsert.length > 0) {
+                const { error: insertError } = await supabase.from('production_batches').insert(batchesToInsert);
+                if (insertError) throw new Error(`Batch insertion failed: ${insertError.message}`);
+            }
+
+            // 4. Update Order Status
+            const { error: updateError } = await supabase.from('orders').update({ status: OrderStatus.InProduction }).eq('id', orderId);
+            if (updateError) throw new Error(`Failed to update order status: ${updateError.message}`);
+
+        } catch (error: any) {
+            console.error("sendOrderToProduction Error:", error);
+            throw error;
+        }
     },
     
     updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
@@ -502,6 +562,7 @@ export const api = {
         const { id, product_details, product_image, diffHours, isDelayed, ...insertData } = batch;
         const { error } = await supabase.from('production_batches').insert({
             ...insertData,
+            id: generateUUID(),
             type: batch.type || 'Νέα'
         });
         if (error) throw error;
@@ -527,7 +588,10 @@ export const api = {
     splitBatch: async (originalBatchId: string, originalBatchNewQty: number, newBatchData: any): Promise<void> => {
         const { error: updateError } = await supabase.from('production_batches').update({ quantity: originalBatchNewQty, updated_at: new Date().toISOString() }).eq('id', originalBatchId);
         if (updateError) throw updateError;
-        const { error: insertError } = await supabase.from('production_batches').insert(newBatchData);
+        
+        // Ensure new batch has ID
+        const finalNewBatch = { ...newBatchData, id: generateUUID() };
+        const { error: insertError } = await supabase.from('production_batches').insert(finalNewBatch);
         if (insertError) throw insertError;
     },
 

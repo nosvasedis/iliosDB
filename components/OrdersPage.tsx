@@ -185,7 +185,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
               const month = (now.getMonth() + 1).toString().padStart(2, '0');
               const day = now.getDate().toString().padStart(2, '0');
               const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-              const newOrderId = `${year}${month}${day}${random}`;
+              const newOrderId = `ORD-${year}${month}${day}-${random}`;
 
               const newOrder: Order = {
                   id: newOrderId,
@@ -214,6 +214,19 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           setSelectedItems([]); 
           setSelectedCustomerId(null);
 
+      } catch (err: any) {
+          console.error(err);
+          showToast(`Σφάλμα: ${err.message}`, 'error');
+      }
+  };
+
+  const handleSendToProduction = async (orderId: string) => {
+      try {
+          await api.sendOrderToProduction(orderId, products, materials);
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['batches'] });
+          setManagingOrder(null);
+          showToast('Η παραγγελία στάλθηκε στην παραγωγή.', 'success');
       } catch (err: any) {
           console.error(err);
           showToast(`Σφάλμα: ${err.message}`, 'error');
@@ -453,333 +466,108 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                               <select 
                                                 value={item.size_info || ''} 
                                                 onChange={(e) => updateItemSize(idx, e.target.value)}
-                                                className="w-full text-xs font-bold p-1.5 rounded border border-slate-200 bg-slate-50 outline-none focus:border-emerald-500"
+                                                className="w-full p-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium outline-none"
                                               >
-                                                  <option value="">Προεπιλογή</option>
-                                                  {sizingInfo.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                                <option value="">Επιλογή</option>
+                                                {sizingInfo.sizes.map(s => <option key={s} value={s}>{s}</option>)}
                                               </select>
                                           </div>
                                       )}
-                                      <input type="number" min="1" value={item.quantity} onChange={e => updateQuantity(idx, parseInt(e.target.value))} className="w-16 p-2 bg-white border border-slate-200 rounded-lg text-center font-bold outline-none focus:border-emerald-500 transition-colors"/>
-                                      <div className="font-black w-20 text-right text-slate-800 text-lg">{(item.price_at_order * item.quantity).toFixed(2)}€</div>
-                                      <button onClick={() => updateQuantity(idx, 0)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
+
+                                      <input 
+                                        type="number" 
+                                        value={item.quantity} 
+                                        onChange={e => updateQuantity(idx, parseInt(e.target.value))} 
+                                        className="w-16 p-2 rounded-lg text-center font-bold border border-slate-200 outline-none" 
+                                      />
+                                      <button onClick={() => updateQuantity(idx, 0)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           )})}
                           {selectedItems.length === 0 && (
-                              <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-60">
-                                  <Package size={64} className="mb-3"/>
-                                  <p className="font-medium">Το καλάθι είναι άδειο</p>
-                              </div>
+                            <div className="flex items-center justify-center h-full text-slate-400 text-center flex-col">
+                                <Package size={32} className="mb-2 opacity-50"/>
+                                <p className="font-medium">Δεν υπάρχουν προϊόντα στην παραγγελία.</p>
+                            </div>
                           )}
                       </div>
                   </div>
               </div>
           </div>
       ) : (
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex-1 overflow-hidden flex flex-col">
-              <div className="p-5 border-b border-slate-100 bg-white flex items-center gap-3">
-                   <Search className="text-slate-400" size={20}/>
-                   <input 
-                    type="text" 
-                    placeholder="Αναζήτηση παραγγελίας ή πελάτη..." 
-                    className="bg-transparent outline-none w-full text-slate-800 placeholder-slate-400" 
-                    value={searchTerm} 
-                    onChange={e => setSearchTerm(e.target.value)}
-                   />
-              </div>
-              <div className="overflow-y-auto flex-1">
-                  <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 border-b border-slate-100">
-                          <tr>
-                              <th className="p-4 pl-6">ID</th>
-                              <th className="p-4">Πελάτης</th>
-                              <th className="p-4">Ημερομηνία</th>
-                              <th className="p-4">Κατάσταση</th>
-                              <th className="p-4 text-right">Ποσό</th>
-                              <th className="p-4 text-center">Ενέργειες</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                          {orders?.filter(o => o.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) || o.id.includes(searchTerm)).map(order => (
-                              <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                                  <td className="p-4 pl-6 font-mono font-bold text-slate-700">{order.id}</td>
-                                  <td className="p-4">
-                                      <div className="font-bold text-slate-800 flex items-center gap-2">
-                                          {order.customer_id ? <Users size={14} className="text-emerald-500"/> : null} 
-                                          {order.customer_name}
-                                      </div>
-                                      {order.customer_phone && <div className="text-xs text-slate-500 mt-0.5">{order.customer_phone}</div>}
-                                  </td>
-                                  <td className="p-4 text-sm text-slate-600">
-                                      <div className="flex items-center gap-1.5"><Calendar size={14} className="opacity-50"/> {new Date(order.created_at).toLocaleDateString('el-GR')}</div>
-                                  </td>
-                                  <td className="p-4">
-                                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
-                                          {STATUS_TRANSLATIONS[order.status]}
-                                      </span>
-                                  </td>
-                                  <td className="p-4 text-right font-black text-slate-800">
-                                      {order.total_price.toFixed(2)}€
-                                  </td>
-                                  <td className="p-4 text-center">
-                                      <div className="flex items-center justify-center gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                                          <button
-                                            onClick={() => handleEditOrder(order)}
-                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                            title="Επεξεργασία"
-                                          >
-                                            <Edit size={16} />
-                                          </button>
-
-                                          <button
-                                            onClick={() => setManagingOrder(order)}
-                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="Διαχείριση Παραγωγής"
-                                          >
-                                            <Settings size={16} />
-                                          </button>
-
-                                          {onPrintOrder && (
-                                              <button 
-                                                onClick={() => onPrintOrder(order)} 
-                                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                                                title="Εκτύπωση"
-                                              >
-                                                  <Printer size={16} />
-                                              </button>
-                                          )}
-
-                                          <button
-                                            onClick={() => handleDeleteOrder(order)}
-                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Διαγραφή"
-                                          >
-                                            <Trash2 size={16} />
-                                          </button>
-
-                                          {order.status === OrderStatus.Pending && (
-                                              <button onClick={() => setFulfillmentOrder(order)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
-                                                  <ArrowRight size={14}/> Εκτέλεση
-                                              </button>
-                                          )}
-                                          {order.status === OrderStatus.Ready && (
-                                              <button onClick={() => handleUpdateStatus(order.id, OrderStatus.Delivered)} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-bold border border-emerald-200 transition-colors flex items-center gap-1 hover:shadow-sm">
-                                                  <CheckCircle size={14}/> Παράδοση
-                                              </button>
-                                          )}
-                                      </div>
-                                  </td>
-                              </tr>
-                          ))}
-                          {orders?.length === 0 && <tr><td colSpan={6} className="p-16 text-center text-slate-400 italic">Δεν βρέθηκαν παραγγελίες.</td></tr>}
-                      </tbody>
-                  </table>
-              </div>
+          <div className="flex-1 overflow-auto">
+            {/* Table or List View of existing orders */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                        <tr>
+                            <th className="p-4 pl-6">ID</th>
+                            <th className="p-4">Πελάτης</th>
+                            <th className="p-4">Ημερομηνία</th>
+                            <th className="p-4 text-right">Ποσό</th>
+                            <th className="p-4">Κατάσταση</th>
+                            <th className="p-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {orders?.map(order => (
+                            <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                                <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
+                                <td className="p-4 text-slate-800 font-medium">{order.customer_name}</td>
+                                <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
+                                <td className="p-4 text-right font-bold text-slate-800">{order.total_price.toFixed(2)}€</td>
+                                <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
+                                <td className="p-4 text-right">
+                                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => setManagingOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
+                                        <button onClick={() => onPrintOrder && onPrintOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
           </div>
       )}
 
-      {showScanner && (
-          <BarcodeScanner 
-            onScan={handleScanItem}
-            onClose={() => setShowScanner(false)}
-            continuous={true} 
-          />
-      )}
-
-      {fulfillmentOrder && (
-          <FulfillmentModal 
-            order={fulfillmentOrder}
-            onClose={() => setFulfillmentOrder(null)}
-          />
-      )}
-
-      {managingOrder && batches && (
-          <OrderProductionManager
-            order={managingOrder}
-            products={products}
-            allBatches={batches}
-            onClose={() => setManagingOrder(null)}
-            onPrintAggregated={onPrintAggregated}
-          />
+      {showScanner && <BarcodeScanner onScan={handleScanItem} onClose={() => setShowScanner(false)} />}
+      
+      {managingOrder && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
+                        <p className="text-sm text-slate-500">{managingOrder.customer_name}</p>
+                    </div>
+                    <button onClick={() => setManagingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                </div>
+                <div className="space-y-3">
+                    <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"><Edit size={18}/> Επεξεργασία</button>
+                    {managingOrder.status === OrderStatus.Pending && (
+                        <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
+                    )}
+                     {managingOrder.status === OrderStatus.InProduction && (
+                         <button onClick={() => { 
+                             const orderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
+                             onPrintAggregated(orderBatches, { orderId: managingOrder.id, customerName: managingOrder.customer_name });
+                             setManagingOrder(null);
+                         }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors"><LayoutList size={18}/> Εκτύπωση Φύλλου Παραγωγής</button>
+                     )}
+                    {managingOrder.status === OrderStatus.Ready && (
+                        <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Delivered); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"><PackageCheck size={18}/> Σήμανση ως "Παραδόθηκε"</button>
+                    )}
+                    {(managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.Ready) && (
+                        <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Pending); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300 transition-colors"><RefreshCcw size={18}/> Επαναφορά σε "Εκκρεμεί"</button>
+                    )}
+                    <div className="!mt-6 pt-4 border-t border-slate-100">
+                        <button onClick={() => { handleDeleteOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors"><Trash2 size={18}/> Οριστική Διαγραφή</button>
+                    </div>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
 }
-
-const FulfillmentModal: React.FC<{
-    order: Order;
-    onClose: () => void;
-}> = ({ order, onClose }) => {
-    const queryClient = useQueryClient();
-    const { showToast } = useUI();
-    const [isProcessing, setIsProcessing] = useState(false);
-
-    const handleConfirm = async () => {
-        setIsProcessing(true);
-        try {
-            await api.sendOrderToProduction(order.id);
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            showToast(`Η παραγγελία #${order.id} στάλθηκε στην παραγωγή!`, 'success');
-            onClose();
-        } catch (err: any) {
-            showToast(`Σφάλμα: ${err.message}`, 'error');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl border border-slate-100">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <Factory size={24} className="text-blue-600"/> Αποστολή στην Παραγωγή
-                    </h3>
-                    <button onClick={onClose} disabled={isProcessing}><X size={20}/></button>
-                </div>
-                <p className="text-slate-600 mb-6">
-                    Είστε σίγουροι ότι θέλετε να ξεκινήσετε την παραγωγή για την παραγγελία <strong className="font-mono">#{order.id}</strong>; 
-                    Αυτή η ενέργεια θα δημιουργήσει τις αντίστοιχες παρτίδες παραγωγής και θα αλλάξει την κατάσταση της παραγγελίας σε "Σε Παραγωγή".
-                </p>
-                <div className="flex justify-end gap-3">
-                    <button onClick={onClose} disabled={isProcessing} className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors">
-                        Ακύρωση
-                    </button>
-                    <button onClick={handleConfirm} disabled={isProcessing} className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2">
-                        {isProcessing ? <Loader2 size={18} className="animate-spin"/> : <ArrowRight size={18}/>}
-                        {isProcessing ? 'Αποστολή...' : 'Επιβεβαίωση'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const STAGE_OPTIONS = [
-    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
-    { id: ProductionStage.Labeling, label: 'Καρτελάκια' },
-];
-
-interface OrderProductionManagerProps {
-    order: Order;
-    products: Product[];
-    allBatches: ProductionBatch[];
-    onClose: () => void;
-    onPrintAggregated: (batches: ProductionBatch[], orderDetails: { orderId: string, customerName: string }) => void;
-}
-
-const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, products, allBatches, onClose, onPrintAggregated }) => {
-    const queryClient = useQueryClient();
-    const { showToast } = useUI();
-    const [updatingBatchId, setUpdatingBatchId] = useState<string | null>(null);
-
-    const orderBatches = useMemo(() => {
-        return allBatches
-            .filter(b => b.order_id === order.id)
-            .map(b => {
-                const product_details = products.find(p => p.sku === b.sku);
-                return { ...b, product_details, product_image: product_details?.image_url };
-            })
-            .sort((a,b) => {
-                const skuA = a.sku + (a.variant_suffix || '');
-                const skuB = b.sku + (b.variant_suffix || '');
-                if (skuA < skuB) return -1;
-                if (skuA > skuB) return 1;
-                return 0;
-            });
-    }, [allBatches, order.id, products]);
-
-    const handleStageChange = async (batchId: string, newStage: ProductionStage) => {
-        setUpdatingBatchId(batchId);
-        try {
-            await api.updateBatchStage(batchId, newStage);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] }); // To update order status if all are ready
-            showToast('Η κατάσταση ενημερώθηκε.', 'success');
-        } catch (err: any) {
-            showToast(`Σφάλμα: ${err.message}`, 'error');
-        } finally {
-            setUpdatingBatchId(null);
-        }
-    };
-
-    const handlePrint = () => {
-        onPrintAggregated(orderBatches, { orderId: order.id, customerName: order.customer_name });
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl p-0 w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl border border-slate-100">
-                {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Settings size={20} className="text-blue-600"/> Διαχείριση Παραγωγής</h3>
-                        <p className="text-sm text-slate-500 font-mono font-bold mt-1">Παραγγελία #{order.id} - <span className="text-blue-700">{order.customer_name}</span></p>
-                    </div>
-                    <button onClick={onClose} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full transition-colors"><X size={20}/></button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {orderBatches.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Factory size={48} className="opacity-30 mb-4"/>
-                            <p className="font-medium">Δεν υπάρχουν παρτίδες παραγωγής για αυτή την παραγγελία.</p>
-                        </div>
-                    ) : (
-                        orderBatches.map(batch => (
-                            <div key={batch.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                                <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden shrink-0">
-                                    {batch.product_details?.image_url && <img src={batch.product_details.image_url} className="w-full h-full object-cover"/>}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                        {batch.sku}{batch.variant_suffix}
-                                        {batch.size_info && <span className="text-xs font-normal text-slate-600 bg-slate-100 px-1.5 rounded-md border border-slate-200">{batch.size_info}</span>}
-                                    </div>
-                                    <div className="text-sm text-slate-500">{batch.quantity} τεμάχια</div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative w-48">
-                                        <select
-                                            value={batch.current_stage}
-                                            onChange={(e) => handleStageChange(batch.id, e.target.value as ProductionStage)}
-                                            disabled={updatingBatchId === batch.id}
-                                            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
-                                        >
-                                            {STAGE_OPTIONS.map(stage => (
-                                                <option key={stage.id} value={stage.id}>{stage.label}</option>
-                                            ))}
-                                            <option value={ProductionStage.Ready}>Έτοιμο</option>
-                                        </select>
-                                        {updatingBatchId === batch.id ? (
-                                            <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-blue-600"/>
-                                        ) : (
-                                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex justify-end">
-                    <button 
-                        onClick={handlePrint} 
-                        disabled={orderBatches.length === 0}
-                        className="flex items-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-xl hover:bg-black font-bold transition-all shadow-md disabled:opacity-50"
-                    >
-                        <Printer size={18}/> Εκτύπωση Εντολής
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
