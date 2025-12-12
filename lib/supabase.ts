@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
@@ -145,6 +145,66 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
         });
     } catch (e) {
         console.error("Failed to record stock movement:", e);
+    }
+};
+
+/**
+ * Deletes and re-creates all production batches for a given order.
+ * This ensures the production plan is in sync with the order items.
+ * @private
+ */
+const _syncBatchesForOrder = async (order: Order, products: Product[], materials: Material[]) => {
+    // 1. Delete existing batches for this order
+    const { error: deleteError } = await supabase.from('production_batches').delete().eq('order_id', order.id);
+    if (deleteError) {
+        console.error("Error clearing old batches:", deleteError);
+        throw new Error("Could not clear old production batches.");
+    }
+    
+    // 2. Create new batches from order items
+    if (order.items.length === 0) {
+        return; // No items, no batches.
+    }
+
+    const newBatches: Omit<ProductionBatch, 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'>[] = [];
+    const now = new Date().toISOString();
+
+    for (const item of order.items) {
+        const product = products.find(p => p.sku === item.sku);
+        if (!product || product.production_type === 'Imported') {
+            continue; // Skip items we can't produce or are imported
+        }
+
+        const hasStones = product.recipe.some(r => {
+            if (r.type !== 'raw') return false;
+            const material = materials.find(m => m.id === r.id);
+            return material?.type === MaterialType.Stone;
+        });
+
+        const newBatch = {
+            id: `BAT-${Date.now().toString(36).substring(2, 9).toUpperCase()}${Math.random().toString(36).substring(2, 5)}`,
+            order_id: order.id,
+            sku: item.sku,
+            variant_suffix: item.variant_suffix || null,
+            quantity: item.quantity,
+            current_stage: ProductionStage.Waxing,
+            priority: 'Normal' as 'Normal' | 'High',
+            created_at: now,
+            updated_at: now,
+            requires_setting: hasStones,
+            type: 'Νέα' as BatchType,
+            notes: item.notes || null,
+            size_info: item.size_info || null,
+        };
+        newBatches.push(newBatch);
+    }
+    
+    if (newBatches.length > 0) {
+        const { error: insertError } = await supabase.from('production_batches').insert(newBatches);
+        if (insertError) {
+            console.error("Error creating new batches:", insertError);
+            throw new Error("Could not create new production batches.");
+        }
     }
 };
 
@@ -420,7 +480,27 @@ export const api = {
     },
 
     // --- NEW: UPDATE ORDER METHOD ---
-    updateOrder: async (order: Order): Promise<void> => {
+    updateOrder: async (order: Order, products: Product[], materials: Material[]): Promise<void> => {
+        // Safety Check: Prevent editing orders that are advanced in production.
+        const { data: existingBatches, error: fetchError } = await supabase
+            .from('production_batches')
+            .select('current_stage')
+            .eq('order_id', order.id);
+
+        if (fetchError) {
+            console.error("Error fetching batches for safety check:", fetchError);
+            throw new Error("Could not verify production status.");
+        }
+
+        if (existingBatches && existingBatches.length > 0) {
+            const isProductionStarted = existingBatches.some(b => b.current_stage !== ProductionStage.Waxing);
+
+            if (isProductionStarted) {
+                throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή. Πρέπει πρώτα να επαναφέρετε όλες τις παρτίδες στο αρχικό στάδιο (Κεριά).");
+            }
+        }
+        
+        // Proceed with updating the order itself
         const { error } = await supabase.from('orders').update({
             customer_id: order.customer_id,
             customer_name: order.customer_name,
@@ -433,6 +513,12 @@ export const api = {
         if (error) {
             console.error("Error updating order:", error);
             throw error;
+        }
+
+        // If batches existed, it means the order was sent to production.
+        // We need to re-sync the batches to match the edited order.
+        if (existingBatches && existingBatches.length > 0) {
+            await _syncBatchesForOrder(order, products, materials);
         }
     },
     

@@ -188,7 +188,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                   notes: orderNotes
               };
               
-              await api.updateOrder(updatedOrder);
+              await api.updateOrder(updatedOrder, products, materials);
               showToast('Η παραγγελία ενημερώθηκε.', 'success');
           } else {
               // CREATE NEW ORDER
@@ -216,6 +216,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           }
 
           queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['batches'] });
           
           // Reset State
           setIsCreating(false);
