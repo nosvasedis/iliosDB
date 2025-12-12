@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ProductionBatch } from '../types';
+import { ProductionBatch, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
 import { Hammer } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -21,37 +21,39 @@ export default function TechnicianView({ batches }: Props) {
     const groupedItems = useMemo(() => {
         const map = new Map<string, GroupedItem>();
 
-        batches.forEach(batch => {
-            const product = batch.product_details;
-            if (!product) return;
-            
-            const { finish } = getVariantComponents(batch.variant_suffix || '', product.gender);
-            const platingDesc = finish.name;
+        batches
+            .filter(batch => batch.product_details?.production_type !== ProductionType.Imported) // Filter out imported products
+            .forEach(batch => {
+                const product = batch.product_details;
+                if (!product) return;
+                
+                const { finish } = getVariantComponents(batch.variant_suffix || '', product.gender);
+                const platingDesc = finish.name;
 
-            // Group by SKU, variant, but NOT size initially
-            const key = `${batch.sku}-${batch.variant_suffix || ''}`;
-            
-            if (map.has(key)) {
-                const existing = map.get(key)!;
-                existing.totalQuantity += batch.quantity;
-                if(batch.size_info) {
-                    existing.sizes[batch.size_info] = (existing.sizes[batch.size_info] || 0) + batch.quantity;
+                // Group by SKU, variant, but NOT size initially
+                const key = `${batch.sku}-${batch.variant_suffix || ''}`;
+                
+                if (map.has(key)) {
+                    const existing = map.get(key)!;
+                    existing.totalQuantity += batch.quantity;
+                    if(batch.size_info) {
+                        existing.sizes[batch.size_info] = (existing.sizes[batch.size_info] || 0) + batch.quantity;
+                    }
+                } else {
+                    const sizes: Record<string, number> = {};
+                    if(batch.size_info) {
+                        sizes[batch.size_info] = batch.quantity;
+                    }
+                    map.set(key, {
+                        sku: batch.sku,
+                        variantSuffix: batch.variant_suffix,
+                        imageUrl: product.image_url,
+                        platingDesc,
+                        totalQuantity: batch.quantity,
+                        sizes
+                    });
                 }
-            } else {
-                const sizes: Record<string, number> = {};
-                if(batch.size_info) {
-                    sizes[batch.size_info] = batch.quantity;
-                }
-                map.set(key, {
-                    sku: batch.sku,
-                    variantSuffix: batch.variant_suffix,
-                    imageUrl: product.image_url,
-                    platingDesc,
-                    totalQuantity: batch.quantity,
-                    sizes
-                });
-            }
-        });
+            });
         return Array.from(map.values()).sort((a,b) => a.sku.localeCompare(b.sku));
     }, [batches]);
 
@@ -93,6 +95,11 @@ export default function TechnicianView({ batches }: Props) {
                         </div>
                     </div>
                 ))}
+                 {groupedItems.length === 0 && (
+                    <div className="text-center text-slate-400 py-20">
+                        <p className="font-medium">Δεν υπάρχουν προϊόντα για παραγωγή σε αυτή την επιλογή.</p>
+                    </div>
+                )}
             </main>
         </div>
     );

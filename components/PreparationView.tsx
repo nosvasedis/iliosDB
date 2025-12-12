@@ -1,7 +1,7 @@
 import React from 'react';
-import { ProductionBatch, Product, Material, RecipeItem, MaterialType } from '../types';
+import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
-import { Box, Coins, Gem, Puzzle } from 'lucide-react';
+import { Box, Coins, Gem, Puzzle, Globe } from 'lucide-react';
 
 interface Props {
     batches: ProductionBatch[];
@@ -20,7 +20,12 @@ export default function PreparationView({ batches, allMaterials, allProducts }: 
     
     const aggregatedResources = new Map<string, AggregatedResource>();
 
-    batches.forEach(batch => {
+    // Filter batches into In-House and Imported
+    const inHouseBatches = batches.filter(b => b.product_details?.production_type !== ProductionType.Imported);
+    const importedBatches = batches.filter(b => b.product_details?.production_type === ProductionType.Imported);
+
+    // Only aggregate resources for in-house production
+    inHouseBatches.forEach(batch => {
         const product = batch.product_details;
         if (!product) return;
 
@@ -77,54 +82,112 @@ export default function PreparationView({ batches, allMaterials, allProducts }: 
             </header>
             
             <main>
-                <div className="space-y-6">
-                    {batches.map(batch => {
-                        const product = batch.product_details;
-                        if (!product) return null;
-                        
-                        const variant = product.variants?.find(v => v.suffix === batch.variant_suffix);
-                        const platingDesc = variant?.description || product.category;
+                {/* In-House Production Section */}
+                {inHouseBatches.length > 0 && (
+                    <div className="space-y-6">
+                        <h2 className="text-lg font-bold text-slate-800 uppercase mb-4 border-b-2 border-slate-300 pb-2">Είδη Παραγωγής</h2>
+                        {inHouseBatches.map(batch => {
+                            const product = batch.product_details;
+                            if (!product) return null;
+                            
+                            const variant = product.variants?.find(v => v.suffix === batch.variant_suffix);
+                            const platingDesc = variant?.description || product.category;
 
-                        return (
-                            <div key={batch.id} className="grid grid-cols-12 gap-4 border-b border-slate-200 pb-4 break-inside-avoid">
-                                <div className="col-span-3">
-                                    <div className="w-full aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                        {product.image_url && <img src={product.image_url} className="w-full h-full object-cover"/>}
+                            return (
+                                <div key={batch.id} className="grid grid-cols-12 gap-4 border-b border-slate-200 pb-4 break-inside-avoid">
+                                    <div className="col-span-3">
+                                        <div className="w-full aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                            {product.image_url && <img src={product.image_url} className="w-full h-full object-cover"/>}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-9">
+                                        <p className="text-2xl font-black text-slate-800 tracking-tight">{batch.sku}{batch.variant_suffix || ''} <span className="font-bold text-slate-500 text-xl">x {batch.quantity}</span></p>
+                                        <p className="font-semibold text-blue-600 mb-2">{platingDesc}</p>
+                                        
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 className="font-semibold text-slate-600 text-xs uppercase mb-1">Υλικά</h4>
+                                                <table className="w-full text-sm">
+                                                    <tbody>
+                                                        {product.recipe.length > 0 ? product.recipe.map((item, idx) => {
+                                                            const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+                                                            const name = item.type === 'raw' ? (details as Material)?.name : `Εξάρτημα: ${item.sku}`;
+                                                            const unit = item.type === 'raw' ? (details as Material)?.unit : 'τεμ.';
+                                                            return (
+                                                                <tr key={idx} className="border-t border-slate-100">
+                                                                    <td className="py-1 pr-2 text-slate-700">{name}</td>
+                                                                    <td className="py-1 pl-2 text-right font-bold">{item.quantity} {unit} / τεμ.</td>
+                                                                </tr>
+                                                            );
+                                                        }) : (
+                                                            <tr><td colSpan={2} className="text-xs italic text-slate-400 py-1 pt-2 border-t border-slate-100">Μόνο ασήμι.</td></tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-slate-600 text-xs uppercase mb-1">Λάστιχα</h4>
+                                                <table className="w-full text-sm">
+                                                    <tbody>
+                                                        {product.molds.length > 0 ? product.molds.map((mold, idx) => (
+                                                            <tr key={idx} className="border-t border-slate-100">
+                                                                <td className="py-1 pr-2 text-slate-700 font-mono font-bold">{mold.code}</td>
+                                                                <td className="py-1 pl-2 text-right font-bold">x {mold.quantity}</td>
+                                                            </tr>
+                                                        )) : (
+                                                            <tr><td colSpan={2} className="text-xs italic text-slate-400 py-1 pt-2 border-t border-slate-100">Δεν απαιτούνται.</td></tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="col-span-9">
-                                    <p className="text-2xl font-black text-slate-800 tracking-tight">{batch.sku}{batch.variant_suffix || ''} <span className="font-bold text-slate-500 text-xl">x {batch.quantity}</span></p>
-                                    <p className="font-semibold text-blue-600 mb-2">{platingDesc}</p>
-                                    
-                                    <table className="w-full text-sm">
-                                        <tbody>
-                                            {product.recipe.map((item, idx) => {
-                                                const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-                                                const name = item.type === 'raw' ? (details as Material)?.name : `Εξάρτημα: ${item.sku}`;
-                                                const unit = item.type === 'raw' ? (details as Material)?.unit : 'τεμ.';
-                                                return (
-                                                    <tr key={idx} className="border-t border-slate-100">
-                                                        <td className="py-1 pr-2 text-slate-700">{name}</td>
-                                                        <td className="py-1 pl-2 text-right font-bold">{item.quantity} {unit} / τεμ.</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div className="mt-8 pt-6 border-t-2 border-slate-800 break-before-page">
-                    <h2 className="text-xl font-bold text-slate-800 uppercase mb-4">Συγκεντρωτική Λίστα Υλικών</h2>
-                    <div className="grid grid-cols-3 gap-6 text-sm">
-                        <ResourceList title="Υλικά" items={sortedMaterials} icon={<Coins />} />
-                        <ResourceList title="Πέτρες" items={sortedStones} icon={<Gem />} />
-                        <ResourceList title="Εξαρτήματα" items={sortedComponents} icon={<Puzzle />} />
+                            );
+                        })}
                     </div>
-                </div>
+                )}
+                
+                {/* Imported Products Section */}
+                {importedBatches.length > 0 && (
+                    <div className="space-y-6 mt-8 pt-6 border-t-2 border-slate-800 break-before-page">
+                        <h2 className="text-lg font-bold text-slate-800 uppercase mb-4 border-b-2 border-slate-300 pb-2">Είδη Εισαγωγής</h2>
+                        {importedBatches.map(batch => {
+                            const product = batch.product_details;
+                            if (!product) return null;
+                            
+                            return (
+                                <div key={batch.id} className="grid grid-cols-12 gap-4 border-b border-slate-200 pb-4 break-inside-avoid">
+                                    <div className="col-span-3">
+                                        <div className="w-full aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                            {product.image_url && <img src={product.image_url} className="w-full h-full object-cover"/>}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-9">
+                                        <p className="text-2xl font-black text-slate-800 tracking-tight">{batch.sku}{batch.variant_suffix || ''} <span className="font-bold text-slate-500 text-xl">x {batch.quantity}</span></p>
+                                        <div className="mt-2 bg-purple-50 text-purple-800 p-3 rounded-lg border border-purple-200 text-sm">
+                                            <p className="font-bold flex items-center gap-2"><Globe size={16}/> Εισαγόμενο</p>
+                                            <p>Προμηθευτής: <span className="font-bold">{product.supplier_details?.name || 'Άγνωστος'}</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+
+                {/* Aggregated List only if there are in-house items */}
+                {inHouseBatches.length > 0 && (
+                    <div className="mt-8 pt-6 border-t-2 border-slate-800 break-before-page">
+                        <h2 className="text-xl font-bold text-slate-800 uppercase mb-4">Συγκεντρωτική Λίστα Υλικών</h2>
+                        <div className="grid grid-cols-3 gap-6 text-sm">
+                            <ResourceList title="Υλικά" items={sortedMaterials} icon={<Coins />} />
+                            <ResourceList title="Πέτρες" items={sortedStones} icon={<Gem />} />
+                            <ResourceList title="Εξαρτήματα" items={sortedComponents} icon={<Puzzle />} />
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
