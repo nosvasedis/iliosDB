@@ -148,65 +148,6 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
     }
 };
 
-/**
- * Deletes and re-creates all production batches for a given order.
- * This ensures the production plan is in sync with the order items.
- * @private
- */
-const _syncBatchesForOrder = async (order: Order, products: Product[], materials: Material[]) => {
-    // 1. Delete existing batches for this order
-    const { error: deleteError } = await supabase.from('production_batches').delete().eq('order_id', order.id);
-    if (deleteError) {
-        console.error("Error clearing old batches:", deleteError);
-        throw new Error("Could not clear old production batches.");
-    }
-    
-    // 2. Create new batches from order items
-    if (order.items.length === 0) {
-        return; // No items, no batches.
-    }
-
-    const newBatches: Omit<ProductionBatch, 'id' | 'product_details' | 'product_image' | 'diffHours' | 'isDelayed'>[] = [];
-    const now = new Date().toISOString();
-
-    for (const item of order.items) {
-        const product = products.find(p => p.sku === item.sku);
-        if (!product || product.production_type === 'Imported') {
-            continue; // Skip items we can't produce or are imported
-        }
-
-        const hasStones = product.recipe.some(r => {
-            if (r.type !== 'raw') return false;
-            const material = materials.find(m => m.id === r.id);
-            return material?.type === MaterialType.Stone;
-        });
-
-        const newBatch = {
-            order_id: order.id,
-            sku: item.sku,
-            variant_suffix: item.variant_suffix || null,
-            quantity: item.quantity,
-            current_stage: ProductionStage.Waxing,
-            priority: 'Normal' as 'Normal' | 'High',
-            created_at: now,
-            updated_at: now,
-            requires_setting: hasStones,
-            type: 'Νέα' as BatchType,
-            notes: item.notes || null,
-            size_info: item.size_info || null,
-        };
-        newBatches.push(newBatch);
-    }
-    
-    if (newBatches.length > 0) {
-        const { error: insertError } = await supabase.from('production_batches').insert(newBatches);
-        if (insertError) {
-            console.error("Error creating new batches:", insertError);
-            throw new Error("Could not create new production batches.");
-        }
-    }
-};
-
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         try {
@@ -478,12 +419,10 @@ export const api = {
         if (error) throw error;
     },
 
-    // --- NEW: UPDATE ORDER METHOD ---
-    updateOrder: async (order: Order, products: Product[], materials: Material[]): Promise<void> => {
-        // Safety Check: Prevent editing orders that are advanced in production.
+    updateOrder: async (order: Order): Promise<void> => {
         const { data: existingBatches, error: fetchError } = await supabase
             .from('production_batches')
-            .select('current_stage')
+            .select('id', { count: 'exact', head: true })
             .eq('order_id', order.id);
 
         if (fetchError) {
@@ -491,16 +430,21 @@ export const api = {
             throw new Error("Could not verify production status.");
         }
 
-        if (existingBatches && existingBatches.length > 0) {
-            const isProductionStarted = existingBatches.some(b => b.current_stage !== ProductionStage.Waxing);
+        const hasExistingBatches = (existingBatches?.count || 0) > 0;
 
-            if (isProductionStarted) {
+        if (hasExistingBatches) {
+            const { data: startedBatches } = await supabase
+                .from('production_batches')
+                .select('id', { count: 'exact', head: true })
+                .eq('order_id', order.id)
+                .neq('current_stage', ProductionStage.Waxing);
+            
+            if ((startedBatches?.count || 0) > 0) {
                 throw new Error("Δεν μπορείτε να αλλάξετε μια παραγγελία που έχει ήδη προχωρήσει στην παραγωγή. Πρέπει πρώτα να επαναφέρετε όλες τις παρτίδες στο αρχικό στάδιο (Κεριά).");
             }
         }
         
-        // Proceed with updating the order itself
-        const { error } = await supabase.from('orders').update({
+        const { error: updateError } = await supabase.from('orders').update({
             customer_id: order.customer_id,
             customer_name: order.customer_name,
             customer_phone: order.customer_phone,
@@ -509,15 +453,35 @@ export const api = {
             notes: order.notes
         }).eq('id', order.id);
         
-        if (error) {
-            console.error("Error updating order:", error);
-            throw error;
+        if (updateError) {
+            console.error("Error updating order:", updateError);
+            throw updateError;
         }
 
-        // If batches existed, it means the order was sent to production.
-        // We need to re-sync the batches to match the edited order.
-        if (existingBatches && existingBatches.length > 0) {
-            await _syncBatchesForOrder(order, products, materials);
+        if (hasExistingBatches) {
+            const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: order.id });
+            if (rpcError) {
+                console.error("Error calling sync_order_batches RPC on update:", rpcError);
+                throw new Error("Database function failed to sync production batches.");
+            }
+        }
+    },
+    
+    sendOrderToProduction: async (orderId: string): Promise<void> => {
+        const { error: rpcError } = await supabase.rpc('sync_order_batches', { p_order_id: orderId });
+        if (rpcError) {
+            console.error("Error calling sync_order_batches RPC:", rpcError);
+            throw new Error("Database function failed to create production batches.");
+        }
+
+        const { error: updateError } = await supabase
+            .from('orders')
+            .update({ status: OrderStatus.InProduction })
+            .eq('id', orderId);
+            
+        if (updateError) {
+            console.error("Error updating order status:", updateError);
+            throw new Error("Failed to update order status after creating batches.");
         }
     },
     

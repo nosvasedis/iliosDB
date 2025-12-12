@@ -46,9 +46,7 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
-  // NEW: Fulfillment Modal State
   const [fulfillmentOrder, setFulfillmentOrder] = useState<Order | null>(null);
-  // NEW: Manage Modal State
   const [managingOrder, setManagingOrder] = useState<Order | null>(null);
 
   const filteredProducts = products.filter(p => 
@@ -67,14 +65,12 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
       setShowCustomerResults(false);
   };
 
-  // --- EDIT HANDLER ---
   const handleEditOrder = (order: Order) => {
       setEditingOrder(order);
       setCustomerName(order.customer_name);
       setCustomerPhone(order.customer_phone || '');
       setSelectedCustomerId(order.customer_id || null);
       setOrderNotes(order.notes || '');
-      // Deep copy to ensure we don't mutate state directly before saving
       setSelectedItems(JSON.parse(JSON.stringify(order.items)));
       setIsCreating(true);
   };
@@ -92,14 +88,8 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           product_details: product
       };
       
-      // If product is sizable, we don't merge immediately unless size is also same (which is undefined initially)
-      // Actually, standard behavior is to merge same sku+variant. Sizing is an attribute.
-      // We'll just add it, user can set size.
-      
       const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
       
-      // If product is sizable, we prefer adding a NEW row so they can choose a different size
-      // unless they haven't picked a size for the existing row yet.
       if (isSizable(product)) {
            setSelectedItems([...selectedItems, newItem]);
       } else if (existingIdx >= 0) {
@@ -177,7 +167,6 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
 
       try {
           if (editingOrder) {
-              // UPDATE EXISTING ORDER
               const updatedOrder: Order = {
                   ...editingOrder,
                   customer_id: selectedCustomerId || undefined,
@@ -188,10 +177,9 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                   notes: orderNotes
               };
               
-              await api.updateOrder(updatedOrder, products, materials);
+              await api.updateOrder(updatedOrder);
               showToast('Η παραγγελία ενημερώθηκε.', 'success');
           } else {
-              // CREATE NEW ORDER
               const now = new Date();
               const year = now.getFullYear().toString().slice(-2);
               const month = (now.getMonth() + 1).toString().padStart(2, '0');
@@ -218,7 +206,6 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
           queryClient.invalidateQueries({ queryKey: ['orders'] });
           queryClient.invalidateQueries({ queryKey: ['batches'] });
           
-          // Reset State
           setIsCreating(false);
           setEditingOrder(null);
           setCustomerName(''); 
@@ -603,8 +590,6 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
       {fulfillmentOrder && (
           <FulfillmentModal 
             order={fulfillmentOrder}
-            products={products}
-            materials={materials}
             onClose={() => setFulfillmentOrder(null)}
           />
       )}
@@ -622,24 +607,50 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   );
 }
 
-// Minimal Definitions to fix build errors
-interface FulfillmentModalProps {
+const FulfillmentModal: React.FC<{
     order: Order;
-    products: Product[];
-    materials: Material[];
     onClose: () => void;
-}
+}> = ({ order, onClose }) => {
+    const queryClient = useQueryClient();
+    const { showToast } = useUI();
+    const [isProcessing, setIsProcessing] = useState(false);
 
-const FulfillmentModal: React.FC<FulfillmentModalProps> = ({ order, onClose }) => {
+    const handleConfirm = async () => {
+        setIsProcessing(true);
+        try {
+            await api.sendOrderToProduction(order.id);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast(`Η παραγγελία #${order.id} στάλθηκε στην παραγωγή!`, 'success');
+            onClose();
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl border border-slate-100">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-slate-800">Εκτέλεση Παραγγελίας #{order.id}</h3>
-                    <button onClick={onClose}><X size={20}/></button>
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <Factory size={24} className="text-blue-600"/> Αποστολή στην Παραγωγή
+                    </h3>
+                    <button onClick={onClose} disabled={isProcessing}><X size={20}/></button>
                 </div>
-                <div className="space-y-4 text-center py-8">
-                    <p className="text-slate-500">Η λειτουργία εκτέλεσης και ελέγχου αποθέματος είναι υπό κατασκευή.</p>
+                <p className="text-slate-600 mb-6">
+                    Είστε σίγουροι ότι θέλετε να ξεκινήσετε την παραγωγή για την παραγγελία <strong className="font-mono">#{order.id}</strong>; 
+                    Αυτή η ενέργεια θα δημιουργήσει τις αντίστοιχες παρτίδες παραγωγής και θα αλλάξει την κατάσταση της παραγγελίας σε "Σε Παραγωγή".
+                </p>
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} disabled={isProcessing} className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors">
+                        Ακύρωση
+                    </button>
+                    <button onClick={handleConfirm} disabled={isProcessing} className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2">
+                        {isProcessing ? <Loader2 size={18} className="animate-spin"/> : <ArrowRight size={18}/>}
+                        {isProcessing ? 'Αποστολή...' : 'Επιβεβαίωση'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -729,7 +740,7 @@ const OrderProductionManager: React.FC<OrderProductionManagerProps> = ({ order, 
                                 <div className="flex-1">
                                     <div className="font-bold text-slate-800 text-lg flex items-center gap-2">
                                         {batch.sku}{batch.variant_suffix}
-                                        {batch.size_info && <span className="text-xs font-normal text-slate-500 bg-slate-100 px-1.5 rounded-md border border-slate-200">{batch.size_info}</span>}
+                                        {batch.size_info && <span className="text-xs font-normal text-slate-600 bg-slate-100 px-1.5 rounded-md border border-slate-200">{batch.size_info}</span>}
                                     </div>
                                     <div className="text-sm text-slate-500">{batch.quantity} τεμάχια</div>
                                 </div>
