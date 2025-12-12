@@ -415,10 +415,15 @@ export const estimateVariantCost = (
         technicianCalculation.type = 'override';
     } else {
         if (finish.code === 'D') {
-            technicianCalculation.type = 'split';
-            technicianCalculation.base = calculateTechnicianCost(masterProduct.weight_g);
-            technicianCalculation.secondary = calculateTechnicianCost(masterProduct.secondary_weight_g || 0);
-            technicianCost = technicianCalculation.base + technicianCalculation.secondary;
+            const totalWeightForD = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
+            const costFromTotalWeight = calculateTechnicianCost(totalWeightForD);
+            const costFromSecondaryWeight = calculateTechnicianCost(masterProduct.secondary_weight_g || 0);
+            
+            technicianCost = costFromTotalWeight + costFromSecondaryWeight;
+
+            technicianCalculation.type = 'two_tone_special';
+            technicianCalculation.totalWeightComponent = costFromTotalWeight;
+            technicianCalculation.secondaryWeightComponent = costFromSecondaryWeight;
         } else {
             technicianCalculation.type = 'total';
             technicianCalculation.totalWeight = totalWeight;
