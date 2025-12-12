@@ -387,7 +387,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             />
         )}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
-        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} />}
+        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         
         {printItems.length > 0 && (

@@ -387,7 +387,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             />
         )}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
-        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} />}
+        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         
         {printItems.length > 0 && (
@@ -635,9 +635,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {/* @FIX: Pass missing onPrintPreparation and onPrintTechnician props to OrdersPage. */}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
-              {/* @FIX: Pass missing onPrintPreparation and onPrintTechnician props to ProductionPage. */}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               

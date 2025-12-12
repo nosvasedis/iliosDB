@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType } from '../types';
+import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
 import { Box, Coins, Gem, Puzzle, Globe } from 'lucide-react';
 
@@ -7,6 +7,7 @@ interface Props {
     batches: ProductionBatch[];
     allMaterials: Material[];
     allProducts: Product[];
+    allMolds: Mold[];
 }
 
 interface AggregatedResource {
@@ -16,7 +17,7 @@ interface AggregatedResource {
     type: 'material' | 'component' | 'stone';
 }
 
-export default function PreparationView({ batches, allMaterials, allProducts }: Props) {
+export default function PreparationView({ batches, allMaterials, allProducts, allMolds }: Props) {
     
     const aggregatedResources = new Map<string, AggregatedResource>();
 
@@ -129,12 +130,23 @@ export default function PreparationView({ batches, allMaterials, allProducts }: 
                                                 <h4 className="font-semibold text-slate-600 text-xs uppercase mb-1">Λάστιχα</h4>
                                                 <table className="w-full text-sm">
                                                     <tbody>
-                                                        {product.molds.length > 0 ? product.molds.map((mold, idx) => (
-                                                            <tr key={idx} className="border-t border-slate-100">
-                                                                <td className="py-1 pr-2 text-slate-700 font-mono font-bold">{mold.code}</td>
-                                                                <td className="py-1 pl-2 text-right font-bold">x {mold.quantity}</td>
-                                                            </tr>
-                                                        )) : (
+                                                        {product.molds.length > 0 ? product.molds.map((mold, idx) => {
+                                                            const moldDetails = allMolds.find(m => m.code === mold.code);
+                                                            return (
+                                                                <tr key={idx} className="border-t border-slate-100">
+                                                                    <td className="py-2 pr-2 text-slate-700 align-top">
+                                                                        <div className="font-mono font-bold">{mold.code}</div>
+                                                                        {moldDetails && (
+                                                                            <div className="text-xs text-slate-500 leading-tight">
+                                                                                {moldDetails.description}
+                                                                                {moldDetails.location && ` (${moldDetails.location})`}
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-2 pl-2 text-right font-bold align-top">x {mold.quantity}</td>
+                                                                </tr>
+                                                            );
+                                                        }) : (
                                                             <tr><td colSpan={2} className="text-xs italic text-slate-400 py-1 pt-2 border-t border-slate-100">Δεν απαιτούνται.</td></tr>
                                                         )}
                                                     </tbody>
