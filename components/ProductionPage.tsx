@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   molds: Mold[];
   onPrintBatch: (batch: ProductionBatch) => void;
   onPrintAggregated: (batches: ProductionBatch[]) => void;
+  onPrintPreparation: (batches: ProductionBatch[]) => void;
+  onPrintTechnician: (batches: ProductionBatch[]) => void;
 }
 
 const STAGES = [
@@ -216,7 +218,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 };
 
 
-export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated }: Props) {
+export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -368,7 +370,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 <p className="text-slate-500 mt-1 ml-14">Drag & drop τις παρτίδες για να αλλάξετε το στάδιό τους.</p>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
                 <button
                     onClick={() => setGroupByOrder(!groupByOrder)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${groupByOrder ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
@@ -376,6 +378,20 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     <Layers size={16} /> {groupByOrder ? 'Ομαδοποιημένη' : 'Αναλυτική'} Προβολή
                 </button>
 
+                <button 
+                    onClick={() => onPrintPreparation(enhancedBatches)}
+                    disabled={enhancedBatches.length === 0}
+                    className="flex items-center gap-2 bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-sm"
+                >
+                    <BookOpen size={16} /> Προετοιμασία
+                </button>
+                 <button 
+                    onClick={() => onPrintTechnician(enhancedBatches)}
+                    disabled={enhancedBatches.length === 0}
+                    className="flex items-center gap-2 bg-purple-50 text-purple-700 px-5 py-2.5 rounded-xl hover:bg-purple-100 font-bold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-sm"
+                >
+                    <Hammer size={16} /> Τεχνίτης
+                </button>
                 <button 
                     onClick={() => onPrintAggregated(enhancedBatches)}
                     disabled={enhancedBatches.length === 0}

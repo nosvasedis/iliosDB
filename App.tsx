@@ -49,6 +49,8 @@ import AiStudio from './components/AiStudio';
 import OrderInvoiceView from './components/OrderInvoiceView';
 import ProductionWorkerView from './components/ProductionWorkerView';
 import AggregatedProductionView from './components/AggregatedProductionView';
+import PreparationView from './components/PreparationView';
+import TechnicianView from './components/TechnicianView';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
@@ -132,6 +134,8 @@ function AppContent() {
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
+  const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
+  const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
 
 
   // Batch Print state (lifted for persistence)
@@ -152,7 +156,7 @@ function AppContent() {
   const isLoading = loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections;
 
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData;
     if (shouldPrint) {
       const originalTitle = document.title;
       let newTitle = "Ilios_Kosmima_ERP_Εκτύπωση";
@@ -166,6 +170,8 @@ function AppContent() {
         setOrderToPrint(null);
         setBatchToPrint(null);
         setAggregatedPrintData(null);
+        setPreparationPrintData(null);
+        setTechnicianPrintData(null);
         window.removeEventListener('afterprint', handleAfterPrint);
       };
       
@@ -181,6 +187,10 @@ function AppContent() {
         } else {
           newTitle = `ΣΥΓΚΕΝΤΡΩΤΙΚΗ_ΠΑΡΑΓΩΓΗ_${today}`;
         }
+      } else if (preparationPrintData) {
+        newTitle = `ΠΡΟΕΤΟΙΜΑΣΙΑ_${today}`;
+      } else if (technicianPrintData) {
+        newTitle = `ΦΥΛΛΟ_ΤΕΧΝΙΤΗ_${today}`;
       } else if (printItems.length > 0) {
         const totalLabels = printItems.reduce((acc, item) => acc + item.quantity, 0);
         newTitle = `ΕΤΙΚΕΤΕΣ_${totalLabels}_τεμ_${today}`;
@@ -202,7 +212,7 @@ function AppContent() {
           document.title = originalTitle;
       };
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData]);
 
   const handleNav = (page: Page) => {
     setActivePage(page);
@@ -213,6 +223,9 @@ function AppContent() {
     setIsCollapsed(!isCollapsed);
   };
   
+  const handlePrintPreparation = (batchesToPrint: ProductionBatch[]) => { setPreparationPrintData({ batches: batchesToPrint }); };
+  const handlePrintTechnician = (batchesToPrint: ProductionBatch[]) => { setTechnicianPrintData({ batches: batchesToPrint }); };
+
 const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
     if (!molds || !materials || !products || !settings) return;
     
@@ -374,6 +387,8 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             />
         )}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
+        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} />}
+        {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         
         {printItems.length > 0 && (
             <div className="print-area">
@@ -620,8 +635,10 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} />}
+              {/* @FIX: Pass missing onPrintPreparation and onPrintTechnician props to OrdersPage. */}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
+              {/* @FIX: Pass missing onPrintPreparation and onPrintTechnician props to ProductionPage. */}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               
               {activePage === 'resources' && (

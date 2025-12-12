@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -12,6 +12,8 @@ interface Props {
   onPrintOrder?: (order: Order) => void;
   materials: Material[];
   onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
+  onPrintPreparation: (batches: ProductionBatch[]) => void;
+  onPrintTechnician: (batches: ProductionBatch[]) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -22,7 +24,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
-export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated }: Props) {
+export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -549,11 +551,23 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                         <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
                     )}
                      {managingOrder.status === OrderStatus.InProduction && (
-                         <button onClick={() => { 
-                             const orderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
-                             onPrintAggregated(orderBatches, { orderId: managingOrder.id, customerName: managingOrder.customer_name });
-                             setManagingOrder(null);
-                         }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors"><LayoutList size={18}/> Εκτύπωση Φύλλου Παραγωγής</button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                             <button onClick={() => { 
+                                const orderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
+                                onPrintPreparation(orderBatches);
+                                setManagingOrder(null);
+                             }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><BookOpen size={18}/> Φύλλο Προετοιμασίας</button>
+                             <button onClick={() => { 
+                                const orderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
+                                onPrintTechnician(orderBatches);
+                                setManagingOrder(null);
+                             }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors"><Hammer size={18}/> Φύλλο Τεχνίτη</button>
+                             <button onClick={() => { 
+                                const orderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
+                                onPrintAggregated(orderBatches, { orderId: managingOrder.id, customerName: managingOrder.customer_name });
+                                setManagingOrder(null);
+                             }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 sm:col-span-2 transition-colors"><LayoutList size={18}/> Συγκεντρωτική Εντολή</button>
+                        </div>
                      )}
                     {managingOrder.status === OrderStatus.Ready && (
                         <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Delivered); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"><PackageCheck size={18}/> Σήμανση ως "Παραδόθηκε"</button>
