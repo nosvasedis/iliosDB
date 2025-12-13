@@ -170,7 +170,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
             disabled: productionSheetsDisabled,
         },
         {
-            label: "Φύλло Τεχνίτη",
+            label: "Φύλλо Τεχνίτη",
             icon: <Hammer size={20} />,
             color: "orange",
             action: () => handlePrintProductionSheet(onPrintTechnician),
