@@ -25,6 +25,11 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
+        // NEW RULE: For ST SKUs, the base (lustre) variant has no description on the barcode.
+        if (product.sku.startsWith('ST') && (variant?.suffix === '' || !variant)) {
+            return null;
+        }
+
         if (variant?.description) {
             let desc = variant.description;
             const finishes = Object.values(FINISH_CODES);
@@ -48,7 +53,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
              }
         }
         return null;
-    }, [variant]);
+    }, [product, variant, suffix]);
 
     useEffect(() => {
         if (canvasRef.current && finalSku) {
