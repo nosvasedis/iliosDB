@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
@@ -167,7 +166,7 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                 <div className="space-y-4">
                     <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Forensics (Ιατροδικαστική Ανάλυση)</h3>
                     <p className="text-sm text-slate-600">
-                        Εδώ γίνεται ο έλεγχος για "κρυφές χρεώσεις". Ζητώντας σας να συμπληρώσετε τα επιμέρους εργατικά που ισχυρίζεται ο προμηθευτής, το σύστημα κάνει τα εξής:
+                        Εδώ γίνεται ο έλεγχos για "κρυφές χρεώσεις". Ζητώντας σας να συμπληρώσετε τα επιμέρους εργατικά που ισχυρίζεται ο προμηθευτής, το σύστημα κάνει τα εξής:
                     </p>
                     <ul className="space-y-3">
                         <li className="flex gap-3 text-sm text-slate-700 bg-red-50 p-3 rounded-xl border border-red-100">
@@ -666,29 +665,58 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const handleSave = async () => {
     try {
-        const isComponent = editedProduct.sku.toUpperCase().startsWith('STX');
-        const currentCost = calculateProductCost(editedProduct, settings, allMaterials, allProducts).total;
+        let finalEditedProduct = { ...editedProduct };
+
+        // Special logic for 'ST' SKUs with 'H' variant
+        if (finalEditedProduct.sku.startsWith('ST') && finalEditedProduct.variants.some(v => v.suffix === 'H')) {
+            const hasLustreVariant = finalEditedProduct.variants.some(v => v.suffix === '');
+            if (!hasLustreVariant) {
+                const { total: estimatedCost } = estimateVariantCost(
+                    finalEditedProduct,
+                    '',
+                    settings,
+                    allMaterials,
+                    allProducts
+                );
+                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender) || 'Λουστρέ (Γυαλιστερό)';
+                const newLustreVariant: ProductVariant = {
+                    suffix: '',
+                    description: lustreDescription,
+                    stock_qty: 0,
+                    active_price: parseFloat(estimatedCost.toFixed(2)),
+                    selling_price: finalEditedProduct.is_component ? 0 : finalEditedProduct.selling_price
+                };
+                finalEditedProduct = {
+                    ...finalEditedProduct,
+                    variants: [...finalEditedProduct.variants, newLustreVariant]
+                };
+                showToast("Αυτόματη προσθήκη παραλλαγής Λουστρέ για ST κωδικό.", "info");
+            }
+        }
+
+        const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
+        const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
 
         const { error: productUpdateError } = await supabase.from('products').update({
             // Editable fields
-            category: editedProduct.category,
-            gender: editedProduct.gender,
-            weight_g: editedProduct.weight_g,
-            secondary_weight_g: editedProduct.secondary_weight_g || null,
-            selling_price: isComponent ? 0 : editedProduct.selling_price,
-            plating_type: editedProduct.plating_type,
+            category: finalEditedProduct.category,
+            gender: finalEditedProduct.gender,
+            weight_g: finalEditedProduct.weight_g,
+            secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
+            selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
+            plating_type: finalEditedProduct.plating_type,
             
             // Labor
-            labor_casting: editedProduct.labor.casting_cost,
-            labor_setter: editedProduct.labor.setter_cost,
-            labor_technician: editedProduct.labor.technician_cost,
-            labor_plating_x: editedProduct.labor.plating_cost_x,
-            labor_plating_d: editedProduct.labor.plating_cost_d,
-            labor_subcontract: editedProduct.labor.subcontract_cost,
-            labor_casting_manual_override: editedProduct.labor.casting_cost_manual_override,
-            labor_technician_manual_override: editedProduct.labor.technician_cost_manual_override,
-            labor_plating_x_manual_override: editedProduct.labor.plating_cost_x_manual_override,
-            labor_plating_d_manual_override: editedProduct.labor.plating_cost_d_manual_override,
+            labor_casting: finalEditedProduct.labor.casting_cost,
+            labor_setter: finalEditedProduct.labor.setter_cost,
+            labor_technician: finalEditedProduct.labor.technician_cost,
+            labor_plating_x: finalEditedProduct.labor.plating_cost_x,
+            labor_plating_d: finalEditedProduct.labor.plating_cost_d,
+            labor_subcontract: finalEditedProduct.labor.subcontract_cost,
+            labor_casting_manual_override: finalEditedProduct.labor.casting_cost_manual_override,
+            labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
+            labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
+            labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
 
             // Recalculated / System fields
             active_price: currentCost,
@@ -696,19 +724,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             is_component: isComponent,
 
             // Production Strategy
-            production_type: editedProduct.production_type,
-            supplier_id: (editedProduct.production_type === ProductionType.Imported && editedProduct.supplier_id) ? editedProduct.supplier_id : null,
-            supplier_sku: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_sku : null,
-            supplier_cost: editedProduct.production_type === ProductionType.Imported ? editedProduct.supplier_cost : null,
-            labor_stone_setting: editedProduct.production_type === ProductionType.Imported ? editedProduct.labor.stone_setting_cost : null 
-        }).eq('sku', editedProduct.sku);
+            production_type: finalEditedProduct.production_type,
+            supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : null,
+            supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
+            supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
+            labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null 
+        }).eq('sku', finalEditedProduct.sku);
 
         if (productUpdateError) throw productUpdateError;
 
-        await supabase.from('recipes').delete().eq('parent_sku', editedProduct.sku);
-        if (editedProduct.recipe.length > 0) {
-            const recipeInserts = editedProduct.recipe.map(r => ({
-                parent_sku: editedProduct.sku,
+        await supabase.from('recipes').delete().eq('parent_sku', finalEditedProduct.sku);
+        if (finalEditedProduct.recipe.length > 0) {
+            const recipeInserts = finalEditedProduct.recipe.map(r => ({
+                parent_sku: finalEditedProduct.sku,
                 type: r.type,
                 material_id: r.type === 'raw' ? r.id : null,
                 component_sku: r.type === 'component' ? r.sku : null,
@@ -717,10 +745,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await supabase.from('recipes').insert(recipeInserts);
         }
         
-        await supabase.from('product_molds').delete().eq('product_sku', editedProduct.sku);
-        if (editedProduct.molds && editedProduct.molds.length > 0 && editedProduct.production_type === ProductionType.InHouse) {
-            const moldInserts = editedProduct.molds.map(m => ({
-                product_sku: editedProduct.sku,
+        await supabase.from('product_molds').delete().eq('product_sku', finalEditedProduct.sku);
+        if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
+            const moldInserts = finalEditedProduct.molds.map(m => ({
+                product_sku: finalEditedProduct.sku,
                 mold_code: m.code,
                 quantity: m.quantity
             }));
@@ -728,22 +756,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             if (moldError) throw moldError;
         }
 
-        await supabase.from('product_variants').delete().eq('product_sku', editedProduct.sku);
-        if (editedProduct.variants && editedProduct.variants.length > 0) {
-            const newVariantsForDB = editedProduct.variants.map(v => ({
-                product_sku: editedProduct.sku,
+        await supabase.from('product_variants').delete().eq('product_sku', finalEditedProduct.sku);
+        if (finalEditedProduct.variants && finalEditedProduct.variants.length > 0) {
+            const newVariantsForDB = finalEditedProduct.variants.map(v => ({
+                product_sku: finalEditedProduct.sku,
                 suffix: v.suffix,
                 description: v.description,
                 stock_qty: v.stock_qty || 0,
                 active_price: v.active_price || null,
-                selling_price: editedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
+                selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
             }));
             await supabase.from('product_variants').insert(newVariantsForDB);
         }
         
         await queryClient.refetchQueries({ queryKey: ['products'] });
 
-        if (onSave) onSave(editedProduct);
+        if (onSave) onSave(finalEditedProduct);
         showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
         onClose();
     } catch (err: any) {

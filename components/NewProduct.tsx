@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
@@ -369,7 +368,7 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                 <div className="space-y-4">
                     <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Forensics (Ιατροδικαστική Ανάλυση)</h3>
                     <p className="text-sm text-slate-600">
-                        Εδώ γίνεται ο έλεγχος για "κρυφές χρεώσεις". Ζητώντας σας να συμπληρώσετε τα επιμέρους εργατικά που ισχυρίζεται ο προμηθευτής, το σύστημα κάνει τα εξής:
+                        Εδώ γίνεται ο έλεγχos για "κρυφές χρεώσεις". Ζητώντας σας να συμπληρώσετε τα επιμέρους εργατικά που ισχυρίζεται ο προμηθευτής, το σύστημα κάνει τα εξής:
                     </p>
                     <ul className="space-y-3">
                         <li className="flex gap-3 text-sm text-slate-700 bg-red-50 p-3 rounded-xl border border-red-100">
@@ -858,9 +857,52 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     if (!category) { showToast("Η Κατηγορία είναι υποχρεωτική", "error"); setCurrentStep(1); return; }
     if (!gender) { showToast("Το Φύλο είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
 
+    // Make a mutable copy of variants to potentially add the base variant
+    let finalVariants = [...variants];
+    const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
+
+    // The special logic for 'ST' SKUs
+    if (finalMasterSku.startsWith('ST') && finalVariants.some(v => v.suffix === 'H')) {
+      const hasLustreVariant = finalVariants.some(v => v.suffix === '');
+      if (!hasLustreVariant) {
+        const tempMasterForCalc: Product = {
+            sku: finalMasterSku,
+            prefix: finalMasterSku.substring(0, 2),
+            category, 
+            gender: gender as Gender, 
+            weight_g: weight, 
+            secondary_weight_g: secondaryWeight,
+            plating_type: plating,
+            production_type: productionType,
+            image_url: imagePreview || null,
+            active_price: masterEstimatedCost, 
+            draft_price: masterEstimatedCost,
+            selling_price: isSTX ? 0 : sellingPrice,
+            stock_qty: 0, 
+            sample_qty: 0, 
+            molds: selectedMolds, 
+            is_component: isSTX, 
+            recipe, 
+            labor,
+            supplier_id: supplierId,
+            supplier_sku: supplierSku,
+            supplier_cost: supplierCost,
+        };
+        const { total: estimatedCost } = estimateVariantCost(tempMasterForCalc, '', settings!, materials, products);
+        const lustreDescription = analyzeSuffix('', gender as Gender) || 'Λουστρέ (Γυαλιστερό)';
+        finalVariants.push({
+          suffix: '',
+          description: lustreDescription,
+          stock_qty: 0,
+          active_price: parseFloat(estimatedCost.toFixed(2)),
+          selling_price: isSTX ? 0 : sellingPrice
+        });
+        showToast("Αυτόματη προσθήκη παραλλαγής Λουστρέ για ST κωδικό.", "info");
+      }
+    }
+
     setIsUploading(true);
     let finalImageUrl: string | null = null; 
-    const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
 
     try {
         let existingStockQty = 0;
@@ -914,8 +956,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
         if (prodError) throw prodError;
 
-        if (variants.length > 0) {
-            for (const v of variants) {
+        if (finalVariants.length > 0) {
+            for (const v of finalVariants) {
                 const { data: existV } = await supabase.from('product_variants').select('stock_qty').match({ product_sku: finalMasterSku, suffix: v.suffix }).single();
                 const vStock = existV ? existV.stock_qty : 0;
 
@@ -957,7 +999,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         await queryClient.invalidateQueries({ queryKey: ['products'] });
         await queryClient.refetchQueries({ queryKey: ['products'] });
 
-        showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε με ${variants.length} παραλλαγές!`, "success");
+        showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε με ${finalVariants.length} παραλλαγές!`, "success");
         
         if (onCancel) onCancel();
         else {
