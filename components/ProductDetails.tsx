@@ -504,15 +504,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       const getPriority = (suffix: string) => {
         const { finish } = getVariantComponents(suffix, editedProduct.gender);
         switch (finish.code) {
-            case 'P': return 1;
-            case 'D': return 2;
-            case 'X': return 3;
-            case 'H': return 4;
-            default: return 5;
+            case '': return 1;    // Λουστρέ (Γυαλιστερό)
+            case 'P': return 2;     // Πατίνα
+            case 'H': return 3;     // Επιπλατινωμένο
+            case 'X': return 4;     // Επίхρυσο
+            case 'D': return 5;     // Δíхρωμο
+            default: return 6;      // Anything else with stones
         }
       };
       
-      return [...variants].sort((a, b) => getPriority(a.suffix) - getPriority(b.suffix));
+      return [...variants].sort((a, b) => {
+          const priorityA = getPriority(a.suffix);
+          const priorityB = getPriority(b.suffix);
+          if (priorityA !== priorityB) {
+              return priorityA - priorityB;
+          }
+          // If priorities are the same (e.g. same finish, different stone), sort alphabetically
+          return a.suffix.localeCompare(b.suffix);
+      });
   }, [variants, editedProduct.gender]);
 
   const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
