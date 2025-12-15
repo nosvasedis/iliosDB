@@ -11,8 +11,6 @@ import { FINISH_CODES } from '../constants';
 
 // ... (keep Props, getSteps, getMaterialIcon, RecipeItemSelectorModal, SmartAnalysisCard, LaborCostCard, SummaryRow, AnalysisExplainerModal unchanged until NewProduct component) ...
 
-// ... inside NewProduct component ...
-
 interface Props {
   products: Product[];
   materials: Material[];
@@ -1196,9 +1194,27 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                             <h5 className="text-xs font-bold text-amber-700 uppercase mb-2">Επιλεγμένα</h5>
                                             <div className="flex flex-wrap gap-2">
                                                 {selectedMolds.map(m => (
-                                                    <div key={m.code} className="bg-white border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
-                                                        {m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}
-                                                        <button onClick={() => removeMold(m.code)} className="text-amber-400 hover:text-red-500 ml-1"><X size={14}/></button>
+                                                    <div key={m.code} className="bg-white border border-amber-200 text-amber-800 pl-3 pr-1 py-1 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
+                                                        <span>{m.code}</span>
+                                                        <div className="flex items-center bg-amber-50 rounded border border-amber-100">
+                                                            <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-100 text-amber-600 rounded-l ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
+                                                                <Minus size={12}/>
+                                                            </button>
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                value={m.quantity} 
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 1;
+                                                                    setSelectedMolds(prev => prev.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm));
+                                                                }}
+                                                                className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
+                                                            />
+                                                            <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-100 text-amber-600 rounded-r">
+                                                                <Plus size={12}/>
+                                                            </button>
+                                                        </div>
+                                                        <button onClick={() => removeMold(m.code)} className="p-1 text-slate-300 hover:text-red-500 ml-1 hover:bg-red-50 rounded transition-colors"><X size={14}/></button>
                                                     </div>
                                                 ))}
                                             </div>
