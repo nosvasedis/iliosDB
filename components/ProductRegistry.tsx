@@ -50,9 +50,12 @@ const ProductCard: React.FC<{
         if (!hasVariants) return [];
         return [...variants].sort((a, b) => {
             const priority = (suffix: string) => {
+                if (suffix === '') return 0; // Highest priority for Lustre (empty suffix)
                 if (suffix.includes('P')) return 1;
-                if (suffix.includes('X')) return 2;
-                return 3;
+                if (suffix.includes('H')) return 2; // Prioritize Platinum before Gold
+                if (suffix.includes('X')) return 3;
+                if (suffix.includes('D')) return 4;
+                return 5;
             };
             return priority(a.suffix) - priority(b.suffix);
         });

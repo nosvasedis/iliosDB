@@ -576,6 +576,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       
       const getPriority = (code: string) => {
         switch (code) {
+          case '': return 0; // Empty code (Lustre) is top priority
           case 'P': return 1;
           case 'D': return 2;
           case 'X': return 3;
@@ -687,7 +688,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     allMaterials,
                     allProducts
                 );
-                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender) || 'Λουστρέ (Γυαλιστερό)';
+                // UPDATED: Use 'Λουστρέ' simple description
+                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender) || 'Λουστρέ';
                 const newLustreVariant: ProductVariant = {
                     suffix: '',
                     description: lustreDescription,
@@ -1118,7 +1120,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
                                                         <option value={PlatingType.None}>Λουστρέ</option>
                                                         <option value={PlatingType.GoldPlated}>Επίхρυσο</option>
-                                                        <option value={PlatingType.TwoTone}>Δíхρωμο</option>
+                                                        <option value={PlatingType.TwoTone}>Δίχρωμο</option>
                                                         <option value={PlatingType.Platinum}>Πλατίνα</option>
                                                     </select>
                                                 </div>

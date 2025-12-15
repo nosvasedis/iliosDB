@@ -1,6 +1,7 @@
 
 
 
+
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
@@ -61,7 +62,7 @@ export const STONE_CODES_MEN: Record<string, string> = {
 };
 
 export const FINISH_CODES: Record<string, string> = {
-  '': 'Λουστρέ (Γυαλιστερό)',
+  '': 'Λουστρέ',
   'P': 'Πατίνα',
   'X': 'Επίχρυσο',
   'D': 'Δίχρωμο', // Two-tone

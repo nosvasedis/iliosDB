@@ -889,7 +889,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             supplier_cost: supplierCost,
         };
         const { total: estimatedCost } = estimateVariantCost(tempMasterForCalc, '', settings!, materials, products);
-        const lustreDescription = analyzeSuffix('', gender as Gender) || 'Λουστρέ (Γυαλιστερό)';
+        // UPDATED: Simply use 'Λουστρέ' instead of redundant description.
+        const lustreDescription = analyzeSuffix('', gender as Gender) || 'Λουστρέ';
         finalVariants.push({
           suffix: '',
           description: lustreDescription,
