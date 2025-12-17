@@ -9,8 +9,6 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { FINISH_CODES } from '../constants';
 
-// ... (keep Props, getSteps, getMaterialIcon, RecipeItemSelectorModal, SmartAnalysisCard, LaborCostCard, SummaryRow, AnalysisExplainerModal unchanged until NewProduct component) ...
-
 interface Props {
   products: Product[];
   materials: Material[];
@@ -84,6 +82,8 @@ const RecipeItemSelectorModal = ({
         
         allItems.forEach(item => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
+            
             const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
             if (isSuggested) {
                 suggestedItems.push(item);
@@ -94,7 +94,9 @@ const RecipeItemSelectorModal = ({
 
         const filterFn = (item: any) => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            return name.includes(searchTerm.toLowerCase());
+            const desc = type === 'component' ? (item.description || '').toLowerCase() : '';
+            const search = searchTerm.toLowerCase();
+            return name.includes(search) || desc.includes(search);
         };
 
         return {
@@ -111,25 +113,52 @@ const RecipeItemSelectorModal = ({
         }
     };
     
-    // @FIX: Refactor ListItem from a component-in-component to a render function to avoid React anti-pattern and fix TS error.
     const renderListItem = (item: any) => {
-        const name = type === 'raw' ? item.name : item.sku;
-        const icon = type === 'raw' ? getMaterialIcon(item.type) : getMaterialIcon('Component');
-        const cost = type === 'raw' ? `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}` : `${item.active_price.toFixed(2)}€`;
+        const isComponent = type === 'component';
+        const name = isComponent ? item.sku : item.name;
+        const description = isComponent ? item.description : null;
+        const imageUrl = isComponent ? item.image_url : null;
+        const cost = isComponent 
+            ? `${item.active_price.toFixed(2)}€` 
+            : `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}`;
+        
+        // Icon fallback
+        const icon = isComponent ? getMaterialIcon('Component') : getMaterialIcon(item.type);
 
         return (
             <div
                 key={item.id || item.sku}
                 onClick={() => handleSelect(item)}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors border border-transparent hover:border-emerald-100"
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors border border-transparent hover:border-emerald-100 group"
             >
-                <div className="p-2 bg-slate-100 rounded-lg">{icon}</div>
-                <div className="flex-1">
-                    <div className="font-bold text-slate-800 text-sm">{name}</div>
-                    <div className="text-xs text-slate-400 font-mono">{cost}</div>
+                {/* Image / Icon Container */}
+                <div className="w-12 h-12 shrink-0 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center relative">
+                    {imageUrl ? (
+                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="text-slate-400">{icon}</div>
+                    )}
                 </div>
-                <div className="p-1 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500">
-                   <Plus size={14}/>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="font-bold text-slate-800 text-sm truncate">{name}</div>
+                        {isComponent && item.category && (
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[100px]">{item.category}</span>
+                        )}
+                    </div>
+                    
+                    {description ? (
+                        <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
+                    ) : (
+                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : item.type}</div>
+                    )}
+                    
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
+                </div>
+
+                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
+                   <Plus size={16}/>
                 </div>
             </div>
         );
@@ -147,7 +176,7 @@ const RecipeItemSelectorModal = ({
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                         <input
                             type="text"
-                            placeholder="Αναζήτηση..."
+                            placeholder={type === 'component' ? "Αναζήτηση SKU ή Περιγραφής..." : "Αναζήτηση..."}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             autoFocus
