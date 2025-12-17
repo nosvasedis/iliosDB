@@ -307,6 +307,7 @@ export const api = {
                   sku: p.sku,
                   prefix: p.prefix,
                   category: p.category,
+                  description: p.description, // Mapped new field
                   gender: p.gender as Gender,
                   image_url: p.image_url,
                   weight_g: Number(p.weight_g),

@@ -94,6 +94,7 @@ export interface Product {
   sku: string; 
   prefix: string;
   category: string;
+  description?: string; // New field for STX description
   gender: Gender;
   image_url: string | null;
   weight_g: number;

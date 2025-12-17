@@ -321,6 +321,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         supplier_id: product.supplier_id,
         supplier_sku: product.supplier_sku,
         supplier_cost: product.supplier_cost || 0,
+        description: product.description || '', // Initialize description
         labor: {
             casting_cost: 0,
             setter_cost: 0,
@@ -377,6 +378,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       supplier_id: product.supplier_id,
       supplier_sku: product.supplier_sku,
       supplier_cost: product.supplier_cost || 0,
+      description: product.description || '', // Initialize description
       labor: {
             casting_cost: 0,
             setter_cost: 0,
@@ -711,6 +713,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         const { error: productUpdateError } = await supabase.from('products').update({
             // Editable fields
             category: finalEditedProduct.category,
+            description: isComponent ? finalEditedProduct.description : null,
             gender: finalEditedProduct.gender,
             weight_g: finalEditedProduct.weight_g,
             secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
@@ -1107,6 +1110,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <option value={Gender.Unisex}>Unisex</option>
                                                 </select>
                                             </div>
+                                            {editedProduct.is_component && (
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιγραφή STX</label>
+                                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.description || ''} onChange={e => setEditedProduct({...editedProduct, description: e.target.value})} placeholder="π.χ. Μικρή Πεταλούδα" />
+                                                </div>
+                                            )}
                                             {hasVariants ? (
                                                 <div>
                                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Διαθέσιμες Επιμεταλλώσεις</label>

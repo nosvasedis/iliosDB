@@ -416,6 +416,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [gender, setGender] = useState<Gender | ''>('');
   const [isCategoryManuallySet, setIsCategoryManuallySet] = useState(false);
   const [isGenderManuallySet, setIsGenderManuallySet] = useState(false);
+  const [stxDescription, setStxDescription] = useState(''); // New State for STX Description
   
   const [weight, setWeight] = useState(0);
   const [secondaryWeight, setSecondaryWeight] = useState(0);
@@ -626,13 +627,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       sample_qty: 0,
       molds: selectedMolds,
       is_component: isSTX,
+      description: stxDescription,
       recipe: recipe,
       labor // This state contains the reported supplier breakdowns now
     };
     const cost = calculateProductCost(tempProduct, settings, materials, products);
     setMasterEstimatedCost(cost.total);
     setCostBreakdown(cost.breakdown);
-  }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId, supplierSku]);
+  }, [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, materials, imagePreview, selectedMolds, isSTX, products, settings, productionType, supplierCost, supplierId, supplierSku, stxDescription]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -788,6 +790,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           sku: detectedMasterSku || sku,
           prefix: sku.substring(0, 2),
           category, 
+          description: stxDescription,
           gender: gender as Gender, 
           weight_g: weight, 
           secondary_weight_g: secondaryWeight,
@@ -867,6 +870,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             sku: finalMasterSku,
             prefix: finalMasterSku.substring(0, 2),
             category, 
+            description: stxDescription,
             gender: gender as Gender, 
             weight_g: weight, 
             secondary_weight_g: secondaryWeight,
@@ -924,6 +928,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             sku: finalMasterSku,
             prefix: finalMasterSku.substring(0, 2),
             category,
+            description: isSTX ? stxDescription : null,
             gender,
             image_url: finalImageUrl,
             weight_g: Number(weight) || 0,
@@ -1003,7 +1008,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         if (onCancel) onCancel();
         else {
             setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0);
-            setSupplierCost(0); setSupplierId(''); setSupplierSku('');
+            setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription('');
         }
 
     } catch (error: any) {
@@ -1179,7 +1184,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         </div>
                                     )}
                                 </div>
-                                {isSTX && <div className="text-xs text-emerald-700 italic flex items-center gap-1 bg-emerald-100/50 p-2 rounded"><Info size={14}/> Τα εξαρτήματα (STX) δεν έχουν τιμή πώλησης, μόνο κόστος παραγωγής.</div>}
+                                {isSTX && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-bold text-emerald-900 mb-1.5">Περιγραφή STX</label>
+                                            <input type="text" value={stxDescription} onChange={(e) => setStxDescription(e.target.value)} className="w-full p-3 border border-emerald-200 rounded-xl bg-white focus:ring-4 focus:ring-emerald-500/20 outline-none" placeholder="π.χ. Μικρή Πεταλούδα" />
+                                        </div>
+                                        <div className="text-xs text-emerald-700 italic flex items-center gap-1 bg-emerald-100/50 p-2 rounded"><Info size={14}/> Τα εξαρτήματα (STX) δεν έχουν τιμή πώλησης, μόνο κόστος παραγωγής.</div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
