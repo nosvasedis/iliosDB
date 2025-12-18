@@ -1172,13 +1172,30 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     const moldDetails = allMolds.find(mold => mold.code === m.code);
                                                     const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
                                                     return (
-                                                        <div key={m.code} title={tooltipText} className="cursor-pointer bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2">
-                                                            {m.code} {m.quantity > 1 && `(x${m.quantity})`}
-                                                            <div className="flex flex-col gap-0.5 ml-1">
-                                                                <button onClick={() => updateMoldQuantity(m.code, 1)} className="text-amber-400 hover:text-amber-600"><ChevronLeft size={10} className="rotate-90"/></button>
-                                                                <button onClick={() => updateMoldQuantity(m.code, -1)} className="text-amber-400 hover:text-amber-600"><ChevronRight size={10} className="rotate-90"/></button>
+                                                        <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1 py-1 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                            <span>{m.code}</span>
+                                                            <div className="flex items-center bg-amber-100/50 rounded border border-amber-200">
+                                                                <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-100 text-amber-600 rounded-l ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
+                                                                    <Minus size={12}/>
+                                                                </button>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="1" 
+                                                                    value={m.quantity} 
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value) || 1;
+                                                                        setEditedProduct(prev => ({
+                                                                            ...prev,
+                                                                            molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
+                                                                        }));
+                                                                    }}
+                                                                    className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
+                                                                />
+                                                                <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-100 text-amber-600 rounded-r">
+                                                                    <Plus size={12}/>
+                                                                </button>
                                                             </div>
-                                                            <button onClick={() => removeMold(m.code)} className="text-amber-400 hover:text-red-500 ml-1"><X size={14}/></button>
+                                                            <button onClick={() => removeMold(m.code)} className="p-1 text-slate-300 hover:text-red-500 ml-1 hover:bg-red-50 rounded transition-colors"><X size={14}/></button>
                                                         </div>
                                                     );
                                                 })}
