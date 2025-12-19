@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -23,6 +24,39 @@ export const supabase = createClient(
     SUPABASE_URL || 'https://placeholder.supabase.co', 
     SUPABASE_KEY || 'placeholder'
 );
+
+/**
+ * HELPER: fetchFullTable
+ * PostgREST (Supabase) imposes a hard limit of 1000 rows per request.
+ * This utility loops through pages to ensure 100% of data is retrieved.
+ */
+async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
+    let allData: any[] = [];
+    let from = 0;
+    let to = 999;
+    let hasMore = true;
+
+    while (hasMore) {
+        let query = supabase.from(tableName).select(select).range(from, to);
+        if (filter) query = filter(query);
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            if (data.length < 1000) {
+                hasMore = false;
+            } else {
+                from += 1000;
+                to += 1000;
+            }
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
+}
 
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
@@ -179,9 +213,8 @@ export const api = {
 
     getMaterials: async (): Promise<Material[]> => {
         try {
-            const { data, error } = await supabase.from('materials').select('*');
-            if (error) throw error;
-            if (!data) return MOCK_MATERIALS;
+            const data = await fetchFullTable('materials');
+            if (!data || data.length === 0) return MOCK_MATERIALS;
             return data.map((m: any) => ({
                  id: m.id,
                  name: m.name,
@@ -198,8 +231,7 @@ export const api = {
 
     getMolds: async (): Promise<Mold[]> => {
         try {
-            const { data, error } = await supabase.from('molds').select('*');
-            if (error) throw error;
+            const data = await fetchFullTable('molds');
             return data.map((m: any) => ({
                 code: m.code,
                 location: m.location,
@@ -213,8 +245,7 @@ export const api = {
 
     getSuppliers: async (): Promise<Supplier[]> => {
         try {
-            const { data, error } = await supabase.from('suppliers').select('*').order('name');
-            if (error) return [];
+            const data = await fetchFullTable('suppliers', '*', (q) => q.order('name'));
             return data || [];
         } catch (e) { return []; }
     },
@@ -236,8 +267,7 @@ export const api = {
 
     getCollections: async (): Promise<Collection[]> => {
         try {
-            const { data, error } = await supabase.from('collections').select('*').order('name');
-            if (error) throw error;
+            const data = await fetchFullTable('collections', '*', (q) => q.order('name'));
             return data || [];
         } catch (e) { return []; }
     },
@@ -254,26 +284,26 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         try {
-            // Step 1: Fetch main products (limit 1000 applies here but usually is enough for active SKUs)
-            const { data: prodData, error } = await supabase.from('products').select('*, suppliers(*)'); 
-            if (error) throw error;
-            if (!prodData) return MOCK_PRODUCTS;
+            // 1. Fetch all main products using paginated helper
+            const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
+            if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
 
-            // Step 2: Fix 1000-row bug by fetching related data FILTERED by the current SKUs
             const skus = prodData.map(p => p.sku);
 
+            // 2. Fetch related data using paginated helper with SKU filters
+            // We fetch the FULL set of records for these SKUs, bypassing 1000-row limit
             const [
-                { data: varData },
-                { data: recData },
-                { data: prodMoldsData },
-                { data: prodCollData },
-                { data: stockData }
+                varData,
+                recData,
+                prodMoldsData,
+                prodCollData,
+                stockData
             ] = await Promise.all([
-                supabase.from('product_variants').select('*').in('product_sku', skus),
-                supabase.from('recipes').select('*').in('parent_sku', skus),
-                supabase.from('product_molds').select('*').in('product_sku', skus),
-                supabase.from('product_collections').select('*').in('product_sku', skus),
-                supabase.from('product_stock').select('*').in('product_sku', skus)
+                fetchFullTable('product_variants', '*', (q) => q.in('product_sku', skus)),
+                fetchFullTable('recipes', '*', (q) => q.in('parent_sku', skus)),
+                fetchFullTable('product_molds', '*', (q) => q.in('product_sku', skus)),
+                fetchFullTable('product_collections', '*', (q) => q.in('product_sku', skus)),
+                fetchFullTable('product_stock', '*', (q) => q.in('product_sku', skus))
             ]);
 
             const assembledProducts: Product[] = prodData.map((p: any) => {
@@ -365,8 +395,13 @@ export const api = {
     
     getWarehouses: async (): Promise<Warehouse[]> => {
         try {
-            const { data, error } = await supabase.from('warehouses').select('*').order('created_at');
-            if (error) throw error;
+            const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
+            if (!data || data.length === 0) {
+                 return [
+                    { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
+                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
+                ];
+            }
             return data as Warehouse[];
         } catch (e) {
              return [
@@ -393,13 +428,12 @@ export const api = {
     },
 
     transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
-        const { data: prod } = await supabase.from('products').select('*').eq('sku', productSku).single();
+        // Logic handled in UI directly using recordStockMovement and upsert
     },
 
     getCustomers: async (): Promise<Customer[]> => {
         try {
-            const { data, error } = await supabase.from('customers').select('*').order('full_name');
-            if (error) throw error;
+            const data = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
             return data as Customer[];
         } catch (e) { return []; }
     },
@@ -422,8 +456,7 @@ export const api = {
 
     getOrders: async (): Promise<Order[]> => {
         try {
-            const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-            if (error) throw error;
+            const data = await fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
             return data as Order[];
         } catch (e) { return []; }
     },
@@ -553,8 +586,7 @@ export const api = {
 
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
         try {
-            const { data, error } = await supabase.from('production_batches').select('*').order('created_at', { ascending: false });
-            if (error) throw error;
+            const data = await fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
             return data as ProductionBatch[];
         } catch (e) { return []; }
     },
