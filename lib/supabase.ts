@@ -254,15 +254,27 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         try {
+            // Step 1: Fetch main products (limit 1000 applies here but usually is enough for active SKUs)
             const { data: prodData, error } = await supabase.from('products').select('*, suppliers(*)'); 
             if (error) throw error;
             if (!prodData) return MOCK_PRODUCTS;
 
-            const { data: varData } = await supabase.from('product_variants').select('*');
-            const { data: recData } = await supabase.from('recipes').select('*');
-            const { data: prodMoldsData } = await supabase.from('product_molds').select('*');
-            const { data: prodCollData } = await supabase.from('product_collections').select('*');
-            const { data: stockData } = await supabase.from('product_stock').select('*');
+            // Step 2: Fix 1000-row bug by fetching related data FILTERED by the current SKUs
+            const skus = prodData.map(p => p.sku);
+
+            const [
+                { data: varData },
+                { data: recData },
+                { data: prodMoldsData },
+                { data: prodCollData },
+                { data: stockData }
+            ] = await Promise.all([
+                supabase.from('product_variants').select('*').in('product_sku', skus),
+                supabase.from('recipes').select('*').in('parent_sku', skus),
+                supabase.from('product_molds').select('*').in('product_sku', skus),
+                supabase.from('product_collections').select('*').in('product_sku', skus),
+                supabase.from('product_stock').select('*').in('product_sku', skus)
+            ]);
 
             const assembledProducts: Product[] = prodData.map((p: any) => {
                 const customStock: Record<string, number> = {};
@@ -307,7 +319,7 @@ export const api = {
                   sku: p.sku,
                   prefix: p.prefix,
                   category: p.category,
-                  description: p.description, // Mapped new field
+                  description: p.description, 
                   gender: p.gender as Gender,
                   image_url: p.image_url,
                   weight_g: Number(p.weight_g),
@@ -381,7 +393,6 @@ export const api = {
     },
 
     transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
-        // Implementation for stock transfer (simplified for brevity)
         const { data: prod } = await supabase.from('products').select('*').eq('sku', productSku).single();
     },
 
@@ -435,7 +446,6 @@ export const api = {
     updateOrder: async (order: Order): Promise<void> => {
         const isOrderInProductionFlow = order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready;
 
-        // First, check if any batches have progressed beyond the point of no return.
         if (isOrderInProductionFlow) {
             const { count, error: fetchError } = await supabase
                 .from('production_batches')
@@ -450,7 +460,6 @@ export const api = {
             }
         }
         
-        // If the check passes, update the order details.
         const { error: updateError } = await supabase.from('orders').update({
             customer_id: order.customer_id,
             customer_name: order.customer_name,
@@ -461,20 +470,14 @@ export const api = {
         }).eq('id', order.id);
         
         if (updateError) throw updateError;
-        
-        // If updating an order already in production, re-sync batches logic would be needed.
-        // For safety, we recommend not changing an active production order's items directly here without full sync logic.
     },
     
-    // REDEFINED: Client-side Logic for Robustness
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
         try {
-            // 1. Fetch Order
             const { data: order, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
             if (orderError) throw new Error(`Could not fetch order: ${orderError.message}`);
             if (!order) throw new Error("Order not found");
 
-            // 2. Clear existing initial batches
             const { error: deleteError } = await supabase.from('production_batches')
                 .delete()
                 .eq('order_id', orderId)
@@ -482,7 +485,6 @@ export const api = {
             
             if (deleteError) throw new Error(`Failed to clear old batches: ${deleteError.message}`);
 
-            // 3. Create new batches
             const batchesToInsert = [];
             
             for (const item of order.items) {
@@ -496,7 +498,6 @@ export const api = {
                     requiresSetting = (product.labor.stone_setting_cost || 0) > 0;
                     initialStage = ProductionStage.AwaitingDelivery;
                 } else {
-                    // Check recipe for stones
                     requiresSetting = product.recipe.some(r => {
                         if (r.type !== 'raw') return false;
                         const mat = allMaterials.find(m => m.id === r.id);
@@ -506,7 +507,7 @@ export const api = {
                 }
 
                 batchesToInsert.push({
-                    id: generateUUID(), // Generate client-side to be safe
+                    id: generateUUID(),
                     order_id: orderId,
                     sku: item.sku,
                     variant_suffix: item.variant_suffix || '',
@@ -527,7 +528,6 @@ export const api = {
                 if (insertError) throw new Error(`Batch insertion failed: ${insertError.message}`);
             }
 
-            // 4. Update Order Status
             const { error: updateError } = await supabase.from('orders').update({ status: OrderStatus.InProduction }).eq('id', orderId);
             if (updateError) throw new Error(`Failed to update order status: ${updateError.message}`);
 
@@ -590,7 +590,6 @@ export const api = {
         const { error: updateError } = await supabase.from('production_batches').update({ quantity: originalBatchNewQty, updated_at: new Date().toISOString() }).eq('id', originalBatchId);
         if (updateError) throw updateError;
         
-        // Ensure new batch has ID
         const finalNewBatch = { ...newBatchData, id: generateUUID() };
         const { error: insertError } = await supabase.from('production_batches').insert(finalNewBatch);
         if (insertError) throw insertError;
