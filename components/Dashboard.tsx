@@ -21,7 +21,11 @@ import {
   ArrowDownRight,
   Target,
   Zap,
-  Loader2
+  Loader2,
+  FileText,
+  Lightbulb,
+  ShieldCheck,
+  Rocket
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -69,6 +73,65 @@ const STAGE_LABELS: Record<string, string> = {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
+/**
+ * Premium UI Renderer for AI Business Audit.
+ * Replaces ugly markdown with functional UI cards.
+ */
+const SmartReportRenderer = ({ text }: { text: string }) => {
+    const parts = text.split(/\[TITLE\]|\[\/TITLE\]/).filter(p => p.trim());
+    
+    if (parts.length < 2) {
+        return (
+            <div className="p-6 bg-slate-50 rounded-2xl text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {text.replace(/\*/g, '').replace(/#/g, '')}
+            </div>
+        );
+    }
+
+    const sections: { title: string; content: string[] }[] = [];
+    for (let i = 0; i < parts.length; i += 2) {
+        if (parts[i] && parts[i+1]) {
+            sections.push({
+                title: parts[i].trim(),
+                content: parts[i+1].trim().split('\n').filter(l => l.trim())
+            });
+        }
+    }
+
+    const getIcon = (title: string) => {
+        const t = title.toLowerCase();
+        if (t.includes('κερδ') || t.includes('τιμ')) return <Target className="text-rose-500" size={18}/>;
+        if (t.includes('αποθ') || t.includes('risk')) return <Scale className="text-amber-500" size={18}/>;
+        if (t.includes('στρατ') || t.includes('πρότ')) return <Rocket className="text-emerald-500" size={18}/>;
+        return <Activity className="text-blue-500" size={18}/>;
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {sections.map((sec, idx) => (
+                <div key={idx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center gap-3 mb-4 border-b border-slate-50 pb-3">
+                        <div className="p-2 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                            {getIcon(sec.title)}
+                        </div>
+                        <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">{sec.title}</h4>
+                    </div>
+                    <ul className="space-y-3">
+                        {sec.content.map((line, lidx) => (
+                            <li key={lidx} className="flex gap-3 items-start">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-200 shrink-0 group-hover:bg-emerald-400 transition-colors" />
+                                <p className="text-slate-600 text-sm leading-relaxed">
+                                    {line.replace(/^- |^\* /g, '').replace(/\*\*/g, '')}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export default function Dashboard({ products, settings }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory' | 'smart'>('overview');
   const [aiReport, setAiReport] = useState<string | null>(null);
@@ -78,11 +141,10 @@ export default function Dashboard({ products, settings }: Props) {
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
-  // --- 1. AGGREGATE DATA CALCULATIONS ---
+  // --- Aggregate Stats ---
   const stats = useMemo(() => {
     const sellableProducts = products.filter(p => !p.is_component);
     const totalStockQty = products.reduce((acc, p) => acc + p.stock_qty, 0);
-    const lowStockCount = products.filter(p => p.stock_qty < 5).length;
     
     let totalCostValue = 0; 
     let totalPotentialRevenue = 0; 
@@ -90,13 +152,19 @@ export default function Dashboard({ products, settings }: Props) {
 
     products.forEach(p => {
         totalCostValue += (p.active_price * p.stock_qty);
-        if (!p.is_component) {
-            totalPotentialRevenue += (p.selling_price * p.stock_qty);
-        }
         totalSilverWeight += (p.weight_g * p.stock_qty);
+        
+        // Handle Potential Revenue (Summing highest of master or variants)
+        if (!p.is_component) {
+            if (p.variants && p.variants.length > 0) {
+                const maxVarPrice = Math.max(...p.variants.map(v => v.selling_price || 0));
+                totalPotentialRevenue += (maxVarPrice || p.selling_price) * p.stock_qty;
+            } else {
+                totalPotentialRevenue += p.selling_price * p.stock_qty;
+            }
+        }
     });
 
-    // Margin Analysis Extremes
     const pricedItems = sellableProducts.filter(p => p.selling_price > 0);
     const sortedByMargin = [...pricedItems].sort((a, b) => {
         const marginA = (a.selling_price - a.active_price) / a.selling_price;
@@ -109,22 +177,18 @@ export default function Dashboard({ products, settings }: Props) {
 
     const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) || [];
     const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
-    const pendingRevenue = activeOrders.reduce((acc, o) => acc + o.total_price, 0);
-    const totalRevenue = completedOrders.reduce((acc, o) => acc + o.total_price, 0);
-
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
     
     return {
         totalStockQty,
-        lowStockCount,
         totalCostValue,
         totalPotentialRevenue,
         totalSilverWeight,
         potentialMargin,
         marginPercent,
         activeOrdersCount: activeOrders.length,
-        pendingRevenue,
-        totalRevenue,
+        pendingRevenue: activeOrders.reduce((acc, o) => acc + o.total_price, 0),
+        totalRevenue: completedOrders.reduce((acc, o) => acc + o.total_price, 0),
         activeBatchesCount: activeBatches.length,
         totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
         bestMargins: sortedByMargin.slice(0, 3),
@@ -132,7 +196,6 @@ export default function Dashboard({ products, settings }: Props) {
     };
   }, [products, orders, batches]);
 
-  // --- 2. AI ANALYSIS TRIGGER ---
   const handleRunAiAudit = async () => {
       setIsAnalyzing(true);
       try {
@@ -150,7 +213,6 @@ export default function Dashboard({ products, settings }: Props) {
       }
   };
 
-  // --- 3. CHART DATA ---
   const categoryData = useMemo(() => {
       const counts: Record<string, number> = {};
       products.filter(p => !p.is_component).forEach(p => {
@@ -172,7 +234,6 @@ export default function Dashboard({ products, settings }: Props) {
       return Object.entries(stages).map(([name, value]) => ({ name, value }));
   }, [batches]);
 
-  // --- RENDER HELPERS ---
   const KPICard = ({ title, value, subValue, icon, colorClass }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string }) => (
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group">
           <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 ${colorClass}`}>
@@ -230,7 +291,7 @@ export default function Dashboard({ products, settings }: Props) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" />
                   <KPICard title="Εκκρεμής Τζίρος" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" />
-                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} subValue={`${stats.activeBatchesCount} Παρτίδες`} icon={<Factory />} colorClass="text-amber-600" />
+                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" />
                   <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" />
               </div>
 
@@ -264,14 +325,23 @@ export default function Dashboard({ products, settings }: Props) {
                       </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-xl flex flex-col justify-center gap-6 relative overflow-hidden">
+                  <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-xl flex flex-col justify-center gap-8 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                        
                         <div className="text-center relative z-10">
                             <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Κεφάλαιο σε Μέταλλο</p>
                             <h3 className="text-4xl font-black tracking-tight">{formatDecimal(stats.totalSilverWeight / 1000, 2)} <span className="text-lg opacity-40 font-medium">kg</span></h3>
                             <div className="bg-emerald-500/20 rounded-xl py-2 px-4 mt-4 inline-block border border-emerald-500/30">
                                 <p className="text-emerald-300 font-bold text-lg">≈ {formatCurrency(stats.totalSilverWeight * settings.silver_price_gram)}</p>
                             </div>
+                        </div>
+
+                        <div className="h-px bg-white/10 w-full"></div>
+
+                        <div className="text-center relative z-10">
+                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Δυνητικός Τζίρος</p>
+                            <h3 className="text-3xl font-black tracking-tight text-amber-400">{formatCurrency(stats.totalPotentialRevenue)}</h3>
+                            <p className="text-emerald-200/40 text-[10px] mt-1 italic">Αν πουληθεί όλο το στοκ (Χονδρική)</p>
                         </div>
                   </div>
               </div>
@@ -300,7 +370,7 @@ export default function Dashboard({ products, settings }: Props) {
                                       <div className="flex items-center gap-3">
                                           <div className="text-right">
                                               <div className="text-xs font-bold text-emerald-700">{m}%</div>
-                                              <div className="text-[10px] text-slate-400">Profit: {formatCurrency(p.selling_price - p.active_price)}</div>
+                                              <div className="text-[10px] text-slate-400">Κέρδος: {formatCurrency(p.selling_price - p.active_price)}</div>
                                           </div>
                                       </div>
                                   </div>
@@ -322,7 +392,7 @@ export default function Dashboard({ products, settings }: Props) {
                                       <div className="flex items-center gap-3">
                                           <div className="text-right">
                                               <div className="text-xs font-bold text-rose-700">{m}%</div>
-                                              <div className="text-[10px] text-slate-400">Profit: {formatCurrency(p.selling_price - p.active_price)}</div>
+                                              <div className="text-[10px] text-slate-400">Κέρδος: {formatCurrency(p.selling_price - p.active_price)}</div>
                                           </div>
                                       </div>
                                   </div>
@@ -361,7 +431,7 @@ export default function Dashboard({ products, settings }: Props) {
                   <KPICard title="Σύνολο Κωδικών" value={products.length.toString()} icon={<Layers/>} colorClass="text-slate-600" />
                   <KPICard title="Σύνολο Τεμαχίων" value={stats.totalStockQty.toString()} icon={<Package/>} colorClass="text-blue-600" />
                   <KPICard title="Κόστος Αποθέματος" value={formatCurrency(stats.totalCostValue)} icon={<Scale/>} colorClass="text-amber-600" />
-                  <KPICard title="Silver Weight" value={`${formatDecimal(stats.totalSilverWeight, 0)}g`} icon={<Coins/>} colorClass="text-slate-500" />
+                  <KPICard title="Μέταλλο σε Στοκ" value={`${formatDecimal(stats.totalSilverWeight, 0)}g`} icon={<Coins/>} colorClass="text-slate-500" />
               </div>
 
               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
@@ -385,7 +455,7 @@ export default function Dashboard({ products, settings }: Props) {
                                       <td className="p-4 text-slate-500">{p.category}</td>
                                       <td className="p-4 text-center font-black">{p.stock_qty}</td>
                                       <td className="p-4">
-                                          <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${p.stock_qty === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${p.stock_qty === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {p.stock_qty === 0 ? 'Εξαντλημένο' : 'Χαμηλό'}
                                           </span>
                                       </td>
@@ -413,7 +483,7 @@ export default function Dashboard({ products, settings }: Props) {
                           <h2 className="text-3xl font-black tracking-tight">Ilios Business Intelligence</h2>
                       </div>
                       <p className="text-emerald-50 text-lg leading-relaxed mb-8 opacity-90">
-                          Το Ilios AI αναλύει το μητρώο σας, τις τιμές του ασημιού και το ιστορικό πωλήσεων για να εντοπίσει ευκαιρίες κέρδους και κρυφούς κινδύνους.
+                          Το Ilios AI αναλύει το μητρώο σας (συμπεριλαμβανομένων των παραλλαγών), τις τιμές του ασημιού και το ιστορικό πωλήσεων.
                       </p>
                       <button 
                         onClick={handleRunAiAudit}
@@ -421,20 +491,22 @@ export default function Dashboard({ products, settings }: Props) {
                         className="bg-white text-emerald-800 px-8 py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-emerald-50 transition-all flex items-center gap-3 disabled:opacity-50"
                       >
                           {isAnalyzing ? <Loader2 size={24} className="animate-spin" /> : <Zap size={24} className="fill-current" />}
-                          {isAnalyzing ? 'Ανάλυση σε εξέλιξη...' : 'Δημιουργία Smart Report'}
+                          {isAnalyzing ? 'Ανάλυση σε εξέλιξη...' : 'Δημιουργία Έξυπνης Αναφοράς'}
                       </button>
                   </div>
               </div>
 
               {aiReport && (
-                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm animate-in zoom-in-95 duration-500">
-                      <div className="prose prose-slate max-w-none prose-headings:font-black prose-p:leading-relaxed prose-li:font-medium">
-                          {aiReport.split('\n').map((line, i) => (
-                              <p key={i} className="mb-2">{line}</p>
-                          ))}
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm animate-in zoom-in-95 duration-500">
+                      <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-6">
+                          <FileText size={24} className="text-slate-400" />
+                          <h3 className="text-xl font-black text-slate-800">Αποτελέσματα Επιχειρησιακού Ελέγχου</h3>
                       </div>
-                      <div className="mt-10 pt-8 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                          <CheckCircle size={14} className="text-emerald-500" /> Verified by Gemini 3 Flash Intelligence
+                      
+                      <SmartReportRenderer text={aiReport} />
+
+                      <div className="mt-12 pt-8 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                          <ShieldCheck size={14} className="text-emerald-500" /> Επαληθεύτηκε από Gemini 3 Flash Intelligence
                       </div>
                   </div>
               )}
@@ -443,17 +515,17 @@ export default function Dashboard({ products, settings }: Props) {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-60 grayscale transition-all hover:grayscale-0 hover:opacity-100">
                       <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
                           <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto"><Target size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Audit Τιμών</h4>
+                          <h4 className="font-bold text-slate-700">Έλεγχος Κερδοφορίας</h4>
                           <p className="text-xs text-slate-500">Εντοπισμός προϊόντων με λάθος περιθώρια.</p>
                       </div>
                       <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
                           <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto"><Scale size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Risk Management</h4>
+                          <h4 className="font-bold text-slate-700">Διαχείριση Κινδύνου</h4>
                           <p className="text-xs text-slate-500">Πρόβλεψη επιπτώσεων από άνοδο ασημιού.</p>
                       </div>
                       <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
                           <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto"><TrendingUp size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Growth Strategy</h4>
+                          <h4 className="font-bold text-slate-700">Στρατηγική Ανάπτυξης</h4>
                           <p className="text-xs text-slate-500">Προτάσεις για βελτίωση του product mix.</p>
                       </div>
                   </div>

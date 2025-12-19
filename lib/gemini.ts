@@ -4,11 +4,7 @@ import { GEMINI_API_KEY } from "./supabase";
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
 
-// Helper to get a fresh client instance
 const getClient = () => {
-    // Note: The system instruction requires process.env.API_KEY, 
-    // but the established project pattern uses GEMINI_API_KEY from supabase.ts.
-    // We will ensure the initialization follows the modern SDK rules.
     const key = GEMINI_API_KEY || process.env.API_KEY;
     if (!key || key === 'provided-by-environment') {
         throw new Error("Το κλειδί Gemini API λείπει.");
@@ -17,7 +13,8 @@ const getClient = () => {
 };
 
 /**
- * Performs a deep audit of business health based on inventory and sales data.
+ * Performs a deep audit of business health.
+ * UPDATED: Bubbles up variant prices so the AI sees true commercial value even if master SKU is 0.
  */
 export const analyzeBusinessHealth = async (data: {
     products: any[],
@@ -27,19 +24,30 @@ export const analyzeBusinessHealth = async (data: {
     try {
         const ai = getClient();
         
-        // Prepare a condensed version of data to stay within context limits and focus on vitals
-        const productSummary = data.products.map(p => ({
-            sku: p.sku,
-            cat: p.category,
-            w: p.weight_g,
-            cost: p.active_price,
-            price: p.selling_price,
-            stock: p.stock_qty,
-            margin: p.selling_price > 0 ? ((p.selling_price - p.active_price) / p.selling_price * 100).toFixed(1) : 0
-        }));
+        const productSummary = data.products.map(p => {
+            // Logic to find a real price if master price is 0
+            let effectivePrice = p.selling_price || 0;
+            let effectiveCost = p.active_price || 0;
+
+            if (effectivePrice <= 0 && p.variants && p.variants.length > 0) {
+                const pricedVariant = p.variants.find((v: any) => v.selling_price > 0) || p.variants[0];
+                effectivePrice = pricedVariant.selling_price || 0;
+                effectiveCost = pricedVariant.active_price || p.active_price;
+            }
+
+            return {
+                sku: p.sku,
+                cat: p.category,
+                w: p.weight_g,
+                cost: effectiveCost,
+                price: effectivePrice,
+                stock: p.stock_qty,
+                margin: effectivePrice > 0 ? ((effectivePrice - effectiveCost) / effectivePrice * 100).toFixed(1) : 0
+            };
+        });
 
         const prompt = `
-            Είσαι ένας έμπειρος Business Analyst στον κλάδο της αργυροχοΐας (Jewelry Industry).
+            Είσαι ένας έμπειρος Business Analyst στον κλάδο της αργυροχοΐας.
             Ανάλυσε τα παρακάτω δεδομένα του εργαστηρίου "Ilios Kosmima".
             
             Τρέχουσα Τιμή Ασημιού: ${data.silverPrice}€/g
@@ -49,16 +57,16 @@ export const analyzeBusinessHealth = async (data: {
             ${JSON.stringify(productSummary)}
 
             Στόχοι Ανάλυσης:
-            1. **Υποκοστολόγηση**: Βρες κωδικούς με πολύ χαμηλό περιθώριο κέρδους (κάτω από 40%) που έχουν υψηλό βάρος ή εργατικά.
-            2. **Inventory Risk**: Βρες προϊόντα με υψηλό στοκ αλλά αναντίστοιχη τιμή.
-            3. **Silver Exposure**: Ποια προϊόντα θα πληγούν περισσότερο αν ανέβει η τιμή του ασημιού;
-            4. **Προτάσεις**: Δώσε 3 συγκεκριμένες στρατηγικές κινήσεις για αύξηση κερδοφορίας.
+            1. [TITLE]Έλεγχος Κερδοφορίας[/TITLE]: Εντόπισε κωδικούς με margin < 40% που έχουν υψηλό βάρος.
+            2. [TITLE]Ανάλυση Αποθέματος[/TITLE]: Προϊόντα με υψηλό στοκ αλλά χαμηλή κερδοφορία.
+            3. [TITLE]Ευπάθεια Μετάλλου[/TITLE]: Ποια προϊόντα επηρεάζονται περισσότερο από την άνοδο του ασημιού;
+            4. [TITLE]Στρατηγικές Προτάσεις[/TITLE]: 3 κινήσεις για βελτίωση του κέρδους.
 
-            Μορφοποίηση:
-            - Χρησιμοποίησε Markdown.
-            - Ξεκίνα με ένα "Score Υγείας" (0-100).
-            - Χρησιμοποίησε emoji για κάθε κατηγορία.
-            - Γράψε στα Ελληνικά με επαγγελματικό αλλά άμεσο ύφος.
+            ΠΕΡΙΟΡΙΣΜΟΙ ΜΟΡΦΟΠΟΙΗΣΗΣ:
+            - ΜΗΝ χρησιμοποιείς Markdown σύμβολα (***, ##, κτλ).
+            - Χρησιμοποίησε ΑΥΣΤΗΡΑ το format [TITLE]Τίτλος[/TITLE] για κάθε ενότητα.
+            - Γράψε τις λεπτομέρειες σε απλές γραμμές κάτω από κάθε τίτλο.
+            - Γράψε στα Ελληνικά με επαγγελματικό ύφος.
         `;
 
         const response: GenerateContentResponse = await ai.models.generateContent({
@@ -75,7 +83,6 @@ export const analyzeBusinessHealth = async (data: {
 
 /**
  * Generates marketing text description.
- * Supports MULTIMODAL input (text + image).
  */
 export const generateMarketingCopy = async (
     prompt: string, 
@@ -85,39 +92,23 @@ export const generateMarketingCopy = async (
   try {
     const ai = getClient();
     const parts: any[] = [];
-
-    if (imageBase64) {
-        parts.push({
-            inlineData: {
-                data: cleanBase64(imageBase64),
-                mimeType: mimeType
-            }
-        });
-    }
-
+    if (imageBase64) parts.push({ inlineData: { data: cleanBase64(imageBase64), mimeType } });
     parts.push({ text: prompt });
 
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts },
       config: {
-          systemInstruction: `
-            Είσαι ένας κορυφαίος Copywriter Κοσμημάτων (Jewelry Expert) για την Ελληνική αγορά.
-            Στόχος σου είναι να γράψεις κείμενα που αποπνέουν πολυτέλεια, συναίσθημα και επαγγελματισμό.
-          `,
+          systemInstruction: "Είσαι κορυφαίος Copywriter Κοσμημάτων. Γράψε στα Ελληνικά.",
           temperature: 0.7
       }
     });
-
-    return response.text || "Δεν υπήρξε απάντηση από το AI.";
+    return response.text || "Δεν υπήρξε απάντηση.";
   } catch (error: any) {
     throw new Error(`Αποτυχία: ${error.message}`);
   }
 };
 
-/**
- * Generates a Virtual Model image using Google Gemini Models.
- */
 export const generateVirtualModel = async (
     imageBase64: string, 
     gender: 'Men' | 'Women' | 'Unisex',
@@ -126,47 +117,27 @@ export const generateVirtualModel = async (
     useProModel: boolean = false
 ): Promise<string | null> => {
   const ai = getClient();
-  const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : (gender === 'Women' ? 'beautiful Greek female model' : 'fashion model');
-  let framingPrompt = "Lifestyle fashion shot.";
-  let scaleConstraint = "Ensure the jewelry appears delicate and realistic in size relative to the body.";
-  const catLower = category.toLowerCase();
-
-  if (catLower.includes('δαχτυλίδι') || catLower.includes('ring')) {
-      framingPrompt = "Close-up shot of a hand resting naturally.";
-  } else if (catLower.includes('σκουλαρίκια') || catLower.includes('earrings')) {
-      framingPrompt = "Portrait shot of the model's face.";
-  }
-
-  let promptText = `High-end editorial fashion photography. Subject: A ${genderPrompt} wearing the jewelry item provided in the image. Framing: ${framingPrompt} ${scaleConstraint}`;
-  if (userInstructions) promptText += `\n\nINSTRUCTIONS: ${userInstructions}`;
-
+  const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : 'beautiful Greek female model';
+  let promptText = `High-end editorial fashion photography. A ${genderPrompt} wearing the jewelry item provided. ${userInstructions || ''}`;
   try {
-    const modelName = useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
-    const config: any = useProModel ? { imageConfig: { aspectRatio: "1:1", imageSize: "1K" } } : {};
-
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
       contents: {
         parts: [
           { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
           { text: promptText },
         ],
       },
-      config
     });
-
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
     return null;
   } catch (error: any) {
-    throw new Error(`Αποτυχία δημιουργίας εικόνας: ${error.message}`);
+    throw new Error(`Αποτυχία: ${error.message}`);
   }
 };
 
-/**
- * Trend Analysis using Google Search Grounding
- */
 export const generateTrendAnalysis = async (query: string): Promise<string> => {
     try {
         const ai = getClient();
@@ -175,23 +146,12 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
             contents: `Ανάλυσε τις τρέχουσες τάσεις κοσμημάτων για: ${query}.`,
             config: { tools: [{ googleSearch: {} }] }
         });
-
-        let finalText = response.text || "Δεν βρέθηκαν δεδομένα.";
-        if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-            const links = response.candidates[0].groundingMetadata.groundingChunks
-                .map((c: any) => c.web?.uri).filter((uri: string) => uri)
-                .map((uri: string) => `\n- ${uri}`).join('');
-            if (links) finalText += `\n\nΠηγές:${links}`;
-        }
-        return finalText;
+        return response.text || "Δεν βρέθηκαν δεδομένα.";
     } catch (error: any) {
-        throw new Error(`Αποτυχία ανάλυσης τάσεων: ${error.message}`);
+        throw new Error(`Αποτυχία: ${error.message}`);
     }
 };
 
-/**
- * Extracts SKUs and quantities from an image of an order sheet.
- */
 export const extractSkusFromImage = async (imageBase64: string): Promise<string> => {
   try {
     const ai = getClient();
@@ -200,12 +160,12 @@ export const extractSkusFromImage = async (imageBase64: string): Promise<string>
       contents: {
         parts: [
           { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
-          { text: "Analyze the order sheet image. Extract SKUs and Quantities in 'SKU QUANTITY' format per line." },
+          { text: "Extract SKUs and Quantities in 'SKU QUANTITY' format." },
         ],
       },
     });
     return response.text || "";
   } catch (error: any) {
-    throw new Error(`AI analysis failed: ${error.message}`);
+    throw new Error(`AI failed: ${error.message}`);
   }
 };
