@@ -94,9 +94,8 @@ const RecipeItemSelectorModal = ({
 
         const filterFn = (item: any) => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const desc = type === 'component' ? (item.description || '').toLowerCase() : '';
             const search = searchTerm.toLowerCase();
-            return name.includes(search) || desc.includes(search);
+            return name.includes(search);
         };
 
         return {
@@ -212,7 +211,6 @@ const RecipeItemSelectorModal = ({
 
 
 const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
-    // ... (unchanged) ...
     const color = 
         analysis.verdict === 'Excellent' ? 'emerald' : 
         analysis.verdict === 'Fair' ? 'blue' : 
@@ -1322,7 +1320,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="flex-1">
                             <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
                             <div className="text-xs text-slate-400 font-mono">
-                                {formatDecimal(weight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g
+                                {formatDecimal(weight + secondaryWeight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g
                             </div>
                         </div>
                         <div className="text-right">
@@ -1526,7 +1524,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <div className="space-y-1 flex-1">
                                 {productionType === ProductionType.InHouse ? (
                                     <>
-                                        <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
+                                        <SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight + secondaryWeight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
                                         <SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" />
                                         <SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" />
                                     </>

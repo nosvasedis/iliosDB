@@ -78,11 +78,13 @@ const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'
  * Replaces ugly markdown with functional UI cards.
  */
 const SmartReportRenderer = ({ text }: { text: string }) => {
+    // Split by [TITLE] and [/TITLE] tags
     const parts = text.split(/\[TITLE\]|\[\/TITLE\]/).filter(p => p.trim());
     
+    // Fallback if AI didn't follow the specific tagging format perfectly
     if (parts.length < 2) {
         return (
-            <div className="p-6 bg-slate-50 rounded-2xl text-slate-700 leading-relaxed whitespace-pre-wrap">
+            <div className="p-8 bg-slate-50 rounded-[2rem] text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-100">
                 {text.replace(/\*/g, '').replace(/#/g, '')}
             </div>
         );
@@ -101,8 +103,8 @@ const SmartReportRenderer = ({ text }: { text: string }) => {
     const getIcon = (title: string) => {
         const t = title.toLowerCase();
         if (t.includes('κερδ') || t.includes('τιμ')) return <Target className="text-rose-500" size={18}/>;
-        if (t.includes('αποθ') || t.includes('risk')) return <Scale className="text-amber-500" size={18}/>;
-        if (t.includes('στρατ') || t.includes('πρότ')) return <Rocket className="text-emerald-500" size={18}/>;
+        if (t.includes('αποθ') || t.includes('risk') || t.includes('κίνδ')) return <Scale className="text-amber-500" size={18}/>;
+        if (t.includes('στρατ') || t.includes('πρότ') || t.includes('growth')) return <Rocket className="text-emerald-500" size={18}/>;
         return <Activity className="text-blue-500" size={18}/>;
     };
 
@@ -110,13 +112,13 @@ const SmartReportRenderer = ({ text }: { text: string }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {sections.map((sec, idx) => (
                 <div key={idx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex items-center gap-3 mb-4 border-b border-slate-50 pb-3">
-                        <div className="p-2 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                    <div className="flex items-center gap-3 mb-5 border-b border-slate-50 pb-3">
+                        <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform duration-300">
                             {getIcon(sec.title)}
                         </div>
                         <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">{sec.title}</h4>
                     </div>
-                    <ul className="space-y-3">
+                    <ul className="space-y-3.5">
                         {sec.content.map((line, lidx) => (
                             <li key={lidx} className="flex gap-3 items-start">
                                 <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-200 shrink-0 group-hover:bg-emerald-400 transition-colors" />
@@ -154,11 +156,12 @@ export default function Dashboard({ products, settings }: Props) {
         totalCostValue += (p.active_price * p.stock_qty);
         totalSilverWeight += (p.weight_g * p.stock_qty);
         
-        // Handle Potential Revenue (Summing highest of master or variants)
+        // Handle Potential Revenue (Summing highest of master or variants for commercial accuracy)
         if (!p.is_component) {
             if (p.variants && p.variants.length > 0) {
+                // Find highest variant price or use master price
                 const maxVarPrice = Math.max(...p.variants.map(v => v.selling_price || 0));
-                totalPotentialRevenue += (maxVarPrice || p.selling_price) * p.stock_qty;
+                totalPotentialRevenue += (maxVarPrice > 0 ? maxVarPrice : p.selling_price) * p.stock_qty;
             } else {
                 totalPotentialRevenue += p.selling_price * p.stock_qty;
             }
@@ -483,7 +486,7 @@ export default function Dashboard({ products, settings }: Props) {
                           <h2 className="text-3xl font-black tracking-tight">Ilios Business Intelligence</h2>
                       </div>
                       <p className="text-emerald-50 text-lg leading-relaxed mb-8 opacity-90">
-                          Το Ilios AI αναλύει το μητρώο σας (συμπεριλαμβανομένων των παραλλαγών), τις τιμές του ασημιού και το ιστορικό πωλήσεων.
+                          Το Ilios AI αναλύει το μητρώο σας (συμπεριλαμβανομένων των παραλλαγών), τις τιμές του ασημιού και το ιστορικό πωλήσεων για να εντοπίσει ευκαιρίες κέρδους.
                       </p>
                       <button 
                         onClick={handleRunAiAudit}
