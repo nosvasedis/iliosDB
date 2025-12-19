@@ -344,6 +344,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [calculatedPrice, setCalculatedPrice] = useState(0);
 
   const [isAddingMold, setIsAddingMold] = useState(false);
+  const [moldSearch, setMoldSearch] = useState('');
   const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -945,8 +946,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       const usedCodes = new Set(editedProduct.molds.map(m => m.code));
       return allMolds
         .filter(m => !usedCodes.has(m.code))
+        .filter(m => 
+            m.code.includes(moldSearch.toUpperCase()) || 
+            m.description.toLowerCase().includes(moldSearch.toLowerCase())
+        )
         .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-  }, [allMolds, editedProduct.molds]);
+  }, [allMolds, editedProduct.molds, moldSearch]);
 
   const secondaryWeightLabel = useMemo(() => {
     if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
@@ -1202,14 +1207,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic">Κανένα λάστιχο.</span>}
                                            </div>
                                            {isAddingMold && (
-                                               <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-1 animate-in fade-in">
-                                                   {availableMolds.map(m => (
-                                                       <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
-                                                           <span className="font-bold text-slate-700">{m.code}</span>
-                                                           <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
-                                                       </button>
-                                                   ))}
-                                                   {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν υπάρχουν άλλα διαθέσιμα λάστιχα.</div>}
+                                               <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-2 animate-in fade-in">
+                                                   <div className="relative">
+                                                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                                                       <input 
+                                                           type="text" 
+                                                           placeholder="Αναζήτηση..." 
+                                                           value={moldSearch} 
+                                                           onChange={e => setMoldSearch(e.target.value)} 
+                                                           className="w-full pl-9 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500"
+                                                           autoFocus
+                                                       />
+                                                   </div>
+                                                   <div className="max-h-40 overflow-y-auto space-y-1">
+                                                       {availableMolds.map(m => (
+                                                           <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
+                                                               <span className="font-bold text-slate-700">{m.code}</span>
+                                                               <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
+                                                           </button>
+                                                       ))}
+                                                       {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
+                                                   </div>
                                                </div>
                                            )}
                                        </div>

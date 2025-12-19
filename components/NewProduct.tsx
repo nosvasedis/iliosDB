@@ -1019,7 +1019,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
              await supabase.from('recipes').insert(recipeInserts);
         }
         
-        await supabase.from('product_molds').delete().eq('parent_sku', finalMasterSku);
+        // FIX: Delete based on correct column 'product_sku', not 'parent_sku'
+        await supabase.from('product_molds').delete().eq('product_sku', finalMasterSku);
         if (productionType === ProductionType.InHouse && selectedMolds.length > 0) {
              const moldInserts = selectedMolds.map(m => ({ 
                  product_sku: finalMasterSku, 
