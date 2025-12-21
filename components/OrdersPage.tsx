@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType } from '../types';
-// @FIX: Import 'Globe' and 'FileText' icons from lucide-react.
+import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
@@ -25,7 +25,6 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
-// --- START: Copied from ProductionPage.tsx ---
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', icon: <Globe size={20} />, color: 'indigo' },
     { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', icon: <Package size={20} />, color: 'slate' },
@@ -72,12 +71,12 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                 <div className="p-8 space-y-6">
                     <div className="flex items-center justify-around text-center">
                         <div className="flex flex-col items-center gap-2">
-                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color].bg} ${STAGE_COLORS[sourceStageInfo.color].text}`}>{sourceStageInfo.icon}</div>
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].text}`}>{sourceStageInfo.icon}</div>
                             <span className="text-xs font-bold">{sourceStageInfo.label}</span>
                         </div>
                         <ArrowRight size={24} className="text-slate-300 mx-4 shrink-0"/>
                         <div className="flex flex-col items-center gap-2">
-                            <div className={`p-3 rounded-xl ${STAGE_COLORS[targetStageInfo.color].bg} ${STAGE_COLORS[targetStageInfo.color].text}`}>{targetStageInfo.icon}</div>
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[targetStageInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[targetStageInfo.color as keyof typeof STAGE_COLORS].text}`}>{targetStageInfo.icon}</div>
                             <span className="text-xs font-bold">{targetStageInfo.label}</span>
                         </div>
                     </div>
@@ -113,7 +112,6 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
         </div>
     );
 };
-// --- END: Copied from ProductionPage.tsx ---
 
 const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, onPrintPreparation, onPrintTechnician, allBatches, showToast }: {
     order: Order;
@@ -262,7 +260,6 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
   
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
-  // --- CRITICAL FIX: Enrich batches with product details for printing ---
   const enrichedBatches = useMemo(() => {
       return batches?.map(b => ({
           ...b,
@@ -838,6 +835,12 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                                 const currentIndex = STAGES.findIndex(cs => cs.id === batch.current_stage);
                                                 const targetIndex = STAGES.findIndex(ts => ts.id === s.id);
                                                 if (targetIndex <= currentIndex) return false;
+                                                
+                                                // Specific logic for imported products
+                                                if (batch.product_details?.production_type === ProductionType.Imported) {
+                                                    return [ProductionStage.Labeling, ProductionStage.Ready].includes(s.id);
+                                                }
+
                                                 if (batch.current_stage === ProductionStage.Casting && !batch.requires_setting && s.id === ProductionStage.Setting) return false;
                                                 if (batch.current_stage === ProductionStage.AwaitingDelivery && !(batch.requires_setting ? [ProductionStage.Setting, ProductionStage.Labeling].includes(s.id) : [ProductionStage.Labeling].includes(s.id))) return false;
                                                 return true;

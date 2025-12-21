@@ -1,8 +1,9 @@
+
 import React, { useMemo, useState } from 'react';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -47,11 +48,12 @@ interface BatchCardProps {
     batch: ProductionBatch;
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
     onPrint: (batch: ProductionBatch) => void;
+    onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) => {
-    // @FIX: Use Greek literal for BatchType comparison.
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
+    const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     
     return (
     <div 
@@ -98,6 +100,15 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint }) =>
             </div>
         </div>
 
+        {isAwaiting && onMoveDirectly && (
+            <button 
+                onClick={(e) => { e.stopPropagation(); onMoveDirectly(batch, ProductionStage.Labeling); }}
+                className="mb-3 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+                <Truck size={14}/> Άφιξη & Πακετάρισμα
+            </button>
+        )}
+
         <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-end">
             {batch.order_id ? (
                 <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">{batch.order_id}</div>
@@ -111,11 +122,11 @@ const OrderGroupCard: React.FC<{
     orderId: string, 
     batches: ProductionBatch[], 
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void, 
-    onPrint: (batch: ProductionBatch) => void
-}> = ({ orderId, batches, onDragStart, onPrint }) => {
+    onPrint: (batch: ProductionBatch) => void,
+    onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
+}> = ({ orderId, batches, onDragStart, onPrint, onMoveDirectly }) => {
     const [expanded, setExpanded] = useState(false);
     const totalQty = batches.reduce((acc, b) => acc + b.quantity, 0);
-    // @FIX: Use Greek literal for BatchType comparison.
     const hasRefurbish = batches.some(b => b.type === 'Φρεσκάρισμα');
 
     return (
@@ -140,7 +151,7 @@ const OrderGroupCard: React.FC<{
                 <div className="p-3 pt-0 space-y-3 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
                     {batches.map(batch => (
                         <div key={batch.id} className="scale-95 origin-top">
-                            <BatchCard batch={batch} onDragStart={onDragStart} onPrint={onPrint} />
+                            <BatchCard batch={batch} onDragStart={onDragStart} onPrint={onPrint} onMoveDirectly={onMoveDirectly} />
                         </div>
                     ))}
                 </div>
@@ -339,6 +350,26 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }
   };
 
+  const handleDirectMove = async (batch: ProductionBatch, target: ProductionStage) => {
+      const targetStageInfo = STAGES.find(s => s.id === target);
+      const confirmed = await confirm({
+          title: 'Άμεση Μετακίνηση',
+          message: `Θέλετε να μετακινήσετε όλη την παρτίδα ${batch.sku}${batch.variant_suffix || ''} απευθείας στο στάδιο "${targetStageInfo?.label}";`,
+          confirmText: 'Μετακίνηση'
+      });
+      
+      if (confirmed) {
+          setIsProcessingSplit(true);
+          try {
+              await api.updateBatchStage(batch.id, target);
+              queryClient.invalidateQueries({ queryKey: ['batches'] });
+              queryClient.invalidateQueries({ queryKey: ['orders'] });
+              showToast('Η παρτίδα μετακινήθηκε.', 'success');
+          } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, 'error'); } 
+          finally { setIsProcessingSplit(false); }
+      }
+  };
+
   const getGroupedBatches = (stageBatches: ProductionBatch[]) => {
       const groups: Record<string, ProductionBatch[]> = {};
       const orphans: ProductionBatch[] = [];
@@ -431,15 +462,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                 {groupByOrder ? (
                                     <>
                                         {Object.entries(groups).map(([orderId, batches]) => (
-                                            <OrderGroupCard key={orderId} orderId={orderId} batches={batches} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                            <OrderGroupCard key={orderId} orderId={orderId} batches={batches} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
                                         ))}
                                         {orphans.map(batch => (
-                                            <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                            <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
                                         ))}
                                     </>
                                 ) : (
                                     stageBatches.map(batch => (
-                                        <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} />
+                                        <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
                                     ))
                                 )}
                                 
