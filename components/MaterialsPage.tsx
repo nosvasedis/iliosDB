@@ -1,12 +1,11 @@
-
 import React, { useState, useMemo } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search, Scroll } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search, Scroll, User, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import { formatDecimal } from '../utils/pricingEngine';
+import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -21,6 +20,8 @@ interface Props {
     settings: GlobalSettings;
 }
 
+type StoneGroupFilter = 'all' | 'men' | 'women';
+
 export default function MaterialsPage({ settings }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
@@ -29,6 +30,7 @@ export default function MaterialsPage({ settings }: Props) {
   const [editableMaterials, setEditableMaterials] = useState<Material[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [stoneGroup, setStoneGroup] = useState<StoneGroupFilter>('all');
   
   // Variant Pricing Modal State
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
@@ -40,14 +42,66 @@ export default function MaterialsPage({ settings }: Props) {
     }
   }, [materials]);
 
-  // Derived filtered list
+  /**
+   * Refined Multi-Tier Gender Detection
+   * Priority 1: Title Keywords (αντρική, γυναικεία, etc)
+   * Priority 2: Exclusive Stone Suffixes (KR, QN vs PAX, BST)
+   * Priority 3: General Dictionary matches
+   */
+  const detectGender = (m: Material) => {
+      const nameLower = m.name.toLowerCase();
+      const variantCodes = Object.keys(m.variant_prices || {});
+      
+      // Tier 1: High-Priority Keywords in Title
+      const menKeywords = ['ανδρ', 'αντρ', 'άντρας'];
+      const womenKeywords = ['γυναικ', 'γυναίκα'];
+
+      const hasMenKw = menKeywords.some(kw => nameLower.includes(kw));
+      const hasWomenKw = womenKeywords.some(kw => nameLower.includes(kw));
+
+      if (hasMenKw && !hasWomenKw) return { isMen: true, isWomen: false };
+      if (hasWomenKw && !hasMenKw) return { isMen: false, isWomen: true };
+
+      // Tier 2: Exclusive Stone Codes in variants (Suffixes)
+      // These codes are distinctively used for one gender or the other
+      const menExclusiveCodes = ['KR', 'GSU', 'RSU', 'QN', 'TG', 'TY', 'IA', 'BSU', 'MA', 'OP', 'NF'];
+      const womenExclusiveCodes = ['BST', 'PAX', 'MAX', 'KAX', 'PCO', 'MCO', 'CO', 'AI', 'AP', 'AM', 'LR', 'TPR', 'TKO', 'TMP', 'MP', 'PR', 'KO', 'MV', 'RZ', 'AK', 'XAL'];
+
+      const hasMenExCode = variantCodes.some(vc => menExclusiveCodes.includes(vc));
+      const hasWomenExCode = variantCodes.some(vc => womenExclusiveCodes.includes(vc));
+
+      if (hasMenExCode && !hasWomenExCode) return { isMen: true, isWomen: false };
+      if (hasWomenExCode && !hasMenExCode) return { isMen: false, isWomen: true };
+
+      // Tier 3: Fallback - Dictionary stone names matching in title
+      const menStoneNames = Object.values(STONE_CODES_MEN).map(v => v.toLowerCase());
+      const womenStoneNames = Object.values(STONE_CODES_WOMEN).map(v => v.toLowerCase());
+
+      const matchesMenName = menStoneNames.some(sn => nameLower.includes(sn));
+      const matchesWomenName = womenStoneNames.some(sn => nameLower.includes(sn));
+
+      // If it matches both (like "Λάπις" with no keywords), it shows in both
+      return { isMen: matchesMenName, isWomen: matchesWomenName };
+  };
+
+  // Derived filtered list with smart stone grouping
   const filteredMaterials = useMemo(() => {
       return editableMaterials.filter(m => {
           const matchesTab = activeTab === 'ALL' || m.type === activeTab;
           const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
-          return matchesTab && matchesSearch;
+          
+          if (!matchesTab || !matchesSearch) return false;
+
+          // Apply stone sub-filtering
+          if (activeTab === MaterialType.Stone && stoneGroup !== 'all') {
+              const { isMen, isWomen } = detectGender(m);
+              if (stoneGroup === 'men') return isMen;
+              if (stoneGroup === 'women') return isWomen;
+          }
+
+          return true;
       });
-  }, [editableMaterials, activeTab, searchTerm]);
+  }, [editableMaterials, activeTab, searchTerm, stoneGroup]);
 
   // Calculate counts for tabs
   const counts = useMemo(() => {
@@ -61,9 +115,7 @@ export default function MaterialsPage({ settings }: Props) {
 
   const handleAddMaterial = async () => {
     try {
-        // Default to the active tab type if not "ALL", otherwise Component
         const defaultType = activeTab !== 'ALL' ? (activeTab as MaterialType) : MaterialType.Component;
-
         const { error } = await supabase.from('materials').insert({
             name: 'Νέο Υλικό', type: defaultType, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}
         });
@@ -71,7 +123,6 @@ export default function MaterialsPage({ settings }: Props) {
         queryClient.invalidateQueries({ queryKey: ['materials'] });
         showToast('Το υλικό δημιουργήθηκε.', 'success');
     } catch(e) {
-        console.error("Error creating material:", e);
         showToast("Σφάλμα κατά τη δημιουργία.", 'error');
     }
   };
@@ -83,17 +134,14 @@ export default function MaterialsPage({ settings }: Props) {
   const handleSaveRow = async (materialId: string) => {
       const material = editableMaterials.find(m => m.id === materialId);
       if (!material) return;
-
       try {
           const { error } = await supabase.from('materials').update({
               name: material.name, type: material.type, cost_per_unit: material.cost_per_unit, unit: material.unit
           }).eq('id', material.id);
-
           if (error) throw error;
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           showToast("Αποθηκεύτηκε επιτυχώς!", 'success');
       } catch(e) {
-          console.error("Error saving material:", e);
           showToast("Σφάλμα αποθήκευσης.", 'error');
       }
   };
@@ -101,21 +149,19 @@ export default function MaterialsPage({ settings }: Props) {
   const handleDelete = async (id: string) => {
     const yes = await confirm({
         title: 'Διαγραφή Υλικού',
-        message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το υλικό; Η ενέργεια δεν μπορεί να αναιρεθεί.',
+        message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το υλικό;',
         isDestructive: true,
         confirmText: 'Διαγραφή'
     });
-    
-    if (!yes) return;
-    
-    try {
-        const { error } = await supabase.from('materials').delete().eq('id', id);
-        if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ['materials'] });
-        showToast("Το υλικό διαγράφηκε.", 'info');
-    } catch(e) {
-        console.error("Error deleting material:", e);
-        showToast("Σφάλμα διαγραφής. Το υλικό μπορεί να χρησιμοποιείται σε συνταγές.", 'error');
+    if (yes) {
+        try {
+            const { error } = await supabase.from('materials').delete().eq('id', id);
+            if (error) throw error;
+            queryClient.invalidateQueries({ queryKey: ['materials'] });
+            showToast("Το υλικό διαγράφηκε.", 'info');
+        } catch(e) {
+            showToast("Σφάλμα διαγραφής.", 'error');
+        }
     }
   };
 
@@ -125,40 +171,19 @@ export default function MaterialsPage({ settings }: Props) {
       setVariantPrices(variants);
   };
 
-  const updateVariantPrice = (idx: number, field: 'code' | 'price', value: any) => {
-      const updated = [...variantPrices];
-      updated[idx] = { ...updated[idx], [field]: value };
-      setVariantPrices(updated);
-  };
-
-  const addVariantPriceRow = () => {
-      setVariantPrices([...variantPrices, { code: '', price: 0 }]);
-  };
-
-  const removeVariantPriceRow = (idx: number) => {
-      setVariantPrices(variantPrices.filter((_, i) => i !== idx));
-  };
-
   const saveVariantPrices = async () => {
       if (!activeMaterial) return;
       const pricesObj: Record<string, number> = {};
       variantPrices.forEach(vp => {
-          if (vp.code && vp.price > 0) {
-              pricesObj[vp.code.toUpperCase()] = parseFloat(vp.price.toString());
-          }
+          if (vp.code && vp.price > 0) pricesObj[vp.code.toUpperCase()] = parseFloat(vp.price.toString());
       });
-
       try {
-          const { error } = await supabase.from('materials').update({
-              variant_prices: pricesObj
-          }).eq('id', activeMaterial.id);
-          
+          const { error } = await supabase.from('materials').update({ variant_prices: pricesObj }).eq('id', activeMaterial.id);
           if (error) throw error;
-          
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           setActiveMaterial(null);
           showToast("Οι ειδικές τιμές αποθηκεύτηκαν.", 'success');
-      } catch (e) {
+      } catch ( e) {
           showToast("Σφάλμα αποθήκευσης.", 'error');
       }
   };
@@ -204,36 +229,16 @@ export default function MaterialsPage({ settings }: Props) {
         </button>
       </div>
 
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-3xl shadow-lg border border-slate-700 flex flex-col md:flex-row justify-between items-start gap-4">
-          <div>
-              <div className="flex items-center gap-3">
-                  <div className="bg-white/10 p-2 rounded-lg">
-                      <Coins size={20} />
-                  </div>
-                  <h2 className="font-bold text-lg">Βασική Πρώτη Ύλη: Ασήμι 925</h2>
-              </div>
-              <p className="text-sm text-slate-300 mt-2 max-w-md">
-                  Το ασήμι δεν προστίθεται χειροκίνητα. Το κόστος του υπολογίζεται αυτόματα σε κάθε προϊόν βάσει του βάρους του και της τρέχουσας τιμής αγοράς.
-              </p>
-          </div>
-          <div className="bg-white/5 p-4 rounded-xl text-center border border-white/10 w-full md:w-auto mt-2 md:mt-0">
-              <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Τρεχουσα Τιμη</span>
-              <div className="font-mono font-black text-3xl text-amber-400 mt-1">
-                  {formatDecimal(settings.silver_price_gram, 3)}€<span className="text-lg text-slate-400">/g</span>
-              </div>
-          </div>
-      </div>
-
       <div className="space-y-4">
-          {/* TABS & SEARCH */}
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-end">
-              <div className="flex gap-2 overflow-x-auto pb-2 w-full md:w-auto scrollbar-hide">
+          <div className="flex flex-col gap-4">
+              {/* MAIN CATEGORY TABS */}
+              <div className="flex gap-2 overflow-x-auto pb-2 w-full scrollbar-hide">
                   {TABS.map(tab => {
                       const isActive = activeTab === tab.id;
                       return (
                           <button
                               key={tab.id}
-                              onClick={() => setActiveTab(tab.id)}
+                              onClick={() => { setActiveTab(tab.id); setStoneGroup('all'); }}
                               className={`
                                   flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all border
                                   ${isActive 
@@ -251,7 +256,31 @@ export default function MaterialsPage({ settings }: Props) {
                   })}
               </div>
               
-              <div className="relative w-full md:w-64">
+              {/* SUB-GROUPING FOR STONES */}
+              {activeTab === MaterialType.Stone && (
+                <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit animate-in slide-in-from-top-2">
+                    <button 
+                        onClick={() => setStoneGroup('all')}
+                        className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${stoneGroup === 'all' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        Όλες
+                    </button>
+                    <button 
+                        onClick={() => setStoneGroup('men')}
+                        className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${stoneGroup === 'men' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <User size={14}/> Ανδρικές
+                    </button>
+                    <button 
+                        onClick={() => setStoneGroup('women')}
+                        className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${stoneGroup === 'women' ? 'bg-pink-50 text-pink-700 border-pink-100' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <User size={14}/> Γυναικείες
+                    </button>
+                </div>
+              )}
+              
+              <div className="relative w-full md:w-64 self-end">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                   <input 
                       type="text" 
@@ -277,64 +306,79 @@ export default function MaterialsPage({ settings }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredMaterials.map((m, idx) => (
-                    <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
-                      <td className="p-4">
-                          <div className="flex flex-col">
-                              <input 
+                  {filteredMaterials.map((m, idx) => {
+                    // Detect gender for UI badge using our Tiered logic
+                    const isStone = m.type === MaterialType.Stone;
+                    const { isMen, isWomen } = isStone ? detectGender(m) : { isMen: false, isWomen: false };
+
+                    return (
+                        <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="p-4 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
+                        <td className="p-4">
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={m.name} 
+                                        onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
+                                        className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300 min-w-0"
+                                    />
+                                    {isStone && (
+                                        <div className="flex gap-1 shrink-0">
+                                            {isMen && <div className="bg-blue-100 text-blue-600 p-1 rounded" title="Ανδρικό"><User size={10}/></div>}
+                                            {isWomen && <div className="bg-pink-100 text-pink-600 p-1 rounded" title="Γυναικείο"><User size={10}/></div>}
+                                        </div>
+                                    )}
+                                </div>
+                                {Object.keys(m.variant_prices || {}).length > 0 && (
+                                    <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-1">
+                                        <List size={10}/> {Object.keys(m.variant_prices || {}).length} ειδικές τιμές
+                                    </div>
+                                )}
+                            </div>
+                        </td>
+                        <td className="p-4">
+                            <div className="relative flex items-center gap-2">
+                                {getMaterialIcon(m.type)}
+                                <select 
+                                    value={m.type} 
+                                    onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 
+                                    className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-slate-600 outline-none w-full appearance-none font-medium cursor-pointer"
+                                >
+                                    {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
+                                </select>
+                            </div>
+                        </td>
+                        <td className="p-4 text-right">
+                            <input 
+                                type="number" 
+                                step="0.001" 
+                                value={m.cost_per_unit} 
+                                onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} 
+                                className="w-24 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-right text-slate-900 font-mono font-bold outline-none"
+                            />
+                        </td>
+                        <td className="p-4 text-center">
+                            <input 
                                 type="text" 
-                                value={m.name} 
-                                onChange={(e) => updateMaterial(m.id, 'name', e.target.value)} 
-                                className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 font-bold text-slate-800 outline-none transition-all placeholder-slate-300"
-                              />
-                              {Object.keys(m.variant_prices || {}).length > 0 && (
-                                  <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-1">
-                                      <List size={10}/> {Object.keys(m.variant_prices || {}).length} ειδικές τιμές
-                                  </div>
-                              )}
-                          </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="relative flex items-center gap-2">
-                            {getMaterialIcon(m.type)}
-                            <select 
-                                value={m.type} 
-                                onChange={(e) => updateMaterial(m.id, 'type', e.target.value)} 
-                                className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-slate-600 outline-none w-full appearance-none font-medium cursor-pointer"
-                            >
-                                {Object.values(MaterialType).map(t => <option key={t} value={t}>{MAT_TYPE_MAP[t]}</option>)}
-                            </select>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                          <input 
-                            type="number" 
-                            step="0.001" 
-                            value={m.cost_per_unit} 
-                            onChange={(e) => updateMaterial(m.id, 'cost_per_unit', parseFloat(e.target.value))} 
-                            className="w-24 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-right text-slate-900 font-mono font-bold outline-none"
-                          />
-                      </td>
-                      <td className="p-4 text-center">
-                          <input 
-                            type="text" 
-                            value={m.unit} 
-                            onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} 
-                            className="w-16 bg-slate-100 rounded py-1 text-center text-slate-500 text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500/20"
-                          />
-                      </td>
-                      <td className="p-4">
-                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openVariantEditor(m)} title="Ειδικές Τιμές" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><List size={18} /></button>
-                            <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
-                            <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                                value={m.unit} 
+                                onChange={(e) => updateMaterial(m.id, 'unit', e.target.value)} 
+                                className="w-16 bg-slate-100 rounded py-1 text-center text-slate-500 text-xs font-bold outline-none focus:ring-2 focus:ring-purple-500/20"
+                            />
+                        </td>
+                        <td className="p-4">
+                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openVariantEditor(m)} title="Ειδικές Τιμές" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><List size={18} /></button>
+                                <button onClick={() => handleSaveRow(m.id)} title="Αποθήκευση" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                                <button onClick={() => handleDelete(m.id)} title="Διαγραφή" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            </div>
+                        </td>
+                        </tr>
+                    );
+                  })}
+                  {/* @FIX: Renamed filteredInventory to filteredMaterials to fix undefined variable error. */}
                   {filteredMaterials.length === 0 && (
-                    <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά σε αυτή την κατηγορία.</span></td></tr>
+                    <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά.</span></td></tr>
                   )}
                 </tbody>
               </table>
@@ -360,24 +404,34 @@ export default function MaterialsPage({ settings }: Props) {
                               <input 
                                   placeholder="Κωδικός (π.χ. LA)" 
                                   value={vp.code} 
-                                  onChange={e => updateVariantPrice(idx, 'code', e.target.value.toUpperCase())}
+                                  onChange={e => {
+                                    const code = e.target.value.toUpperCase();
+                                    const updated = [...variantPrices];
+                                    updated[idx] = { ...updated[idx], code };
+                                    setVariantPrices(updated);
+                                  }}
                                   className="flex-1 p-2 border border-slate-200 rounded-lg uppercase font-mono text-sm outline-none focus:border-blue-500"
                               />
                               <input 
                                   type="number" step="0.01" 
                                   placeholder="Τιμή" 
                                   value={vp.price} 
-                                  onChange={e => updateVariantPrice(idx, 'price', parseFloat(e.target.value))}
+                                  onChange={e => {
+                                    const price = parseFloat(e.target.value);
+                                    const updated = [...variantPrices];
+                                    updated[idx] = { ...updated[idx], price };
+                                    setVariantPrices(updated);
+                                  }}
                                   className="w-24 p-2 border border-slate-200 rounded-lg font-bold text-sm text-right outline-none focus:border-blue-500"
                               />
-                              <button onClick={() => removeVariantPriceRow(idx)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
+                              <button onClick={() => setVariantPrices(variantPrices.filter((_, i) => i !== idx))} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
                           </div>
                       ))}
                       {variantPrices.length === 0 && <p className="text-sm text-slate-400 italic text-center py-4">Δεν υπάρχουν ειδικές τιμές.</p>}
                   </div>
                   
                   <div className="flex gap-2">
-                      <button onClick={addVariantPriceRow} className="flex-1 py-2 border border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                      <button onClick={() => setVariantPrices([...variantPrices, { code: '', price: 0 }])} className="flex-1 py-2 border border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
                           <Plus size={14}/> Προσθήκη
                       </button>
                       <button onClick={saveVariantPrices} className="flex-1 bg-blue-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors">
