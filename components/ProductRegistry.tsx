@@ -95,6 +95,9 @@ const ProductCard: React.FC<{
         if (hasVariants) setViewIndex(prev => (prev - 1 + variantCount) % variantCount);
     };
 
+    // Total weight including secondary weight for accurate display
+    const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+
     return (
         <div 
             onClick={onClick}
@@ -155,7 +158,7 @@ const ProductCard: React.FC<{
 
                 <div className="flex gap-2 mb-4">
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
-                        <Weight size={10}/> {product.weight_g}g
+                        <Weight size={10}/> {totalWeight.toFixed(2)}g
                     </div>
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
                         <BookOpen size={10}/> {product.recipe.length + 1} υλικά
@@ -474,7 +477,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                       <div className="flex items-center gap-3 flex-wrap">
                           <span className="text-xs font-bold text-slate-400 uppercase shrink-0">Τύπος:</span>
                           <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
-                          {/* @FIX: Add explicit type `string` to `subCat` to resolve TypeScript error. */}
                           {Array.from(activeSubCategories).map((subCat: string) => (
                               <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
                           ))}
