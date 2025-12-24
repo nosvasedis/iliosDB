@@ -1,7 +1,3 @@
-
-
-
-
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
@@ -40,7 +36,8 @@ export const STONE_CODES_WOMEN: Record<string, string> = {
   'KO': 'Κόκκινα Ζιργκόν',
   'MV': 'Μωβ Ζιργκόν',
   'RZ': 'Ροζ Ζιργκόν',
-  'AK': 'Άκουα Ζιργκόν'
+  'AK': 'Άκουα Ζιργκόν',
+  'XAL': 'Χαλκηδόνιο'
 };
 
 export const STONE_CODES_MEN: Record<string, string> = {
