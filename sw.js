@@ -1,17 +1,17 @@
 
-const CACHE_NAME = 'ilios-erp-v1.4';
+const CACHE_NAME = 'ilios-erp-v1.5';
 
-// These are the CRITICAL files needed to start the app engine
-const STATIC_ASSETS = [
+const CORE_ASSETS = [
   '/',
   '/index.html',
   '/index.tsx',
   '/App.tsx',
   '/manifest.json',
   'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
-  
-  // All dependencies from importmap MUST be pre-cached for offline cold boot
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'
+];
+
+const LIB_ASSETS = [
   'https://esm.sh/react@18.2.0',
   'https://esm.sh/react@18.2.0/',
   'https://esm.sh/react-dom@18.2.0',
@@ -28,83 +28,77 @@ const STATIC_ASSETS = [
   'https://esm.sh/pdfjs-dist@4.4.168'
 ];
 
-const EXTERNAL_LIB_DOMAINS = [
-  'esm.sh',
-  'cdn.tailwindcss.com',
-  'fonts.googleapis.com',
-  'fonts.gstatic.com',
-  'pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'
-];
+const ALL_ASSETS = [...CORE_ASSETS, ...LIB_ASSETS];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('SW: Pre-caching all assets for offline reliability');
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      console.log('SW: Starting Resilient Install');
+      // We loop so that if one library fails, the whole SW doesn't crash
+      for (const url of ALL_ASSETS) {
+        try {
+          const response = await fetch(url, { cache: 'reload' });
+          if (response.ok) {
+            await cache.put(url, response);
+          }
+        } catch (e) {
+          console.warn(`SW: Failed to pre-cache ${url}`, e);
+        }
+      }
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('SW: Removing old cache', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys().then((keys) => Promise.all(
+      keys.map(k => k !== CACHE_NAME && caches.delete(k))
+    )).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const urlString = event.request.url;
-  let url;
-  try {
-    url = new URL(urlString);
-  } catch (e) {
+  const url = new URL(event.request.url);
+
+  // Never intercept Supabase - handled by offlineDb.ts sync logic
+  if (url.host.includes('supabase.co')) return;
+
+  // 1. NAVIGATION FALLBACK (The most important for mobile "Cold Boot")
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('/index.html')
+        .then(cached => cached || fetch(event.request))
+        .catch(() => caches.match('/'))
+    );
     return;
   }
 
-  // API calls to Supabase should never be cached by SW
-  if (url.host.includes('supabase.co')) return;
-
+  // 2. CACHE-FIRST STRATEGY for all other assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // 1. Return from cache immediately if we have it
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // 2. Otherwise fetch from network and cache for later
       return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) {
-          return networkResponse;
-        }
-
-        // Only cache GET requests from our trusted domains
-        const isExternalLib = EXTERNAL_LIB_DOMAINS.some(d => url.host.includes(d));
-        if (isExternalLib || url.origin === location.origin) {
+        // Cache external libs and local assets dynamically
+        if (networkResponse.ok && (
+            url.host.includes('esm.sh') || 
+            url.host.includes('cdn.tailwindcss.com') ||
+            url.origin === location.origin
+        )) {
           const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
         }
-
         return networkResponse;
-      }).catch((error) => {
-        // 3. OFFLINE FALLBACK for SPA navigation
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html') || caches.match('/');
+      }).catch(() => {
+        // Fallback for missing images
+        if (event.request.destination === 'image') {
+          return new Response('', { status: 404 });
         }
-        throw error;
       });
     })
   );

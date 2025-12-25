@@ -4,11 +4,9 @@ import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Ge
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
-// --- CONFIGURATION FOR R2 IMAGE STORAGE ---
 export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
-// --- SECURE INITIALIZATION STRATEGY ---
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
 const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
@@ -27,10 +25,18 @@ export const supabase = createClient(
 );
 
 /**
- * HELPER: fetchFullTable with Mirroring
- * Modified to fail fast and use local mirror if offline
+ * HELPER: fetchWithTimeout
+ * Ensures we don't wait forever for a response on bad mobile data
  */
+async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+    );
+    return Promise.race([query, timeoutPromise]);
+}
+
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
+    // If explicitly offline, use local data immediately
     if (!navigator.onLine) {
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
@@ -46,22 +52,14 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             let query = supabase.from(tableName).select(select).range(from, to);
             if (filter) query = filter(query);
             
-            // Add a 5 second timeout to cloud fetches to prevent hanging the app on bad connections
-            const { data, error } = await Promise.race([
-                query,
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-            ]) as any;
+            const { data, error } = await fetchWithTimeout(query, 4000);
 
             if (error) throw error;
             
             if (data && data.length > 0) {
                 allData = [...allData, ...data];
-                if (data.length < 1000) {
-                    hasMore = false;
-                } else {
-                    from += 1000;
-                    to += 1000;
-                }
+                if (data.length < 1000) hasMore = false;
+                else { from += 1000; to += 1000; }
             } else {
                 hasMore = false;
             }
@@ -71,7 +69,7 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
         return allData;
 
     } catch (err) {
-        console.warn(`Cloud fetch failed or timed out for ${tableName}, falling back to local mirror.`);
+        console.warn(`Cloud fetch for ${tableName} failed. Using offline mirror.`);
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
     }
@@ -93,13 +91,11 @@ export const clearConfiguration = () => {
     window.location.reload();
 };
 
-// UUID Generator Fallback
 const generateUUID = () => {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 };
@@ -111,19 +107,17 @@ export const SYSTEM_IDS = {
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
     const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); 
-    const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const fileName = `${safeSku.toUpperCase()}_${uniqueId}.jpg`;
+    const fileName = `${safeSku.toUpperCase()}_${Date.now()}.jpg`;
     const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
 
     try {
         const response = await fetch(uploadUrl, {
             method: 'POST',
             mode: 'cors',
-            credentials: 'omit',
             headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
             body: file,
         });
-        if (!response.ok) throw new Error(`Worker responded with ${response.status}`);
+        if (!response.ok) throw new Error(`Status ${response.status}`);
         return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
     } catch (error) {
         console.error("R2 Upload Error:", error);
@@ -133,16 +127,18 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
-        const { data: usedInRecipes } = await supabase.from('recipes').select('parent_sku').eq('component_sku', sku);
-        if (usedInRecipes && usedInRecipes.length > 0) {
-            return { success: false, error: `Χρησιμοποιείται ως συστατικό.` };
-        }
-        await supabase.from('product_variants').delete().eq('product_sku', sku);
-        await supabase.from('recipes').delete().eq('parent_sku', sku);
-        await supabase.from('product_molds').delete().eq('product_sku', sku);
-        await supabase.from('product_collections').delete().eq('product_sku', sku);
-        await supabase.from('stock_movements').delete().eq('product_sku', sku);
-        await supabase.from('product_stock').delete().eq('product_sku', sku);
+        const { data: used } = await supabase.from('recipes').select('parent_sku').eq('component_sku', sku);
+        if (used && used.length > 0) return { success: false, error: `Χρησιμοποιείται σε συνταγή.` };
+        
+        await Promise.all([
+            supabase.from('product_variants').delete().eq('product_sku', sku),
+            supabase.from('recipes').delete().eq('parent_sku', sku),
+            supabase.from('product_molds').delete().eq('product_sku', sku),
+            supabase.from('product_collections').delete().eq('product_sku', sku),
+            supabase.from('stock_movements').delete().eq('product_sku', sku),
+            supabase.from('product_stock').delete().eq('product_sku', sku)
+        ]);
+        
         const { error: deleteError } = await supabase.from('products').delete().eq('sku', sku);
         if (deleteError) throw deleteError;
         return { success: true };
@@ -165,22 +161,18 @@ export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         if (!navigator.onLine) {
             const local = await offlineDb.getTable('global_settings');
-            return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+            return (local && local.length > 0) ? local[0] : INITIAL_SETTINGS;
         }
 
         try {
-            const { data, error } = await Promise.race([
-                supabase.from('global_settings').select('*').single(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-            ]) as any;
-
-            if (error || !data) return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+            const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
+            if (error || !data) throw new Error('Data Error');
             const settings = { silver_price_gram: Number(data.silver_price_gram), loss_percentage: Number(data.loss_percentage), barcode_width_mm: Number(data.barcode_width_mm) || 50, barcode_height_mm: Number(data.barcode_height_mm) || 30 };
             offlineDb.saveTable('global_settings', [settings]);
             return settings;
         } catch (e) {
             const local = await offlineDb.getTable('global_settings');
-            return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+            return (local && local.length > 0) ? local[0] : INITIAL_SETTINGS;
         }
     },
 
@@ -196,8 +188,7 @@ export const api = {
     },
 
     getSuppliers: async (): Promise<Supplier[]> => {
-        const data = await fetchFullTable('suppliers', '*', (q) => q.order('name'));
-        return data || [];
+        return fetchFullTable('suppliers', '*', (q) => q.order('name'));
     },
 
     saveSupplier: async (supplier: Partial<Supplier>): Promise<void> => {
@@ -214,8 +205,7 @@ export const api = {
     },
 
     getCollections: async (): Promise<Collection[]> => {
-        const data = await fetchFullTable('collections', '*', (q) => q.order('name'));
-        return data || [];
+        return fetchFullTable('collections', '*', (q) => q.order('name'));
     },
 
     setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
@@ -283,8 +273,7 @@ export const api = {
     },
 
     getCustomers: async (): Promise<Customer[]> => {
-        const data = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
-        return data as Customer[];
+        return fetchFullTable('customers', '*', (q) => q.order('full_name'));
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
@@ -311,8 +300,7 @@ export const api = {
     },
 
     getOrders: async (): Promise<Order[]> => {
-        const data = await fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
-        return data as Order[];
+        return fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
     },
 
     saveOrder: async (order: Order): Promise<void> => {
@@ -358,8 +346,7 @@ export const api = {
     },
 
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
-        const data = await fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
-        return data as ProductionBatch[];
+        return fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
     },
 
     createProductionBatch: async (batch: Partial<ProductionBatch>): Promise<void> => {
@@ -446,25 +433,18 @@ export const api = {
         return results;
     },
 
-    /**
-     * EMERGENCY RESTORE: Deletes all current data and restores from a backup.
-     */
     restoreFullSystem: async (backupData: Record<string, any[]>): Promise<void> => {
-        // Order is critical for foreign keys
         const order = [
             'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
             'orders', 'production_batches', 'product_stock', 'stock_movements'
         ];
 
-        // 1. Wipe everything in reverse
         for (const table of [...order].reverse()) {
             await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');
-            // Specific wipe for products table (uses SKU as PK)
             if (table === 'products') await supabase.from(table).delete().neq('sku', 'WIPE_ALL');
         }
 
-        // 2. Insert everything in order
         for (const table of order) {
             const data = backupData[table];
             if (data && data.length > 0) {
