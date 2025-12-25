@@ -1,7 +1,6 @@
+const CACHE_NAME = 'ilios-erp-v1.11';
 
-const CACHE_NAME = 'ilios-erp-v1.8';
-
-// The "App Shell" - using root-relative paths for better standard compliance
+// The "App Shell" - Using root-relative paths for better standard compliance
 const CORE_ASSETS = [
   'index.html',
   'index.tsx',
@@ -11,7 +10,7 @@ const CORE_ASSETS = [
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'
 ];
 
-// Essential Libraries (Initial Boot)
+// Essential Libraries
 const ESSENTIAL_LIBS = [
   'https://esm.sh/react@18.2.0',
   'https://esm.sh/react-dom@18.2.0',
@@ -22,21 +21,21 @@ const ESSENTIAL_LIBS = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('SW: Pre-caching v1.8 Essential Shell');
+      console.log('SW: Pre-caching v1.11 Assets');
       const allToCache = [...CORE_ASSETS, ...ESSENTIAL_LIBS];
       for (const url of allToCache) {
         try {
-          const response = await fetch(url, { cache: 'reload' });
+          const response = await fetch(url, { cache: 'no-store' });
           if (response.ok) {
             await cache.put(url, response);
           }
         } catch (e) {
-          console.warn(`SW: Failed to pre-cache ${url}`);
+          console.warn(`SW: Failed to pre-cache ${url}`, e);
         }
       }
-      return self.skipWaiting();
     })
   );
 });
@@ -54,21 +53,23 @@ self.addEventListener('fetch', (event) => {
 
   let url;
   try {
+    // This is the line that causes "Failed to construct 'URL': Invalid URL" 
+    // on non-standard protocols like intent:// or android-app://
     url = new URL(event.request.url);
   } catch (err) {
-    // If URL is invalid or uses an unsupported protocol (e.g., chrome-extension://), skip it
+    // Silently ignore requests that aren't valid URLs (e.g. extension schemes)
     return;
   }
 
-  // 1. BYPASS FOR SUPABASE
+  // 1. ALWAYS BYPASS FOR SUPABASE API/AUTH
   if (url.host.includes('supabase.co')) return;
 
-  // 2. NAVIGATION STRATEGY (The Cold Boot Fix)
+  // 2. NAVIGATION STRATEGY (Cold Boot fix)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match('index.html')
-        .then(cached => cached || fetch(event.request))
-        .catch(() => caches.match('index.html'))
+      fetch(event.request).catch(() => {
+        return caches.match('index.html') || caches.match('./index.html');
+      })
     );
     return;
   }
@@ -77,8 +78,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
-        // Only cache valid responses from known domains
-        if (networkResponse.ok && (
+        if (networkResponse && networkResponse.status === 200 && (
             url.origin === self.location.origin || 
             url.host.includes('esm.sh') || 
             url.host.includes('cdn.tailwindcss.com') ||
@@ -89,7 +89,7 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
-        // Fail silently and let the browser handle it or rely on cache
+        return null;
       });
 
       return cachedResponse || fetchPromise;

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="el">
   <head>
@@ -52,17 +51,24 @@
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
     <script>
-      // More robust Service Worker registration
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          // Simple relative path is most compatible across environments
           navigator.serviceWorker.register('sw.js')
             .then(reg => {
-              console.log('Ilios SW Registered:', reg.scope);
+              console.log('Ilios SW Ready');
               reg.update();
             })
             .catch(err => {
-              console.warn('Ilios SW Registration Failed:', err);
+              console.warn('SW Registration failure:', err);
             });
+        });
+
+        let refreshing;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          window.location.reload();
+          refreshing = true;
         });
       }
     </script>
