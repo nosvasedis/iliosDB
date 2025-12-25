@@ -139,6 +139,21 @@ export interface GlobalSettings {
   barcode_height_mm: number;
 }
 
+export interface PriceSnapshot {
+  id: string;
+  created_at: string;
+  notes?: string;
+  item_count: number;
+}
+
+export interface PriceSnapshotItem {
+  id: string;
+  snapshot_id: string;
+  product_sku: string;
+  variant_suffix: string | null;
+  price: number;
+}
+
 export interface Warehouse {
     id: string;
     name: string;

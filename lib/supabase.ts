@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
@@ -630,5 +630,66 @@ export const api = {
     deleteProductionBatch: async (batchId: string): Promise<void> => {
         const { error } = await supabase.from('production_batches').delete().eq('id', batchId);
         if (error) throw error;
+    },
+
+    // --- PRICE SNAPSHOTS API ---
+    getPriceSnapshots: async (): Promise<PriceSnapshot[]> => {
+        const { data, error } = await supabase.from('price_snapshots').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    },
+
+    createPriceSnapshot: async (notes: string): Promise<void> => {
+        // 1. Fetch current products and variants
+        const { data: products, error: pErr } = await supabase.from('products').select('sku, selling_price');
+        const { data: variants, error: vErr } = await supabase.from('product_variants').select('product_sku, suffix, selling_price');
+        if (pErr || vErr) throw new Error("Failed to fetch current prices");
+
+        const items = [
+            ...(products || []).map(p => ({ product_sku: p.sku, variant_suffix: null, price: p.selling_price || 0 })),
+            ...(variants || []).map(v => ({ product_sku: v.product_sku, variant_suffix: v.suffix, price: v.selling_price || 0 }))
+        ];
+
+        // 2. Insert Header
+        const { data: snapshot, error: sErr } = await supabase.from('price_snapshots').insert({
+            notes,
+            item_count: items.length
+        }).select().single();
+        if (sErr) throw sErr;
+
+        // 3. Insert Items in chunks to avoid size limits
+        const chunkSize = 500;
+        for (let i = 0; i < items.length; i += chunkSize) {
+            const chunk = items.slice(i, i + chunkSize).map(item => ({
+                ...item,
+                snapshot_id: snapshot.id
+            }));
+            const { error: iErr } = await supabase.from('price_snapshot_items').insert(chunk);
+            if (iErr) throw iErr;
+        }
+    },
+
+    getPriceSnapshotItems: async (snapshotId: string): Promise<PriceSnapshotItem[]> => {
+        const { data, error } = await supabase.from('price_snapshot_items').select('*').eq('snapshot_id', snapshotId);
+        if (error) throw error;
+        return data || [];
+    },
+
+    revertToPriceSnapshot: async (snapshotId: string): Promise<void> => {
+        const items = await api.getPriceSnapshotItems(snapshotId);
+        
+        // Split items into master products and variants
+        const masterItems = items.filter(i => !i.variant_suffix);
+        const variantItems = items.filter(i => !!i.variant_suffix);
+
+        // Update Products
+        for (const item of masterItems) {
+            await supabase.from('products').update({ selling_price: item.price }).eq('sku', item.product_sku);
+        }
+
+        // Update Variants
+        for (const item of variantItems) {
+            await supabase.from('product_variants').update({ selling_price: item.price }).match({ product_sku: item.product_sku, suffix: item.variant_suffix });
+        }
     }
 };
