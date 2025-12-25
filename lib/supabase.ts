@@ -17,7 +17,9 @@ const SUPABASE_KEY = envKey || localStorage.getItem('VITE_SUPABASE_ANON_KEY') ||
 export const AUTH_KEY_SECRET = envWorkerKey || localStorage.getItem('VITE_WORKER_AUTH_KEY') || '';
 export const GEMINI_API_KEY = envGeminiKey || localStorage.getItem('VITE_GEMINI_API_KEY') || '';
 
-export const isConfigured = !!SUPABASE_URL && !!SUPABASE_KEY;
+// If no keys are provided, we check if we have local data to run "Stand-alone"
+export const isLocalMode = localStorage.getItem('ILIOS_LOCAL_MODE') === 'true';
+export const isConfigured = (!!SUPABASE_URL && !!SUPABASE_KEY) || isLocalMode;
 
 export const supabase = createClient(
     SUPABASE_URL || 'https://placeholder.supabase.co', 
@@ -26,7 +28,6 @@ export const supabase = createClient(
 
 /**
  * HELPER: fetchWithTimeout
- * Ensures we don't wait forever for a response on bad mobile data
  */
 async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
     const timeoutPromise = new Promise((_, reject) => 
@@ -36,8 +37,8 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
 }
 
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
-    // If explicitly offline, use local data immediately
-    if (!navigator.onLine) {
+    // If explicitly offline or in Local Mode, use local data immediately
+    if (!navigator.onLine || isLocalMode) {
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
     }
@@ -80,6 +81,7 @@ export const saveConfiguration = (url: string, key: string, workerKey: string, g
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
     localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
     localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
+    localStorage.removeItem('ILIOS_LOCAL_MODE'); // Disable local mode on re-config
     window.location.reload();
 };
 
@@ -88,6 +90,7 @@ export const clearConfiguration = () => {
     localStorage.removeItem('VITE_SUPABASE_ANON_KEY');
     localStorage.removeItem('VITE_WORKER_AUTH_KEY');
     localStorage.removeItem('VITE_GEMINI_API_KEY');
+    localStorage.removeItem('ILIOS_LOCAL_MODE');
     window.location.reload();
 };
 
@@ -127,6 +130,12 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
+        if (isLocalMode) {
+            const table = await offlineDb.getTable('products') || [];
+            await offlineDb.saveTable('products', table.filter((p: any) => p.sku !== sku));
+            return { success: true };
+        }
+        
         const { data: used } = await supabase.from('recipes').select('parent_sku').eq('component_sku', sku);
         if (used && used.length > 0) return { success: false, error: `Χρησιμοποιείται σε συνταγή.` };
         
@@ -149,6 +158,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
 
 export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {
     const data = { product_sku: sku, variant_suffix: variantSuffix || null, change_amount: change, reason: reason, created_at: new Date().toISOString() };
+    if (isLocalMode) return;
     try {
         const { error } = await supabase.from('stock_movements').insert(data);
         if (error) throw error;
@@ -159,7 +169,7 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
-        if (!navigator.onLine) {
+        if (!navigator.onLine || isLocalMode) {
             const local = await offlineDb.getTable('global_settings');
             return (local && local.length > 0) ? local[0] : INITIAL_SETTINGS;
         }
@@ -192,6 +202,7 @@ export const api = {
     },
 
     saveSupplier: async (supplier: Partial<Supplier>): Promise<void> => {
+        if (isLocalMode) return;
         try {
             if (supplier.id) await supabase.from('suppliers').update(supplier).eq('id', supplier.id);
             else await supabase.from('suppliers').insert(supplier);
@@ -201,6 +212,7 @@ export const api = {
     },
 
     deleteSupplier: async (id: string): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('suppliers').delete().eq('id', id);
     },
 
@@ -209,6 +221,7 @@ export const api = {
     },
 
     setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('product_collections').delete().eq('product_sku', sku);
         if (collectionIds.length > 0) {
             const newLinks = collectionIds.map(id => ({ product_sku: sku, collection_id: id }));
@@ -259,16 +272,19 @@ export const api = {
     },
 
     saveWarehouse: async (wh: Partial<Warehouse>): Promise<Warehouse> => {
+        if (isLocalMode) throw new Error("Unavailable in Local Mode");
         const { data, error } = await supabase.from('warehouses').insert(wh).select().single();
         if (error) throw error;
         return data;
     },
 
     updateWarehouse: async (id: string, updates: Partial<Warehouse>): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('warehouses').update(updates).eq('id', id);
     },
 
     deleteWarehouse: async (id: string): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('warehouses').delete().eq('id', id);
     },
 
@@ -277,6 +293,7 @@ export const api = {
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
+        if (isLocalMode) return null;
         try {
             const { data, error } = await supabase.from('customers').insert(customer).select().single();
             if (error) throw error;
@@ -288,6 +305,7 @@ export const api = {
     },
 
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
+        if (isLocalMode) return;
         try {
             await supabase.from('customers').update(updates).eq('id', id);
         } catch (e) {
@@ -296,6 +314,7 @@ export const api = {
     },
 
     deleteCustomer: async (id: string): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('customers').delete().eq('id', id);
     },
 
@@ -304,6 +323,7 @@ export const api = {
     },
 
     saveOrder: async (order: Order): Promise<void> => {
+        if (isLocalMode) return;
         const data = { id: order.id, customer_id: order.customer_id, customer_name: order.customer_name, customer_phone: order.customer_phone, status: order.status, total_price: order.total_price, items: order.items, created_at: order.created_at, notes: order.notes };
         try {
             await supabase.from('orders').insert(data);
@@ -313,6 +333,7 @@ export const api = {
     },
 
     updateOrder: async (order: Order): Promise<void> => {
+        if (isLocalMode) return;
         const data = { customer_id: order.customer_id, customer_name: order.customer_name, customer_phone: order.customer_phone, items: order.items, total_price: order.total_price, notes: order.notes };
         try {
             await supabase.from('orders').update(data).eq('id', order.id);
@@ -322,6 +343,7 @@ export const api = {
     },
     
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
+        if (isLocalMode) return;
         const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (!order) return;
         await supabase.from('production_batches').delete().eq('order_id', orderId).or(`current_stage.eq.${ProductionStage.Waxing},current_stage.eq.${ProductionStage.AwaitingDelivery}`);
@@ -336,11 +358,13 @@ export const api = {
     },
     
     updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('orders').update({ status }).eq('id', orderId);
         if (status === OrderStatus.Delivered) await supabase.from('production_batches').delete().eq('order_id', orderId);
     },
 
     deleteOrder: async (orderId: string): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('production_batches').delete().eq('order_id', orderId);
         await supabase.from('orders').delete().eq('id', orderId);
     },
@@ -350,11 +374,13 @@ export const api = {
     },
 
     createProductionBatch: async (batch: Partial<ProductionBatch>): Promise<void> => {
+        if (isLocalMode) return;
         const { id, product_details, product_image, diffHours, isDelayed, ...insertData } = batch;
         await supabase.from('production_batches').insert({ ...insertData, id: generateUUID(), type: batch.type || 'Νέα' });
     },
 
     updateBatchStage: async (batchId: string, stage: ProductionStage): Promise<void> => {
+        if (isLocalMode) return;
         const { data: updatedBatch } = await supabase.from('production_batches').update({ current_stage: stage, updated_at: new Date().toISOString() }).eq('id', batchId).select().single();
         if (updatedBatch && updatedBatch.order_id) {
             const { data: orderBatches } = await supabase.from('production_batches').select('current_stage').eq('order_id', updatedBatch.order_id);
@@ -366,20 +392,24 @@ export const api = {
     },
     
     splitBatch: async (originalBatchId: string, originalBatchNewQty: number, newBatchData: any): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('production_batches').update({ quantity: originalBatchNewQty, updated_at: new Date().toISOString() }).eq('id', originalBatchId);
         await supabase.from('production_batches').insert({ ...newBatchData, id: generateUUID() });
     },
 
     deleteProductionBatch: async (batchId: string): Promise<void> => {
+        if (isLocalMode) return;
         await supabase.from('production_batches').delete().eq('id', batchId);
     },
 
     getPriceSnapshots: async (): Promise<PriceSnapshot[]> => {
+        if (isLocalMode) return [];
         const { data } = await supabase.from('price_snapshots').select('*').order('created_at', { ascending: false });
         return data || [];
     },
 
     createPriceSnapshot: async (notes: string): Promise<void> => {
+        if (isLocalMode) return;
         const { data: products } = await supabase.from('products').select('sku, selling_price');
         const { data: variants } = await supabase.from('product_variants').select('product_sku, suffix, selling_price');
         const items = [...(products || []).map(p => ({ product_sku: p.sku, variant_suffix: null, price: p.selling_price || 0 })), ...(variants || []).map(v => ({ product_sku: v.product_sku, variant_suffix: v.suffix, price: v.selling_price || 0 }))];
@@ -393,11 +423,13 @@ export const api = {
     },
 
     getPriceSnapshotItems: async (snapshotId: string): Promise<PriceSnapshotItem[]> => {
+        if (isLocalMode) return [];
         const { data } = await supabase.from('price_snapshot_items').select('*').eq('snapshot_id', snapshotId);
         return data || [];
     },
 
     revertToPriceSnapshot: async (snapshotId: string): Promise<void> => {
+        if (isLocalMode) return;
         const items = await api.getPriceSnapshotItems(snapshotId);
         for (const item of items) {
             if (!item.variant_suffix) await supabase.from('products').update({ selling_price: item.price }).eq('sku', item.product_sku);
@@ -406,6 +438,7 @@ export const api = {
     },
 
     syncOfflineData: async (): Promise<number> => {
+        if (isLocalMode) return 0;
         const queue = await offlineDb.getQueue();
         if (queue.length === 0) return 0;
         let successCount = 0;
@@ -427,8 +460,16 @@ export const api = {
     },
 
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections'];
+        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections', 'global_settings'];
         const results: Record<string, any[]> = {};
+        
+        if (isLocalMode) {
+            for (const table of tables) {
+                results[table] = await offlineDb.getTable(table) || [];
+            }
+            return results;
+        }
+
         await Promise.all(tables.map(async (table) => { results[table] = await fetchFullTable(table); }));
         return results;
     },
@@ -437,8 +478,19 @@ export const api = {
         const order = [
             'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
-            'orders', 'production_batches', 'product_stock', 'stock_movements'
+            'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings'
         ];
+
+        // If local mode or standalone restore, just push to IndexedDB
+        if (isLocalMode || !SUPABASE_URL) {
+            for (const table of order) {
+                if (backupData[table]) {
+                    await offlineDb.saveTable(table, backupData[table]);
+                }
+            }
+            localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
+            return;
+        }
 
         for (const table of [...order].reverse()) {
             await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');

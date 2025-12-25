@@ -1,7 +1,9 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { UIProvider } from './components/UIProvider';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -22,7 +24,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <UIProvider>
+        <App />
+      </UIProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );
