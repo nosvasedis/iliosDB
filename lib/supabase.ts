@@ -259,12 +259,21 @@ export const api = {
     },
 
     saveSupplier: async (supplier: Partial<Supplier>): Promise<void> => {
-        if (supplier.id) {
-            const { error } = await supabase.from('suppliers').update(supplier).eq('id', supplier.id);
-            if (error) throw error;
-        } else {
-            const { error } = await supabase.from('suppliers').insert(supplier);
-            if (error) throw error;
+        try {
+            if (supplier.id) {
+                const { error } = await supabase.from('suppliers').update(supplier).eq('id', supplier.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('suppliers').insert(supplier);
+                if (error) throw error;
+            }
+        } catch (e) {
+            console.warn("Supplier save failed, queuing offline.");
+            await offlineDb.enqueue({ 
+                type: 'SUPPLIER', table: 'suppliers', 
+                method: supplier.id ? 'UPDATE' : 'INSERT', 
+                data: supplier 
+            });
         }
     },
 
@@ -290,7 +299,6 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         try {
-            // Check cache logic handled by fetchFullTable internal logic if we wrap it properly
             const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
             if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
 
@@ -431,14 +439,31 @@ export const api = {
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
-        const { data, error } = await supabase.from('customers').insert(customer).select().single();
-        if (error) throw error;
-        return data;
+        try {
+            const { data, error } = await supabase.from('customers').insert(customer).select().single();
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.warn("Customer save failed, queuing offline.");
+            await offlineDb.enqueue({ 
+                type: 'CUSTOMER', table: 'customers', 
+                method: 'INSERT', data: customer 
+            });
+            return null;
+        }
     },
 
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
-        const { error } = await supabase.from('customers').update(updates).eq('id', id);
-        if (error) throw error;
+        try {
+            const { error } = await supabase.from('customers').update(updates).eq('id', id);
+            if (error) throw error;
+        } catch (e) {
+            console.warn("Customer update failed, queuing offline.");
+            await offlineDb.enqueue({ 
+                type: 'CUSTOMER', table: 'customers', 
+                method: 'UPDATE', data: { ...updates, id } 
+            });
+        }
     },
 
     deleteCustomer: async (id: string): Promise<void> => {
@@ -712,11 +737,17 @@ export const api = {
                     const { error: e } = await supabase.from(item.table).insert(item.data);
                     error = e;
                 } else if (item.method === 'UPDATE') {
-                    const { id, ...updateData } = item.data;
-                    const { error: e } = await supabase.from(item.table).update(updateData).eq('id', id);
+                    const { id, sku, ...updateData } = item.data;
+                    let query = supabase.from(item.table).update(updateData);
+                    
+                    // Specific ID targeting based on table
+                    if (id) query = query.eq('id', id);
+                    else if (sku) query = query.eq('sku', sku);
+                    
+                    const { error: e } = await query;
                     error = e;
                 } else if (item.method === 'DELETE') {
-                    const { error: e } = await supabase.from(item.table).delete().eq('id', item.data.id);
+                    const { error: e } = await supabase.from(item.table).delete().eq('id', item.data.id || item.data.sku);
                     error = e;
                 }
 

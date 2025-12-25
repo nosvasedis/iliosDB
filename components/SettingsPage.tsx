@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
+import { offlineDb } from '../lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
 import { formatDecimal } from '../utils/pricingEngine';
@@ -10,7 +11,7 @@ import { convertToCSV, downloadFile, flattenForCSV } from '../utils/exportUtils'
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
   const settingsData = queryClient.getQueryData<GlobalSettings>(['settings']);
   
   const [settings, setSettings] = useState<GlobalSettings | null>(settingsData || null);
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isMaintenanceAction, setIsMaintenanceAction] = useState(false);
   
   if (!settings) {
     return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
@@ -117,6 +119,44 @@ export default function SettingsPage() {
       }
   };
 
+  const handleForceSync = async () => {
+      setIsMaintenanceAction(true);
+      try {
+          const count = await api.syncOfflineData();
+          if (count > 0) {
+              showToast(`Συγχρονίστηκαν ${count} εκκρεμείς αλλαγές!`, "success");
+              queryClient.invalidateQueries();
+          } else {
+              showToast("Δεν υπάρχουν εκκρεμείς αλλαγές προς συγχρονισμό.", "info");
+          }
+      } catch (err) {
+          showToast("Σφάλμα συγχρονισμού.", "error");
+      } finally {
+          setIsMaintenanceAction(false);
+      }
+  };
+
+  const handleWipeCache = async () => {
+      const yes = await confirm({
+          title: 'Εκκαθάριση Τοπικής Μνήμης',
+          message: 'Αυτό θα διαγράψει ΟΛΑ τα τοπικά δεδομένα του browser (Cache & Sync Queue). Θα πρέπει να είστε online για να ξαναφορτώσετε το ERP. Είστε σίγουροι;',
+          isDestructive: true,
+          confirmText: 'Διαγραφή Cache'
+      });
+
+      if (yes) {
+          setIsMaintenanceAction(true);
+          try {
+              await offlineDb.clearAll();
+              showToast("Η τοπική μνήμη εκκαθαρίστηκε. Γίνεται ανανέωση...", "success");
+              setTimeout(() => window.location.reload(), 1500);
+          } catch (err) {
+              showToast("Σφάλμα εκκαθάρισης.", "error");
+              setIsMaintenanceAction(false);
+          }
+      }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex justify-between items-center">
@@ -200,30 +240,39 @@ export default function SettingsPage() {
                     </div>
                     {isExporting ? <Loader2 size={18} className="animate-spin text-emerald-500"/> : <Download size={18} className="text-slate-300 group-hover:text-emerald-500"/>}
                 </button>
-
-                <div className="flex items-start gap-2 mt-4 text-[10px] text-slate-400 italic">
-                    <ShieldAlert size={14} className="shrink-0 text-amber-500"/>
-                    <p>Συνιστάται η λήψη αντιγράφου μία φορά την εβδομάδα για μέγιστη ασφάλεια.</p>
-                </div>
             </div>
           </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Label Print Settings */}
+            {/* Maintenance Tool Card */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-                    Εκτύπωση Ετικετών
+                    <HardDrive className="text-rose-500" size={20}/>
+                    Συντήρηση Τοπικής Βάσης
                 </h2>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Πλάτος (mm)</label>
-                        <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none font-mono"/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Ύψος (mm)</label>
-                        <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none font-mono"/>
-                    </div>
+                <div className="space-y-4">
+                    <button 
+                        onClick={handleForceSync}
+                        disabled={isMaintenanceAction}
+                        className="w-full flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 transition-colors font-bold text-slate-700"
+                    >
+                        <RefreshCw size={18} className={isMaintenanceAction ? 'animate-spin' : ''}/>
+                        Άμεσος Συγχρονισμός Εκκρεμοτήτων
+                    </button>
+                    
+                    <button 
+                        onClick={handleWipeCache}
+                        disabled={isMaintenanceAction}
+                        className="w-full flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl hover:bg-rose-100 transition-colors font-bold text-rose-600"
+                    >
+                        <Trash2 size={18}/>
+                        Εκκαθάριση Τοπικής Cache (Hard Reset)
+                    </button>
+                    
+                    <p className="text-[10px] text-slate-400 italic mt-2 leading-tight">
+                        * Χρησιμοποιήστε τα εργαλεία συντήρησης μόνο εάν παρατηρήσετε καθυστερήσεις στον συγχρονισμό ή εάν θέλετε να "καθαρίσετε" τη μνήμη του browser.
+                    </p>
                 </div>
             </div>
 
@@ -233,17 +282,29 @@ export default function SettingsPage() {
                     <Shield className="text-emerald-500" size={20}/>
                     Τοπική Ρύθμιση (Browser)
                 </h2>
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <Key size={14} className="text-slate-400"/> Gemini API Key
-                    </label>
-                    <input 
-                        type="password" 
-                        value={localGeminiKey}
-                        onChange={(e) => setLocalGeminiKey(e.target.value)}
-                        placeholder="Εισάγετε το κλειδί σας (AIzaSy...)"
-                        className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
-                    />
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                            <Key size={14} className="text-slate-400"/> Gemini API Key
+                        </label>
+                        <input 
+                            type="password" 
+                            value={localGeminiKey}
+                            onChange={(e) => setLocalGeminiKey(e.target.value)}
+                            placeholder="Εισάγετε το κλειδί σας (AIzaSy...)"
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Label Width (mm)</label>
+                            <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Label Height (mm)</label>
+                            <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                        </div>
+                    </div>
                 </div>
             </div>
       </div>

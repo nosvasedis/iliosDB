@@ -6,7 +6,7 @@
  */
 
 const DB_NAME = 'IliosERP_Offline_Mirror';
-const DB_VERSION = 2; // Increment version
+const DB_VERSION = 2; 
 const STORE_NAME = 'table_cache';
 const SYNC_STORE = 'sync_queue';
 
@@ -88,6 +88,19 @@ export const offlineDb = {
         const tx = db.transaction(SYNC_STORE, 'readonly');
         const store = tx.objectStore(SYNC_STORE);
         const request = store.getAll();
+        return new Promise((resolve) => {
+            request.onsuccess = () => resolve(request.result);
+        });
+    },
+
+    /**
+     * Returns the number of pending sync items.
+     */
+    getQueueCount: async (): Promise<number> => {
+        const db = await openDB();
+        const tx = db.transaction(SYNC_STORE, 'readonly');
+        const store = tx.objectStore(SYNC_STORE);
+        const request = store.count();
         return new Promise((resolve) => {
             request.onsuccess = () => resolve(request.result);
         });

@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
+import { offlineDb } from './lib/offlineDb';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
@@ -136,6 +137,7 @@ function AppContent() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -159,14 +161,24 @@ function AppContent() {
   
   // --- Connectivity & Auto-Sync Listener ---
   useEffect(() => {
+    const checkQueue = async () => {
+        const count = await offlineDb.getQueueCount();
+        setPendingCount(count);
+        return count;
+    };
+
     const handleSync = async () => {
+        const count = await checkQueue();
+        if (count === 0) return;
+        
         setIsSyncing(true);
         try {
-            const count = await api.syncOfflineData();
-            if (count > 0) {
-                showToast(`Συγχρονίστηκαν ${count} αλλαγές που έγιναν offline!`, "success");
+            const synced = await api.syncOfflineData();
+            if (synced > 0) {
+                showToast(`Συγχρονίστηκαν ${synced} αλλαγές που έγιναν offline!`, "success");
                 queryClient.invalidateQueries();
             }
+            await checkQueue();
         } catch (e) {
             console.error("Auto-Sync Failed:", e);
         } finally {
@@ -184,12 +196,16 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
+    // Polling for queue count (to detect offline saves)
+    const interval = setInterval(checkQueue, 3000);
+
     // Initial sync check
     if (navigator.onLine) handleSync();
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
     };
   }, []);
 
@@ -505,9 +521,11 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
 
           {/* Connection Monitor */}
           <div className={`px-4 py-2 flex items-center gap-3 transition-all duration-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? (isSyncing ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? (isSyncing || pendingCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
                   {isSyncing ? (
                       <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</>
+                  ) : pendingCount > 0 ? (
+                      <><RefreshCw size={12} /> {!isCollapsed && `${pendingCount} ΕΚΚΡΕΜΟΥΝ`}</>
                   ) : isOnline ? (
                       <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟΣ'}</>
                   ) : (
@@ -670,7 +688,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
-                  <p className="opacity-50 mt-1">v0.0.7-b (Ultra Bullet-Proof)</p>
+                  <p className="opacity-50 mt-1">v1.0.0 (Production)</p>
                 </div>
             )}
           </div>
@@ -688,7 +706,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
                 <img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" />
             </div>
             <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
+                <div className={`w-2 h-2 rounded-full ${isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
             </div>
           </header>
 
