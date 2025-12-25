@@ -8,7 +8,7 @@
     <meta name="description" content="Jewelry Manufacturing Management System" />
     <meta name="theme-color" content="#060b00" />
     
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon.ico" sizes="any" />
     
     <link rel="icon" type="image/png" sizes="32x32" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon-32x32.png">
@@ -22,21 +22,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      html, body {
-        overscroll-behavior-y: none;
-      }
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
-        margin: 0;
-      }
-      @media print {
-        body { margin: 0; padding: 0; background: white; }
-        #app-container { display: none !important; }
-        .print-view { display: block !important; }
-        .print-area { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0; }
-        @page { size: A4; margin: 0; }
-      }
+      html, body { overscroll-behavior-y: none; }
+      body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
+      @media print { body { margin: 0; padding: 0; background: white; } #app-container { display: none !important; } .print-view { display: block !important; } @page { size: A4; margin: 0; } }
       .print-view { display: none; }
     </style>
   <script type="importmap">
@@ -62,12 +50,20 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="index.tsx"></script>
     <script>
+      // More robust Service Worker registration
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .then(reg => console.log('Ilios SW Ready:', reg.scope))
-          .catch(err => console.warn('Ilios SW Error:', err));
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js')
+            .then(reg => {
+              console.log('Ilios SW Registered:', reg.scope);
+              reg.update();
+            })
+            .catch(err => {
+              console.warn('Ilios SW Registration Failed:', err);
+            });
+        });
       }
     </script>
   </body>

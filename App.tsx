@@ -25,7 +25,8 @@ import {
   WifiOff,
   Cloud,
   HardDrive,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
@@ -688,7 +689,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
-                  <p className="opacity-50 mt-1">v1.0.0 (Production)</p>
+                  <p className="opacity-50 mt-1">v1.1.0 (Mobile Optimized)</p>
                 </div>
             )}
           </div>
@@ -699,9 +700,16 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
           
           {/* Mobile Header */}
           <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200/60">
-            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
-              <Menu size={24} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
+                <Menu size={24} />
+              </button>
+              {!isOnline && (
+                <div className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black flex items-center gap-1 animate-pulse">
+                  <WifiOff size={10}/> OFFLINE
+                </div>
+              )}
+            </div>
             <div className="h-8">
                 <img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" />
             </div>
@@ -709,6 +717,12 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
                 <div className={`w-2 h-2 rounded-full ${isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
             </div>
           </header>
+
+          {!isOnline && (
+             <div className="bg-amber-500 text-white px-4 py-1 text-[10px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2">
+                <AlertTriangle size={12}/> Λειτουργία Εκτός Σύνδεσης • Οι αλλαγές θα συγχρονιστούν αυτόματα
+             </div>
+          )}
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
