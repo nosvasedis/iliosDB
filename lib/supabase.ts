@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
+import { offlineDb } from './offlineDb';
 
 // --- CONFIGURATION FOR R2 IMAGE STORAGE ---
 export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
@@ -26,36 +27,47 @@ export const supabase = createClient(
 );
 
 /**
- * HELPER: fetchFullTable
- * PostgREST (Supabase) imposes a hard limit of 1000 rows per request.
- * This utility loops through pages to ensure 100% of data is retrieved.
+ * HELPER: fetchFullTable with Mirroring
+ * 1. Tries cloud.
+ * 2. If success, updates local mirror.
+ * 3. If fail, serves from local mirror.
  */
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
-    let allData: any[] = [];
-    let from = 0;
-    let to = 999;
-    let hasMore = true;
+    try {
+        let allData: any[] = [];
+        let from = 0;
+        let to = 999;
+        let hasMore = true;
 
-    while (hasMore) {
-        let query = supabase.from(tableName).select(select).range(from, to);
-        if (filter) query = filter(query);
-        
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-            allData = [...allData, ...data];
-            if (data.length < 1000) {
-                hasMore = false;
+        while (hasMore) {
+            let query = supabase.from(tableName).select(select).range(from, to);
+            if (filter) query = filter(query);
+            
+            const { data, error } = await query;
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                allData = [...allData, ...data];
+                if (data.length < 1000) {
+                    hasMore = false;
+                } else {
+                    from += 1000;
+                    to += 1000;
+                }
             } else {
-                from += 1000;
-                to += 1000;
+                hasMore = false;
             }
-        } else {
-            hasMore = false;
         }
+        
+        // Background Mirroring - Update local copy
+        offlineDb.saveTable(tableName, allData);
+        return allData;
+
+    } catch (err) {
+        console.warn(`Cloud fetch failed for ${tableName}, falling back to local mirror.`);
+        const localData = await offlineDb.getTable(tableName);
+        return localData || [];
     }
-    return allData;
 }
 
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
@@ -199,55 +211,47 @@ export const api = {
             const { data, error } = await supabase.from('global_settings').select('*').single();
             if (error) throw error;
             if (!data) return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
-            return {
+            
+            const settings = {
                 silver_price_gram: Number(data.silver_price_gram),
                 loss_percentage: Number(data.loss_percentage),
                 barcode_width_mm: Number(data.barcode_width_mm) || 50,
                 barcode_height_mm: Number(data.barcode_height_mm) || 30
             };
+            offlineDb.saveTable('global_settings', [settings]);
+            return settings;
         } catch (e) {
-            console.warn("API Error, using mock settings:", e);
+            const local = await offlineDb.getTable('global_settings');
+            if (local && local.length > 0) return local[0];
             return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
         }
     },
 
     getMaterials: async (): Promise<Material[]> => {
-        try {
-            const data = await fetchFullTable('materials');
-            if (!data || data.length === 0) return MOCK_MATERIALS;
-            return data.map((m: any) => ({
-                 id: m.id,
-                 name: m.name,
-                 type: m.type,
-                 cost_per_unit: Number(m.cost_per_unit),
-                 unit: m.unit,
-                 variant_prices: m.variant_prices || {}
-            }));
-        } catch (e) {
-            console.warn("API Error, using mock materials:", e);
-            return MOCK_MATERIALS;
-        }
+        const data = await fetchFullTable('materials');
+        if (!data || data.length === 0) return MOCK_MATERIALS;
+        return data.map((m: any) => ({
+                id: m.id,
+                name: m.name,
+                type: m.type,
+                cost_per_unit: Number(m.cost_per_unit),
+                unit: m.unit,
+                variant_prices: m.variant_prices || {}
+        }));
     },
 
     getMolds: async (): Promise<Mold[]> => {
-        try {
-            const data = await fetchFullTable('molds');
-            return data.map((m: any) => ({
-                code: m.code,
-                location: m.location,
-                description: m.description
-            })) || [];
-        } catch (e) {
-            console.warn("API Error, returning empty molds:", e);
-            return [];
-        }
+        const data = await fetchFullTable('molds');
+        return data.map((m: any) => ({
+            code: m.code,
+            location: m.location,
+            description: m.description
+        })) || [];
     },
 
     getSuppliers: async (): Promise<Supplier[]> => {
-        try {
-            const data = await fetchFullTable('suppliers', '*', (q) => q.order('name'));
-            return data || [];
-        } catch (e) { return []; }
+        const data = await fetchFullTable('suppliers', '*', (q) => q.order('name'));
+        return data || [];
     },
 
     saveSupplier: async (supplier: Partial<Supplier>): Promise<void> => {
@@ -266,10 +270,8 @@ export const api = {
     },
 
     getCollections: async (): Promise<Collection[]> => {
-        try {
-            const data = await fetchFullTable('collections', '*', (q) => q.order('name'));
-            return data || [];
-        } catch (e) { return []; }
+        const data = await fetchFullTable('collections', '*', (q) => q.order('name'));
+        return data || [];
     },
 
     setProductCollections: async(sku: string, collectionIds: number[]): Promise<void> => {
@@ -284,14 +286,12 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         try {
-            // 1. Fetch all main products using paginated helper
+            // Check cache logic handled by fetchFullTable internal logic if we wrap it properly
             const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
             if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
 
             const skus = prodData.map(p => p.sku);
 
-            // 2. Fetch related data using paginated helper with SKU filters
-            // We fetch the FULL set of records for these SKUs, bypassing 1000-row limit
             const [
                 varData,
                 recData,
@@ -386,29 +386,23 @@ export const api = {
                   }
                 };
             });
+            
             return assembledProducts;
         } catch (e) {
-            console.warn("API Error, using mock products:", e);
+            console.warn("Product Assembly failed, likely offline.");
             return MOCK_PRODUCTS;
         }
     },
     
     getWarehouses: async (): Promise<Warehouse[]> => {
-        try {
-            const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
-            if (!data || data.length === 0) {
-                 return [
-                    { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
-                    { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
-                ];
-            }
-            return data as Warehouse[];
-        } catch (e) {
-             return [
+        const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
+        if (!data || data.length === 0) {
+                return [
                 { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true },
                 { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }
             ];
         }
+        return data as Warehouse[];
     },
 
     saveWarehouse: async (wh: Partial<Warehouse>): Promise<Warehouse> => {
@@ -427,15 +421,9 @@ export const api = {
         if (error) throw error;
     },
 
-    transferStock: async (productSku: string, fromId: string, toId: string, qty: number): Promise<void> => {
-        // Logic handled in UI directly using recordStockMovement and upsert
-    },
-
     getCustomers: async (): Promise<Customer[]> => {
-        try {
-            const data = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
-            return data as Customer[];
-        } catch (e) { return []; }
+        const data = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
+        return data as Customer[];
     },
 
     saveCustomer: async (customer: Partial<Customer>): Promise<Customer | null> => {
@@ -455,10 +443,8 @@ export const api = {
     },
 
     getOrders: async (): Promise<Order[]> => {
-        try {
-            const data = await fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
-            return data as Order[];
-        } catch (e) { return []; }
+        const data = await fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
+        return data as Order[];
     },
 
     saveOrder: async (order: Order): Promise<void> => {
@@ -585,10 +571,8 @@ export const api = {
     },
 
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
-        try {
-            const data = await fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
-            return data as ProductionBatch[];
-        } catch (e) { return []; }
+        const data = await fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
+        return data as ProductionBatch[];
     },
 
     createProductionBatch: async (batch: Partial<ProductionBatch>): Promise<void> => {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -19,7 +20,11 @@ import {
   Sparkles,
   Database,
   Layers,
-  LogOut
+  LogOut,
+  Wifi,
+  WifiOff,
+  CloudCheck,
+  HardDrive
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
@@ -128,6 +133,7 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
@@ -146,6 +152,18 @@ function AppContent() {
   // Resource Page Tab State
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
+  // --- Connectivity Listener ---
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // --- React Query Data Fetching ---
   const { data: settings, isLoading: loadingSettings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: materials, isLoading: loadingMaterials } = useQuery<Material[]>({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -456,6 +474,17 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             </button>
           </div>
 
+          {/* Connection Monitor */}
+          <div className={`px-4 py-2 flex items-center gap-3 transition-all duration-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                  {isOnline ? (
+                      <><CloudCheck size={12} className="animate-pulse"/> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟΣ'}</>
+                  ) : (
+                      <><HardDrive size={12}/> {!isCollapsed && 'ΤΟΠΙΚΗ ΛΕΙΤΟΥΡΓΙΑ'}</>
+                  )}
+              </div>
+          </div>
+
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
             
@@ -610,7 +639,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
-                  <p className="opacity-50 mt-1">v0.0.5-b (Beta)</p>
+                  <p className="opacity-50 mt-1">v0.0.6-b (Bullet-Proof)</p>
                 </div>
             )}
           </div>
@@ -627,7 +656,9 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             <div className="h-8">
                 <img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" />
             </div>
-            <div className="w-8"></div>
+            <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
