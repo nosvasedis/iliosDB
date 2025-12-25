@@ -7,7 +7,7 @@
     <meta name="description" content="Jewelry Manufacturing Management System" />
     <meta name="theme-color" content="#060b00" />
     
-    <link rel="manifest" href="manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon.ico" sizes="any" />
     
     <link rel="icon" type="image/png" sizes="32x32" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon-32x32.png">
@@ -53,10 +53,11 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Simple relative path is most compatible across environments
-          navigator.serviceWorker.register('sw.js')
+          // Use absolute path for Service Worker
+          navigator.serviceWorker.register('/sw.js')
             .then(reg => {
               console.log('Ilios SW Ready');
+              // Force update check on load
               reg.update();
             })
             .catch(err => {
