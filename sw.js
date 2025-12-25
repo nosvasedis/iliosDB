@@ -1,17 +1,19 @@
-const CACHE_NAME = 'ilios-erp-v1.11';
 
-// The "App Shell" - Using root-relative paths for better standard compliance
-const CORE_ASSETS = [
-  'index.html',
-  'index.tsx',
-  'App.tsx',
-  'manifest.json',
+const CACHE_NAME = 'ilios-erp-v1.13';
+
+// Shell assets - the minimum required files to boot the UI
+const SHELL_ASSETS = [
+  '/',
+  '/index.html',
+  '/index.tsx',
+  '/App.tsx',
+  '/manifest.json',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'
 ];
 
-// Essential Libraries
-const ESSENTIAL_LIBS = [
+// Essential third-party libraries from the importmap
+const LIB_ASSETS = [
   'https://esm.sh/react@18.2.0',
   'https://esm.sh/react-dom@18.2.0',
   'https://esm.sh/react-dom@18.2.0/client',
@@ -24,16 +26,16 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('SW: Pre-caching v1.11 Assets');
-      const allToCache = [...CORE_ASSETS, ...ESSENTIAL_LIBS];
-      for (const url of allToCache) {
+      console.log('SW: Pre-caching shell v1.13');
+      const assets = [...SHELL_ASSETS, ...LIB_ASSETS];
+      for (const asset of assets) {
         try {
-          const response = await fetch(url, { cache: 'no-store' });
+          const response = await fetch(asset, { cache: 'reload' });
           if (response.ok) {
-            await cache.put(url, response);
+            await cache.put(asset, response);
           }
         } catch (e) {
-          console.warn(`SW: Failed to pre-cache ${url}`, e);
+          console.warn('SW: Failed to pre-cache', asset);
         }
       }
     })
@@ -53,30 +55,28 @@ self.addEventListener('fetch', (event) => {
 
   let url;
   try {
-    // This is the line that causes "Failed to construct 'URL': Invalid URL" 
-    // on non-standard protocols like intent:// or android-app://
     url = new URL(event.request.url);
   } catch (err) {
-    // Silently ignore requests that aren't valid URLs (e.g. extension schemes)
     return;
   }
 
-  // 1. ALWAYS BYPASS FOR SUPABASE API/AUTH
+  // 1. ALWAYS BYPASS FOR SUPABASE
   if (url.host.includes('supabase.co')) return;
 
-  // 2. NAVIGATION STRATEGY (Cold Boot fix)
+  // 2. NAVIGATION (PWA Launch or Refresh) - CACHE FIRST WITH SEARCH IGNORED
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('index.html') || caches.match('./index.html');
-      })
+      caches.match('/', { ignoreSearch: true }).then((cached) => {
+        // Return cached root or index.html if available, otherwise fetch
+        return cached || caches.match('/index.html', { ignoreSearch: true }) || fetch(event.request);
+      }).catch(() => fetch(event.request))
     );
     return;
   }
 
-  // 3. STALE-WHILE-REVALIDATE for everything else
+  // 3. ASSET STRATEGY: Stale-While-Revalidate
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && (
             url.origin === self.location.origin || 
@@ -88,9 +88,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
         }
         return networkResponse;
-      }).catch(() => {
-        return null;
-      });
+      }).catch(() => null);
 
       return cachedResponse || fetchPromise;
     })
