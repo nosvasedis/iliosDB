@@ -20,24 +20,17 @@ import {
   Sparkles,
   Database,
   Layers,
-  LogOut,
-  Wifi,
-  WifiOff,
-  Cloud,
-  HardDrive,
-  RefreshCw,
-  AlertTriangle
+  LogOut
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured } from './lib/supabase';
-import { offlineDb } from './lib/offlineDb';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem } from './types';
-import { UIProvider, useUI } from './components/UIProvider';
+import { UIProvider } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import SetupScreen from './components/SetupScreen';
-import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
+import { calculateProductCost, estimateVariantCost } from '../utils/pricingEngine';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -136,13 +129,7 @@ function AppContent() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
   
-  const queryClient = useQueryClient();
-  const { showToast } = useUI();
-
   // Printing State
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
@@ -160,56 +147,6 @@ function AppContent() {
   // Resource Page Tab State
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
-  // --- Connectivity & Auto-Sync Listener ---
-  useEffect(() => {
-    const checkQueue = async () => {
-        const count = await offlineDb.getQueueCount();
-        setPendingCount(count);
-        return count;
-    };
-
-    const handleSync = async () => {
-        const count = await checkQueue();
-        if (count === 0) return;
-        
-        setIsSyncing(true);
-        try {
-            const synced = await api.syncOfflineData();
-            if (synced > 0) {
-                showToast(`Συγχρονίστηκαν ${synced} αλλαγές που έγιναν offline!`, "success");
-                queryClient.invalidateQueries();
-            }
-            await checkQueue();
-        } catch (e) {
-            console.error("Auto-Sync Failed:", e);
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-
-    const handleOnline = () => {
-        setIsOnline(true);
-        handleSync();
-    };
-    
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    // Polling for queue count (to detect offline saves)
-    const interval = setInterval(checkQueue, 3000);
-
-    // Initial sync check
-    if (navigator.onLine) handleSync();
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      clearInterval(interval);
-    };
-  }, []);
-
   // --- React Query Data Fetching ---
   const { data: settings, isLoading: loadingSettings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: materials, isLoading: loadingMaterials } = useQuery<Material[]>({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -520,21 +457,6 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             </button>
           </div>
 
-          {/* Connection Monitor */}
-          <div className={`px-4 py-2 flex items-center gap-3 transition-all duration-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isOnline ? (isSyncing || pendingCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                  {isSyncing ? (
-                      <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</>
-                  ) : pendingCount > 0 ? (
-                      <><RefreshCw size={12} /> {!isCollapsed && `${pendingCount} ΕΚΚΡΕΜΟΥΝ`}</>
-                  ) : isOnline ? (
-                      <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟΣ'}</>
-                  ) : (
-                      <><HardDrive size={12}/> {!isCollapsed && 'ΤΟΠΙΚΗ ΛΕΙΤΟΥΡΓΙΑ'}</>
-                  )}
-              </div>
-          </div>
-
           {/* Navigation */}
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
             
@@ -689,7 +611,7 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
             {!isCollapsed && (
                 <div className="mt-4 text-xs text-slate-500 text-center font-medium animate-in fade-in duration-500">
                   <p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3).replace('.', ',')}€</span></p>
-                  <p className="opacity-50 mt-1">v1.1.0 (Mobile Optimized)</p>
+                  <p className="opacity-50 mt-1">v0.0.6 (Beta)</p>
                 </div>
             )}
           </div>
@@ -700,29 +622,14 @@ const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?:
           
           {/* Mobile Header */}
           <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200/60">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
-                <Menu size={24} />
-              </button>
-              {!isOnline && (
-                <div className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black flex items-center gap-1 animate-pulse">
-                  <WifiOff size={10}/> OFFLINE
-                </div>
-              )}
-            </div>
+            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
+              <Menu size={24} />
+            </button>
             <div className="h-8">
                 <img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" />
             </div>
-            <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
-            </div>
+            <div className="w-8"></div>
           </header>
-
-          {!isOnline && (
-             <div className="bg-amber-500 text-white px-4 py-1 text-[10px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2">
-                <AlertTriangle size={12}/> Λειτουργία Εκτός Σύνδεσης • Οι αλλαγές θα συγχρονιστούν αυτόματα
-             </div>
-          )}
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
