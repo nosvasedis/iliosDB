@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="el">
   <head>
-    <meta charset="utf-t" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ilios Kosmima ERP</title>
     <meta name="description" content="Jewelry Manufacturing Management System" />
@@ -37,16 +37,12 @@
           padding: 0;
           background: white;
         }
-
-        /* Hide the main app, show only the print view */
         #app-container {
             display: none !important;
         }
         .print-view {
           display: block !important;
         }
-        
-        /* Keep barcode-specific styles */
         .print-area {
             display: flex;
             flex-wrap: wrap;
@@ -57,13 +53,10 @@
           break-inside: avoid;
           page-break-inside: avoid;
         }
-
-        /* NEW: Utility class to prevent elements from breaking across pages */
         .break-inside-avoid {
             break-inside: avoid;
-            page-break-inside: avoid; /* fallback */
+            page-break-inside: avoid;
         }
-
         @page {
           size: A4;
           margin: 0;
@@ -87,7 +80,7 @@
     "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5?external=react,react-dom",
     "appwrite": "https://esm.sh/appwrite@14.0.0",
     "jsbarcode": "https://esm.sh/jsbarcode@3.11.5",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "@google/genai": "https://esm.sh/@google/genai@1.30.0",
     "react-zxing": "https://esm.sh/react-zxing@2.0.0?external=react",
     "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168"
   }
@@ -98,11 +91,15 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
+      // Defensive Service Worker Registration
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(err => {
-            console.log('SW registration failed: ', err);
-          });
+          // Use a plain string path for registration to avoid URL object constructor issues
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW Registered successfully:', reg.scope))
+            .catch(err => {
+              console.warn('SW registration failed:', err);
+            });
         });
       }
     </script>
