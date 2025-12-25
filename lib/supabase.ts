@@ -428,6 +428,12 @@ export const api = {
         return data || [];
     },
 
+    deletePriceSnapshot: async (snapshotId: string): Promise<void> => {
+        if (isLocalMode) return;
+        await supabase.from('price_snapshot_items').delete().eq('snapshot_id', snapshotId);
+        await supabase.from('price_snapshots').delete().eq('id', snapshotId);
+    },
+
     revertToPriceSnapshot: async (snapshotId: string): Promise<void> => {
         if (isLocalMode) return;
         const items = await api.getPriceSnapshotItems(snapshotId);

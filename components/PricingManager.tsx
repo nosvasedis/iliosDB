@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, ChevronRight, X, RotateCcw, Eye } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, ChevronRight, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { calculateProductCost, formatCurrency, formatDecimal, roundPrice } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
@@ -16,6 +16,11 @@ interface Props {
 type Mode = 'cost' | 'selling' | 'history';
 type MarkupMode = 'adjust' | 'target';
 
+interface SnapshotComparisonItem extends PriceSnapshotItem {
+    currentPrice: number;
+    diff: number;
+}
+
 export default function PricingManager({ products, settings, materials }: Props) {
   const [mode, setMode] = useState<Mode>('cost');
   const [markupMode, setMarkupMode] = useState<MarkupMode>('adjust');
@@ -28,7 +33,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [snapshotNote, setSnapshotNote] = useState('');
   const [selectedSnapshot, setSelectedSnapshot] = useState<PriceSnapshot | null>(null);
-  const [snapshotItems, setSnapshotItems] = useState<PriceSnapshotItem[]>([]);
+  const [comparisonItems, setComparisonItems] = useState<SnapshotComparisonItem[]>([]);
   const [isLoadingSnapshotItems, setIsLoadingSnapshotItems] = useState(false);
 
   const queryClient = useQueryClient();
@@ -99,6 +104,25 @@ export default function PricingManager({ products, settings, materials }: Props)
       }
   };
 
+  const handleDeleteSnapshot = async (snapshot: PriceSnapshot) => {
+      const yes = await confirm({
+          title: 'Διαγραφή Snapshot',
+          message: `Θέλετε να διαγράψετε το αντίγραφο από τις ${new Date(snapshot.created_at).toLocaleString('el-GR')};`,
+          confirmText: 'Διαγραφή',
+          isDestructive: true
+      });
+      if (yes) {
+          try {
+              await api.deletePriceSnapshot(snapshot.id);
+              queryClient.invalidateQueries({ queryKey: ['price_snapshots'] });
+              if (selectedSnapshot?.id === snapshot.id) setSelectedSnapshot(null);
+              showToast("Το snapshot διαγράφηκε.", "info");
+          } catch (err) {
+              showToast("Σφάλμα διαγραφής.", "error");
+          }
+      }
+  };
+
   const handleRevert = async (snapshot: PriceSnapshot) => {
       const yes = await confirm({
           title: 'Επαναφορά Τιμών',
@@ -126,7 +150,26 @@ export default function PricingManager({ products, settings, materials }: Props)
       setIsLoadingSnapshotItems(true);
       try {
           const items = await api.getPriceSnapshotItems(snapshot.id);
-          setSnapshotItems(items);
+          
+          // Map to current live prices
+          const comparedItems: SnapshotComparisonItem[] = items.map(item => {
+              const product = products.find(p => p.sku === item.product_sku);
+              let currentPrice = 0;
+              if (product) {
+                  if (item.variant_suffix) {
+                      const v = product.variants?.find(v => v.suffix === item.variant_suffix);
+                      currentPrice = v?.selling_price || product.selling_price;
+                  } else {
+                      currentPrice = product.selling_price;
+                  }
+              }
+              return {
+                  ...item,
+                  currentPrice,
+                  diff: currentPrice - item.price
+              };
+          });
+          setComparisonItems(comparedItems);
       } catch (err) {
           showToast("Σφάλμα φόρτωσης λεπτομερειών.", "error");
       } finally {
@@ -249,9 +292,16 @@ export default function PricingManager({ products, settings, materials }: Props)
                           <div 
                             key={snap.id} 
                             onClick={() => viewSnapshotDetails(snap)}
-                            className={`p-4 rounded-2xl border cursor-pointer transition-all ${selectedSnapshot?.id === snap.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
+                            className={`p-4 rounded-2xl border cursor-pointer transition-all relative group ${selectedSnapshot?.id === snap.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
                           >
-                              <div className="flex justify-between items-start mb-2">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteSnapshot(snap); }}
+                                className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              >
+                                  <Trash2 size={16}/>
+                              </button>
+
+                              <div className="flex justify-between items-start mb-2 mr-6">
                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(snap.created_at).toLocaleDateString('el-GR')}</span>
                                   <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-black text-slate-500">{snap.item_count} είδη</span>
                               </div>
@@ -275,27 +325,41 @@ export default function PricingManager({ products, settings, materials }: Props)
                       <>
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div>
-                                <h3 className="font-bold text-slate-800">Ανάλυση Backup</h3>
-                                <p className="text-xs text-slate-500">{new Date(selectedSnapshot.created_at).toLocaleString('el-GR')}</p>
+                                <h3 className="font-bold text-slate-800">Σύγκριση Backup με Τρέχουσες Τιμές</h3>
+                                <p className="text-xs text-slate-500">{new Date(selectedSnapshot.created_at).toLocaleString('el-GR')} • {selectedSnapshot.notes}</p>
                             </div>
                             <button onClick={() => setSelectedSnapshot(null)} className="p-2 hover:bg-slate-200 rounded-full"><X size={20}/></button>
                         </div>
                         <div className="flex-1 overflow-auto">
                             {isLoadingSnapshotItems ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500"/></div> : (
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-sm">
                                         <tr>
                                             <th className="p-4 pl-8">Κωδικός (SKU/Var)</th>
-                                            <th className="p-4 text-right pr-8">Τιμή Backup</th>
+                                            <th className="p-4 text-right">Τιμή Backup</th>
+                                            <th className="p-4 text-right">Τρέχουσα Τιμή</th>
+                                            <th className="p-4 text-right pr-8">Διαφορά</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {snapshotItems.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50/50">
-                                                <td className="p-4 pl-8 font-mono text-slate-700">{item.product_sku}{item.variant_suffix || ''}</td>
-                                                <td className="p-4 text-right pr-8 font-black text-slate-800">{item.price.toFixed(2)}€</td>
-                                            </tr>
-                                        ))}
+                                        {comparisonItems.map(item => {
+                                            const hasDiff = Math.abs(item.diff) > 0.01;
+                                            return (
+                                                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="p-4 pl-8 font-mono text-slate-700 font-bold">{item.product_sku}{item.variant_suffix || ''}</td>
+                                                    <td className="p-4 text-right font-bold text-slate-500">{item.price.toFixed(2)}€</td>
+                                                    <td className="p-4 text-right font-black text-slate-800">{item.currentPrice.toFixed(2)}€</td>
+                                                    <td className={`p-4 text-right pr-8 font-bold ${hasDiff ? (item.diff > 0 ? 'text-emerald-600' : 'text-rose-500') : 'text-slate-300'}`}>
+                                                        {hasDiff ? (
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {item.diff > 0 ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
+                                                                {Math.abs(item.diff).toFixed(2)}€
+                                                            </div>
+                                                        ) : '-'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}
@@ -305,7 +369,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                       <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-20 text-center">
                           <History size={64} className="mb-4 opacity-20"/>
                           <p className="font-bold text-lg">Επιλέξτε ένα Snapshot</p>
-                          <p className="text-sm">Για να δείτε τις τιμές που είχαν αποθηκευτεί στο παρελθόν.</p>
+                          <p className="text-sm">Για να δείτε πώς έχουν αλλάξει οι τιμές από τότε μέχρι σήμερα.</p>
                       </div>
                   )}
               </div>
