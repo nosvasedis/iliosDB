@@ -28,8 +28,14 @@ export const supabase = createClient(
 
 /**
  * HELPER: fetchFullTable with Mirroring
+ * Modified to fail fast and use local mirror if offline
  */
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
+    if (!navigator.onLine) {
+        const localData = await offlineDb.getTable(tableName);
+        return localData || [];
+    }
+
     try {
         let allData: any[] = [];
         let from = 0;
@@ -40,7 +46,12 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             let query = supabase.from(tableName).select(select).range(from, to);
             if (filter) query = filter(query);
             
-            const { data, error } = await query;
+            // Add a 5 second timeout to cloud fetches to prevent hanging the app on bad connections
+            const { data, error } = await Promise.race([
+                query,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]) as any;
+
             if (error) throw error;
             
             if (data && data.length > 0) {
@@ -60,7 +71,7 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
         return allData;
 
     } catch (err) {
-        console.warn(`Cloud fetch failed for ${tableName}, falling back to local mirror.`);
+        console.warn(`Cloud fetch failed or timed out for ${tableName}, falling back to local mirror.`);
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
     }
@@ -152,8 +163,17 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
+        if (!navigator.onLine) {
+            const local = await offlineDb.getTable('global_settings');
+            return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
+        }
+
         try {
-            const { data, error } = await supabase.from('global_settings').select('*').single();
+            const { data, error } = await Promise.race([
+                supabase.from('global_settings').select('*').single(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+            ]) as any;
+
             if (error || !data) return { ...INITIAL_SETTINGS, barcode_width_mm: 50, barcode_height_mm: 30 };
             const settings = { silver_price_gram: Number(data.silver_price_gram), loss_percentage: Number(data.loss_percentage), barcode_width_mm: Number(data.barcode_width_mm) || 50, barcode_height_mm: Number(data.barcode_height_mm) || 30 };
             offlineDb.saveTable('global_settings', [settings]);
