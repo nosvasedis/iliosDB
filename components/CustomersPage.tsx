@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe } from 'lucide-react';
@@ -107,6 +105,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             return;
         }
         try {
+            // @FIX: Error in file components/CustomersPage.tsx on line 114: An expression of type 'void' cannot be tested for truthiness. 
+            // Fixed by updating api.saveCustomer in lib/supabase.ts to return Customer | null.
             const created = await api.saveCustomer(newCustomer);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setIsCreating(false);
@@ -375,7 +375,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                                                         className={`h-full rounded-full ${
                                                                             index === 0 ? 'bg-amber-400' : 
                                                                             index === 1 ? 'bg-slate-400' : 
-                                                                            index === 2 ? 'bg-orange-400' : 'bg-emerald-400'
+                                                                            index === 2 ? 'bg-orange-400' : 
+                                                                            'bg-emerald-400'
                                                                         }`} 
                                                                         style={{ width: `${item.percentage}%` }}
                                                                     ></div>

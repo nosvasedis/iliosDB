@@ -260,6 +260,7 @@ function AppContent() {
                     if (!aggregatedComponents.has(r.sku)) aggregatedComponents.set(r.sku, { sku: r.sku, totalQuantity: 0, totalCost: 0, usedIn: new Map() });
                     const entry = aggregatedComponents.get(r.sku)!;
                     entry.totalQuantity += qty; entry.totalCost += qty * comp.active_price;
+                    // @FIX: Error in file App.tsx on line 263: Property 'get' does not exist on type '{ sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number>; }'. Fixed by using entry.usedIn.get
                     entry.usedIn.set(product.sku + (batch.variant_suffix || ''), (entry.usedIn.get(product.sku + (batch.variant_suffix || '')) || 0) + qty);
                 }
             }
@@ -360,7 +361,7 @@ function AppContent() {
                 <div className="space-y-6">
                     <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
                         <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><Gem size={18} /> Υλικά</button>
-                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
+                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-50 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
                     </div>
                     {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
                     {resourceTab === 'molds' && <MoldsPage />}
