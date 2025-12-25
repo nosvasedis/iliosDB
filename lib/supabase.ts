@@ -192,16 +192,20 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
 
 
 export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {
+    const data = {
+        product_sku: sku,
+        variant_suffix: variantSuffix || null,
+        change_amount: change,
+        reason: reason,
+        created_at: new Date().toISOString()
+    };
+
     try {
-        await supabase.from('stock_movements').insert({
-            product_sku: sku,
-            variant_suffix: variantSuffix || null,
-            change_amount: change,
-            reason: reason,
-            created_at: new Date().toISOString()
-        });
+        const { error } = await supabase.from('stock_movements').insert(data);
+        if (error) throw error;
     } catch (e) {
-        console.error("Failed to record stock movement:", e);
+        console.warn("Stock movement cloud save failed, queuing offline.");
+        await offlineDb.enqueue({ type: 'STOCK_MOVE', table: 'stock_movements', method: 'INSERT', data });
     }
 };
 
@@ -448,7 +452,7 @@ export const api = {
     },
 
     saveOrder: async (order: Order): Promise<void> => {
-        const { error } = await supabase.from('orders').insert({
+        const data = {
             id: order.id,
             customer_id: order.customer_id, 
             customer_name: order.customer_name,
@@ -458,8 +462,15 @@ export const api = {
             items: order.items, 
             created_at: order.created_at,
             notes: order.notes
-        });
-        if (error) throw error;
+        };
+
+        try {
+            const { error } = await supabase.from('orders').insert(data);
+            if (error) throw error;
+        } catch (error) {
+            console.warn("Order cloud save failed, queuing offline.");
+            await offlineDb.enqueue({ type: 'ORDER', table: 'orders', method: 'INSERT', data });
+        }
     },
 
     updateOrder: async (order: Order): Promise<void> => {
@@ -479,16 +490,25 @@ export const api = {
             }
         }
         
-        const { error: updateError } = await supabase.from('orders').update({
+        const data = {
             customer_id: order.customer_id,
             customer_name: order.customer_name,
             customer_phone: order.customer_phone,
             items: order.items,
             total_price: order.total_price,
             notes: order.notes
-        }).eq('id', order.id);
-        
-        if (updateError) throw updateError;
+        };
+
+        try {
+            const { error: updateError } = await supabase.from('orders').update(data).eq('id', order.id);
+            if (updateError) throw updateError;
+        } catch (error) {
+            console.warn("Order update cloud failed, queuing offline.");
+            await offlineDb.enqueue({ 
+                type: 'ORDER', table: 'orders', method: 'UPDATE', 
+                data: { ...data, id: order.id } 
+            });
+        }
     },
     
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
@@ -675,6 +695,40 @@ export const api = {
         for (const item of variantItems) {
             await supabase.from('product_variants').update({ selling_price: item.price }).match({ product_sku: item.product_sku, suffix: item.variant_suffix });
         }
+    },
+
+    /**
+     * SYNC: Processes any pending offline operations
+     */
+    syncOfflineData: async (): Promise<number> => {
+        const queue = await offlineDb.getQueue();
+        if (queue.length === 0) return 0;
+
+        let successCount = 0;
+        for (const item of queue) {
+            try {
+                let error;
+                if (item.method === 'INSERT') {
+                    const { error: e } = await supabase.from(item.table).insert(item.data);
+                    error = e;
+                } else if (item.method === 'UPDATE') {
+                    const { id, ...updateData } = item.data;
+                    const { error: e } = await supabase.from(item.table).update(updateData).eq('id', id);
+                    error = e;
+                } else if (item.method === 'DELETE') {
+                    const { error: e } = await supabase.from(item.table).delete().eq('id', item.data.id);
+                    error = e;
+                }
+
+                if (!error) {
+                    await offlineDb.dequeue(item.id);
+                    successCount++;
+                }
+            } catch (err) {
+                console.error("Sync failed for item:", item, err);
+            }
+        }
+        return successCount;
     },
 
     /**

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="el">
   <head>
@@ -5,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ilios Kosmima ERP</title>
     <meta name="description" content="Jewelry Manufacturing Management System" />
+    <meta name="theme-color" content="#060b00" />
     
+    <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon.ico" sizes="any" />
     
     <link rel="icon" type="image/png" sizes="32x32" href="https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon-32x32.png">
@@ -94,5 +97,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(err => {
+            console.log('SW registration failed: ', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
