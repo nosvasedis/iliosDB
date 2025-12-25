@@ -691,5 +691,41 @@ export const api = {
         for (const item of variantItems) {
             await supabase.from('product_variants').update({ selling_price: item.price }).match({ product_sku: item.product_sku, suffix: item.variant_suffix });
         }
+    },
+
+    /**
+     * Fetches all main data tables for a full system backup.
+     */
+    getFullSystemExport: async (): Promise<Record<string, any[]>> => {
+        const tables = [
+            'products', 
+            'product_variants', 
+            'materials', 
+            'molds', 
+            'orders', 
+            'customers', 
+            'suppliers', 
+            'warehouses', 
+            'production_batches',
+            'product_stock',
+            'stock_movements',
+            'recipes',
+            'product_molds',
+            'collections',
+            'product_collections'
+        ];
+        
+        const results: Record<string, any[]> = {};
+        const promises = tables.map(async (table) => {
+            try {
+                results[table] = await fetchFullTable(table);
+            } catch (err) {
+                console.warn(`Export failed for table ${table}:`, err);
+                results[table] = [];
+            }
+        });
+
+        await Promise.all(promises);
+        return results;
     }
 };

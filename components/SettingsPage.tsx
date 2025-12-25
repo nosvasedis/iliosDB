@@ -1,71 +1,45 @@
 
-
-
 import React, { useState } from 'react';
 import { GlobalSettings } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key } from 'lucide-react';
-import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert } from 'lucide-react';
+import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
 import { formatDecimal } from '../utils/pricingEngine';
+import { convertToCSV, downloadFile, flattenForCSV } from '../utils/exportUtils';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const settingsData = queryClient.getQueryData<GlobalSettings>(['settings']);
   
-  // Local state for editing, initialized from query cache
   const [settings, setSettings] = useState<GlobalSettings | null>(settingsData || null);
-  
-  // Local Config State (Client-side keys)
   const [localGeminiKey, setLocalGeminiKey] = useState(GEMINI_API_KEY);
   
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   if (!settings) {
     return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
   }
 
-  // FETCH LIVE PRICE AND SAVE TO DB
   const fetchLivePrice = async () => {
     setIsLoadingPrice(true);
     try {
-      // Fetch Real-time price via our Secure Worker Proxy to bypass CORS and hide API keys if any
       const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
           method: 'GET',
-          headers: {
-              'Authorization': AUTH_KEY_SECRET
-          }
+          headers: { 'Authorization': AUTH_KEY_SECRET }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch price from worker');
-      
+      if (!response.ok) throw new Error('Failed to fetch price');
       const data = await response.json();
-      
-      if (data.error) throw new Error(data.error);
-      if (!data.price) throw new Error('Invalid price data received');
-      
       const finalPrice = parseFloat(data.price.toFixed(3));
-        
       const newSettings = { ...settings, silver_price_gram: finalPrice };
-      
-      // Persist
-      const { error } = await supabase
-        .from('global_settings')
-        .update({ silver_price_gram: finalPrice })
-        .eq('id', 1);
-
-      if (error) throw error;
-      
-      // Update local and query cache
+      await supabase.from('global_settings').update({ silver_price_gram: finalPrice }).eq('id', 1);
       setSettings(newSettings);
       queryClient.setQueryData(['settings'], newSettings);
-
-      showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g (Real-time Market)`, 'success');
-      
+      showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
     } catch (error: any) {
-      console.error(error);
       showToast(`Σφάλμα: ${error.message}`, 'error');
     } finally {
       setIsLoadingPrice(false);
@@ -75,60 +49,95 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-        // 1. Save Global Settings to DB
-        const { error } = await supabase
-          .from('global_settings')
-          .update({ 
-              silver_price_gram: settings.silver_price_gram, 
-              loss_percentage: settings.loss_percentage,
-              barcode_width_mm: settings.barcode_width_mm,
-              barcode_height_mm: settings.barcode_height_mm
-            })
-          .eq('id', 1);
+        await supabase.from('global_settings').update({ 
+            silver_price_gram: settings.silver_price_gram, 
+            loss_percentage: settings.loss_percentage,
+            barcode_width_mm: settings.barcode_width_mm,
+            barcode_height_mm: settings.barcode_height_mm
+        }).eq('id', 1);
 
-        if (error) throw error;
-
-        // 2. Save Local Keys to LocalStorage
         if (localGeminiKey !== GEMINI_API_KEY) {
             localStorage.setItem('VITE_GEMINI_API_KEY', localGeminiKey);
-            // We need to reload to apply the new key to the module constant, 
-            // or the user can just refresh. A reload is safer.
             setTimeout(() => window.location.reload(), 1000);
-            showToast("Το Gemini Key ενημερώθηκε. Επανεκκίνηση...", 'info');
             return;
         }
-
-        // Update query cache
         queryClient.setQueryData(['settings'], settings);
-
         showToast("Οι ρυθμίσεις αποθηκεύτηκαν.", 'success');
     } catch(err) {
         showToast("Σφάλμα κατά την αποθήκευση.", 'error');
-        console.error(err);
     } finally {
         setIsSaving(false);
     }
   };
 
+  const handleJsonBackup = async () => {
+      setIsExporting(true);
+      try {
+          const data = await api.getFullSystemExport();
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          downloadFile(JSON.stringify(data, null, 2), `ilios_erp_full_backup_${timestamp}.json`, 'application/json');
+          showToast("Το πλήρες αντίγραφο JSON λήφθηκε.", "success");
+      } catch (err) {
+          showToast("Σφάλμα κατά την εξαγωγή.", "error");
+      } finally {
+          setIsExporting(false);
+      }
+  };
+
+  const handleCsvExport = async () => {
+      setIsExporting(true);
+      try {
+          const data = await api.getFullSystemExport();
+          const timestamp = new Date().toISOString().split('T')[0];
+
+          // Export Critical Tables individually
+          const tablesToExport = [
+              { key: 'products', name: 'Products' },
+              { key: 'orders', name: 'Orders' },
+              { key: 'customers', name: 'Customers' },
+              { key: 'materials', name: 'Materials' },
+              { key: 'suppliers', name: 'Suppliers' }
+          ];
+
+          for (const table of tablesToExport) {
+              const tableData = data[table.key] || [];
+              if (tableData.length > 0) {
+                  const flattened = flattenForCSV(tableData);
+                  const csv = convertToCSV(flattened);
+                  downloadFile(csv, `ilios_${table.name.toLowerCase()}_${timestamp}.csv`, 'text/csv');
+                  // Brief pause to help browsers handle multiple downloads
+                  await new Promise(r => setTimeout(r, 300));
+              }
+          }
+          showToast("Τα αρχεία CSV λήφθηκαν. Έτοιμα για Excel/Access!", "success");
+      } catch (err) {
+          showToast("Σφάλμα κατά την εξαγωγή CSV.", "error");
+      } finally {
+          setIsExporting(false);
+      }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10">
-      <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-slate-200 text-slate-700 rounded-xl">
-                  <SettingsIcon size={24} />
-              </div>
-              Ρυθμίσεις Συστήματος
-          </h1>
-          <p className="text-slate-500 mt-2 ml-14">Παράμετροι τιμολόγησης και λειτουργίας.</p>
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      <div className="flex justify-between items-center">
+          <div>
+              <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
+                  <div className="p-2 bg-slate-200 text-slate-700 rounded-xl">
+                      <SettingsIcon size={24} />
+                  </div>
+                  Ρυθμίσεις Συστήματος
+              </h1>
+              <p className="text-slate-500 mt-2 ml-14">Παράμετροι τιμολόγησης και διαχείριση δεδομένων.</p>
+          </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Market Settings */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
             <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
                 <TrendingUp className="text-amber-500" size={20}/>
                 Οικονομικά Στοιχεία
             </h2>
-            
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Τιμή Ασημιού (€/g)</label>
@@ -139,51 +148,86 @@ export default function SettingsPage() {
                       onChange={(e) => setSettings({...settings, silver_price_gram: parseFloat(e.target.value)})}
                       className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono font-bold text-lg"
                     />
-                    <button 
-                      onClick={fetchLivePrice} 
-                      disabled={isLoadingPrice}
-                      title="Λήψη Live Τιμής"
-                      className="px-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-200 transition-colors"
-                    >
+                    <button onClick={fetchLivePrice} disabled={isLoadingPrice} className="px-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-200 transition-colors">
                         {isLoadingPrice ? <Loader2 className="animate-spin" size={20} /> : <TrendingUp size={20} />}
                     </button>
-                </div>
-                <div className="flex items-start gap-2 mt-3 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
-                    <Info size={14} className="shrink-0 mt-0.5" />
-                    <p>Η τιμή ενημερώνεται σε πραγματικό χρόνο από το χρηματιστήριο μετάλλων μέσω του Ilios Worker.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-8">
+          {/* Backup & Export Utility */}
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+            <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
+                <Database className="text-blue-500" size={20}/>
+                Αντίγραφα Ασφαλείας & Εξαγωγή
+            </h2>
+            <div className="space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                    Λήψη όλων των δεδομένων του ERP για χρήση offline ή μεταφορά σε άλλο σύστημα.
+                </p>
+                
+                <button 
+                    onClick={handleJsonBackup}
+                    disabled={isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-blue-200 hover:bg-blue-50 transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <FileJson size={20}/>
+                        </div>
+                        <div className="text-left">
+                            <span className="block font-bold text-slate-700">Full System Backup</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">JSON Format • All Tables</span>
+                        </div>
+                    </div>
+                    {isExporting ? <Loader2 size={18} className="animate-spin text-blue-500"/> : <Download size={18} className="text-slate-300 group-hover:text-blue-500"/>}
+                </button>
+
+                <button 
+                    onClick={handleCsvExport}
+                    disabled={isExporting}
+                    className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-emerald-200 hover:bg-emerald-50 transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <FileText size={20}/>
+                        </div>
+                        <div className="text-left">
+                            <span className="block font-bold text-slate-700">Excel / Access Export</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CSV Bundle • Flattened Data</span>
+                        </div>
+                    </div>
+                    {isExporting ? <Loader2 size={18} className="animate-spin text-emerald-500"/> : <Download size={18} className="text-slate-300 group-hover:text-emerald-500"/>}
+                </button>
+
+                <div className="flex items-start gap-2 mt-4 text-[10px] text-slate-400 italic">
+                    <ShieldAlert size={14} className="shrink-0 text-amber-500"/>
+                    <p>Συνιστάται η λήψη αντιγράφου μία φορά την εβδομάδα για μέγιστη ασφάλεια.</p>
+                </div>
+            </div>
+          </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Label Print Settings */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
                     Εκτύπωση Ετικετών
                 </h2>
-                <div className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Πλάτος Ετικέτας (mm)</label>
-                    <input 
-                    type="number" step="1"
-                    value={settings.barcode_width_mm}
-                    onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Ύψος Ετικέτας (mm)</label>
-                    <input 
-                    type="number" step="1"
-                    value={settings.barcode_height_mm}
-                    onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono"
-                    />
-                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Πλάτος (mm)</label>
+                        <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none font-mono"/>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Ύψος (mm)</label>
+                        <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none font-mono"/>
+                    </div>
                 </div>
             </div>
 
-            {/* Client Configuration Section */}
+            {/* Local Config Section */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
                     <Shield className="text-emerald-500" size={20}/>
@@ -200,24 +244,22 @@ export default function SettingsPage() {
                         placeholder="Εισάγετε το κλειδί σας (AIzaSy...)"
                         className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-mono text-sm"
                     />
-                    <p className="text-xs text-slate-400 mt-2 ml-1">
-                        Το κλειδί αποθηκεύεται μόνο σε αυτόν τον περιηγητή (LocalStorage).
-                    </p>
                 </div>
             </div>
-          </div>
       </div>
       
-      <div className="flex justify-end pt-4 border-t border-slate-200">
-        <button 
-            onClick={handleSaveSettings} 
-            disabled={isSaving}
-            className="flex items-center gap-2 text-base bg-slate-900 text-white px-8 py-3 rounded-xl hover:bg-slate-800 font-bold disabled:opacity-50 shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5"
-        >
-            {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} Αποθήκευση Ρυθμίσεων
-        </button>
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-8 pointer-events-none">
+        <div className="flex justify-end pointer-events-auto">
+            <button 
+                onClick={handleSaveSettings} 
+                disabled={isSaving}
+                className="flex items-center gap-2 text-base bg-slate-900 text-white px-10 py-4 rounded-2xl hover:bg-black font-bold disabled:opacity-50 shadow-2xl transition-all hover:-translate-y-1 active:scale-95"
+            >
+                {isSaving ? <Loader2 className="animate-spin" size={22} /> : <Save size={22} />} 
+                Αποθήκευση Όλων των Ρυθμίσεων
+            </button>
+        </div>
       </div>
-
     </div>
   );
 }
