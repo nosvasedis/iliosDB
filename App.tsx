@@ -1,34 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Warehouse, 
-  DollarSign, 
-  Settings as SettingsIcon,
-  Menu,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Gem,
-  MapPin,
-  FolderKanban,
-  Printer,
-  ShoppingCart,
-  Factory,
-  Users,
-  Sparkles,
-  Database,
-  Layers,
-  LogOut,
-  Wifi,
-  WifiOff,
-  Cloud,
-  HardDrive,
-  RefreshCw,
-  AlertTriangle,
-  MonitorOff
-} from 'lucide-react';
+import { LayoutDashboard, Warehouse, DollarSign, Settings as SettingsIcon, Menu, X, ChevronLeft, ChevronRight, Loader2, Gem, MapPin, FolderKanban, Printer, ShoppingCart, Factory, Users, Sparkles, Database, Layers, LogOut, Wifi, WifiOff, Cloud, HardDrive, RefreshCw, AlertTriangle, MonitorOff } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
@@ -86,26 +58,17 @@ export interface AggregatedData {
 
 function AuthGuard({ children }: { children?: React.ReactNode }) {
     const { session, loading, profile, signOut } = useAuth();
-
     if (isLocalMode) return <>{children}</>;
-
-    if (loading) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-                <Loader2 size={40} className="animate-spin text-amber-500" />
-            </div>
-        );
-    }
-
+    if (loading) return (<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>);
     if (!session) return <AuthScreen />;
     if (profile && !profile.is_approved) return <PendingApprovalScreen onLogout={signOut} />;
-
     return <>{children}</>;
 }
 
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed, onMouseEnter }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, onMouseEnter?: () => void }) => (
   <button
     onClick={onClick}
+    onMouseEnter={onMouseEnter}
     title={isCollapsed ? label : ''}
     className={`
       w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
@@ -190,6 +153,10 @@ function AppContent() {
   const { data: products, isLoading: loadingProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: collections, isLoading: loadingCollections } = useQuery<Collection[]>({ queryKey: ['collections'], queryFn: api.getCollections });
 
+  const prefetchData = (key: string, fn: () => Promise<any>) => {
+      queryClient.prefetchQuery({ queryKey: [key], queryFn: fn });
+  };
+
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData;
     if (shouldPrint) {
@@ -260,7 +227,6 @@ function AppContent() {
                     if (!aggregatedComponents.has(r.sku)) aggregatedComponents.set(r.sku, { sku: r.sku, totalQuantity: 0, totalCost: 0, usedIn: new Map() });
                     const entry = aggregatedComponents.get(r.sku)!;
                     entry.totalQuantity += qty; entry.totalCost += qty * comp.active_price;
-                    // @FIX: Error in file App.tsx on line 263: Property 'get' does not exist on type '{ sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number>; }'. Fixed by using entry.usedIn.get
                     entry.usedIn.set(product.sku + (batch.variant_suffix || ''), (entry.usedIn.get(product.sku + (batch.variant_suffix || '')) || 0) + qty);
                 }
             }
@@ -273,7 +239,6 @@ function AppContent() {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
   }
   if (!settings || !products || !materials || !molds || !collections) return null;
-  
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
 
   return (
@@ -307,27 +272,27 @@ function AppContent() {
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => handleNav('dashboard')} />
             <div className="my-2 mx-2">
-                <button onClick={() => handleNav('ai-studio')} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-300 group relative ${activePage === 'ai-studio' ? 'bg-gradient-to-r from-[#060b00] to-emerald-900 text-white shadow-lg ring-1 ring-emerald-800' : 'text-emerald-200 hover:bg-white/5 hover:text-white border border-emerald-900/30 bg-[#0a1200]/50'}`}>
+                <button onClick={() => handleNav('ai-studio')} onMouseEnter={() => prefetchData('products', api.getProducts)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-300 group relative ${activePage === 'ai-studio' ? 'bg-gradient-to-r from-[#060b00] to-emerald-900 text-white shadow-lg ring-1 ring-emerald-800' : 'text-emerald-200 hover:bg-white/5 hover:text-white border border-emerald-900/30 bg-[#0a1200]/50'}`}>
                     <div className={`${activePage === 'ai-studio' ? 'text-white' : 'text-emerald-300 group-hover:text-white'}`}><Sparkles size={22} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} /></div>
                     {!isCollapsed && <span className="font-bold truncate text-sm">AI Studio</span>}
                 </button>
             </div>
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} />
+            <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} onMouseEnter={() => prefetchData('products', api.getProducts)} />
             {!isLocalMode && (
                 <>
-                <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
-                <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
-                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμηθευτές" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
+                <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} onMouseEnter={() => prefetchData('orders', api.getOrders)} />
+                <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} onMouseEnter={() => prefetchData('batches', api.getProductionBatches)} />
+                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμηθευτές" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} onMouseEnter={() => prefetchData('customers', api.getCustomers)} />
                 </>
             )}
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Warehouse size={22} />} label="Αποθήκη & Στοκ" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => handleNav('inventory')} />
+            <NavItem icon={<Warehouse size={22} />} label="Αποθήκη & Στοκ" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => handleNav('inventory')} onMouseEnter={() => prefetchData('products', api.getProducts)} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Layers size={22} />} label="Υλικά & Λάστιχα" isActive={activePage === 'resources'} isCollapsed={isCollapsed} onClick={() => handleNav('resources')} />
-            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => handleNav('collections')} />
+            <NavItem icon={<Layers size={22} />} label="Υλικά & Λάστιχα" isActive={activePage === 'resources'} isCollapsed={isCollapsed} onClick={() => handleNav('resources')} onMouseEnter={() => prefetchData('materials', api.getMaterials)} />
+            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => handleNav('collections')} onMouseEnter={() => prefetchData('collections', api.getCollections)} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<DollarSign size={22} />} label="Τιμολόγηση" isActive={activePage === 'pricing'} isCollapsed={isCollapsed} onClick={() => handleNav('pricing')} />
+            <NavItem icon={<DollarSign size={22} />} label="Τιμολόγηση" isActive={activePage === 'pricing'} isCollapsed={isCollapsed} onClick={() => handleNav('pricing')} onMouseEnter={() => prefetchData('products', api.getProducts)} />
             <NavItem icon={<Printer size={22} />} label="Μαζική Εκτύπωση" isActive={activePage === 'batch-print'} isCollapsed={isCollapsed} onClick={() => handleNav('batch-print')} />
             <div className="mt-auto pt-6">
               <NavItem icon={<SettingsIcon size={22} />} label="Ρυθμίσεις" isActive={activePage === 'settings'} isCollapsed={isCollapsed} onClick={() => handleNav('settings')} />

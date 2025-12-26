@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="el">
   <head>
@@ -23,8 +24,10 @@
     <style>
       html, body { overscroll-behavior-y: none; }
       body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
-      @media print { body { margin: 0; padding: 0; background: white; } #app-container { display: none !important; } .print-view { display: block !important; } @page { size: A4; margin: 0; } }
+      @media print { body { margin: 0; padding: 0; background: white; } #app-container { display: none !important; } .print-view { block !important; } @page { size: A4; margin: 0; } }
       .print-view { display: none; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
   <script type="importmap">
 {
@@ -42,7 +45,8 @@
     "jsbarcode": "https://esm.sh/jsbarcode@3.11.5",
     "@google/genai": "https://esm.sh/@google/genai@1.30.0",
     "react-zxing": "https://esm.sh/react-zxing@2.0.0?external=react",
-    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168"
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168",
+    "react-window": "https://esm.sh/react-window@1.8.10?external=react,react-dom"
   }
 }
 </script>
@@ -53,11 +57,9 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Use absolute path for Service Worker
           navigator.serviceWorker.register('/sw.js')
             .then(reg => {
               console.log('Ilios SW Ready');
-              // Force update check on load
               reg.update();
             })
             .catch(err => {

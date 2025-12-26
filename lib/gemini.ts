@@ -1,4 +1,5 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { GEMINI_API_KEY } from "./supabase";
 
 // Helper to clean Base64 string
@@ -13,8 +14,85 @@ const getClient = () => {
 };
 
 /**
+ * AI Predictive Pricing Analysis
+ * Analyzes margin risk based on hypothetical silver price hikes.
+ */
+export const getPriceRiskAnalysis = async (products: any[], currentSilverPrice: number): Promise<string> => {
+    try {
+        const ai = getClient();
+        const productData = products.slice(0, 50).map(p => ({
+            sku: p.sku,
+            weight: p.weight_g,
+            cost: p.active_price,
+            price: p.selling_price,
+            margin: p.selling_price > 0 ? ((p.selling_price - p.active_price) / p.selling_price * 100).toFixed(1) : 0
+        }));
+
+        const prompt = `
+            Ανάλυσε τον κίνδυνο κερδοφορίας για τα παρακάτω προϊόντα κοσμημάτων.
+            Τρέχουσα Τιμή Ασημιού: ${currentSilverPrice}€/g.
+            
+            Σενάρια προς ανάλυση:
+            1. Άνοδος Ασημιού +20%
+            2. Άνοδος Ασημιού +50% (Κρίσιμο Σενάριο)
+            
+            Δεδομένα:
+            ${JSON.stringify(productData)}
+
+            Στόχοι:
+            - [TITLE]Προϊόντα Υψηλού Κινδύνου[/TITLE]: Ποιοι κωδικοί θα έχουν αρνητικό margin πρώτοι;
+            - [TITLE]Εκτίμηση Απώλειας[/TITLE]: Πόσο θα μειωθεί το συνολικό περιθώριο κέρδους;
+            - [TITLE]Στρατηγική Αντίδρασης[/TITLE]: Προτάσεις ανατιμολόγησης.
+
+            Μορφοποίηση: Format [TITLE]Τίτλος[/TITLE] χωρίς Markdown symbols.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+        });
+
+        return response.text || "Η ανάλυση απέτυχε.";
+    } catch (error: any) {
+        throw new Error(`AI Risk Analysis failed: ${error.message}`);
+    }
+};
+
+/**
+ * Visual Similarity Search
+ * Takes an image and finds descriptors to match against the registry.
+ */
+export const identifyJewelryFromImage = async (imageBase64: string): Promise<any> => {
+    try {
+        const ai = getClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [
+                    { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
+                    { text: "Περίγραψε αυτό το κόσμημα με λέξεις κλειδιά (τύπος, υλικό, σχέδιο) για αναζήτηση σε βάση δεδομένων. Επίσης προσπάθησε να μαντέψεις την κατηγορία (π.χ. Δαχτυλίδι, Βραχιόλι)." }
+                ]
+            },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        category: { type: Type.STRING },
+                        keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        description: { type: Type.STRING }
+                    }
+                }
+            }
+        });
+        return JSON.parse(response.text);
+    } catch (error: any) {
+        throw new Error(`Visual search failed: ${error.message}`);
+    }
+};
+
+/**
  * Performs a deep audit of business health.
- * UPDATED: Bubbles up variant prices so the AI sees true commercial value even if master SKU is 0.
  */
 export const analyzeBusinessHealth = async (data: {
     products: any[],
@@ -25,12 +103,10 @@ export const analyzeBusinessHealth = async (data: {
         const ai = getClient();
         
         const productSummary = data.products.map(p => {
-            // Logic to find a real price if master price is 0
             let effectivePrice = p.selling_price || 0;
             let effectiveCost = p.active_price || 0;
 
             if (effectivePrice <= 0 && p.variants && p.variants.length > 0) {
-                // Find first variant with a price, or use master
                 const pricedVariant = p.variants.find((v: any) => (v.selling_price || 0) > 0) || p.variants[0];
                 effectivePrice = pricedVariant.selling_price || 0;
                 effectiveCost = pricedVariant.active_price || p.active_price;
@@ -48,27 +124,24 @@ export const analyzeBusinessHealth = async (data: {
         });
 
         const prompt = `
-            Είσαι ένας έμπειρος Business Analyst στον κλάδο της αργυροχοΐας (Jewelry Industry).
+            Είσαι ένας έμπειρος Business Analyst στον κλάδο της αργυροχοΐας.
             Ανάλυσε τα παρακάτω δεδομένα του εργαστηρίου "Ilios Kosmima".
             
             Τρέχουσα Τιμή Ασημιού: ${data.silverPrice}€/g
             Σύνολο Προϊόντων: ${productSummary.length}
             
-            Δεδομένα Προϊόντων (Condensed):
+            Δεδομένα:
             ${JSON.stringify(productSummary)}
 
             Στόχοι Ανάλυσης:
-            1. [TITLE]Έλεγχος Κερδοφορίας[/TITLE]: Εντόπισε κωδικούς με margin < 40% που έχουν υψηλό βάρος ή εργατικά.
-            2. [TITLE]Ανάλυση Αποθέματος[/TITLE]: Βρες προϊόντα με υψηλό στοκ αλλά χαμηλή κερδοφορία.
-            3. [TITLE]Ευπάθεια Μετάλλου[/TITLE]: Ποια προϊόντα θα πληγούν περισσότερο αν ανέβει η τιμή του ασημιού;
-            4. [TITLE]Στρατηγικές Προτάσεις[/TITLE]: Δώσε 3 συγκεκριμένες στρατηγικές κινήσεις για αύξηση κερδοφορίας.
+            1. [TITLE]Έλεγχος Κερδοφορίας[/TITLE]
+            2. [TITLE]Ανάλυση Αποθέματος[/TITLE]
+            3. [TITLE]Ευπάθεια Μετάλλου[/TITLE]
+            4. [TITLE]Στρατηγικές Προτάσεις[/TITLE]
 
             ΠΕΡΙΟΡΙΣΜΟΙ ΜΟΡΦΟΠΟΙΗΣΗΣ:
-            - ΜΗΝ χρησιμοποιείς σύμβολα Markdown όπως *** ή ## ή #.
-            - ΜΗΝ χρησιμοποιείς έντονα γράμματα με αστεράκια.
-            - Χρησιμοποίησε ΑΥΣΤΗΡΑ το format [TITLE]Τίτλος Ενότητας[/TITLE] για επικεφαλίδες.
-            - Γράψε τις λεπτομέρειες σε απλές γραμμές με παύλες κάτω από κάθε τίτλο.
-            - Γράψε στα Ελληνικά με επαγγελματικό αλλά άμεσο ύφος.
+            - ΜΗΝ χρησιμοποιείς σύμβολα Markdown.
+            - Χρησιμοποίησε ΑΥΣΤΗΡΑ format [TITLE]Τίτλος[/TITLE].
         `;
 
         const response: GenerateContentResponse = await ai.models.generateContent({
@@ -83,27 +156,16 @@ export const analyzeBusinessHealth = async (data: {
     }
 };
 
-/**
- * Generates marketing text description.
- */
-export const generateMarketingCopy = async (
-    prompt: string, 
-    imageBase64?: string, 
-    mimeType: string = 'image/jpeg'
-): Promise<string> => {
+export const generateMarketingCopy = async (prompt: string, imageBase64?: string, mimeType: string = 'image/jpeg'): Promise<string> => {
   try {
     const ai = getClient();
     const parts: any[] = [];
     if (imageBase64) parts.push({ inlineData: { data: cleanBase64(imageBase64), mimeType } });
     parts.push({ text: prompt });
-
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts },
-      config: {
-          systemInstruction: "Είσαι κορυφαίος Copywriter Κοσμημάτων. Γράψε στα Ελληνικά.",
-          temperature: 0.7
-      }
+      config: { systemInstruction: "Είσαι κορυφαίος Copywriter Κοσμημάτων. Γράψε στα Ελληνικά.", temperature: 0.7 }
     });
     return response.text || "Δεν υπήρξε απάντηση.";
   } catch (error: any) {
@@ -111,25 +173,14 @@ export const generateMarketingCopy = async (
   }
 };
 
-export const generateVirtualModel = async (
-    imageBase64: string, 
-    gender: 'Men' | 'Women' | 'Unisex',
-    category: string,
-    userInstructions?: string,
-    useProModel: boolean = false
-): Promise<string | null> => {
+export const generateVirtualModel = async (imageBase64: string, gender: 'Men' | 'Women' | 'Unisex', category: string, userInstructions?: string, useProModel: boolean = false): Promise<string | null> => {
   const ai = getClient();
   const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : 'beautiful Greek female model';
   let promptText = `High-end editorial fashion photography. A ${genderPrompt} wearing the jewelry item provided. ${userInstructions || ''}`;
   try {
     const response = await ai.models.generateContent({
       model: useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
-          { text: promptText },
-        ],
-      },
+      contents: { parts: [{ inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } }, { text: promptText }] },
     });
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
@@ -159,12 +210,7 @@ export const extractSkusFromImage = async (imageBase64: string): Promise<string>
     const ai = getClient();
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
-          { text: "Extract SKUs and Quantities in 'SKU QUANTITY' format." },
-        ],
-      },
+      contents: { parts: [{ inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } }, { text: "Extract SKUs and Quantities in 'SKU QUANTITY' format." }] },
     });
     return response.text || "";
   } catch (error: any) {
