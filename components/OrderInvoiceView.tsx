@@ -11,25 +11,25 @@ interface Props {
     order: Order;
 }
 
-// A small component to render the barcode canvas
-const BarcodeCanvas: React.FC<{ sku: string }> = ({ sku }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+const BarcodeSVG: React.FC<{ sku: string }> = ({ sku }) => {
+    const svgRef = useRef<SVGSVGElement>(null);
     useEffect(() => {
-        if (canvasRef.current && sku) {
+        if (svgRef.current && sku) {
             try {
-                JsBarcode(canvasRef.current, sku, {
+                JsBarcode(svgRef.current, sku, {
                     format: 'CODE128',
                     displayValue: false,
                     height: 30,
                     width: 1.2,
                     margin: 0,
+                    background: 'transparent'
                 });
             } catch (e) {
                 console.error("Barcode generation failed for SKU:", sku, e);
             }
         }
     }, [sku]);
-    return <canvas ref={canvasRef} />;
+    return <svg ref={svgRef} />;
 };
 
 
@@ -48,13 +48,10 @@ export default function OrderInvoiceView({ order }: Props) {
         });
     };
     
-    // Dynamically calculate totals to ensure they match edited items, 
-    // even if the database total_price field hasn't fully propagated yet in this view context
     const subtotal = order.items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const vatAmount = subtotal * 0.24;
     const grandTotal = subtotal + vatAmount;
 
-    // Hardcoded Company Info
     const company = {
         name: "ILIOS KOSMIMA",
         address: "Αβέρωφ 73, Κορυδαλλός, 18120",
@@ -118,7 +115,6 @@ export default function OrderInvoiceView({ order }: Props) {
                             const fullSku = item.sku + (item.variant_suffix || '');
                             const imageUrl = product?.image_url;
                             const description = variant?.description || product?.category || 'Προϊόν';
-                            const sizingInfo = product ? getSizingInfo(product) : null;
 
                             return (
                                 <tr key={fullSku + item.size_info} className="border-b border-slate-100 break-inside-avoid">
@@ -141,7 +137,7 @@ export default function OrderInvoiceView({ order }: Props) {
                                         </div>
                                         <div className="text-slate-700 text-xs mt-0.5">{description}</div>
                                         <div className="h-8 flex items-center mt-1">
-                                            <BarcodeCanvas sku={fullSku} />
+                                            <BarcodeSVG sku={fullSku} />
                                         </div>
                                     </td>
                                     <td className="py-3 px-2 text-center align-middle font-bold text-slate-800 text-base">{item.quantity}</td>

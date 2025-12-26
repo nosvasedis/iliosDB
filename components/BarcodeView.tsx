@@ -13,7 +13,7 @@ interface Props {
 }
 
 const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard' }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
 
     // Construct SKU cleanly
     const baseSku = product?.sku || '';
@@ -25,7 +25,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     // --- Smart Stone Detection Logic ---
     const stoneName = useMemo(() => {
-        // NEW RULE: For ST SKUs, the base (lustre) variant has no description on the barcode.
         if (product.sku.startsWith('ST') && (variant?.suffix === '' || !variant)) {
             return null;
         }
@@ -56,20 +55,19 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [product, variant, suffix]);
 
     useEffect(() => {
-        if (canvasRef.current && finalSku) {
+        if (svgRef.current && finalSku) {
             try {
-                // Transliterate SKU to handle Greek characters which are invalid for CODE128
                 const encodedSku = transliterateForBarcode(finalSku);
-                
-                // Adjust barcode settings based on format
                 const isSimple = format === 'simple';
-                JsBarcode(canvasRef.current, encodedSku, {
+                
+                // Using SVG instead of Canvas for Iframe printing compatibility
+                JsBarcode(svgRef.current, encodedSku, {
                     format: 'CODE128',
                     displayValue: false, 
-                    height: isSimple ? 80 : 50, // Taller barcode for simple mode
+                    height: isSimple ? 60 : 40,
                     width: 2, 
                     margin: 0,
-                    background: '#ffffff'
+                    background: 'transparent'
                 });
             } catch (e) {
                 console.error("JsBarcode error:", e);
@@ -84,28 +82,26 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const skuFontSize = Math.min(maxSkuWidthFont, maxSkuHeightFont);
     const detailsFontSize = Math.min(height * 0.11, width * 0.14); 
     const brandFontSize = Math.min(height * 0.14, width * 0.22);
-    const stoneFontSize = Math.min(height * 0.12, width * 0.17); // Slightly increased
+    const stoneFontSize = Math.min(height * 0.12, width * 0.17);
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
 
-    // --- RENDER SIMPLE FORMAT (Requested for individual print) ---
     if (format === 'simple') {
         return (
             <div
-                className="bg-white text-black flex flex-col items-center justify-center overflow-hidden relative break-inside-avoid page-break-inside-avoid"
+                className="bg-white text-black flex flex-col items-center justify-center overflow-hidden relative break-inside-avoid"
                 style={{
                     width: `${width}mm`,
                     height: `${height}mm`,
                     padding: '2mm', 
                     fontFamily: `'Inter', sans-serif`,
-                    boxSizing: 'border-box',
-                    border: '1px solid #eee' 
+                    boxSizing: 'border-box'
                 }}
             >
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
-                    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
+                    <svg ref={svgRef} style={{ maxWidth: '100%', maxHeight: '100%' }} />
                 </div>
-                <div className="w-full text-center leading-none mt-[2px]" style={{ flex: '0 0 auto' }}>
+                <div className="w-full text-center leading-none mt-[1mm]">
                     <span className="font-bold block uppercase" style={{ fontSize: '10px' }}>
                         {finalSku}
                     </span>
@@ -114,33 +110,28 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         );
     }
 
-    // --- RENDER STANDARD FORMAT (Default for mass print) ---
     return (
         <div
-            className="bg-white text-black flex flex-col items-center justify-between overflow-hidden relative break-inside-avoid page-break-inside-avoid"
+            className="bg-white text-black flex flex-col items-center justify-between overflow-hidden relative break-inside-avoid"
             style={{
                 width: `${width}mm`,
                 height: `${height}mm`,
                 padding: '1mm', 
                 fontFamily: `'Inter', sans-serif`,
-                boxSizing: 'border-box',
-                border: '1px solid #eee'
+                boxSizing: 'border-box'
             }}
         >
-            {/* ROW 1: SKU */}
-            <div className="w-full text-center leading-none mb-[0.5mm]" style={{ flex: '0 0 auto' }}>
+            <div className="w-full text-center leading-none mb-[0.5mm]">
                 <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize}mm` }}>
                     {finalSku}
                 </span>
             </div>
 
-            {/* ROW 2: BARCODE */}
-            <div className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
-                <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
+                <svg ref={svgRef} style={{ maxWidth: '100%', maxHeight: '100%' }} />
             </div>
 
-            {/* ROW 3: BRAND & STONE */}
-            <div className="w-full text-center leading-none mt-[0.5mm]" style={{ flex: '0 0 auto' }}>
+            <div className="w-full text-center leading-none mt-[0.5mm]">
                 <span className="font-bold tracking-widest text-slate-900 block" style={{ fontSize: `${brandFontSize}mm` }}>
                     ILIOS
                 </span>
@@ -151,13 +142,11 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 )}
             </div>
 
-            {/* ROW 4: DETAILS */}
             <div 
                 className="w-full flex justify-between items-end border-t border-black/10 pt-[0.5mm] mt-[0.5mm] leading-none" 
-                style={{ fontSize: `${detailsFontSize}mm`, flex: '0 0 auto' }}
+                style={{ fontSize: `${detailsFontSize}mm` }}
             >
                  <span className="font-bold">{priceDisplay}</span>
-                 
                  <div className="flex items-center">
                     <span className="font-medium text-slate-800">925°</span>
                  </div>
