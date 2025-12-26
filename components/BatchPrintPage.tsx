@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight } from 'lucide-react';
@@ -5,7 +6,7 @@ import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
-import { analyzeSku, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
+import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode } from '../utils/pricingEngine';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -123,20 +124,11 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             return;
         }
 
-        const matchingProduct = allProducts.find(p => p.sku === val || val.startsWith(p.sku));
-        
-        if (matchingProduct) {
-            const suffixEntered = val.substring(matchingProduct.sku.length);
-            const hasVariants = matchingProduct.variants && matchingProduct.variants.length > 0;
-            
-            if (hasVariants) {
-                setAvailableSuffixes(matchingProduct.variants!.map(v => ({ suffix: v.suffix, desc: v.description })));
-                const matchingVar = matchingProduct.variants!.find(v => v.suffix.startsWith(suffixEntered));
-                setScanSuggestion(matchingVar ? matchingProduct.sku + matchingVar.suffix : matchingProduct.sku + matchingProduct.variants![0].suffix);
-            } else {
-                setAvailableSuffixes([]);
-                setScanSuggestion(matchingProduct.sku);
-            }
+        const match = findProductByScannedCode(val, allProducts);
+        if (match) {
+            const { product, variant } = match;
+            setScanSuggestion(product.sku + (variant?.suffix || ''));
+            setAvailableSuffixes(product.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
         } else {
             const masterMatch = allProducts.find(p => p.sku.startsWith(val));
             setScanSuggestion(masterMatch ? masterMatch.sku : '');
@@ -159,16 +151,18 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         const targetCode = scanSuggestion || scanInput;
         if (!targetCode) return;
 
-        // Check if product exists
-        const exists = allProducts.some(p => targetCode.startsWith(p.sku));
-        if (!exists) {
+        // Check if product exists via bridge
+        const match = findProductByScannedCode(targetCode, allProducts);
+        if (!match) {
             showToast("Ο κωδικός δεν βρέθηκε.", "error");
             return;
         }
 
+        const finalCode = match.product.sku + (match.variant?.suffix || '');
+
         // Add to the list
         const currentLines = skusText.split('\n').filter(l => l.trim());
-        const newLine = `${targetCode} ${scanQty}`;
+        const newLine = `${finalCode} ${scanQty}`;
         setSkusText([...currentLines, newLine].join('\n'));
 
         // Reset
@@ -177,23 +171,22 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         setScanQty(1);
         setAvailableSuffixes([]);
         inputRef.current?.focus();
-        showToast(`Προστέθηκε: ${targetCode}`, 'success');
+        showToast(`Προστέθηκε: ${finalCode}`, 'success');
     };
 
     const getScanProductInfo = () => {
         const t = scanSuggestion || scanInput;
         if (!t) return null;
-        const p = allProducts.find(p => t.startsWith(p.sku));
-        if (!p) return null;
-        const s = t.replace(p.sku, '');
-        const v = p.variants?.find(v => v.suffix === s);
-        return { product: p, variant: v, variantSuffix: s };
+        const match = findProductByScannedCode(t, allProducts);
+        if (!match) return null;
+        return { product: match.product, variant: match.variant, variantSuffix: match.variant?.suffix || '' };
     };
 
     const SkuVisualizer = () => {
         if (!scanSuggestion && !scanInput) return null;
         const textToRender = scanSuggestion || scanInput;
-        const prod = allProducts.find(p => textToRender.startsWith(p.sku));
+        const match = findProductByScannedCode(textToRender, allProducts);
+        const prod = match?.product;
         
         let masterPart = prod ? prod.sku : textToRender;
         let suffixPart = prod ? textToRender.substring(prod.sku.length) : '';
@@ -282,6 +275,18 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }
     };
 
+    const handleBarcodeScan = (code: string) => {
+        const match = findProductByScannedCode(code, allProducts);
+        if (match) {
+            const targetCode = match.product.sku + (match.variant?.suffix || '');
+            const currentLines = skusText.split('\n').filter(l => l.trim());
+            setSkusText([...currentLines, `${targetCode} 1`].join('\n'));
+            showToast(`Προστέθηκε: ${targetCode}`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -330,7 +335,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                 <div className="absolute top-full left-0 right-0 mt-2 flex flex-wrap gap-1.5 z-[100] p-3 bg-white rounded-2xl border border-slate-100 shadow-2xl max-h-48 overflow-y-auto custom-scrollbar ring-4 ring-black/5">
                                     <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> Προτάσεις Παραλλαγών</div>
                                     {availableSuffixes.map(s => {
-                                        const master = getScanProductInfo()?.product?.sku || '';
                                         const { finish, stone } = getVariantComponents(s.suffix, getScanProductInfo()?.product?.gender);
                                         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
                                         const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
@@ -388,7 +392,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                         <h2 className="font-bold text-slate-800 mb-4 text-center">Μαζική Είσοδος</h2>
                         <div className="space-y-3">
-                            <input type="file" accept=".pdf" border="none" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
+                            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
                             <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="w-full flex items-center justify-center gap-3 bg-amber-50 text-amber-700 p-4 rounded-xl font-bold border-2 border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all disabled:opacity-60">
                                 <FileUp size={20} /> Ανάλυση PDF Παραγγελίας
                             </button>
@@ -439,7 +443,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     {isProcessing ? 'Επεξεργασία...' : 'Εκτύπωση Ετικετών'}
                 </button>
             </div>
-            {showScanner && <BarcodeScanner onScan={(code) => { setSkusText(skusText.trim() ? skusText + '\n' + code.toUpperCase() + ' 1' : code.toUpperCase() + ' 1'); showToast(`Προστέθηκε: ${code}`, 'info'); }} onClose={() => setShowScanner(false)} continuous={true} />}
+            {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} continuous={true} />}
         </div>
     );
 }

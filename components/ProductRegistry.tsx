@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
+import BarcodeScanner from './BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -206,11 +207,12 @@ const SubFilterButton: React.FC<{
 
 export default function ProductRegistry({ setPrintItems }: Props) {
   const queryClient = useQueryClient();
+  const { showToast } = useUI();
   const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+  const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterParentCategory, setFilterParentCategory] = useState<string>('All');
@@ -226,6 +228,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showStxOnly, setShowStxOnly] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   
   const [showFab, setShowFab] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -356,6 +359,17 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const handleGlobalScan = (code: string) => {
+    if (!products) return;
+    const match = findProductByScannedCode(code, products);
+    if (match) {
+        setSelectedProduct(match.product);
+        setShowScanner(false);
+    } else {
+        showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+    }
+  };
+
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
   }
@@ -387,9 +401,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     <Puzzle size={16}/> Εξαρτήματα
                 </button>
             </div>
-            <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg w-full md:w-auto">
-                <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο Προϊόν</span>
-            </button>
+            <div className="flex gap-2">
+                <button onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:bg-slate-50">
+                    <Camera size={20}/> <span className="hidden sm:inline">Σάρωση</span>
+                </button>
+                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                    <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο</span>
+                </button>
+            </div>
          </div>
       </div>
       
@@ -487,6 +506,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       {selectedProduct && (
         <ProductDetails product={selectedProduct} allProducts={products} allMaterials={materials} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems || (() => {})} settings={settings} collections={collections} allMolds={molds} viewMode="registry" />
       )}
+
+      {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
 
       <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
           <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4">

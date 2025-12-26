@@ -113,8 +113,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   const rowVirtualizer = useVirtualizer({ count: filteredInventory.length, getScrollElement: () => listParentRef.current, estimateSize: () => 100, overscan: 10 });
 
-  const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value.toUpperCase();
+  const handleScanInput = (e: string | React.ChangeEvent<HTMLInputElement>) => {
+      const val = (typeof e === 'string' ? e : e.target.value).toUpperCase();
       setScanInput(val);
       setScanSize('');
       if (val.length === 0) { setScanSuggestion(''); setAvailableSuffixes([]); return; }
@@ -259,6 +259,21 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   const openTransfer = (item: InventoryItem) => { setTransferItem(item); setSourceId(SYSTEM_IDS.CENTRAL); setTargetId(SYSTEM_IDS.SHOWROOM); setTransferQty(1); setTransferModalOpen(true); }
 
+  const handleGlobalScan = (code: string) => {
+    const match = findProductByScannedCode(code, products);
+    if (match) {
+        // Find correct Greek SKU and populate quick entry
+        const targetCode = match.product.sku + (match.variant?.suffix || '');
+        handleScanInput(targetCode);
+        showToast(`Σάρωση: ${targetCode}`, 'success');
+        setShowScanner(false);
+        // Scroll to top to ensure entry is visible
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full space-y-6">
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
@@ -285,13 +300,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                               </div>
                               <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Εισαγωγή</h2>
                           </div>
-                          <div className="flex bg-slate-200 p-1 rounded-xl">
-                                <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    <Plus size={14}/> Εισαγωγή
-                                </button>
-                                <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    <Minus size={14}/> Αφαίρεση
-                                </button>
+                          <div className="flex gap-2">
+                              <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 shadow-sm" title="Σάρωση Barcode"><Camera size={20}/></button>
+                              <div className="flex bg-slate-200 p-1 rounded-xl">
+                                    <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                        <Plus size={14}/> Εισαγωγή
+                                    </button>
+                                    <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                        <Minus size={14}/> Αφαίρεση
+                                    </button>
+                              </div>
                           </div>
                       </div>
 
@@ -398,6 +416,4 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
     </div>
   );
-
-  function handleGlobalScan(code: string) { const match = findProductByScannedCode(code, products); if (match) setSelectedProduct(match.product); else showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error'); }
 }
