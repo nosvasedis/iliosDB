@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Warehouse, 
@@ -147,6 +146,9 @@ function AppContent() {
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
+  const printContainerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   useEffect(() => {
     if (isLocalMode) return;
     const checkQueue = async () => {
@@ -190,21 +192,78 @@ function AppContent() {
   const { data: products, isLoading: loadingProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: collections, isLoading: loadingCollections } = useQuery<Collection[]>({ queryKey: ['collections'], queryFn: api.getCollections });
 
+  // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData;
     if (shouldPrint) {
-      const originalTitle = document.title;
-      const handleAfterPrint = () => {
-        document.title = originalTitle;
-        setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setAggregatedPrintData(null); setPreparationPrintData(null); setTechnicianPrintData(null);
-        window.removeEventListener('afterprint', handleAfterPrint);
-      };
-      window.addEventListener('afterprint', handleAfterPrint);
-      setTimeout(() => {
-        window.print();
-        if (!('onafterprint' in window)) setTimeout(handleAfterPrint, 1000);
-      }, 500);
-      return () => window.removeEventListener('afterprint', handleAfterPrint);
+      // Small delay to allow React to render the hidden print container
+      const timer = setTimeout(() => {
+        const printContent = printContainerRef.current;
+        const iframe = iframeRef.current;
+        if (!printContent || !iframe) return;
+
+        const iframeDoc = iframe.contentWindow?.document;
+        if (!iframeDoc) return;
+
+        // Reset state callback
+        const cleanup = () => {
+            setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
+            setAggregatedPrintData(null); setPreparationPrintData(null); 
+            setTechnicianPrintData(null);
+        };
+
+        // Transfer content and styles to iframe
+        iframeDoc.open();
+        
+        // Grab all current stylesheets and fonts
+        let styles = '';
+        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
+            styles += el.outerHTML;
+        });
+
+        iframeDoc.write(`
+          <html>
+            <head>
+              ${styles}
+              <style>
+                body { background: white !important; margin: 0; padding: 0; }
+                .print-view { display: block !important; }
+                @page { size: A4; margin: 0; }
+                /* Force background graphics to show up */
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              </style>
+            </head>
+            <body>
+              <div class="print-view">
+                ${printContent.innerHTML}
+              </div>
+              <script>
+                // Wait for all resources (especially barcodes/images) to load before printing
+                window.onload = function() {
+                  setTimeout(function() {
+                    window.focus();
+                    window.print();
+                  }, 300);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        iframeDoc.close();
+
+        // Listen for window focus to reset state (detects when user closes print dialog)
+        const handleAfterPrint = () => {
+            cleanup();
+            window.removeEventListener('focus', handleAfterPrint);
+        };
+        window.addEventListener('focus', handleAfterPrint, { once: true });
+        
+        // Fallback cleanup timer in case 'focus' event doesn't fire nicely on some browsers
+        setTimeout(cleanup, 5000);
+
+      }, 800); 
+
+      return () => clearTimeout(timer);
     }
   }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData]);
 
@@ -260,7 +319,6 @@ function AppContent() {
                     if (!aggregatedComponents.has(r.sku)) aggregatedComponents.set(r.sku, { sku: r.sku, totalQuantity: 0, totalCost: 0, usedIn: new Map() });
                     const entry = aggregatedComponents.get(r.sku)!;
                     entry.totalQuantity += qty; entry.totalCost += qty * comp.active_price;
-                    // @FIX: Error in file App.tsx on line 263: Property 'get' does not exist on type '{ sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number>; }'. Fixed by using entry.usedIn.get
                     entry.usedIn.set(product.sku + (batch.variant_suffix || ''), (entry.usedIn.get(product.sku + (batch.variant_suffix || '')) || 0) + qty);
                 }
             }
@@ -278,7 +336,8 @@ function AppContent() {
 
   return (
     <>
-      <div className="print-view">
+      {/* Hidden container for print rendering - Used as a buffer for the Iframe Bridge */}
+      <div ref={printContainerRef} className="print-view" aria-hidden="true">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {batchToPrint && <ProductionWorkerView batch={batchToPrint} allMolds={molds} allProducts={products} allMaterials={materials} />}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
@@ -292,6 +351,15 @@ function AppContent() {
             </div>
         )}
       </div>
+
+      {/* The invisible Iframe Bridge for reliable printing across all devices */}
+      <iframe 
+        ref={iframeRef} 
+        id="print-iframe" 
+        style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }} 
+        title="Print Bridge"
+      ></iframe>
+
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <aside className={`fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl flex flex-col ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'md:w-20' : 'md:w-72'} border-r border-white/5`}>
