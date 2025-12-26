@@ -338,7 +338,6 @@ export const api = {
                 return material?.type === MaterialType.Stone;
             });
 
-            // @FIX: ProductionType is now imported from types and correctly used here to determine initial production stage.
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
             batches.push({
@@ -394,7 +393,13 @@ export const api = {
     },
 
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections', 'global_settings'];
+        const tables = [
+            'products', 'product_variants', 'materials', 'molds', 'orders', 
+            'customers', 'suppliers', 'warehouses', 'production_batches', 
+            'product_stock', 'stock_movements', 'recipes', 'product_molds', 
+            'collections', 'product_collections', 'global_settings',
+            'price_snapshots', 'price_snapshot_items'
+        ];
         const results: Record<string, any[]> = {};
         for (const table of tables) {
             results[table] = await fetchFullTable(table);
@@ -406,7 +411,8 @@ export const api = {
         const order = [
             'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
-            'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings'
+            'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings',
+            'price_snapshots', 'price_snapshot_items'
         ];
 
         if (isLocalMode || !SUPABASE_URL) {
