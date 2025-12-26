@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
@@ -32,10 +32,6 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
-/**
- * Universal Mutation Wrapper
- * Handles both cloud and offline queuing.
- */
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<any> {
     if (isLocalMode) {
         console.log(`Local Mode: Suppression of mutation to ${tableName}`);
@@ -49,7 +45,6 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
 
     try {
         let query;
-        // @FIX: Added .select() to INSERT, UPDATE, UPSERT to ensure resData is returned for truthiness tests in callers.
         if (method === 'INSERT') query = supabase.from(tableName).insert(data).select();
         else if (method === 'UPDATE') query = supabase.from(tableName).update(data).match(match || { id: data.id || data.sku }).select();
         else if (method === 'DELETE') query = supabase.from(tableName).delete().match(match || { id: data.id || data.sku });
@@ -57,7 +52,6 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         
         const { data: resData, error } = await query!;
         if (error) throw error;
-        // @FIX: Supabase returns an array for mutations with .select(), returning first element or single result.
         return { data: Array.isArray(resData) ? resData[0] : resData, error: null };
     } catch (err) {
         console.warn(`Cloud mutation failed. Enqueueing for retry:`, err);
@@ -136,10 +130,6 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
 };
 
-/**
- * @FIX: Export deleteProduct as required by Inventory.tsx and ProductDetails.tsx.
- * Implemented using safeMutate for associations and main product record.
- */
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
         await safeMutate('product_variants', 'DELETE', null, { product_sku: sku });
@@ -175,15 +165,21 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 export const api = {
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
-        if (isLocalMode) return (local && local.length > 0) ? local[0] : INITIAL_SETTINGS;
+        if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
         try {
             const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
             if (error || !data) throw new Error('Data Error');
-            const settings = { silver_price_gram: Number(data.silver_price_gram), loss_percentage: Number(data.loss_percentage), barcode_width_mm: Number(data.barcode_width_mm) || 50, barcode_height_mm: Number(data.barcode_height_mm) || 30 };
+            const settings = { 
+              silver_price_gram: Number(data.silver_price_gram), 
+              loss_percentage: Number(data.loss_percentage), 
+              barcode_width_mm: Number(data.barcode_width_mm) || 50, 
+              barcode_height_mm: Number(data.barcode_height_mm) || 30,
+              last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
+            };
             offlineDb.saveTable('global_settings', [settings]);
             return settings;
         } catch (e) {
-            return (local && local.length > 0) ? local[0] : INITIAL_SETTINGS;
+            return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
         }
     },
 
@@ -268,7 +264,6 @@ export const api = {
     deleteWarehouse: async (id: string): Promise<void> => { await safeMutate('warehouses', 'DELETE', null, { id }); },
     saveSupplier: async (s: Partial<Supplier>): Promise<void> => { await safeMutate('suppliers', s.id ? 'UPDATE' : 'INSERT', s); },
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { id }); },
-    // @FIX: Update saveCustomer to return Customer | null as required by CustomersPage.tsx truthiness check.
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => { 
         const result = await safeMutate('customers', c.id ? 'UPDATE' : 'INSERT', c); 
         return result.data;
@@ -282,9 +277,6 @@ export const api = {
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { id }); },
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { await safeMutate('orders', 'UPDATE', { status }, { id }); },
 
-    /**
-     * @FIX: Added missing api methods requested by various components.
-     */
     setProductCollections: async (sku: string, collectionIds: number[]): Promise<void> => {
         await safeMutate('product_collections', 'DELETE', null, { product_sku: sku });
         if (collectionIds.length > 0) {
@@ -346,6 +338,7 @@ export const api = {
                 return material?.type === MaterialType.Stone;
             });
 
+            // @FIX: ProductionType is now imported from types and correctly used here to determine initial production stage.
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
             batches.push({

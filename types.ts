@@ -137,6 +137,7 @@ export interface GlobalSettings {
   loss_percentage: number;
   barcode_width_mm: number;
   barcode_height_mm: number;
+  last_calc_silver_price: number; // Historical anchor for last mass update
 }
 
 export interface PriceSnapshot {
