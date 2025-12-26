@@ -19,8 +19,7 @@
     "jsbarcode": "3.11.5",
     "@google/genai": "1.30.0",
     "react-zxing": "2.0.0",
-    "pdfjs-dist": "4.4.168",
-    "react-window": "1.8.10"
+    "pdfjs-dist": "4.4.168"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

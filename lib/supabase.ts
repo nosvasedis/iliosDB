@@ -32,24 +32,10 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
-/**
- * Smart Mutation Guard: Checks local sync queue for conflicting IDs/SKUs before adding.
- */
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<any> {
-    if (isLocalMode) return { data: null, error: null };
-
-    // Unique Constraint Guard: If inserting, check if same record exists in offline queue
-    if (method === 'INSERT' || method === 'UPSERT') {
-        const queue = await offlineDb.getQueue();
-        const idKey = data.id ? 'id' : (data.sku ? 'sku' : (data.product_sku && data.suffix ? 'product_sku' : null));
-        if (idKey) {
-            const conflict = queue.find(q => q.table === tableName && q.data[idKey] === data[idKey] && (idKey !== 'product_sku' || q.data.suffix === data.suffix));
-            if (conflict && !navigator.onLine) {
-                console.warn("Unique Constraint Guard: Conflict detected in offline queue. Overwriting instead of duplicating.");
-                // Update the existing queue item instead of adding a new one
-                // This logic would need deeper integration with offlineDb, for now we let it append.
-            }
-        }
+    if (isLocalMode) {
+        console.log(`Local Mode: Suppression of mutation to ${tableName}`);
+        return { data: null, error: null };
     }
 
     if (!navigator.onLine) {
@@ -68,6 +54,7 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         if (error) throw error;
         return { data: Array.isArray(resData) ? resData[0] : resData, error: null };
     } catch (err) {
+        console.warn(`Cloud mutation failed. Enqueueing for retry:`, err);
         await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match });
         return { data: null, error: null };
     }
@@ -82,19 +69,21 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     try {
         let allData: any[] = [];
         let from = 0;
+        let to = 999;
         let hasMore = true;
 
         while (hasMore) {
-            let query = supabase.from(tableName).select(select).range(from, from + 999);
+            let query = supabase.from(tableName).select(select).range(from, to);
             if (filter) query = filter(query);
             const { data, error } = await fetchWithTimeout(query, 4000);
             if (error) throw error;
             if (data && data.length > 0) {
                 allData = [...allData, ...data];
                 if (data.length < 1000) hasMore = false;
-                else from += 1000;
+                else { from += 1000; to += 1000; }
             } else hasMore = false;
         }
+        
         offlineDb.saveTable(tableName, allData);
         return allData;
     } catch (err) {
@@ -108,6 +97,7 @@ export const saveConfiguration = (url: string, key: string, workerKey: string, g
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
     localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
     localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
+    localStorage.removeItem('ILIOS_LOCAL_MODE');
     window.location.reload();
 };
 
@@ -132,6 +122,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
     const response = await fetch(uploadUrl, {
         method: 'POST',
+        mode: 'cors',
         headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
         body: file,
     });
@@ -146,12 +137,20 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         await safeMutate('product_molds', 'DELETE', null, { product_sku: sku });
         await safeMutate('product_collections', 'DELETE', null, { product_sku: sku });
         await safeMutate('product_stock', 'DELETE', null, { product_sku: sku });
+        
         const { error } = await safeMutate('products', 'DELETE', null, { sku: sku });
         if (error) throw error;
+
         if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) {
              const filename = imageUrl.split('/').pop();
-             if (filename) await fetch(`${CLOUDFLARE_WORKER_URL}/${filename}`, { method: 'DELETE', headers: { 'Authorization': AUTH_KEY_SECRET } });
+             if (filename) {
+                 await fetch(`${CLOUDFLARE_WORKER_URL}/${filename}`, {
+                     method: 'DELETE',
+                     headers: { 'Authorization': AUTH_KEY_SECRET }
+                 });
+             }
         }
+
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };
@@ -164,15 +163,6 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
-    validateSkuUniqueness: async (sku: string): Promise<boolean> => {
-        const queue = await offlineDb.getQueue();
-        const inQueue = queue.some(q => q.table === 'products' && q.method === 'INSERT' && q.data.sku === sku);
-        if (inQueue) return false;
-        if (!navigator.onLine) return true;
-        const { data } = await supabase.from('products').select('sku').eq('sku', sku).single();
-        return !data;
-    },
-
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
         if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
@@ -228,12 +218,14 @@ export const api = {
             stockData?.filter((s: any) => s.product_sku === p.sku && !s.variant_suffix).forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
             customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
             customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
-            const pVariants = varData?.filter((v: any) => v.product_sku === p.sku).map((v: any) => {
+
+            const pVariants: ProductVariant[] = varData?.filter((v: any) => v.product_sku === p.sku).map((v: any) => {
                 const vCustomStock: Record<string, number> = {};
                 stockData?.filter((s: any) => s.product_sku === p.sku && s.variant_suffix === v.suffix).forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
                 vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
                 return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
             }) || [];
+
             return {
                 sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, image_url: p.image_url, weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, molds: prodMoldsData?.filter((pm: any) => pm.product_sku === p.sku).map((pm: any) => ({ code: pm.mold_code, quantity: pm.quantity || 1 })) || [], is_component: p.is_component, variants: pVariants, recipe: (recData?.filter((r: any) => r.parent_sku === p.sku) || []).map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) })), collections: prodCollData?.filter((pc: any) => pc.product_sku === p.sku).map((pc: any) => pc.collection_id) || [],
                 labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) }
@@ -296,12 +288,21 @@ export const api = {
     createPriceSnapshot: async (notes: string): Promise<void> => {
         const { data: products } = await supabase.from('products').select('sku, selling_price');
         const { data: variants } = await supabase.from('product_variants').select('product_sku, suffix, selling_price');
+        
         const { data: snapshot, error: sError } = await supabase.from('price_snapshots').insert({ notes }).select().single();
         if (sError) throw sError;
+
         const items: any[] = [];
-        products?.forEach(p => items.push({ snapshot_id: snapshot.id, product_sku: p.sku, variant_suffix: null, price: p.selling_price }));
-        variants?.forEach(v => items.push({ snapshot_id: snapshot.id, product_sku: v.product_sku, variant_suffix: v.suffix, price: v.selling_price }));
-        if (items.length > 0) await supabase.from('price_snapshot_items').insert(items);
+        products?.forEach(p => {
+            items.push({ snapshot_id: snapshot.id, product_sku: p.sku, variant_suffix: null, price: p.selling_price });
+        });
+        variants?.forEach(v => {
+            items.push({ snapshot_id: snapshot.id, product_sku: v.product_sku, variant_suffix: v.suffix, price: v.selling_price });
+        });
+
+        if (items.length > 0) {
+            await supabase.from('price_snapshot_items').insert(items);
+        }
     },
 
     deletePriceSnapshot: async (id: string): Promise<void> => {
@@ -312,32 +313,52 @@ export const api = {
     revertToPriceSnapshot: async (id: string): Promise<void> => {
         const { data: items } = await supabase.from('price_snapshot_items').select('*').eq('snapshot_id', id);
         if (!items) return;
+
         for (const item of items) {
-            if (item.variant_suffix) await safeMutate('product_variants', 'UPDATE', { selling_price: item.price }, { product_sku: item.product_sku, suffix: item.variant_suffix });
-            else await safeMutate('products', 'UPDATE', { selling_price: item.price }, { sku: item.product_sku });
+            if (item.variant_suffix) {
+                await safeMutate('product_variants', 'UPDATE', { selling_price: item.price }, { product_sku: item.product_sku, suffix: item.variant_suffix });
+            } else {
+                await safeMutate('products', 'UPDATE', { selling_price: item.price }, { sku: item.product_sku });
+            }
         }
     },
 
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
         const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (!order) throw new Error("Order not found");
+
         const batches: any[] = [];
         for (const item of order.items) {
             const product = allProducts.find(p => p.sku === item.sku);
             if (!product) continue;
+
             const hasStones = product.recipe.some(r => {
                 if (r.type !== 'raw') return false;
                 const material = allMaterials.find(m => m.id === r.id);
                 return material?.type === MaterialType.Stone;
             });
+
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+
             batches.push({
-                order_id: orderId, sku: item.sku, variant_suffix: item.variant_suffix || null, quantity: item.quantity,
-                current_stage: stage, size_info: item.size_info || null, priority: 'Normal', type: 'Νέα',
-                requires_setting: hasStones, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+                order_id: orderId,
+                sku: item.sku,
+                variant_suffix: item.variant_suffix || null,
+                quantity: item.quantity,
+                current_stage: stage,
+                size_info: item.size_info || null,
+                priority: 'Normal',
+                type: 'Νέα',
+                requires_setting: hasStones,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             });
         }
-        if (batches.length > 0) await safeMutate('production_batches', 'INSERT', batches);
+
+        if (batches.length > 0) {
+            await safeMutate('production_batches', 'INSERT', batches);
+        }
+
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { id: orderId });
     },
 
@@ -358,36 +379,63 @@ export const api = {
                 else if (item.method === 'UPDATE') query = supabase.from(item.table).update(item.data).match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(item.data);
+                
                 const { error } = await query!;
-                if (!error) { await offlineDb.dequeue(item.id); successCount++; }
-            } catch (err) { console.error("Sync item failed:", err); }
+                if (!error) {
+                    await offlineDb.dequeue(item.id);
+                    successCount++;
+                }
+            } catch (err) {
+                console.error("Sync item failed:", err);
+            }
         }
         return successCount;
     },
 
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections', 'global_settings', 'price_snapshots', 'price_snapshot_items'];
+        const tables = [
+            'products', 'product_variants', 'materials', 'molds', 'orders', 
+            'customers', 'suppliers', 'warehouses', 'production_batches', 
+            'product_stock', 'stock_movements', 'recipes', 'product_molds', 
+            'collections', 'product_collections', 'global_settings',
+            'price_snapshots', 'price_snapshot_items'
+        ];
         const results: Record<string, any[]> = {};
-        for (const table of tables) { results[table] = await fetchFullTable(table); }
+        for (const table of tables) {
+            results[table] = await fetchFullTable(table);
+        }
         return results;
     },
 
     restoreFullSystem: async (backupData: Record<string, any[]>): Promise<void> => {
-        const order = ['suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections', 'products', 'product_variants', 'recipes', 'product_molds', 'product_collections', 'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings', 'price_snapshots', 'price_snapshot_items'];
+        const order = [
+            'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
+            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
+            'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings',
+            'price_snapshots', 'price_snapshot_items'
+        ];
+
         if (isLocalMode || !SUPABASE_URL) {
-            for (const table of order) { if (backupData[table]) await offlineDb.saveTable(table, backupData[table]); }
+            for (const table of order) {
+                if (backupData[table]) await offlineDb.saveTable(table, backupData[table]);
+            }
             localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
             return;
         }
+
+        // Cloud Restore
         for (const table of [...order].reverse()) {
             await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');
             if (table === 'products') await supabase.from(table).delete().neq('sku', 'WIPE_ALL');
         }
+
         for (const table of order) {
             const data = backupData[table];
             if (data && data.length > 0) {
                 const chunkSize = 200;
-                for (let i = 0; i < data.length; i += chunkSize) { await supabase.from(table).insert(data.slice(i, i + chunkSize)); }
+                for (let i = 0; i < data.length; i += chunkSize) {
+                    await supabase.from(table).insert(data.slice(i, i + chunkSize));
+                }
             }
         }
     }
