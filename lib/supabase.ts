@@ -285,29 +285,54 @@ export const api = {
         }
     },
 
-    createPriceSnapshot: async (notes: string): Promise<void> => {
-        const { data: products } = await supabase.from('products').select('sku, selling_price');
-        const { data: variants } = await supabase.from('product_variants').select('product_sku, suffix, selling_price');
+    createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
+        // Use the passed products instead of direct supabase call to ensure Local Mode and Offline compatibility
+        const { data: snapshot, error: sError } = await safeMutate('price_snapshots', 'INSERT', { 
+            notes, 
+            item_count: 0,
+            created_at: new Date().toISOString()
+        });
         
-        const { data: snapshot, error: sError } = await supabase.from('price_snapshots').insert({ notes }).select().single();
-        if (sError) throw sError;
+        if (sError || !snapshot) throw sError || new Error("Failed to create snapshot");
 
         const items: any[] = [];
-        products?.forEach(p => {
-            items.push({ snapshot_id: snapshot.id, product_sku: p.sku, variant_suffix: null, price: p.selling_price });
-        });
-        variants?.forEach(v => {
-            items.push({ snapshot_id: snapshot.id, product_sku: v.product_sku, variant_suffix: v.suffix, price: v.selling_price });
+        products.forEach(p => {
+            // Save master price
+            if (!p.is_component) {
+                items.push({ 
+                    snapshot_id: snapshot.id, 
+                    product_sku: p.sku, 
+                    variant_suffix: null, 
+                    price: p.selling_price || 0 
+                });
+            }
+            
+            // Save all variant prices
+            p.variants?.forEach(v => {
+                items.push({ 
+                    snapshot_id: snapshot.id, 
+                    product_sku: p.sku, 
+                    variant_suffix: v.suffix, 
+                    price: v.selling_price || 0 
+                });
+            });
         });
 
         if (items.length > 0) {
-            await supabase.from('price_snapshot_items').insert(items);
+            // Insert in chunks to avoid large payload errors
+            const chunkSize = 200;
+            for (let i = 0; i < items.length; i += chunkSize) {
+                await safeMutate('price_snapshot_items', 'INSERT', items.slice(i, i + chunkSize));
+            }
+            
+            // Update item_count on the header record
+            await safeMutate('price_snapshots', 'UPDATE', { item_count: items.length }, { id: snapshot.id });
         }
     },
 
     deletePriceSnapshot: async (id: string): Promise<void> => {
-        await supabase.from('price_snapshot_items').delete().eq('snapshot_id', id);
-        await supabase.from('price_snapshots').delete().eq('id', id);
+        await safeMutate('price_snapshot_items', 'DELETE', null, { snapshot_id: id });
+        await safeMutate('price_snapshots', 'DELETE', null, { id });
     },
 
     revertToPriceSnapshot: async (id: string): Promise<void> => {

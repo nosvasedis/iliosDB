@@ -106,7 +106,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   const handleCreateSnapshot = async () => {
       setIsSnapshotting(true);
       try {
-          await api.createPriceSnapshot(snapshotNote || `Manual Backup - ${new Date().toLocaleDateString('el-GR')}`);
+          await api.createPriceSnapshot(snapshotNote || `Manual Backup - ${new Date().toLocaleDateString('el-GR')}`, products);
           queryClient.invalidateQueries({ queryKey: ['price_snapshots'] });
           setSnapshotNote('');
           showToast("Το αντίγραφο ασφαλείας δημιουργήθηκε!", "success");
