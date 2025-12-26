@@ -24,30 +24,24 @@ export const formatCurrency = (num: number | null | undefined): string => {
  */
 export const roundPrice = (price: number): number => {
   if (price === 0) return 0;
-  // Rounds to the nearest 10 cents. E.g., 21.54 -> 21.50, 21.56 -> 21.60
   return parseFloat((Math.round(price * 10) / 10).toFixed(2));
 };
 
 export const calculateTechnicianCost = (weight_g: number): number => {
   let cost = 0;
   if (weight_g <= 0) return 0;
-  // New Logic based on specific weight ranges
   if (weight_g <= 2.2) {
     cost = weight_g * 1.30;
-  } else if (weight_g <= 4.2) { // 2.3 to 4.2
+  } else if (weight_g <= 4.2) {
     cost = weight_g * 0.90;
-  } else if (weight_g <= 8.2) { // 4.3 to 8.2
+  } else if (weight_g <= 8.2) {
     cost = weight_g * 0.70;
-  } else { // 8.3 and up
+  } else {
     cost = weight_g * 0.50;
   }
   return cost;
 };
 
-/**
- * Calculates a suggested plating cost based on weight.
- * This is a heuristic used for suggesting a value when creating new products.
- */
 export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
     if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
         return weight_g * 0.60;
@@ -55,31 +49,24 @@ export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType
     return 0;
 };
 
-// --- NEW SMART ANALYSIS INTERFACES ---
 export interface SupplierAnalysis {
-    intrinsicValue: number; // Raw Metal + Materials
-    theoreticalMakeCost: number; // Our Internal Cost to Make
-    supplierPremium: number; // Total Gap
+    intrinsicValue: number;
+    theoreticalMakeCost: number;
+    supplierPremium: number;
     premiumPercent: number;
     verdict: 'Excellent' | 'Fair' | 'Expensive' | 'Overpriced';
-    
-    // Detailed Forensics
-    effectiveSilverPrice: number; // What we are paying per gram after deducting labor
+    effectiveSilverPrice: number;
     hasHiddenMarkup: boolean;
     laborEfficiency: 'Cheaper' | 'Similar' | 'More Expensive';
     platingEfficiency: 'Cheaper' | 'Similar' | 'More Expensive';
-    
     breakdown: {
         silverCost: number;
         materialCost: number;
         estLabor: number;
-        supplierReportedTotalLabor: number; // Sum of reported labor
+        supplierReportedTotalLabor: number;
     }
 }
 
-/**
- * INTELLIGENT SUPPLIER AUDIT
- */
 export const analyzeSupplierValue = (
     weight: number,
     supplierCost: number,
@@ -90,7 +77,6 @@ export const analyzeSupplierValue = (
     reportedLabor: LaborCost 
 ): SupplierAnalysis => {
     const silverCost = weight * settings.silver_price_gram;
-
     let materialCost = 0;
     recipe.forEach(item => {
         if (item.type === 'raw') {
@@ -105,7 +91,6 @@ export const analyzeSupplierValue = (
     });
 
     const intrinsicValue = silverCost + materialCost;
-
     const estCasting = weight * 0.15;
     const estTechnician = calculateTechnicianCost(weight);
     const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0) 
@@ -115,10 +100,8 @@ export const analyzeSupplierValue = (
     const estimatedInternalLabor = estCasting + estTechnician + estPlating;
     const theoreticalMakeCost = intrinsicValue + estimatedInternalLabor;
 
-    const reportedLaborTotal = (reportedLabor.technician_cost || 0) + 
-                               (reportedLabor.stone_setting_cost || 0);
-    const reportedPlatingTotal = (reportedLabor.plating_cost_x || 0) + 
-                                 (reportedLabor.plating_cost_d || 0);
+    const reportedLaborTotal = (reportedLabor.technician_cost || 0) + (reportedLabor.stone_setting_cost || 0);
+    const reportedPlatingTotal = (reportedLabor.plating_cost_x || 0) + (reportedLabor.plating_cost_d || 0);
     const reportedTotalExtras = reportedLaborTotal + reportedPlatingTotal;
 
     let laborEfficiency: SupplierAnalysis['laborEfficiency'] = 'Similar';
@@ -130,54 +113,43 @@ export const analyzeSupplierValue = (
 
     let platingEfficiency: SupplierAnalysis['platingEfficiency'] = 'Similar';
     const platingDiff = reportedPlatingTotal - estPlating;
-    if (reportedPlatingTotal > 0) {
-        if (platingDiff < -0.2) platingEfficiency = 'Cheaper';
-        else if (platingDiff > 0.5) platingEfficiency = 'More Expensive';
-    }
-
-    let effectiveSilverPrice = 0;
-    let hasHiddenMarkup = false;
-
     if (reportedTotalExtras > 0 && weight > 0) {
         const residualForMetal = supplierCost - materialCost - reportedTotalExtras;
-        effectiveSilverPrice = residualForMetal / weight; 
+        const effectiveSilverPrice = residualForMetal / weight; 
         
-        if (effectiveSilverPrice > (settings.silver_price_gram * 1.15)) {
-            hasHiddenMarkup = true;
-        }
-    }
+        const supplierPremium = supplierCost - intrinsicValue;
+        const premiumPercent = supplierCost > 0 ? (supplierPremium / supplierCost) * 100 : 0;
+        
+        let verdict: SupplierAnalysis['verdict'] = 'Fair';
+        if (supplierCost <= theoreticalMakeCost * 0.95) verdict = 'Excellent'; 
+        else if (supplierCost <= theoreticalMakeCost * 1.3) verdict = 'Fair'; 
+        else if (supplierCost <= theoreticalMakeCost * 1.8) verdict = 'Expensive';
+        else verdict = 'Overpriced';
 
-    const supplierPremium = supplierCost - intrinsicValue;
-    const premiumPercent = supplierCost > 0 ? (supplierPremium / supplierCost) * 100 : 0;
-    
-    let verdict: SupplierAnalysis['verdict'] = 'Fair';
-    
-    if (supplierCost <= theoreticalMakeCost * 0.95) {
-        verdict = 'Excellent'; 
-    } else if (supplierCost <= theoreticalMakeCost * 1.3) {
-        verdict = 'Fair'; 
-    } else if (supplierCost <= theoreticalMakeCost * 1.8) {
-        verdict = 'Expensive';
-    } else {
-        verdict = 'Overpriced';
+        return {
+            intrinsicValue: roundPrice(intrinsicValue),
+            theoreticalMakeCost: roundPrice(theoreticalMakeCost),
+            supplierPremium: roundPrice(supplierPremium),
+            premiumPercent: parseFloat(premiumPercent.toFixed(1)),
+            verdict,
+            effectiveSilverPrice: parseFloat(effectiveSilverPrice.toFixed(3)),
+            hasHiddenMarkup: effectiveSilverPrice > (settings.silver_price_gram * 1.15),
+            laborEfficiency,
+            platingEfficiency: reportedPlatingTotal > 0 ? (platingDiff < -0.2 ? 'Cheaper' : (platingDiff > 0.5 ? 'More Expensive' : 'Similar')) : 'Similar',
+            breakdown: { silverCost, materialCost, estLabor: estimatedInternalLabor, supplierReportedTotalLabor: reportedTotalExtras }
+        };
     }
-
     return {
         intrinsicValue: roundPrice(intrinsicValue),
         theoreticalMakeCost: roundPrice(theoreticalMakeCost),
-        supplierPremium: roundPrice(supplierPremium),
-        premiumPercent: parseFloat(premiumPercent.toFixed(1)),
-        verdict,
-        effectiveSilverPrice: parseFloat(effectiveSilverPrice.toFixed(3)),
-        hasHiddenMarkup,
+        supplierPremium: 0,
+        premiumPercent: 0,
+        verdict: 'Fair',
+        effectiveSilverPrice: 0,
+        hasHiddenMarkup: false,
         laborEfficiency,
-        platingEfficiency,
-        breakdown: {
-            silverCost,
-            materialCost,
-            estLabor: estimatedInternalLabor,
-            supplierReportedTotalLabor: reportedTotalExtras
-        }
+        platingEfficiency: 'Similar',
+        breakdown: { silverCost, materialCost, estLabor: estimatedInternalLabor, supplierReportedTotalLabor: 0 }
     };
 };
 
@@ -188,49 +160,29 @@ export const calculateProductCost = (
   allProducts: Product[],
   depth: number = 0,
   visitedSkus: Set<string> = new Set(),
-  silverPriceOverride?: number // Smart Forensic Field
+  silverPriceOverride?: number
 ): { total: number; breakdown: any } => {
-  
-  if (visitedSkus.has(product.sku)) {
-    return { total: 0, breakdown: { error: 'Circular Dependency' } };
-  }
-  
+  if (visitedSkus.has(product.sku)) return { total: 0, breakdown: { error: 'Circular Dependency' } };
   const newVisited = new Set(visitedSkus);
   newVisited.add(product.sku);
-
   if (depth > 10) return { total: 0, breakdown: {} };
-
   const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
 
   if (product.production_type === ProductionType.Imported) {
       const silverCost = product.weight_g * silverPrice;
-      
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
       const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
       const stoneCost = product.labor.stone_setting_cost || 0;
-      
       const totalCost = silverCost + technicianCost + platingCost + stoneCost;
-
       return {
           total: roundPrice(totalCost),
-          breakdown: {
-              silver: silverCost,
-              labor: technicianCost + platingCost,
-              materials: stoneCost,
-              details: {
-                  technician_cost: technicianCost,
-                  plating_cost_x: platingCost,
-                  stone_setting_cost: stoneCost,
-              }
-          }
+          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost_x: platingCost, stone_setting_cost: stoneCost } }
       };
   }
 
   const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
   const silverBaseCost = totalWeight * silverPrice;
-
   let materialsCost = 0;
-  
   product.recipe.forEach(item => {
     if (item.type === 'raw') {
       const mat = allMaterials.find(m => m.id === item.id);
@@ -245,47 +197,16 @@ export const calculateProductCost = (
   });
 
   const labor: Partial<LaborCost> = product.labor || {};
-  
-  let technicianCost;
-  if (labor.technician_cost_manual_override) {
-      technicianCost = labor.technician_cost || 0;
-  } else if (product.is_component) {
-      technicianCost = product.weight_g * 0.50;
-  } else {
-      technicianCost = calculateTechnicianCost(totalWeight);
-  }
-  
-  let castingCost;
-  if (labor.casting_cost_manual_override) {
-      castingCost = labor.casting_cost || 0;
-  } else if (product.is_component) {
-      castingCost = 0;
-  } else {
-      const baseCastingCost = product.weight_g * 0.15;
-      const secondaryCastingCost = (product.secondary_weight_g || 0) * 0.15;
-      castingCost = baseCastingCost + secondaryCastingCost;
-  }
-
+  let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (product.is_component ? product.weight_g * 0.50 : calculateTechnicianCost(totalWeight));
+  let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
   const totalCost = silverBaseCost + materialsCost + laborTotal;
-
-  return {
-    total: roundPrice(totalCost),
-    breakdown: {
-      silver: silverBaseCost,
-      materials: materialsCost,
-      labor: laborTotal,
-      details: {
-        ...(product.labor || {}),
-        casting_cost: castingCost,
-        setter_cost: labor.setter_cost || 0,
-        technician_cost: technicianCost,
-        subcontract_cost: labor.subcontract_cost || 0
-      }
-    }
-  };
+  return { total: roundPrice(totalCost), breakdown: { silver: silverBaseCost, materials: materialsCost, labor: laborTotal, details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0 } } };
 };
 
+/**
+ * Transliterates Greek characters to Latin for Barcode compatibility (Code 128).
+ */
 export const transliterateForBarcode = (input: string): string => {
     const greekToLatinMap: Record<string, string> = {
         'Α': 'A', 'Β': 'V', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'TH',
@@ -297,6 +218,34 @@ export const transliterateForBarcode = (input: string): string => {
         'ς': 's'
     };
     return input.split('').map(char => greekToLatinMap[char] || char).join('');
+};
+
+/**
+ * BRIDGING FUNCTION: Matches a scanned Latin barcode back to a Greek SKU in the database.
+ */
+export const findProductByScannedCode = (scanned: string, products: Product[]) => {
+    const cleanScanned = scanned.trim().toUpperCase();
+    
+    for (const p of products) {
+        // 1. Direct SKU Match
+        if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: undefined };
+        
+        // 2. Transliterated SKU Match
+        if (transliterateForBarcode(p.sku).toUpperCase() === cleanScanned) return { product: p, variant: undefined };
+        
+        // 3. Variant Check
+        if (p.variants) {
+            for (const v of p.variants) {
+                const fullGreek = (p.sku + v.suffix).toUpperCase();
+                const fullLatin = transliterateForBarcode(fullGreek);
+                
+                if (fullGreek === cleanScanned || fullLatin === cleanScanned) {
+                    return { product: p, variant: v };
+                }
+            }
+        }
+    }
+    return null;
 };
 
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
@@ -319,7 +268,6 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             break; 
         }
     }
-
     for (const fCode of finishKeys) {
         if (remainder.endsWith(fCode)) {
             detectedFinishCode = fCode;
@@ -327,13 +275,9 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             break;
         }
     }
-    
-    const finishDesc = FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] /* Lustre */;
-    const stoneDesc = (relevantStones as any)[detectedStoneCode] || '';
-
     return {
-        finish: { code: detectedFinishCode, name: finishDesc },
-        stone: { code: detectedStoneCode, name: stoneDesc }
+        finish: { code: detectedFinishCode, name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] },
+        stone: { code: detectedStoneCode, name: (relevantStones as any)[detectedStoneCode] || '' }
     };
 };
 
@@ -343,30 +287,21 @@ export const estimateVariantCost = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-    silverPriceOverride?: number // Smart Forensic Field
+    silverPriceOverride?: number
 ): { total: number; breakdown: any } => {
     const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
-
-    if (masterProduct.production_type === ProductionType.Imported) {
-        const { total, breakdown } = calculateProductCost(masterProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
-        return { total, breakdown };
-    }
+    if (masterProduct.production_type === ProductionType.Imported) return calculateProductCost(masterProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
 
     const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
     const silverCost = totalWeight * silverPrice;
-
     let materialsCost = 0;
     const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
-    const targetStoneCode = stone.code; 
-
     masterProduct.recipe.forEach(item => {
         if (item.type === 'raw') {
             const mat = allMaterials.find(m => m.id === item.id);
             if (mat) {
                 let unitCost = mat.cost_per_unit;
-                if (targetStoneCode && mat.variant_prices && mat.variant_prices[targetStoneCode] !== undefined) {
-                    unitCost = mat.variant_prices[targetStoneCode];
-                }
+                if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] !== undefined) unitCost = mat.variant_prices[stone.code];
                 materialsCost += (unitCost * item.quantity);
             }
         } else if (item.type === 'component') {
@@ -380,193 +315,55 @@ export const estimateVariantCost = (
 
     const labor: Partial<LaborCost> = masterProduct.labor || {};
     const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
-
-    let technicianCost;
-    const technicianCalculation: any = { type: 'simple', base: 0, secondary: 0, totalWeight: 0 };
-
-    if (labor.technician_cost_manual_override) {
-        technicianCost = labor.technician_cost || 0;
-        technicianCalculation.type = 'override';
-    } else {
-        if (finish.code === 'D') {
-            const totalWeightForD = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
-            
-            let rateFromTotalWeight = 0;
-            if (totalWeightForD <= 2.2) {
-                rateFromTotalWeight = 1.30;
-            } else if (totalWeightForD <= 4.2) {
-                rateFromTotalWeight = 0.90;
-            } else if (totalWeightForD <= 8.2) {
-                rateFromTotalWeight = 0.70;
-            } else {
-                rateFromTotalWeight = 0.50;
-            }
-
-            const costFromBaseWeight = masterProduct.weight_g * rateFromTotalWeight;
-            const costFromSecondaryWeight = calculateTechnicianCost(masterProduct.secondary_weight_g || 0);
-            technicianCost = costFromBaseWeight + costFromSecondaryWeight;
-            technicianCalculation.type = 'two_tone_special';
-            technicianCalculation.baseWeightComponent = costFromBaseWeight;
-            technicianCalculation.secondaryWeightComponent = costFromSecondaryWeight;
-        } else {
-            technicianCalculation.type = 'total';
-            technicianCalculation.totalWeight = totalWeight;
-            technicianCost = calculateTechnicianCost(totalWeight);
-        }
-    }
-
-    const castingCost = (masterProduct.weight_g * 0.15) + ((masterProduct.secondary_weight_g || 0) * 0.15);
-    
-    let platingCost = 0;
-    if (finish.code === 'D') {
-        platingCost = labor.plating_cost_d || 0;
-    } else if (['X', 'H'].includes(finish.code)) {
-        platingCost = labor.plating_cost_x || 0;
-    }
-
+    let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (finish.code === 'D' ? (masterProduct.weight_g * (totalWeight <= 2.2 ? 1.3 : (totalWeight <= 4.2 ? 0.9 : (totalWeight <= 8.2 ? 0.7 : 0.5)))) + calculateTechnicianCost(masterProduct.secondary_weight_g || 0) : calculateTechnicianCost(totalWeight));
+    const castingCost = totalWeight * 0.15;
+    let platingCost = finish.code === 'D' ? (labor.plating_cost_d || 0) : (['X', 'H'].includes(finish.code) ? (labor.plating_cost_x || 0) : 0);
     const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
-    const totalCost = silverCost + materialsCost + laborTotal;
-    
-    return {
-        total: roundPrice(totalCost),
-        breakdown: {
-            silver: silverCost,
-            materials: materialsCost,
-            labor: laborTotal,
-            details: {
-                casting_cost: castingCost,
-                setter_cost: labor.setter_cost || 0,
-                technician_cost: technicianCost,
-                subcontract_cost: labor.subcontract_cost || 0,
-                plating_cost: platingCost,
-                technician_calculation: technicianCalculation,
-                total_weight: totalWeight
-            }
-        }
-    };
+    return { total: roundPrice(silverCost + materialsCost + laborTotal), breakdown: { silver: silverCost, materials: materialsCost, labor: laborTotal, details: { casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost, total_weight: totalWeight } } };
 };
-
 
 export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {
     if (!variants || variants.length === 0) return null;
-    const pVariant = variants.find(v => v.suffix.includes('P') && !v.suffix.includes('X') && !v.suffix.includes('D'));
-    if (pVariant) return pVariant;
-    const xVariant = variants.find(v => v.suffix.includes('X'));
-    if (xVariant) return xVariant;
-    return variants[0];
+    return variants.find(v => v.suffix.includes('P') && !v.suffix.includes('X') && !v.suffix.includes('D')) || variants.find(v => v.suffix.includes('X')) || variants[0];
 };
 
 export const parseSku = (sku: string) => {
   const prefix = sku.substring(0, 2).toUpperCase();
   const triPrefix = sku.substring(0, 3).toUpperCase();
-  const numPartStr = sku.replace(/[A-Z-]/g, '');
-  const numPart = parseInt(numPartStr, 10);
-
+  const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
   if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
-  
   if (prefix === 'XR' && !isNaN(numPart)) {
-    if (numPart >= 1 && numPart <= 100) return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
-    if (numPart >= 101 && numPart <= 199) return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
-    if (numPart >= 200 && numPart <= 700) return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
+    if (numPart <= 100) return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
+    if (numPart <= 199) return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
+    if (numPart <= 700) return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
     if (numPart >= 1100 && numPart <= 1149) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Θρησκευτικό' };
-    if (numPart >= 1150 && numPart <= 1199) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Πολύχρωμο' };
-    if (numPart >= 1201 && numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
+    if (numPart <= 1199) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Πολύχρωμο' };
+    if (numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
     return { gender: Gender.Men, category: 'Βραχιόλι' };
   }
-  
-  if (['CR', 'RN', 'PN'].includes(prefix)) {
-    const map: Record<string, string> = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν' };
-    return { gender: Gender.Men, category: map[prefix] || 'Άλλο' };
-  }
-  
-  if (['DA', 'SK', 'MN', 'BR'].includes(prefix)) {
-     const map: Record<string, string> = { 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
-    return { gender: Gender.Women, category: map[prefix] || 'Άλλο' };
-  }
-
-  if (prefix === 'ST') return { gender: Gender.Unisex, category: 'Σταυρός' };
-
-  return { gender: Gender.Unisex, category: 'Γενικό' };
-};
-
-const PLATING_MAP: Record<string, PlatingType> = {
-  'P': PlatingType.None,
-  'X': PlatingType.GoldPlated,
-  'D': PlatingType.TwoTone,
-  'H': PlatingType.Platinum,
-  '': PlatingType.None
+  const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
+  if (maps[prefix]) return { gender: ['DA','SK','MN','BR'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
+  return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
 };
 
 export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
-    
-    let gender = forcedGender;
-    if (!gender) {
-        const meta = parseSku(cleanSku);
-        gender = meta.gender as Gender;
-    }
-
-    let relevantStones = {};
-    if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
-    else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
-    else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-
+    let gender = forcedGender || (parseSku(cleanSku).gender as Gender);
+    let relevantStones = gender === Gender.Men ? STONE_CODES_MEN : (gender === Gender.Women ? STONE_CODES_WOMEN : { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN });
     const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
-
-    let detectedStoneCode = '';
-    let detectedFinishCode = '';
-    let remainder = cleanSku;
-
-    for (const sCode of stoneKeys) {
-        if (remainder.endsWith(sCode)) {
-            detectedStoneCode = sCode;
-            remainder = remainder.slice(0, -sCode.length);
-            break; 
-        }
+    let detectedStoneCode = '', detectedFinishCode = '', remainder = cleanSku;
+    for (const sCode of stoneKeys) if (remainder.endsWith(sCode)) { detectedStoneCode = sCode; remainder = remainder.slice(0, -sCode.length); break; }
+    for (const fCode of finishKeys) if (remainder.endsWith(fCode)) { detectedFinishCode = fCode; remainder = remainder.slice(0, -fCode.length); break; }
+    if ((detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2) {
+        const platingMap: any = { 'P': PlatingType.None, 'X': PlatingType.GoldPlated, 'D': PlatingType.TwoTone, 'H': PlatingType.Platinum, '': PlatingType.None };
+        return { isVariant: true, masterSku: remainder, suffix: detectedFinishCode + detectedStoneCode, detectedPlating: platingMap[detectedFinishCode] || PlatingType.None, variantDescription: analyzeSuffix(detectedFinishCode + detectedStoneCode, gender) || '' };
     }
-
-    for (const fCode of finishKeys) {
-        if (remainder.endsWith(fCode)) {
-            detectedFinishCode = fCode;
-            remainder = remainder.slice(0, -fCode.length);
-            break;
-        }
-    }
-
-    const isVariant = (detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2;
-
-    if (isVariant) {
-        const fullDesc = analyzeSuffix(detectedFinishCode + detectedStoneCode, gender);
-
-        return {
-            isVariant: true,
-            masterSku: remainder,
-            suffix: detectedFinishCode + detectedStoneCode,
-            detectedPlating: PLATING_MAP[detectedFinishCode] || PlatingType.None,
-            variantDescription: fullDesc || ''
-        };
-    }
-
-    return {
-        isVariant: false,
-        masterSku: cleanSku,
-        suffix: '',
-        detectedPlating: PlatingType.None,
-        variantDescription: ''
-    };
+    return { isVariant: false, masterSku: cleanSku, suffix: '', detectedPlating: PlatingType.None, variantDescription: '' };
 };
 
 export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
     const { finish, stone } = getVariantComponents(suffix, gender);
     if (!finish.code && !stone.code && suffix) return null;
-
-    let fullDesc = '';
-    const showFinish = finish.code !== '' || !stone.code;
-    
-    if (showFinish && stone.name) fullDesc = `${finish.name} - ${stone.name}`;
-    else if (showFinish) fullDesc = finish.name;
-    else if (stone.name) fullDesc = stone.name;
-
-    return fullDesc || null;
+    return (finish.code !== '' || !stone.code) ? (stone.name ? `${finish.name} - ${stone.name}` : finish.name) : (stone.name || null);
 };
