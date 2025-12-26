@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
 import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
@@ -32,7 +34,6 @@ const stoneFilters = [
     { label: 'Χωρίς Πέτρες', value: 'without' }
 ];
 
-// --- Sub-Component: Product Card with Smart Variant Switching ---
 const ProductCard: React.FC<{
     product: Product;
     onClick: () => void;
@@ -50,9 +51,9 @@ const ProductCard: React.FC<{
         if (!hasVariants) return [];
         return [...variants].sort((a, b) => {
             const priority = (suffix: string) => {
-                if (suffix === '') return 0; // Highest priority for Lustre (empty suffix)
+                if (suffix === '') return 0; 
                 if (suffix.includes('P')) return 1;
-                if (suffix.includes('H')) return 2; // Prioritize Platinum before Gold
+                if (suffix.includes('H')) return 2; 
                 if (suffix.includes('X')) return 3;
                 if (suffix.includes('D')) return 4;
                 return 5;
@@ -95,13 +96,12 @@ const ProductCard: React.FC<{
         if (hasVariants) setViewIndex(prev => (prev - 1 + variantCount) % variantCount);
     };
 
-    // Total weight including secondary weight for accurate display
     const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
 
     return (
         <div 
             onClick={onClick}
-            className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative"
+            className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative h-full"
         >
             {hasVariants && (
                 <div className="absolute top-3 left-3 z-10 bg-[#060b00]/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
@@ -110,7 +110,7 @@ const ProductCard: React.FC<{
                 </div>
             )}
 
-            <div className="aspect-square bg-slate-50 relative overflow-hidden">
+            <div className="aspect-square bg-slate-50 relative overflow-hidden shrink-0">
                 {product.image_url ? (
                     <img 
                         src={product.image_url} 
@@ -123,16 +123,12 @@ const ProductCard: React.FC<{
                     </div>
                 )}
                 
-                {hasVariants && (
-                    <div className="absolute inset-0 bg-[#060b00]/0 pointer-events-none group-hover:bg-[#060b00]/5 transition-colors" />
-                )}
-
                 <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100 max-w-[calc(100%-1.5rem)] truncate">
                     {product.category}
                 </div>
             </div>
 
-            <div className="p-5 flex-1 flex flex-col relative">
+            <div className="p-5 flex-1 flex flex-col relative min-h-0">
                 <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
                         <h3 className="font-black text-lg leading-none truncate text-slate-800 group-hover:text-emerald-700 transition-colors">
@@ -165,7 +161,7 @@ const ProductCard: React.FC<{
                     </div>
                 </div>
 
-                <div className="mt-auto pt-3 border-t border-slate-100 grid grid-cols-2 gap-4 items-end">
+                <div className="mt-auto pt-3 border-t border-slate-100 grid grid-cols-2 gap-4 items-end shrink-0">
                     <div>
                         <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
                         <div className={`text-xl font-black leading-none ${displayPrice > 0 ? 'text-[#060b00]' : 'text-slate-300'}`}>
@@ -190,7 +186,6 @@ const ProductCard: React.FC<{
     );
 };
 
-// @FIX: Convert to React.FC to correctly type the component and handle the `key` prop, resolving assignment errors.
 const SubFilterButton: React.FC<{
     label: string;
     value: string;
@@ -208,7 +203,6 @@ const SubFilterButton: React.FC<{
         {label}
     </button>
 );
-
 
 export default function ProductRegistry({ setPrintItems }: Props) {
   const queryClient = useQueryClient();
@@ -234,25 +228,24 @@ export default function ProductRegistry({ setPrintItems }: Props) {
   const [showStxOnly, setShowStxOnly] = useState(false);
   
   const [showFab, setShowFab] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
+  // Virtualization calculations
+  const [columns, setColumns] = useState(5);
   useEffect(() => {
-    const scrollContainer = document.querySelector('main > div.overflow-y-auto');
-    if (!scrollContainer) return;
-
-    const handleScroll = () => {
-      if (headerRef.current) {
-        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
-        setShowFab(headerBottomPosition < 20);
-      }
+    const updateCols = () => {
+        const w = window.innerWidth;
+        if (w < 640) setColumns(1);
+        else if (w < 1024) setColumns(2);
+        else if (w < 1280) setColumns(4);
+        else setColumns(5);
     };
-
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll);
-    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
   }, []);
-  
+
   const baseProducts = useMemo(() => {
     if (!products) return [];
     return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
@@ -266,7 +259,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       
       const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός'];
 
-      // @FIX: Explicitly type `cat` as a string to resolve type inference issue.
       allCategories.forEach((cat: string) => {
           const parent = parentKeywords.find(p => cat.startsWith(p));
           if (parent) {
@@ -280,20 +272,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       return { parents: Array.from(parents).sort(), children };
   }, [baseProducts]);
 
-  const handleParentCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setFilterParentCategory(e.target.value);
-      setSubFilters({ category: 'all', stone: 'all', plating: 'all' });
-      setShowSubFilters(false);
-  };
-  
-  const handleSubFilterChange = (type: keyof typeof subFilters, value: string) => {
-      setSubFilters(prev => ({ ...prev, [type]: value }));
-  };
-
   const filteredProducts = useMemo(() => {
     if (!baseProducts || !materials) return [];
     
-    // Helper functions for sub-filtering
     const productHasStones = (p: Product): boolean => {
         return p.recipe.some(item => {
             if (item.type !== 'raw') return false;
@@ -323,7 +304,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         
         if (!matchesGender || !matchesParentCat || !matchesSearch) return false;
 
-        // Sub-filters
         if (subFilters.category !== 'all' && p.category !== subFilters.category) return false;
         if (subFilters.stone === 'with' && !productHasStones(p)) return false;
         if (subFilters.stone === 'without' && productHasStones(p)) return false;
@@ -352,30 +332,41 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     };
     
     return filtered.sort(naturalSort);
-
   }, [baseProducts, searchTerm, filterParentCategory, filterGender, subFilters, materials]);
+
+  const rowCount = Math.ceil(filteredProducts.length / columns);
   
-  const activeSubCategories = groupedCategories.children.get(filterParentCategory);
-  const activeSubFilterCount = Object.values(subFilters).filter(val => val !== 'all').length;
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 480, // Estimated height of a row + gap
+    overscan: 5,
+  });
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector('main > div.overflow-y-auto');
+    if (!scrollContainer) return;
+    const handleScroll = () => {
+      if (headerRef.current) {
+        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
+        setShowFab(headerBottomPosition < 20);
+      }
+    };
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
 
   if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
       return null; 
   }
 
   if (isCreating) {
-      return (
-          <NewProduct 
-            products={products}
-            materials={materials}
-            molds={molds}
-            onCancel={() => setIsCreating(false)}
-          />
-      );
+      return <NewProduct products={products} materials={materials} molds={molds} onCancel={() => setIsCreating(false)} />;
   }
 
   return (
-    <div className="space-y-6">
-      <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div className="flex flex-col h-full space-y-6">
+      <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
             <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
@@ -384,20 +375,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 Μητρώο Κωδικών
             </h1>
             <p className="text-slate-500 mt-1 ml-14">
-                {showStxOnly 
-                    ? `Προβολή εξαρτημάτων (STX) που χρησιμοποιούνται στις συνταγές.` 
-                    : `Αποκλειστική διαχείριση προδιαγραφών και κοστολόγησης.`
-                }
+                {showStxOnly ? `Προβολή εξαρτημάτων (STX).` : `Διαχείριση προδιαγραφών και κοστολόγησης.`}
             </p>
          </div>
-         
          <div className="flex items-center gap-3 self-stretch md:self-auto w-full md:w-auto">
             <div className="flex bg-slate-100 p-1 rounded-xl">
                 <button onClick={() => setShowStxOnly(false)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                     <Database size={16}/> Προϊόντα
                 </button>
                 <button onClick={() => setShowStxOnly(true)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                    <Puzzle size={16}/> Εξαρτήματα (STX)
+                    <Puzzle size={16}/> Εξαρτήματα
                 </button>
             </div>
             <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg w-full md:w-auto">
@@ -406,23 +393,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
          </div>
       </div>
       
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4 shrink-0">
           {!showStxOnly && (
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide ml-1 mb-2 block">Φύλο</label>
               <div className="flex items-center gap-2 flex-wrap">
                   {genderFilters.map(filter => (
-                      <button
-                          key={filter.value}
-                          onClick={() => setFilterGender(filter.value)}
-                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border
-                              ${filterGender === filter.value
-                                  ? 'bg-[#060b00] text-white border-[#060b00] shadow-md'
-                                  : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
-                          `}
-                      >
-                          {filter.icon}
-                          {filter.label}
+                      <button key={filter.value} onClick={() => setFilterGender(filter.value)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${filterGender === filter.value ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}`}>
+                          {filter.icon} {filter.label}
                       </button>
                   ))}
               </div>
@@ -431,11 +409,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           <div className="grid sm:grid-cols-2 gap-4">
               <div className="relative group">
                   <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <select 
-                     value={filterParentCategory}
-                     onChange={handleParentCategoryChange}
-                     className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white appearance-none cursor-pointer text-slate-700 font-medium"
-                  >
+                  <select value={filterParentCategory} onChange={(e) => { setFilterParentCategory(e.target.value); setSubFilters({category: 'all', stone: 'all', plating: 'all'}); }} className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white appearance-none cursor-pointer text-slate-700 font-medium">
                       <option value="All">Όλες οι Κατηγορίες</option>
                       {groupedCategories.parents.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -443,26 +417,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
               <div className="flex items-center gap-2">
                 <div className="relative group flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                    <input 
-                        type="text" 
-                        placeholder="Αναζήτηση Κωδικού..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white transition-all text-slate-900"
-                    />
+                    <input type="text" placeholder="Αναζήτηση Κωδικού..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white transition-all text-slate-900" />
                 </div>
                 {filterParentCategory !== 'All' && (
-                    <button
-                        onClick={() => setShowSubFilters(prev => !prev)}
-                        className={`relative shrink-0 px-4 py-3 rounded-xl font-bold text-sm transition-all border flex items-center gap-2 ${(showSubFilters || activeSubFilterCount > 0) ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                    >
-                        <Filter size={16} />
-                        <span>Φίλτρα</span>
-                        {(activeSubFilterCount > 0 && !showSubFilters) && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-black border-2 border-white">
-                                {activeSubFilterCount}
-                            </span>
-                        )}
+                    <button onClick={() => setShowSubFilters(prev => !prev)} className={`relative shrink-0 px-4 py-3 rounded-xl font-bold text-sm transition-all border flex items-center gap-2 ${(showSubFilters || Object.values(subFilters).some(v => v !== 'all')) ? 'bg-[#060b00] text-white shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                        <Filter size={16} /> <span>Φίλτρα</span>
                     </button>
                 )}
               </div>
@@ -470,74 +429,68 @@ export default function ProductRegistry({ setPrintItems }: Props) {
           
           {showSubFilters && filterParentCategory !== 'All' && (
               <div className="relative border-t border-slate-100 pt-4 space-y-4 animate-in fade-in">
-                  <button onClick={() => setShowSubFilters(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full z-10">
-                      <X size={16}/>
-                  </button>
-                  {activeSubCategories && activeSubCategories.size > 0 && (
+                  <button onClick={() => setShowSubFilters(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full z-10"><X size={16}/></button>
+                  {groupedCategories.children.get(filterParentCategory) && (
                       <div className="flex items-center gap-3 flex-wrap">
                           <span className="text-xs font-bold text-slate-400 uppercase shrink-0">Τύπος:</span>
-                          <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
-                          {Array.from(activeSubCategories).map((subCat: string) => (
-                              <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => handleSubFilterChange('category', v)}/>
+                          <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
+                          {Array.from(groupedCategories.children.get(filterParentCategory)!).map((subCat: string) => (
+                              <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
                           ))}
                       </div>
                   )}
                   <div className="flex items-center gap-3 flex-wrap">
                       <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Gem size={12}/> Πέτρες:</span>
-                      {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => handleSubFilterChange('stone', v)}/>)}
+                      {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                       <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Palette size={12}/> Φινίρισμα:</span>
-                      {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => handleSubFilterChange('plating', v)}/>)}
+                      {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
                   </div>
               </div>
           )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {filteredProducts.map(product => (
-              <ProductCard 
-                  key={product.sku}
-                  product={product}
-                  settings={settings}
-                  materials={materials}
-                  allProducts={products}
-                  onClick={() => setSelectedProduct(product)}
-              />
-          ))}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
+          {filteredProducts.length > 0 ? (
+              <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const startIndex = virtualRow.index * columns;
+                      const rowItems = filteredProducts.slice(startIndex, startIndex + columns);
+                      return (
+                          <div 
+                              key={virtualRow.key}
+                              className="grid gap-6 absolute top-0 left-0 w-full"
+                              style={{ 
+                                  height: `${virtualRow.size}px`, 
+                                  transform: `translateY(${virtualRow.start}px)`,
+                                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`
+                              }}
+                          >
+                              {rowItems.map(product => (
+                                  <div key={product.sku} className="h-[460px]">
+                                      <ProductCard product={product} settings={settings} materials={materials} allProducts={products} onClick={() => setSelectedProduct(product)} />
+                                  </div>
+                              ))}
+                          </div>
+                      );
+                  })}
+              </div>
+          ) : (
+              <div className="text-center py-20 text-slate-400">
+                  <Database size={48} className="mx-auto mb-4 opacity-20"/>
+                  <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
+              </div>
+          )}
       </div>
-      
-      {filteredProducts.length === 0 && (
-          <div className="text-center py-20 text-slate-400">
-              <Database size={48} className="mx-auto mb-4 opacity-20"/>
-              <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
-          </div>
-      )}
 
       {selectedProduct && (
-        <ProductDetails 
-          product={selectedProduct} 
-          allProducts={products}
-          allMaterials={materials}
-          onClose={() => setSelectedProduct(null)}
-          setPrintItems={setPrintItems || (() => {})}
-          settings={settings}
-          collections={collections}
-          allMolds={molds}
-          viewMode="registry"
-        />
+        <ProductDetails product={selectedProduct} allProducts={products} allMaterials={materials} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems || (() => {})} settings={settings} collections={collections} allMolds={molds} viewMode="registry" />
       )}
 
-      <div 
-        className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
-      >
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
-            aria-label="Δημιουργία Νέου Προϊόντος"
-          >
-            <PackagePlus size={24} />
-            <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
+      <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+          <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4">
+            <PackagePlus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
           </button>
       </div>
     </div>

@@ -286,48 +286,36 @@ export const api = {
     },
 
     createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
-        // Use the passed products instead of direct supabase call to ensure Local Mode and Offline compatibility
-        const { data: snapshot, error: sError } = await safeMutate('price_snapshots', 'INSERT', { 
-            notes, 
-            item_count: 0,
-            created_at: new Date().toISOString()
-        });
+        if (isLocalMode) return;
         
-        if (sError || !snapshot) throw sError || new Error("Failed to create snapshot");
-
+        // Prepare items array for RPC
         const items: any[] = [];
         products.forEach(p => {
-            // Save master price
             if (!p.is_component) {
-                items.push({ 
-                    snapshot_id: snapshot.id, 
-                    product_sku: p.sku, 
-                    variant_suffix: null, 
-                    price: p.selling_price || 0 
-                });
+                items.push({ product_sku: p.sku, variant_suffix: null, price: p.selling_price || 0 });
             }
-            
-            // Save all variant prices
             p.variants?.forEach(v => {
-                items.push({ 
-                    snapshot_id: snapshot.id, 
-                    product_sku: p.sku, 
-                    variant_suffix: v.suffix, 
-                    price: v.selling_price || 0 
-                });
+                items.push({ product_sku: p.sku, variant_suffix: v.suffix, price: v.selling_price || 0 });
             });
         });
 
-        if (items.length > 0) {
-            // Insert in chunks to avoid large payload errors
-            const chunkSize = 200;
-            for (let i = 0; i < items.length; i += chunkSize) {
-                await safeMutate('price_snapshot_items', 'INSERT', items.slice(i, i + chunkSize));
-            }
-            
-            // Update item_count on the header record
-            await safeMutate('price_snapshots', 'UPDATE', { item_count: items.length }, { id: snapshot.id });
+        if (!navigator.onLine) {
+            // Fallback for offline: create only header and queue it
+            const { data: snapshot } = await safeMutate('price_snapshots', 'INSERT', { 
+                notes, 
+                item_count: items.length,
+                created_at: new Date().toISOString()
+            });
+            return;
         }
+
+        // Use Optimized Supabase RPC for mass insert in one atomic transaction
+        const { error } = await supabase.rpc('create_price_snapshot_v2', { 
+            p_notes: notes, 
+            p_items: items 
+        });
+        
+        if (error) throw error;
     },
 
     deletePriceSnapshot: async (id: string): Promise<void> => {

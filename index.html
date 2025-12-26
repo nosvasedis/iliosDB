@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="el">
   <head>
@@ -25,6 +26,10 @@
       body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
       @media print { body { margin: 0; padding: 0; background: white; } #app-container { display: none !important; } .print-view { display: block !important; } @page { size: A4; margin: 0; } }
       .print-view { display: none; }
+      .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
     </style>
   <script type="importmap">
 {
@@ -36,12 +41,13 @@
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
     "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react,react-dom",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5?external=react,react-dom",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
+    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.22.2?external=react,react-dom",
+    "@tanstack/react-virtual": "https://esm.sh/@tanstack/react-virtual@3.0.1?external=react,react-dom",
     "appwrite": "https://esm.sh/appwrite@14.0.0",
     "jsbarcode": "https://esm.sh/jsbarcode@3.11.5",
     "@google/genai": "https://esm.sh/@google/genai@1.30.0",
-    "react-zxing": "https://esm.sh/react-zxing@2.0.0?external=react",
+    "react-zxing": "https://esm.sh/react-zxing@2.0.0?external=react,react-dom",
     "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168"
   }
 }
@@ -53,11 +59,9 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Use absolute path for Service Worker
           navigator.serviceWorker.register('/sw.js')
             .then(reg => {
               console.log('Ilios SW Ready');
-              // Force update check on load
               reg.update();
             })
             .catch(err => {
