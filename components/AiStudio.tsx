@@ -1,14 +1,15 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis } from '../lib/gemini';
+import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis, identifyProductFromImage } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
-import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle, Crown } from 'lucide-react';
+import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camera, Image as ImageIcon, CheckCircle, X, Zap, AlertTriangle, Crown, Eye, Package } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { compressImage } from '../utils/imageHelpers';
+import ProductDetails from './ProductDetails';
 
-type Mode = 'copywriting' | 'virtual-model' | 'trends';
+type Mode = 'copywriting' | 'virtual-model' | 'trends' | 'lookup';
 
 const parseBold = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*)/g);
@@ -77,6 +78,9 @@ const parseStyledText = (text: string) => {
 export default function AiStudio() {
     const { showToast } = useUI();
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+    const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
     
     const [mode, setMode] = useState<Mode>('copywriting');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -91,6 +95,8 @@ export default function AiStudio() {
     const [showProductSearch, setShowProductSearch] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const [viewProduct, setViewProduct] = useState<Product | null>(null);
+
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -98,7 +104,7 @@ export default function AiStudio() {
             setMessages([{ 
                 id: 'init', 
                 role: 'model', 
-                text: 'Καλώς ήρθατε στο Ilios AI Studio! Είμαι εδώ για να βοηθήσω με έξυπνες περιγραφές, δημιουργία εικονικών μοντέλων και ανάλυση τάσεων.' 
+                text: 'Καλώς ήρθατε στο Ilios AI Studio! Είμαι εδώ για να βοηθήσω με έξυπνες περιγραφές, δημιουργία εικονικών μοντέλων, ανάλυση τάσεων και αναγνώριση προϊόντων.' 
             }]);
         }
     }, []);
@@ -313,10 +319,50 @@ export default function AiStudio() {
         }
     };
 
+    const handleLookup = async () => {
+        const image = getActiveImage();
+        if (!image) {
+            showToast("Παρακαλώ ανεβάστε μια φωτογραφία του προϊόντος.", "error");
+            return;
+        }
+
+        const msgId = Date.now().toString();
+        setMessages(prev => [...prev, { id: msgId, role: 'user', text: 'Αναγνώριση κωδικού από εικόνα.', image }]);
+        setIsLoading(true);
+
+        try {
+            const base64Image = await fetchImageAsBase64(image);
+            const context = products?.map(p => `${p.sku} - ${p.category} - ${p.description || ''}`).join('\n') || "";
+            
+            const identifiedSku = await identifyProductFromImage(base64Image, context);
+            const match = products?.find(p => p.sku === identifiedSku);
+
+            if (match) {
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'model',
+                    text: `Εντοπίστηκε ο κωδικός: **${match.sku}** (${match.category}).\n\nΜπορείτε να δείτε τις λεπτομέρειες του προϊόντος πατώντας το κουμπί παρακάτω.`,
+                    attachedProductSku: match.sku
+                }]);
+            } else {
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'model',
+                    text: 'Δεν κατάφερα να αντιστοιχίσω την εικόνα με κάποιον υπάρχοντα κωδικό στη βάση δεδομένων.'
+                }]);
+            }
+        } catch (error: any) {
+            showToast(`Σφάλμα αναγνώρισης: ${error.message}`, "error");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleSubmit = () => {
         if (mode === 'copywriting') handleCopywriting();
         if (mode === 'virtual-model') handleVirtualModel();
         if (mode === 'trends') handleTrends();
+        if (mode === 'lookup') handleLookup();
     };
 
     const filteredProducts = useMemo(() => {
@@ -329,6 +375,7 @@ export default function AiStudio() {
     const getPlaceholder = () => {
         if (mode === 'copywriting') return "Προσθέστε ειδικές οδηγίες (π.χ. 'Τόνισε την αντοχή')...";
         if (mode === 'virtual-model') return "Προσθέστε οδηγίες (π.χ. 'Σκοτεινό φόντο', 'Ξανθιά κοπέλα')...";
+        if (mode === 'lookup') return "Περιγράψτε το προϊόν αν θέλετε να βοηθήσετε την αναζήτηση...";
         return "Ρωτήστε για τις τάσεις (π.χ. 'Τι φοριέται το καλοκαίρι 2025;')...";
     };
 
@@ -347,10 +394,10 @@ export default function AiStudio() {
                         <Feather size={20} className={mode === 'copywriting' ? 'text-[#060b00]' : ''}/> Έξυπνη Περιγραφή
                     </button>
                     <button onClick={() => setMode('virtual-model')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'virtual-model' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> 
-                        <div className="flex flex-col items-start">
-                            <span>Εικονικό Μοντέλο</span>
-                        </div>
+                        <User size={20} className={mode === 'virtual-model' ? 'text-pink-600' : ''}/> Εικονικό Μοντέλο
+                    </button>
+                    <button onClick={() => setMode('lookup')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'lookup' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        <Eye size={20} className={mode === 'lookup' ? 'text-blue-600' : ''}/> Αναγνώριση (Lookup)
                     </button>
                     <button onClick={() => setMode('trends')} className={`p-3 rounded-xl flex items-center gap-3 font-bold transition-all ${mode === 'trends' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}>
                         <TrendingUp size={20} className={mode === 'trends' ? 'text-emerald-600' : ''}/> Τάσεις Αγοράς
@@ -388,7 +435,7 @@ export default function AiStudio() {
                                 <button onClick={() => { setShowProductSearch(true); }} className="absolute top-2 left-2 bg-white/80 p-1.5 rounded-full hover:bg-blue-500 hover:text-white transition-colors shadow-sm text-slate-700">
                                     <Search size={16}/>
                                 </button>
-                                <button onClick={() => { setSelectedProduct(null); setUploadedImage(null); }} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition-colors shadow-sm">
+                                <button onClick={() => { setSelectedProduct(null); setUploadedImage(null); }} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-red-50 hover:text-white transition-colors shadow-sm">
                                     <X size={16}/>
                                 </button>
                                 <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-xs p-2 backdrop-blur-sm">
@@ -407,17 +454,6 @@ export default function AiStudio() {
                                     <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                                 </label>
                             </div>
-                        )}
-
-                        {selectedProduct && mode === 'copywriting' && (
-                             <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <strong>Πλαίσιο:</strong> {selectedProduct.category}, {selectedProduct.gender}, {selectedProduct.weight_g}g.
-                             </div>
-                        )}
-                        {selectedProduct && mode === 'virtual-model' && (
-                             <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <strong>Στόχος:</strong> Μοντέλο ({selectedProduct.gender === 'Unisex' ? 'Γυναίκα' : (selectedProduct.gender === 'Men' ? 'Άντρας' : 'Γυναίκα')})
-                             </div>
                         )}
                     </div>
                 )}
@@ -446,13 +482,24 @@ export default function AiStudio() {
                                                 <Search size={12}/> Επαληθεύτηκε με Google Search
                                             </div>
                                         )}
+                                        
+                                        {msg.attachedProductSku && (
+                                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                                <button 
+                                                    onClick={() => setViewProduct(products?.find(p => p.sku === msg.attachedProductSku) || null)}
+                                                    className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-emerald-700 transition-all shadow-md"
+                                                >
+                                                    <Package size={14}/> Προβολη Προϊοντος
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 
                                 {msg.image && (
                                     <div className="relative group rounded-2xl overflow-hidden border border-slate-200 shadow-md max-w-sm bg-white p-2">
                                         <div className="aspect-square rounded-xl overflow-hidden relative">
-                                            <img src={msg.image} alt="AI Generated" className="w-full h-full object-cover" />
+                                            <img src={msg.image} alt="AI Content" className="w-full h-full object-cover" />
                                         </div>
                                         {msg.role === 'model' && (
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -460,12 +507,6 @@ export default function AiStudio() {
                                             </div>
                                         )}
                                     </div>
-                                )}
-                                
-                                {msg.role === 'model' && msg.text && (
-                                    <button onClick={() => { navigator.clipboard.writeText(msg.text!); showToast('Αντιγράφηκε', 'success'); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-emerald-600 transition-colors pl-1">
-                                        <Copy size={12}/> Αντιγραφή
-                                    </button>
                                 )}
                             </div>
                         </div>
@@ -477,7 +518,7 @@ export default function AiStudio() {
                             </div>
                             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 flex items-center gap-2 text-slate-500 text-sm shadow-sm">
                                 <Loader2 size={16} className="animate-spin" /> 
-                                {mode === 'virtual-model' ? (useProModel ? 'To Nano Banana Pro επεξεργάζεται...' : 'To Nano Banana (Flash) επεξεργάζεται...') : 'Επεξεργασία...'}
+                                {mode === 'lookup' ? 'To Ilios Vision αναγνωρίζει το προϊόν...' : 'Επεξεργασία...'}
                             </div>
                         </div>
                     )}
@@ -504,7 +545,7 @@ export default function AiStudio() {
                     </div>
                     <div className="text-center mt-2">
                         <span className="text-[10px] text-slate-400">
-                            Powered by Google Gemini 2.5 • Ilios Intelligent Suite
+                            Powered by Google Gemini 3 Flash • Ilios Intelligent Vision
                         </span>
                     </div>
                 </div>
@@ -553,6 +594,20 @@ export default function AiStudio() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {viewProduct && settings && collections && molds && (
+                <ProductDetails 
+                    product={viewProduct} 
+                    allProducts={products || []} 
+                    allMaterials={[]} 
+                    onClose={() => setViewProduct(null)} 
+                    setPrintItems={() => {}} 
+                    settings={settings} 
+                    collections={collections} 
+                    allMolds={molds} 
+                    viewMode="registry" 
+                />
             )}
         </div>
     );

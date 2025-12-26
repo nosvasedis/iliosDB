@@ -14,7 +14,6 @@ const getClient = () => {
 
 /**
  * Performs a deep audit of business health.
- * UPDATED: Bubbles up variant prices so the AI sees true commercial value even if master SKU is 0.
  */
 export const analyzeBusinessHealth = async (data: {
     products: any[],
@@ -25,12 +24,10 @@ export const analyzeBusinessHealth = async (data: {
         const ai = getClient();
         
         const productSummary = data.products.map(p => {
-            // Logic to find a real price if master price is 0
             let effectivePrice = p.selling_price || 0;
             let effectiveCost = p.active_price || 0;
 
             if (effectivePrice <= 0 && p.variants && p.variants.length > 0) {
-                // Find first variant with a price, or use master
                 const pricedVariant = p.variants.find((v: any) => (v.selling_price || 0) > 0) || p.variants[0];
                 effectivePrice = pricedVariant.selling_price || 0;
                 effectiveCost = pricedVariant.active_price || p.active_price;
@@ -151,6 +148,46 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
         return response.text || "Δεν βρέθηκαν δεδομένα.";
     } catch (error: any) {
         throw new Error(`Αποτυχία: ${error.message}`);
+    }
+};
+
+/**
+ * Identifies a product SKU from an image by comparing it against a provided list.
+ * IMPROVED: Added specialized jewelry visual analysis instructions for extreme precision.
+ */
+export const identifyProductFromImage = async (imageBase64: string, productContext: string): Promise<string> => {
+    try {
+        const ai = getClient();
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+                parts: [
+                    { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
+                    { text: `You are a jewelry forensic expert. 
+                    
+                    CRITICAL TASK: Find the EXACT SKU from the reference list that matches the jewelry in the photo.
+                    
+                    SPECIAL FOCUS FOR RINGS (RN/DA):
+                    1. MOTIF SHAPE: Is it a signet? Round? Rectangular? Does it have a specific symbol (Cross, Star)?
+                    2. BAND DETAILS: Is the band wide or thin? Smooth or hammered? Simple or double-shank?
+                    3. STONE SETTING: Are stones Flush-set? Pave? Bezel? Claw?
+                    
+                    LOGIC STEPS:
+                    1. Analyze Category first (Ring, Bracelet, Pendant).
+                    2. Analyze Material/Texture (Solid Silver vs Cord, Patina vs Mirror-finish).
+                    3. Compare the image visual cues with the provided descriptions in the Reference List.
+                    4. Check for SKU prefix logic (DA = Women Ring, RN = Men Ring, XR = Men Bracelet).
+                    
+                    REFERENCE LIST (SKU | Category | Description):
+                    ${productContext}
+                    
+                    Output ONLY the SKU string. If no high-confidence match exists, output "UNKNOWN".` },
+                ],
+            },
+        });
+        return response.text?.trim() || "UNKNOWN";
+    } catch (error: any) {
+        throw new Error(`AI Identification failed: ${error.message}`);
     }
 };
 

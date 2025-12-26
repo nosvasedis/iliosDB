@@ -1,15 +1,16 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2 } from 'lucide-react';
+import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold, Gender } from '../types';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
-import { api, SYSTEM_IDS, recordStockMovement, supabase, deleteProduct } from '../lib/supabase';
+import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import BarcodeScanner from './BarcodeScanner';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+// @FIX: Added 'getVariantComponents' to imports from pricingEngine utils.
+import { formatCurrency, formatDecimal, analyzeSku, getVariantComponents } from '../utils/pricingEngine';
 import { getSizingInfo, isSizable } from '../utils/sizing';
+import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 
 interface InventoryItem {
     id: string;
@@ -34,6 +35,35 @@ interface Props {
   molds: Mold[];
 }
 
+interface QuickActionHistory {
+    id: string;
+    sku: string;
+    amount: number;
+    target: string;
+    timestamp: Date;
+    type: 'add' | 'subtract';
+}
+
+// COLORS FOR SEGMENTATION
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', // Gold
+    'P': 'text-slate-500',  // Patina
+    'D': 'text-orange-500', // Two-tone
+    'H': 'text-cyan-400',   // Platinum
+    '': 'text-slate-400'    // Lustre
+};
+
+const STONE_CATEGORIES: Record<string, string> = {
+    'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400',
+    'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-400',
+    'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-400',
+    'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
+    'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
+    'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-400',
+    'MV': 'text-purple-400', 'RZ': 'text-pink-400', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
+};
+
 export default function Inventory({ products, setPrintItems, settings, collections, molds }: Props) {
   const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,11 +87,15 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [transferQty, setTransferQty] = useState(1);
   const [isTransferring, setIsTransferring] = useState(false);
 
+  // Quick Entry State
   const [scanInput, setScanInput] = useState('');
   const [scanSuggestion, setScanSuggestion] = useState('');
+  const [availableSuffixes, setAvailableSuffixes] = useState<{suffix: string, desc: string}[]>([]);
   const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
   const [scanQty, setScanQty] = useState(1);
   const [scanSize, setScanSize] = useState('');
+  const [quickMode, setQuickMode] = useState<'add' | 'subtract'>('add');
+  const [recentActions, setRecentActions] = useState<QuickActionHistory[]>([]);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const listParentRef = useRef<HTMLDivElement>(null);
@@ -119,13 +153,161 @@ export default function Inventory({ products, setPrintItems, settings, collectio
     });
   }, [rawInventory, viewWarehouseId, searchTerm]);
 
-  // VIRTUALIZER
   const rowVirtualizer = useVirtualizer({
       count: filteredInventory.length,
       getScrollElement: () => listParentRef.current,
-      estimateSize: () => 100, // Reduced estimate height to fit compact cards
+      estimateSize: () => 100,
       overscan: 10,
   });
+
+  const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.toUpperCase(); 
+      setScanInput(val); 
+      setScanSize('');
+      
+      if (val.length > 0) {
+          // Find potential products
+          const potentialProduct = products.find(p => val.startsWith(p.sku));
+          
+          if (potentialProduct) {
+              // We are deep into a specific product
+              if (potentialProduct.variants && potentialProduct.variants.length > 0) {
+                  // Keep all variants visible for quick selection even if metal suffix matches
+                  setAvailableSuffixes(potentialProduct.variants.map(v => ({ suffix: v.suffix, desc: v.description })));
+                  
+                  // Suggestion: first variant that matches current input as much as possible
+                  const matchedVar = potentialProduct.variants.find(v => (potentialProduct.sku + v.suffix).startsWith(val));
+                  if (matchedVar) {
+                      setScanSuggestion(potentialProduct.sku + matchedVar.suffix);
+                  } else {
+                      setScanSuggestion(potentialProduct.sku + potentialProduct.variants[0].suffix);
+                  }
+              } else {
+                  setAvailableSuffixes([]);
+                  setScanSuggestion(potentialProduct.sku);
+              }
+          } else {
+              // Searching for master SKU
+              const firstMatch = products.find(p => p.sku.startsWith(val));
+              if (firstMatch) {
+                  setScanSuggestion(firstMatch.sku);
+                  setAvailableSuffixes([]);
+              } else {
+                  setScanSuggestion('');
+                  setAvailableSuffixes([]);
+              }
+          }
+      } else {
+          setScanSuggestion('');
+          setAvailableSuffixes([]);
+      }
+  };
+
+  const selectSuffix = (suffix: string) => {
+      const prod = getScanProductInfo()?.product;
+      if (prod) {
+          const full = prod.sku + suffix;
+          setScanInput(full);
+          setScanSuggestion(full);
+      }
+  };
+
+  const executeQuickAdd = async () => {
+      const targetCode = scanSuggestion || scanInput; 
+      const product = products.find(p => targetCode.startsWith(p.sku));
+      if (!product) { showToast(`Ο κωδικός δεν βρέθηκε.`, "error"); return; }
+      
+      let varSuffix = targetCode.replace(product.sku, ''); 
+      let variant = product.variants?.find(v => v.suffix === varSuffix);
+      if (product.variants?.length === 1 && !varSuffix) { variant = product.variants[0]; varSuffix = variant.suffix; }
+      
+      const sizing = getSizingInfo(product); 
+      if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
+      
+      const changeAmount = quickMode === 'add' ? scanQty : -scanQty;
+
+      try {
+          const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
+          if (variant) {
+               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                   const map = variant.stock_by_size ? { ...variant.stock_by_size } : {}; 
+                   if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount;
+                   await supabase.from('product_variants').update({ stock_qty: (variant.stock_qty || 0) + changeAmount, stock_by_size: map }).match({ product_sku: product.sku, suffix: variant.suffix });
+               } else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: variant.suffix, warehouse_id: scanTargetId, quantity: Math.max(0, (variant.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+               await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`, variant.suffix);
+          } else {
+              if (scanTargetId === SYSTEM_IDS.CENTRAL) { 
+                  const map = product.stock_by_size ? { ...product.stock_by_size } : {}; 
+                  if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
+                  await supabase.from('products').update({ stock_qty: product.stock_qty + changeAmount, stock_by_size: map }).eq('sku', product.sku); 
+              }
+              else if (scanTargetId === SYSTEM_IDS.SHOWROOM) { 
+                  const map = product.sample_stock_by_size ? { ...product.sample_stock_by_size } : {}; 
+                  if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
+                  await supabase.from('products').update({ sample_qty: (product.sample_qty || 0) + changeAmount, sample_stock_by_size: map }).eq('sku', product.sku); 
+              }
+              else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: Math.max(0, (product.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null });
+              await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`);
+          }
+          
+          setRecentActions(prev => [{
+              id: Math.random().toString(36),
+              sku: targetCode,
+              amount: scanQty,
+              target: whName,
+              timestamp: new Date(),
+              type: quickMode
+          }, ...prev].slice(0, 5));
+
+          queryClient.invalidateQueries({ queryKey: ['products'] }); 
+          showToast(`${quickMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${scanQty} τεμ. στο ${targetCode}`, "success");
+          setScanInput(''); setScanSuggestion(''); setScanSize(''); setScanQty(1); setAvailableSuffixes([]); inputRef.current?.focus();
+      } catch (err) { showToast("Σφάλμα ενημέρωσης.", "error"); }
+  };
+
+  const getScanProductInfo = () => { 
+      const t = scanSuggestion || scanInput; 
+      if (!t) return null;
+      const p = products.find(p => t.startsWith(p.sku)); 
+      if(!p) return null; 
+      let s = t.replace(p.sku, ''); 
+      let v = p.variants?.find(v => v.suffix === s); 
+      if (p.variants?.length===1 && !s) { v = p.variants[0]; s = v.suffix; } 
+      return { product: p, variant: v, variantSuffix: s }; 
+  }
+
+  const SkuVisualizer = () => {
+    const text = scanSuggestion || scanInput;
+    if (!text) return null;
+
+    const prod = products.find(p => text.startsWith(p.sku));
+    if (!prod) return <span className="text-slate-400">{text}</span>;
+
+    const master = prod.sku;
+    const remainder = text.replace(master, '');
+    
+    // Analyze suffix to extract metal and stone
+    const analysis = analyzeSku(text, prod.gender);
+    // @FIX: 'getVariantComponents' is now available from imports.
+    const { finish, stone } = getVariantComponents(analysis.suffix, prod.gender);
+
+    const finishColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const stoneColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+
+    return (
+        <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+            <span className="text-slate-800 font-black">{master}</span>
+            {finish.code && <span className={`font-black ${finishColor}`}>{finish.code}</span>}
+            {stone.code && <span className={`font-black ${stoneColor}`}>{stone.code}</span>}
+            {/* Handle ghosts */}
+            {scanSuggestion.length > scanInput.length && scanSuggestion.startsWith(scanInput) && (
+                <span className="text-slate-200 italic">
+                    {scanSuggestion.substring(scanInput.length)}
+                </span>
+            )}
+        </div>
+    );
+  };
 
   const handleDeleteItem = async (item: InventoryItem) => {
       const isSpecificView = viewWarehouseId !== 'ALL';
@@ -158,44 +340,21 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       } catch (err: any) { showToast(err.message || 'Σφάλμα', 'error'); }
   };
 
-  const handleScanInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value.toUpperCase(); setScanInput(val); setScanSize('');
-      if (val.length > 0) {
-          let match = rawInventory.find(i => (i.masterSku + i.suffix).startsWith(val));
-          if (!match) {
-             const prod = products.find(p => p.sku.startsWith(val));
-             if (prod) {
-                 if (prod.variants?.length === 1) setScanSuggestion(prod.sku + prod.variants[0].suffix);
-                 else if (prod.variants?.length) { const v = prod.variants.find(v => (prod.sku + v.suffix).startsWith(val)); setScanSuggestion(v ? prod.sku + v.suffix : prod.sku); }
-                 else setScanSuggestion(prod.sku);
-             } else setScanSuggestion('');
-          } else setScanSuggestion(match.masterSku + match.suffix);
-      } else setScanSuggestion('');
-  };
-
-  const executeQuickAdd = async () => {
-      const targetCode = scanSuggestion || scanInput; const product = products.find(p => targetCode.startsWith(p.sku));
-      if (!product) { showToast(`Ο κωδικός δεν βρέθηκε.`, "error"); return; }
-      let varSuffix = targetCode.replace(product.sku, ''); let variant = product.variants?.find(v => v.suffix === varSuffix);
-      if (product.variants?.length === 1 && !varSuffix) { variant = product.variants[0]; varSuffix = variant.suffix; }
-      const sizing = getSizingInfo(product); if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
+  const handleSaveWarehouse = async () => {
+      if (!warehouseForm.name) return;
       try {
-          const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
-          if (variant) {
-               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
-                   const map = variant.stock_by_size || {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + scanQty;
-                   await supabase.from('product_variants').update({ stock_qty: (variant.stock_qty || 0) + scanQty, stock_by_size: map }).match({ product_sku: product.sku, suffix: variant.suffix });
-               } else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: variant.suffix, warehouse_id: scanTargetId, quantity: (variant.location_stock?.[scanTargetId] || 0) + scanQty, size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-               await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`, variant.suffix);
+          if (warehouseForm.id) {
+              await api.updateWarehouse(warehouseForm.id, warehouseForm);
+              showToast("Ο χώρος ενημερώθηκε.", "success");
           } else {
-              if (scanTargetId === SYSTEM_IDS.CENTRAL) { const map = product.stock_by_size || {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + scanQty; await supabase.from('products').update({ stock_qty: product.stock_qty + scanQty, stock_by_size: map }).eq('sku', product.sku); }
-              else if (scanTargetId === SYSTEM_IDS.SHOWROOM) { const map = product.sample_stock_by_size || {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + scanQty; await supabase.from('products').update({ sample_qty: (product.sample_qty || 0) + scanQty, sample_stock_by_size: map }).eq('sku', product.sku); }
-              else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: (product.location_stock?.[scanTargetId] || 0) + scanQty, size_info: scanSize || null });
-              await recordStockMovement(product.sku, scanQty, `Γρήγορη Προσθήκη: ${whName}`);
+              await api.saveWarehouse(warehouseForm);
+              showToast("Ο χώρος δημιουργήθηκε.", "success");
           }
-          queryClient.invalidateQueries({ queryKey: ['products'] }); showToast(`Προστέθηκε ${scanQty} τεμ. στον ${product.sku}${variant ? variant.suffix : ''}`, "success");
-          setScanInput(''); setScanSuggestion(''); setScanSize(''); setScanQty(1); inputRef.current?.focus();
-      } catch (err) { showToast("Σφάλμα ενημέρωσης.", "error"); }
+          queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+          setIsEditingWarehouse(false);
+      } catch (err) {
+          showToast("Σφάλμα αποθήκευσης.", "error");
+      }
   };
 
   const executeTransfer = async () => {
@@ -217,22 +376,28 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, "error"); } finally { setIsTransferring(false); }
   };
 
-  const handleSaveWarehouse = async () => {
-      if (!warehouseForm.name) return;
-      try {
-          if (warehouseForm.id) {
-              await api.updateWarehouse(warehouseForm.id, warehouseForm);
-              showToast("Ο χώρος ενημερώθηκε.", "success");
-          } else {
-              await api.saveWarehouse(warehouseForm);
-              showToast("Ο χώρος δημιουργήθηκε.", "success");
-          }
+  const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
+  const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
+  const handleDeleteWarehouse = async (id: string) => {
+      if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) {
+          showToast("Δεν μπορείτε να διαγράψετε συστημικούς χώρους.", "error");
+          return;
+      }
+      const yes = await confirm({
+          title: 'Διαγραφή Χώρου',
+          message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον χώρο;',
+          isDestructive: true,
+          confirmText: 'Διαγραφή'
+      });
+      if (yes) {
+          await api.deleteWarehouse(id);
           queryClient.invalidateQueries({ queryKey: ['warehouses'] });
-          setIsEditingWarehouse(false);
-      } catch (err) {
-          showToast("Σφάλμα αποθήκευσης.", "error");
       }
   };
+
+  const openTransfer = (item: InventoryItem) => { setTransferItem(item); setSourceId(SYSTEM_IDS.CENTRAL); setTargetId(SYSTEM_IDS.SHOWROOM); setTransferQty(1); setTransferModalOpen(true); }
+
+  const currentPreviewProduct = getScanProductInfo();
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -251,25 +416,163 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
       {activeTab === 'stock' && (
           <div className="flex-1 flex flex-col min-h-0 space-y-6 animate-in slide-in-from-bottom-2">
-              <div className="bg-[#060b00] p-5 rounded-2xl shadow-lg flex flex-col lg:flex-row items-center gap-4 border border-slate-800 shrink-0">
-                  <div className="flex items-center gap-2 text-white/80 font-bold shrink-0"><ScanBarcode size={24} className="text-amber-400" /> <span className="uppercase tracking-wider text-sm">Γρήγορη Εισαγωγή</span></div>
-                  <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                      <div className="md:col-span-3">
-                          <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Στόχος</label>
-                          <select value={scanTargetId} onChange={(e) => setScanTargetId(e.target.value)} className="w-full bg-slate-800 text-white font-bold p-3 rounded-xl border border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer">{warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}</select>
+              
+              {/* SMART QUICK ENTRY WORKSTATION */}
+              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shrink-0 flex flex-col lg:flex-row">
+                  <div className="flex-1 p-8 bg-slate-50 border-r border-slate-100 flex flex-col gap-6 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem]">
+                      <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                              <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
+                                  <ScanBarcode size={22} className="animate-pulse" />
+                              </div>
+                              <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Εισαγωγή</h2>
+                          </div>
+                          <div className="flex bg-slate-200 p-1 rounded-xl">
+                                <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <Plus size={14}/> Εισαγωγή
+                                </button>
+                                <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <Minus size={14}/> Αφαίρεση
+                                </button>
+                          </div>
                       </div>
-                      <div className="md:col-span-5 relative">
-                          <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Κωδικός</label>
-                          <div className="absolute inset-x-0 bottom-0 top-6 p-3 pointer-events-none font-mono text-lg tracking-wider flex items-center"><span className="text-transparent">{scanInput}</span><span className="text-slate-600">{scanSuggestion.startsWith(scanInput) ? scanSuggestion.substring(scanInput.length) : ''}</span></div>
-                          <input ref={inputRef} type="text" value={scanInput} onChange={handleScanInput} onKeyDown={e => { if(e.key==='ArrowRight'&&scanSuggestion){e.preventDefault();setScanInput(scanSuggestion);} if(e.key==='Enter'){e.preventDefault();executeQuickAdd();} }} placeholder="π.χ. XR..." className="w-full p-3 bg-white text-slate-900 font-mono text-lg font-bold rounded-xl outline-none focus:ring-4 focus:ring-amber-500/50 uppercase tracking-wider"/>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                            <div className="md:col-span-3">
+                                <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Χώρος Στόχος</label>
+                                <select value={scanTargetId} onChange={(e) => setScanTargetId(e.target.value)} className="w-full bg-white text-slate-800 font-bold p-3.5 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 outline-none cursor-pointer transition-all shadow-sm">
+                                    {warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-5 relative">
+                                <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
+                                <div className="relative">
+                                    <SkuVisualizer />
+                                    <input 
+                                        ref={inputRef} 
+                                        type="text" 
+                                        value={scanInput} 
+                                        onChange={handleScanInput} 
+                                        onKeyDown={e => { 
+                                            if(e.key==='ArrowRight'&&scanSuggestion){e.preventDefault();setScanInput(scanSuggestion);} 
+                                            if(e.key==='Enter'){e.preventDefault();executeQuickAdd();} 
+                                        }} 
+                                        placeholder="Σκανάρετε ή πληκτρολογήστε..." 
+                                        className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
+                                    />
+                                    
+                                    {availableSuffixes.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 flex flex-wrap gap-1.5 z-[100] p-3 bg-white rounded-2xl border border-slate-100 shadow-2xl max-h-48 overflow-y-auto custom-scrollbar ring-4 ring-black/5">
+                                            <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> Προτάσεις Παραλλαγών</div>
+                                            {availableSuffixes.map(s => {
+                                                // @FIX: Defined 'master' variable from currentPreviewProduct.
+                                                const master = currentPreviewProduct?.product?.sku || '';
+                                                const analysis = analyzeSku(master + s.suffix, currentPreviewProduct?.product?.gender);
+                                                // @FIX: 'getVariantComponents' is now available from imports.
+                                                const { finish, stone } = getVariantComponents(s.suffix, currentPreviewProduct?.product?.gender);
+                                                
+                                                const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+                                                const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+                                                
+                                                return (
+                                                    <button 
+                                                        key={s.suffix} 
+                                                        onClick={() => selectSuffix(s.suffix)}
+                                                        className="bg-slate-50 hover:bg-emerald-50 text-slate-600 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1"
+                                                        title={s.desc}
+                                                    >
+                                                        <span className={fColor}>{finish.code || 'LUSTRE'}</span>
+                                                        {stone.code && <span className={sColor}>{stone.code}</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {currentPreviewProduct?.product && isSizable(currentPreviewProduct.product) && (
+                                <div className="md:col-span-2 animate-in zoom-in-95">
+                                    <label className="text-[10px] text-amber-600 font-black uppercase mb-1.5 ml-1 block tracking-widest">
+                                        {getSizingInfo(currentPreviewProduct.product)!.type}
+                                    </label>
+                                    <select 
+                                        value={scanSize} 
+                                        onChange={e => setScanSize(e.target.value)} 
+                                        className="w-full bg-amber-50 text-amber-700 font-black p-3.5 rounded-2xl border border-amber-200 focus:ring-4 focus:ring-amber-500/10 outline-none transition-all shadow-sm"
+                                    >
+                                        <option value="">-</option>
+                                        {getSizingInfo(currentPreviewProduct.product)!.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="md:col-span-2 flex gap-3 h-full items-end">
+                                <div className="w-20 shrink-0">
+                                    <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
+                                    <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
+                                </div>
+                                <button 
+                                    onClick={executeQuickAdd} 
+                                    className={`flex-1 h-[54px] ${quickMode === 'add' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'} text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95`}
+                                >
+                                    {quickMode === 'add' ? <Plus size={28}/> : <Minus size={28}/>}
+                                </button>
+                            </div>
                       </div>
-                      {getScanProductInfo()?.product && getSizingInfo(getScanProductInfo()!.product) && (
-                          <div className="md:col-span-2">
-                              <label className="text-[10px] text-amber-400 font-bold uppercase mb-1 block">{getSizingInfo(getScanProductInfo()!.product)!.type}</label>
-                              <select value={scanSize} onChange={e => setScanSize(e.target.value)} className="w-full bg-slate-800 text-amber-400 font-bold p-3 rounded-xl border border-amber-500/50 outline-none"><option value="">Επιλογή</option>{getSizingInfo(getScanProductInfo()!.product)!.sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                  </div>
+
+                  <div className="w-full lg:w-96 p-8 bg-white flex flex-col rounded-b-[2rem] lg:rounded-bl-none lg:rounded-r-[2rem]">
+                      {currentPreviewProduct?.product ? (
+                          <div className="flex-1 animate-in slide-in-from-right duration-500">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Προεπισκόπηση</h3>
+                                <div className="flex items-start gap-4 mb-6">
+                                    <div className="w-24 h-24 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shrink-0 shadow-sm">
+                                        {currentPreviewProduct.product.image_url ? <img src={currentPreviewProduct.product.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h4 className="font-black text-slate-800 text-xl leading-none truncate">{currentPreviewProduct.product.sku}{currentPreviewProduct.variantSuffix}</h4>
+                                        <p className="text-xs text-slate-400 font-bold mt-1.5 truncate">{currentPreviewProduct.product.category}</p>
+                                        <div className="flex flex-wrap gap-1.5 mt-3">
+                                            <div className="px-2 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded uppercase">
+                                                ΣΤΟΚ: {currentPreviewProduct.variant?.stock_qty ?? currentPreviewProduct.product.stock_qty}
+                                            </div>
+                                            {currentPreviewProduct.product.selling_price > 0 && (
+                                                <div className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black rounded uppercase">
+                                                    {formatCurrency(currentPreviewProduct.variant?.selling_price ?? currentPreviewProduct.product.selling_price)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                          </div>
+                      ) : (
+                          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                                <History size={40} className="text-slate-300 mb-2"/>
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Πρόσφατες Κινήσεις</p>
                           </div>
                       )}
-                      <div className="md:col-span-2 flex gap-2"><div className="w-20"><label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Ποσ.</label><input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3 text-center font-bold rounded-xl outline-none bg-slate-800 text-white border border-slate-700"/></div><button onClick={executeQuickAdd} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center mt-6"><Plus size={20}/></button></div>
+
+                      <div className="mt-auto space-y-2">
+                            {recentActions.map(action => (
+                                <div key={action.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-bottom-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.type === 'add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                            {action.type === 'add' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>}
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-black text-slate-800">{action.sku}</div>
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[120px]">{action.target}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className={`text-sm font-black ${action.type === 'add' ? 'text-emerald-600' : 'text-rose-600'}`}>{action.type === 'add' ? '+' : '-'}{action.amount}</div>
+                                        <div className="text-[9px] text-slate-300 font-mono">{action.timestamp.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}</div>
+                                    </div>
+                                </div>
+                            ))}
+                      </div>
                   </div>
               </div>
 
@@ -277,7 +580,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                  <div className="w-full md:w-64 relative"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><select value={viewWarehouseId} onChange={e => setViewWarehouseId(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none appearance-none font-medium cursor-pointer"><option value="ALL">Όλες οι Αποθήκες</option>{warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}</select></div>
                  <div className="relative flex-1 flex gap-2">
                      <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder="Φίλτρο λίστας..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl outline-none w-full bg-white shadow-sm"/></div>
-                     <button onClick={() => setShowScanner(true)} className="bg-white px-5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-sm flex items-center gap-2 font-bold"><Camera size={20} /> Scan</button>
+                     <button onClick={() => setShowScanner(true)} className="bg-white px-5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-sm flex items-center gap-2 font-bold"><Camera size={20} /> Σάρωση</button>
                  </div>
               </div>
 
@@ -336,7 +639,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
            </div>
       )}
 
-      {/* Warehouse Editor Modal */}
       {isEditingWarehouse && (
           <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
@@ -368,7 +670,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           </div>
       )}
 
-      {/* Transfer Modal */}
       {transferModalOpen && transferItem && (
           <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 border border-slate-100">
@@ -436,31 +737,4 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   );
 
   function handleGlobalScan(code: string) { const p = products.find(p => code.startsWith(p.sku)); if (p) setSelectedProduct(p); else showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error'); }
-  function handleEditWarehouse(w: Warehouse) { setWarehouseForm(w); setIsEditingWarehouse(true); }
-  function handleCreateWarehouse() { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
-  
-  // @FIX: Implemented missing handleDeleteWarehouse function to resolve ReferenceError.
-  async function handleDeleteWarehouse(id: string) {
-      if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) {
-          showToast("Δεν μπορείτε να διαγράψετε συστημικούς χώρους.", "error");
-          return;
-      }
-      const yes = await confirm({
-          title: 'Διαγραφή Χώρου',
-          message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον χώρο; Το απόθεμα που περιέχει ενδέχεται να χαθεί από την προβολή.',
-          isDestructive: true,
-          confirmText: 'Διαγραφή'
-      });
-      if (!yes) return;
-      try {
-          await api.deleteWarehouse(id);
-          queryClient.invalidateQueries({ queryKey: ['warehouses'] });
-          showToast('Ο χώρος διαγράφηκε.', 'success');
-      } catch (err: any) {
-          showToast('Σφάλμα κατά τη διαγραφή.', 'error');
-      }
-  }
-
-  function getScanProductInfo() { const t = scanSuggestion || scanInput; const p = products.find(p => t.startsWith(p.sku)); if(!p) return null; let s = t.replace(p.sku, ''); let v = p.variants?.find(v => v.suffix === s); if (p.variants?.length===1 && !s) { v = p.variants[0]; s = v.suffix; } return { product: p, variant: v, variantSuffix: s }; }
-  function openTransfer(item: InventoryItem) { setTransferItem(item); setSourceId(SYSTEM_IDS.CENTRAL); setTargetId(SYSTEM_IDS.SHOWROOM); setTransferQty(1); setTransferModalOpen(true); }
 }
