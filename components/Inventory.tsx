@@ -7,7 +7,6 @@ import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import BarcodeScanner from './BarcodeScanner';
-// @FIX: Added 'getVariantComponents' to imports from pricingEngine utils.
 import { formatCurrency, formatDecimal, analyzeSku, getVariantComponents } from '../utils/pricingEngine';
 import { getSizingInfo, isSizable } from '../utils/sizing';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
@@ -165,40 +164,42 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       setScanInput(val); 
       setScanSize('');
       
-      if (val.length > 0) {
-          // Find potential products
-          const potentialProduct = products.find(p => val.startsWith(p.sku));
+      if (val.length === 0) {
+          setScanSuggestion('');
+          setAvailableSuffixes([]);
+          return;
+      }
+
+      // 1. Check for full Master SKU match
+      const matchingProduct = products.find(p => p.sku === val || val.startsWith(p.sku));
+      
+      if (matchingProduct) {
+          const suffixEntered = val.substring(matchingProduct.sku.length);
+          const hasVariants = matchingProduct.variants && matchingProduct.variants.length > 0;
           
-          if (potentialProduct) {
-              // We are deep into a specific product
-              if (potentialProduct.variants && potentialProduct.variants.length > 0) {
-                  // Keep all variants visible for quick selection even if metal suffix matches
-                  setAvailableSuffixes(potentialProduct.variants.map(v => ({ suffix: v.suffix, desc: v.description })));
-                  
-                  // Suggestion: first variant that matches current input as much as possible
-                  const matchedVar = potentialProduct.variants.find(v => (potentialProduct.sku + v.suffix).startsWith(val));
-                  if (matchedVar) {
-                      setScanSuggestion(potentialProduct.sku + matchedVar.suffix);
-                  } else {
-                      setScanSuggestion(potentialProduct.sku + potentialProduct.variants[0].suffix);
-                  }
+          if (hasVariants) {
+              setAvailableSuffixes(matchingProduct.variants!.map(v => ({ suffix: v.suffix, desc: v.description })));
+              
+              // Smart Suggestion: Try matching typed suffix to a variant suffix
+              const matchingVar = matchingProduct.variants!.find(v => v.suffix.startsWith(suffixEntered));
+              if (matchingVar) {
+                  setScanSuggestion(matchingProduct.sku + matchingVar.suffix);
               } else {
-                  setAvailableSuffixes([]);
-                  setScanSuggestion(potentialProduct.sku);
+                  // No specific variant match for the typed suffix, fallback to first
+                  setScanSuggestion(matchingProduct.sku + matchingProduct.variants![0].suffix);
               }
           } else {
-              // Searching for master SKU
-              const firstMatch = products.find(p => p.sku.startsWith(val));
-              if (firstMatch) {
-                  setScanSuggestion(firstMatch.sku);
-                  setAvailableSuffixes([]);
-              } else {
-                  setScanSuggestion('');
-                  setAvailableSuffixes([]);
-              }
+              setAvailableSuffixes([]);
+              setScanSuggestion(matchingProduct.sku);
           }
       } else {
-          setScanSuggestion('');
+          // 2. Partial match: Autocomplete the Master SKU first
+          const masterMatch = products.find(p => p.sku.startsWith(val));
+          if (masterMatch) {
+              setScanSuggestion(masterMatch.sku);
+          } else {
+              setScanSuggestion('');
+          }
           setAvailableSuffixes([]);
       }
   };
@@ -206,14 +207,18 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const selectSuffix = (suffix: string) => {
       const prod = getScanProductInfo()?.product;
       if (prod) {
-          const full = prod.sku + suffix;
-          setScanInput(full);
-          setScanSuggestion(full);
+          const fullCode = prod.sku + suffix;
+          setScanInput(fullCode);
+          setScanSuggestion(fullCode);
+          setAvailableSuffixes([]); // HIDE IMMEDIATELY once full code is chosen
+          inputRef.current?.focus();
       }
   };
 
   const executeQuickAdd = async () => {
       const targetCode = scanSuggestion || scanInput; 
+      if (!targetCode) return;
+
       const product = products.find(p => targetCode.startsWith(p.sku));
       if (!product) { showToast(`Ο κωδικός δεν βρέθηκε.`, "error"); return; }
       
@@ -222,7 +227,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       if (product.variants?.length === 1 && !varSuffix) { variant = product.variants[0]; varSuffix = variant.suffix; }
       
       const sizing = getSizingInfo(product); 
-      if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
+      if (sizing && !scanSize) { 
+          showToast(`Επιλέξτε ${sizing.type}.`, "error"); 
+          // If sizable, focus the size select instead of processing
+          return; 
+      }
       
       const changeAmount = quickMode === 'add' ? scanQty : -scanQty;
 
@@ -239,14 +248,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               if (scanTargetId === SYSTEM_IDS.CENTRAL) { 
                   const map = product.stock_by_size ? { ...product.stock_by_size } : {}; 
                   if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
-                  await supabase.from('products').update({ stock_qty: product.stock_qty + changeAmount, stock_by_size: map }).eq('sku', product.sku); 
+                  await supabase.from('products').update({ stock_qty: (product.stock_qty || 0) + changeAmount, stock_by_size: map }).eq('sku', product.sku); 
               }
               else if (scanTargetId === SYSTEM_IDS.SHOWROOM) { 
                   const map = product.sample_stock_by_size ? { ...product.sample_stock_by_size } : {}; 
                   if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
                   await supabase.from('products').update({ sample_qty: (product.sample_qty || 0) + changeAmount, sample_stock_by_size: map }).eq('sku', product.sku); 
               }
-              else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: Math.max(0, (product.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null });
+              else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: Math.max(0, (product.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
               await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`);
           }
           
@@ -277,34 +286,53 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   }
 
   const SkuVisualizer = () => {
-    const text = scanSuggestion || scanInput;
-    if (!text) return null;
+    if (!scanSuggestion && !scanInput) return null;
 
-    const prod = products.find(p => text.startsWith(p.sku));
-    if (!prod) return <span className="text-slate-400">{text}</span>;
-
-    const master = prod.sku;
-    const remainder = text.replace(master, '');
+    const textToRender = scanSuggestion || scanInput;
+    const prod = products.find(p => textToRender.startsWith(p.sku));
     
-    // Analyze suffix to extract metal and stone
-    const analysis = analyzeSku(text, prod.gender);
-    // @FIX: 'getVariantComponents' is now available from imports.
-    const { finish, stone } = getVariantComponents(analysis.suffix, prod.gender);
+    let masterPart = '';
+    let suffixPart = '';
+    
+    if (prod) {
+        masterPart = prod.sku;
+        suffixPart = textToRender.substring(prod.sku.length);
+    } else {
+        masterPart = textToRender;
+    }
 
+    const { finish, stone } = prod ? getVariantComponents(suffixPart, prod.gender) : { finish: { code: '' }, stone: { code: '' } };
     const finishColor = FINISH_COLORS[finish.code] || 'text-slate-400';
     const stoneColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
 
+    const renderChars = (fullText: string, typedText: string) => {
+        return fullText.split('').map((char, i) => {
+            const isGhost = i >= typedText.length;
+            const isSuffix = prod && i >= prod.sku.length;
+            
+            let colorClass = 'text-slate-800';
+            if (isSuffix) {
+                const suffixIndex = i - prod!.sku.length;
+                if (finish.code && suffixPart.startsWith(finish.code) && suffixIndex < finish.code.length) {
+                    colorClass = finishColor;
+                } else if (stone.code && suffixPart.endsWith(stone.code) && suffixIndex >= (suffixPart.length - stone.code.length)) {
+                    colorClass = stoneColor;
+                } else {
+                    colorClass = 'text-slate-400';
+                }
+            }
+
+            return (
+                <span key={i} className={`${colorClass} ${isGhost ? 'opacity-30 italic font-medium' : 'font-black'}`}>
+                    {char}
+                </span>
+            );
+        });
+    };
+
     return (
         <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-            <span className="text-slate-800 font-black">{master}</span>
-            {finish.code && <span className={`font-black ${finishColor}`}>{finish.code}</span>}
-            {stone.code && <span className={`font-black ${stoneColor}`}>{stone.code}</span>}
-            {/* Handle ghosts */}
-            {scanSuggestion.length > scanInput.length && scanSuggestion.startsWith(scanInput) && (
-                <span className="text-slate-200 italic">
-                    {scanSuggestion.substring(scanInput.length)}
-                </span>
-            )}
+            {renderChars(textToRender, scanInput)}
         </div>
     );
   };
@@ -466,10 +494,8 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                         <div className="absolute top-full left-0 right-0 mt-2 flex flex-wrap gap-1.5 z-[100] p-3 bg-white rounded-2xl border border-slate-100 shadow-2xl max-h-48 overflow-y-auto custom-scrollbar ring-4 ring-black/5">
                                             <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> Προτάσεις Παραλλαγών</div>
                                             {availableSuffixes.map(s => {
-                                                // @FIX: Defined 'master' variable from currentPreviewProduct.
                                                 const master = currentPreviewProduct?.product?.sku || '';
                                                 const analysis = analyzeSku(master + s.suffix, currentPreviewProduct?.product?.gender);
-                                                // @FIX: 'getVariantComponents' is now available from imports.
                                                 const { finish, stone } = getVariantComponents(s.suffix, currentPreviewProduct?.product?.gender);
                                                 
                                                 const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
