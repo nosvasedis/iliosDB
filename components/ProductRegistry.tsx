@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera } from 'lucide-react';

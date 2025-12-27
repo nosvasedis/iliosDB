@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { generateMarketingCopy, generateVirtualModel, generateTrendAnalysis, identifyProductFromImage } from '../lib/gemini';
 import { ChatMessage, Product } from '../types';
