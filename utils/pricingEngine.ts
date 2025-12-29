@@ -172,8 +172,14 @@ export const calculateProductCost = (
       const silverCost = product.weight_g * silverPrice;
       // For Imported: technician_cost is usually the 'Making Charge' per gram
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
+      
       // For Imported: plating_cost_x is the 'Plating Surcharge' per gram
-      const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
+      // FIX: Only apply plating surcharge if the product is explicitly plated (not None/Lustre)
+      let platingCost = 0;
+      if (product.plating_type !== PlatingType.None) {
+          platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
+      }
+
       const stoneCost = product.labor.stone_setting_cost || 0;
       const totalCost = silverCost + technicianCost + platingCost + stoneCost;
       return {
