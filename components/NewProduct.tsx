@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
@@ -210,102 +211,6 @@ const RecipeItemSelectorModal = ({
 };
 
 
-const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
-    const color = 
-        analysis.verdict === 'Excellent' ? 'emerald' : 
-        analysis.verdict === 'Fair' ? 'blue' : 
-        analysis.verdict === 'Expensive' ? 'orange' : 'rose';
-
-    const Icon = 
-        analysis.verdict === 'Excellent' ? ThumbsUp : 
-        analysis.verdict === 'Fair' ? CheckCircle : 
-        analysis.verdict === 'Expensive' ? Info : AlertTriangle;
-
-    const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
-
-    return (
-        <div className={`border-2 border-${color}-100 bg-${color}-50/50 rounded-2xl p-5 space-y-4`}>
-            {/* Header Verdict */}
-            <div className="flex items-center gap-3 border-b border-${color}-200 pb-3">
-                <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
-                    <Icon size={20} />
-                </div>
-                <div>
-                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Έξυπνη Ανάλυση</h4>
-                    <p className={`text-xs font-medium text-${color}-600`}>Αξιολόγηση Τιμής Προμηθευτή</p>
-                </div>
-                <div className={`ml-auto px-3 py-1 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide`}>
-                    {analysis.verdict === 'Excellent' && 'Εξαιρετική Τιμή'}
-                    {analysis.verdict === 'Fair' && 'Δίκαιη Τιμή'}
-                    {analysis.verdict === 'Expensive' && 'Ακριβό'}
-                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημένο'}
-                </div>
-            </div>
-
-            {/* Main Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Θεωρητικό Κόστος (Make)</div>
-                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.theoreticalMakeCost)}</div>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Αξία Υλικών (Melt)</div>
-                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.intrinsicValue)}</div>
-                </div>
-            </div>
-
-            {/* Forensic Analysis Section (If breakdown provided) */}
-            {hasReportedLabor && (
-                <div className="bg-white/60 p-3 rounded-xl border border-slate-100 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-100 pb-1 mb-2">Ανάλυση Εργατικών (Forensics)</h5>
-                    
-                    <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
-                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' : 
-                                'bg-slate-100 text-slate-600'
-                            }`}>
-                                {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {analysis.effectiveSilverPrice > 0 && (
-                        <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100/50">
-                            <span className="text-slate-500">Πραγματική Χρέωση Ασημιού:</span>
-                            <div className="flex items-center gap-2">
-                                <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
-                                    {analysis.effectiveSilverPrice.toFixed(2)}€/g
-                                </span>
-                                {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500"/></span>}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Markup Bar */}
-            <div className="space-y-2 pt-1">
-                <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
-                    <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
-                    <div className="h-full bg-slate-400" style={{ width: `${(analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100}%` }} title="Υλικά" />
-                    <div className={`h-full bg-${color}-500`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} title="Premium" />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400">
-                    <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
-                    <span>Περιθώριο: {analysis.premiumPercent}%</span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOverride, readOnly = false, hint }: {
     icon: React.ReactNode;
     label: string;
@@ -351,7 +256,6 @@ const SummaryRow = ({ label, value, sub, color }: { label: string, value: number
     </div>
 );
 
-// --- ANALYSIS EXPLAINER MODAL ---
 const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
@@ -600,19 +504,28 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   
   useEffect(() => {
     if (!labor.plating_cost_x_manual_override) {
-        let totalPlatingWeight = weight;
-        recipe.forEach(item => {
-            if (item.type === 'component') {
-                const subProduct = products.find(p => p.sku === item.sku);
-                if (subProduct) {
-                    totalPlatingWeight += (subProduct.weight_g * item.quantity);
-                }
-            }
-        });
-      const costX = totalPlatingWeight * 0.60;
-      setLabor(prev => ({ ...prev, plating_cost_x: costX }));
+      if (productionType === ProductionType.Imported) {
+          // For imported, this is a RATE (0.60), not a total. 
+          // Do not multiply by weight. Set default to 0.60 if not set.
+          if (labor.plating_cost_x === 0) {
+              setLabor(prev => ({ ...prev, plating_cost_x: 0.60 }));
+          }
+      } else {
+          // For In-House, this is the TOTAL cost.
+          let totalPlatingWeight = weight;
+          recipe.forEach(item => {
+              if (item.type === 'component') {
+                  const subProduct = products.find(p => p.sku === item.sku);
+                  if (subProduct) {
+                      totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                  }
+              }
+          });
+          const costX = totalPlatingWeight * 0.60;
+          setLabor(prev => ({ ...prev, plating_cost_x: costX }));
+      }
     }
-  }, [weight, recipe, products, labor.plating_cost_x_manual_override]);
+  }, [weight, recipe, products, labor.plating_cost_x_manual_override, productionType]);
 
   useEffect(() => {
     if (!labor.plating_cost_d_manual_override) {
@@ -980,6 +893,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             production_type: productionType,
             // Ensure supplier_id is valid UUID or null
             supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null,
+            // Fix: supplier_sku was potentially missing. Explicitly setting it.
             supplier_sku: productionType === ProductionType.Imported ? supplierSku : null,
             supplier_cost: productionType === ProductionType.Imported ? supplierCost : null,
             labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null 

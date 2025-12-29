@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
@@ -422,19 +423,28 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_x_manual_override) {
-        let totalPlatingWeight = editedProduct.weight_g;
-        editedProduct.recipe.forEach(item => {
-            if (item.type === 'component') {
-                const subProduct = allProducts.find(p => p.sku === item.sku);
-                if (subProduct) {
-                    totalPlatingWeight += (subProduct.weight_g * item.quantity);
-                }
+        if (editedProduct.production_type === ProductionType.Imported) {
+            // FIX: For imported, this is a RATE (0.60), not a total. 
+            // Do not multiply by weight. Set default to 0.60 if not set.
+            if (editedProduct.labor.plating_cost_x === 0) {
+                setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: 0.60 } }));
             }
-        });
-        const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
-        setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+        } else {
+            // For In-House, this is the TOTAL cost.
+            let totalPlatingWeight = editedProduct.weight_g;
+            editedProduct.recipe.forEach(item => {
+                if (item.type === 'component') {
+                    const subProduct = allProducts.find(p => p.sku === item.sku);
+                    if (subProduct) {
+                        totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                    }
+                }
+            });
+            const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
+            setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+        }
     }
-  }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override]);
+  }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override, editedProduct.production_type]);
 
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_d_manual_override) {

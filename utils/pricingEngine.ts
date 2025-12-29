@@ -170,7 +170,9 @@ export const calculateProductCost = (
 
   if (product.production_type === ProductionType.Imported) {
       const silverCost = product.weight_g * silverPrice;
+      // For Imported: technician_cost is usually the 'Making Charge' per gram
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
+      // For Imported: plating_cost_x is the 'Plating Surcharge' per gram
       const platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
       const stoneCost = product.labor.stone_setting_cost || 0;
       const totalCost = silverCost + technicianCost + platingCost + stoneCost;
@@ -290,12 +292,44 @@ export const estimateVariantCost = (
     silverPriceOverride?: number
 ): { total: number; breakdown: any } => {
     const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
-    if (masterProduct.production_type === ProductionType.Imported) return calculateProductCost(masterProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
+    const { finish, stone } = getVariantComponents(variantSuffix, masterProduct.gender);
 
+    // --- FIX FOR IMPORTED PRODUCTS ---
+    if (masterProduct.production_type === ProductionType.Imported) {
+        const silverCost = masterProduct.weight_g * silverPrice;
+        // Technician cost is essentially the base making charge per gram
+        const technicianCost = masterProduct.weight_g * (masterProduct.labor.technician_cost || 0);
+        // Stone setting cost is fixed per piece
+        const stoneCost = masterProduct.labor.stone_setting_cost || 0;
+        
+        let platingCost = 0;
+        // Only apply plating surcharge if the variant is actually plated (X, H, D). 
+        // Lustre ('' or 'P') should strictly ignore plating costs.
+        if (['X', 'H', 'D'].includes(finish.code)) {
+            platingCost = masterProduct.weight_g * (masterProduct.labor.plating_cost_x || 0);
+        }
+
+        const totalCost = silverCost + technicianCost + stoneCost + platingCost;
+        return {
+            total: roundPrice(totalCost),
+            breakdown: { 
+                silver: silverCost, 
+                labor: technicianCost + platingCost, 
+                materials: stoneCost, 
+                details: { 
+                    technician_cost: technicianCost, 
+                    plating_cost_x: platingCost, 
+                    stone_setting_cost: stoneCost 
+                } 
+            }
+        };
+    }
+
+    // --- IN HOUSE CALCULATION (UNCHANGED) ---
     const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
     const silverCost = totalWeight * silverPrice;
     let materialsCost = 0;
-    const { stone } = getVariantComponents(variantSuffix, masterProduct.gender);
+    
     masterProduct.recipe.forEach(item => {
         if (item.type === 'raw') {
             const mat = allMaterials.find(m => m.id === item.id);
@@ -314,7 +348,6 @@ export const estimateVariantCost = (
     });
 
     const labor: Partial<LaborCost> = masterProduct.labor || {};
-    const { finish } = getVariantComponents(variantSuffix, masterProduct.gender);
     let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (finish.code === 'D' ? (masterProduct.weight_g * (totalWeight <= 2.2 ? 1.3 : (totalWeight <= 4.2 ? 0.9 : (totalWeight <= 8.2 ? 0.7 : 0.5)))) + calculateTechnicianCost(masterProduct.secondary_weight_g || 0) : calculateTechnicianCost(totalWeight));
     const castingCost = totalWeight * 0.15;
     let platingCost = finish.code === 'D' ? (labor.plating_cost_d || 0) : (['X', 'H'].includes(finish.code) ? (labor.plating_cost_x || 0) : 0);
