@@ -203,13 +203,18 @@ function AppContent() {
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Sync logic and event listeners
   useEffect(() => {
     if (isLocalMode) return;
+    
+    // Function to check queue size
     const checkQueue = async () => {
         const queue = await offlineDb.getQueue();
         setPendingItems(queue);
         return queue.length;
     };
+
+    // Auto-sync function
     const handleSync = async () => {
         const count = await checkQueue();
         if (count === 0) return;
@@ -227,15 +232,29 @@ function AppContent() {
             setIsSyncing(false);
         }
     };
+
+    // Network listeners
     const handleOnline = () => { setIsOnline(true); handleSync(); };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    const interval = setInterval(checkQueue, 2000); // Check faster (2s)
+
+    // Sync error listener (dispatched from lib/supabase.ts)
+    const handleSyncError = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        showToast(detail.message || "Σφάλμα συγχρονισμού. Το στοιχείο απορρίφθηκε.", "error");
+        checkQueue(); // Refresh pending items
+    };
+    window.addEventListener('ilios-sync-error', handleSyncError);
+
+    // Polling for queue
+    const interval = setInterval(checkQueue, 2000);
     if (navigator.onLine) handleSync();
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('ilios-sync-error', handleSyncError);
       clearInterval(interval);
     };
   }, []);
@@ -425,7 +444,7 @@ function AppContent() {
           </div>
           <div className={`px-4 py-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingItems.length > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                {isLocalMode ? <><HardDrive size={12}/> {!isCollapsed && 'LOCAL DB'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'SYNC'}</> : pendingItems.length > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingItems.length} PENDING`}</> : isOnline ? <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'CLOUD'}</> : <><HardDrive size={12}/> {!isCollapsed && 'OFFLINE'}</>}
+                {isLocalMode ? <><HardDrive size={12}/> {!isCollapsed && 'ΤΟΠΙΚΗ ΒΑΣΗ'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</> : pendingItems.length > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingItems.length} ΕΚΚΡΕΜΕΙ`}</> : isOnline ? <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟ'}</> : <><HardDrive size={12}/> {!isCollapsed && 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ'}</>}
               </div>
           </div>
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">

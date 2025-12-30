@@ -417,12 +417,28 @@ export const api = {
                 else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(item.data);
                 
                 const { error } = await query!;
+                
                 if (!error) {
                     await offlineDb.dequeue(item.id);
                     successCount++;
+                } else {
+                    console.error("Sync item failed:", error);
+                    // Discard bad requests (4xx range, unique violations on simple inserts that fail, etc.) to unblock queue
+                    // Supabase errors don't strictly follow HTTP codes in `error` object sometimes, but usually have code.
+                    // PGRST100-PGRST199 are query parsing errors (client fault).
+                    // Codes starting with 23 are constraint violations (often client data error if not handled by upsert).
+                    // We dispatch event so UI can show toast.
+                    const errCode = error.code || '';
+                    if (errCode.startsWith('23') || errCode.startsWith('42') || errCode.startsWith('PGRST')) {
+                        console.warn("Discarding malformed sync item:", item);
+                        await offlineDb.dequeue(item.id);
+                        window.dispatchEvent(new CustomEvent('ilios-sync-error', { 
+                            detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${item.method}). Η ενέργεια απορρίφθηκε.` } 
+                        }));
+                    }
                 }
             } catch (err) {
-                console.error("Sync item failed:", err);
+                console.error("Sync network/unexpected error:", err);
             }
         }
         return successCount;
