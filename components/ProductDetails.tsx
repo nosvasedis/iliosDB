@@ -307,6 +307,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   
   const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
 
   const [editedProduct, setEditedProduct] = useState<Product>(() => {
@@ -687,6 +688,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
         let finalEditedProduct = { ...editedProduct };
 
@@ -772,7 +775,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         
         await supabase.from('product_molds').delete().eq('product_sku', finalEditedProduct.sku);
         if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
-            const moldInserts = finalEditedProduct.molds.map(m => ({
+            // Ensure unique molds by code to avoid duplicate key errors
+            const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
+                index === self.findIndex((t) => t.code === m.code)
+            );
+            
+            const moldInserts = uniqueMolds.map(m => ({
                 product_sku: finalEditedProduct.sku,
                 mold_code: m.code,
                 quantity: m.quantity
@@ -801,6 +809,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         onClose();
     } catch (err: any) {
         showToast(`Σφάλμα αποθήκευσης: ${err.message}`, "error");
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -1501,8 +1511,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                <div className="flex gap-2">
                    {/* Removed redundant Print Buttons */}
                </div>
-               <button onClick={handleSave} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100">
-                   <Save size={18}/> Αποθήκευση
+               <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                   {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} 
+                   {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
                </button>
            </div>
         </div>
