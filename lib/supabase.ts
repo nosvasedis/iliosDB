@@ -32,15 +32,15 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
-async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<any> {
+async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
         console.log(`Local Mode: Suppression of mutation to ${tableName}`);
-        return { data: null, error: null };
+        return { data: null, error: null, queued: false };
     }
 
     if (!navigator.onLine) {
         await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match });
-        return { data: null, error: null };
+        return { data: null, error: null, queued: true };
     }
 
     try {
@@ -52,11 +52,11 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         
         const { data: resData, error } = await query!;
         if (error) throw error;
-        return { data: Array.isArray(resData) ? resData[0] : resData, error: null };
+        return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false };
     } catch (err) {
         console.warn(`Cloud mutation failed. Enqueueing for retry:`, err);
         await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match });
-        return { data: null, error: null };
+        return { data: null, error: null, queued: true };
     }
 }
 
@@ -92,6 +92,7 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     }
 }
 
+// ... existing config exports ...
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
@@ -163,6 +164,7 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
+    // ... existing getters ...
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
         if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
@@ -205,10 +207,6 @@ export const api = {
         const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
         if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
         
-        // Critical Fix: Use FULL TABLE fetches instead of filtering by .in('sku', skus).
-        // Sending large arrays of SKUs (especially with Greek chars) in GET requests causes
-        // URL overflow or encoding issues, leading to "missing" data for Greek items.
-        // Client-side mapping is safer and more robust for this dataset size.
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
             fetchFullTable('product_variants'),
             fetchFullTable('recipes'),
@@ -230,18 +228,14 @@ export const api = {
                 return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
             }) || [];
 
-            // Critical Fix: Deduplicate Molds
-            // The DB might contain duplicate rows. We use a Map to ensure unique mold codes per product.
             const uniqueMoldsMap = new Map<string, { code: string, quantity: number }>();
             prodMoldsData?.filter((pm: any) => pm.product_sku === p.sku).forEach((pm: any) => {
-                // If duplicates exist, this overrides, ensuring only 1 entry per mold code
                 uniqueMoldsMap.set(pm.mold_code, { code: pm.mold_code, quantity: pm.quantity || 1 });
             });
             const pMolds = Array.from(uniqueMoldsMap.values());
 
             return {
                 sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, image_url: p.image_url, weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
-                // Fix: Explicitly map supplier_sku from database result
                 supplier_sku: p.supplier_sku,
                 supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, 
                 molds: pMolds, 
@@ -251,6 +245,7 @@ export const api = {
         });
     },
 
+    // ... other getters ...
     getWarehouses: async (): Promise<Warehouse[]> => {
         const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
         if (!data || data.length === 0) return [{ id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true }, { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }];
@@ -277,6 +272,15 @@ export const api = {
         return fetchFullTable('price_snapshot_items', '*', (q) => q.eq('snapshot_id', snapshotId));
     },
 
+    // --- MUTATIONS WITH EXPLICIT QUEUE SUPPORT ---
+    saveProduct: async (productData: any) => { return safeMutate('products', 'UPSERT', productData); },
+    saveProductVariant: async (variantData: any) => { return safeMutate('product_variants', 'UPSERT', variantData, { product_sku: variantData.product_sku, suffix: variantData.suffix }); },
+    deleteProductRecipes: async (sku: string) => { return safeMutate('recipes', 'DELETE', null, { parent_sku: sku }); },
+    insertRecipe: async (recipeData: any) => { return safeMutate('recipes', 'INSERT', recipeData); },
+    deleteProductMolds: async (sku: string) => { return safeMutate('product_molds', 'DELETE', null, { product_sku: sku }); },
+    insertProductMold: async (moldData: any) => { return safeMutate('product_molds', 'INSERT', moldData); },
+
+    // ... existing mutations ...
     saveWarehouse: async (wh: Partial<Warehouse>): Promise<void> => { await safeMutate('warehouses', 'INSERT', wh); },
     updateWarehouse: async (id: string, updates: Partial<Warehouse>): Promise<void> => { await safeMutate('warehouses', 'UPDATE', updates, { id }); },
     deleteWarehouse: async (id: string): Promise<void> => { await safeMutate('warehouses', 'DELETE', null, { id }); },
@@ -303,6 +307,7 @@ export const api = {
         }
     },
 
+    // ... existing special functions ...
     createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
         if (isLocalMode) return;
         
@@ -318,7 +323,6 @@ export const api = {
         });
 
         if (!navigator.onLine) {
-            // Fallback for offline: create only header and queue it
             const { data: snapshot } = await safeMutate('price_snapshots', 'INSERT', { 
                 notes, 
                 item_count: items.length,
@@ -327,7 +331,6 @@ export const api = {
             return;
         }
 
-        // Use Optimized Supabase RPC for mass insert in one atomic transaction
         const { error } = await supabase.rpc('create_price_snapshot_v2', { 
             p_notes: notes, 
             p_items: items 
@@ -423,6 +426,7 @@ export const api = {
         return successCount;
     },
 
+    // ... existing export/restore ...
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
         const tables = [
             'products', 'product_variants', 'materials', 'molds', 'orders', 

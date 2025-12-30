@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -26,7 +27,9 @@ import {
   HardDrive,
   RefreshCw,
   AlertTriangle,
-  MonitorOff
+  MonitorOff,
+  CheckCircle,
+  CloudOff
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
@@ -82,6 +85,42 @@ export interface AggregatedData {
   orderId?: string;
   customerName?: string;
 }
+
+// Visual Sync Indicator Component
+const SyncStatusIndicator = ({ pendingCount, isOnline, isSyncing }: { pendingCount: number, isOnline: boolean, isSyncing: boolean }) => {
+    if (pendingCount === 0 && !isSyncing) return null;
+
+    return (
+        <div className="fixed bottom-4 right-4 z-[250] flex flex-col gap-2 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
+            <div className={`
+                pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md min-w-[200px] transition-all
+                ${isSyncing ? 'bg-blue-900/90 border-blue-500 text-white' : 
+                  (!isOnline ? 'bg-amber-900/90 border-amber-500 text-amber-50' : 'bg-slate-900/90 border-slate-600 text-white')}
+            `}>
+                <div className="relative">
+                    {isSyncing ? (
+                        <RefreshCw size={24} className="animate-spin text-blue-400" />
+                    ) : (
+                        !isOnline ? <CloudOff size={24} className="text-amber-400" /> : <HardDrive size={24} className="text-slate-400" />
+                    )}
+                    {pendingCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-slate-900">
+                            {pendingCount}
+                        </span>
+                    )}
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-xs font-black uppercase tracking-wider opacity-70">
+                        {isSyncing ? 'Synchronizing' : (!isOnline ? 'Offline Queue' : 'Sync Pending')}
+                    </span>
+                    <span className="font-bold text-sm">
+                        {pendingCount === 1 ? '1 change pending' : `${pendingCount} changes pending`}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 function AuthGuard({ children }: { children?: React.ReactNode }) {
     const { session, loading, profile, signOut } = useAuth();
@@ -177,7 +216,7 @@ function AppContent() {
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    const interval = setInterval(checkQueue, 3000);
+    const interval = setInterval(checkQueue, 2000); // Check faster (2s)
     if (navigator.onLine) handleSync();
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -336,6 +375,8 @@ function AppContent() {
 
   return (
     <>
+      <SyncStatusIndicator pendingCount={pendingCount} isOnline={isOnline} isSyncing={isSyncing} />
+
       {/* Hidden container for print rendering - Used as a buffer for the Iframe Bridge */}
       <div ref={printContainerRef} className="print-view" aria-hidden="true">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
