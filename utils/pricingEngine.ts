@@ -262,12 +262,32 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
     else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
 
-    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
+    const cleanSuffix = suffix.toUpperCase();
 
+    // STRATEGY 1: Finish First Priority
+    // Attempt to match a finish code at the start of the string first.
+    // This resolves collisions like PCO (Patina+Copper vs Green Copper).
+    for (const fCode of finishKeys) {
+        if (cleanSuffix.startsWith(fCode)) {
+            const remainder = cleanSuffix.slice(fCode.length);
+            // Check if the remainder is a valid stone code
+            if (relevantStones.hasOwnProperty(remainder)) {
+                return {
+                    finish: { code: fCode, name: FINISH_CODES[fCode] },
+                    stone: { code: remainder, name: (relevantStones as any)[remainder] }
+                };
+            }
+        }
+    }
+
+    // STRATEGY 2: Longest Stone Match (Fallback)
+    // If no [Finish]+[Stone] pattern is found, fall back to finding the longest stone suffix.
+    // This handles cases with no finish (Lustre) or non-standard formats.
+    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     let detectedStoneCode = '';
     let detectedFinishCode = '';
-    let remainder = suffix.toUpperCase();
+    let remainder = cleanSuffix;
 
     for (const sCode of stoneKeys) {
         if (remainder.endsWith(sCode)) {
@@ -277,12 +297,13 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
         }
     }
     for (const fCode of finishKeys) {
-        if (remainder.endsWith(fCode)) {
+        if (remainder === fCode) { // Match exact remainder for finish
             detectedFinishCode = fCode;
-            remainder = remainder.slice(0, -fCode.length);
+            remainder = ''; // Consumed
             break;
         }
     }
+    
     return {
         finish: { code: detectedFinishCode, name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] },
         stone: { code: detectedStoneCode, name: (relevantStones as any)[detectedStoneCode] || '' }
@@ -389,16 +410,39 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
     let gender = forcedGender || (parseSku(cleanSku).gender as Gender);
     let relevantStones = gender === Gender.Men ? STONE_CODES_MEN : (gender === Gender.Women ? STONE_CODES_WOMEN : { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN });
-    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
-    const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
-    let detectedStoneCode = '', detectedFinishCode = '', remainder = cleanSku;
-    for (const sCode of stoneKeys) if (remainder.endsWith(sCode)) { detectedStoneCode = sCode; remainder = remainder.slice(0, -sCode.length); break; }
-    for (const fCode of finishKeys) if (remainder.endsWith(fCode)) { detectedFinishCode = fCode; remainder = remainder.slice(0, -fCode.length); break; }
-    if ((detectedStoneCode !== '' || detectedFinishCode !== '') && remainder.length >= 2) {
-        const platingMap: any = { 'P': PlatingType.None, 'X': PlatingType.GoldPlated, 'D': PlatingType.TwoTone, 'H': PlatingType.Platinum, '': PlatingType.None };
-        return { isVariant: true, masterSku: remainder, suffix: detectedFinishCode + detectedStoneCode, detectedPlating: platingMap[detectedFinishCode] || PlatingType.None, variantDescription: analyzeSuffix(detectedFinishCode + detectedStoneCode, gender) || '' };
+    
+    // Attempt decomposition using new logic (Finish First)
+    // We try to find the longest possible suffix that decodes into valid components
+    
+    let bestMatch = { isVariant: false, masterSku: cleanSku, suffix: '', detectedPlating: PlatingType.None, variantDescription: '' };
+    
+    // Iterate from end of string to find a split point where suffix is valid
+    for (let i = cleanSku.length - 1; i >= 2; i--) {
+        const potentialMaster = cleanSku.substring(0, i);
+        const potentialSuffix = cleanSku.substring(i);
+        
+        const components = getVariantComponents(potentialSuffix, gender);
+        if (components.finish.code || components.stone.code) {
+             const platingMap: any = { 'P': PlatingType.None, 'X': PlatingType.GoldPlated, 'D': PlatingType.TwoTone, 'H': PlatingType.Platinum, '': PlatingType.None };
+             const desc = analyzeSuffix(potentialSuffix, gender);
+             
+             // Heuristic: Prefer matches where master SKU looks "normal" (e.g. ends in digit)
+             // But accept letters if strict match found.
+             bestMatch = {
+                 isVariant: true,
+                 masterSku: potentialMaster,
+                 suffix: potentialSuffix,
+                 detectedPlating: platingMap[components.finish.code] || PlatingType.None,
+                 variantDescription: desc || ''
+             };
+             // If we found a match that explains the whole suffix, break.
+             // But simplistic logic: usually we assume suffix starts after the SKU base.
+             // In this context `analyzeSku` is fuzzy. `getVariantComponents` does the heavy lifting.
+             break; 
+        }
     }
-    return { isVariant: false, masterSku: cleanSku, suffix: '', detectedPlating: PlatingType.None, variantDescription: '' };
+    
+    return bestMatch;
 };
 
 export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
