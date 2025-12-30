@@ -87,11 +87,26 @@ export interface AggregatedData {
 }
 
 // Visual Sync Indicator Component
-const SyncStatusIndicator = ({ pendingCount, isOnline, isSyncing }: { pendingCount: number, isOnline: boolean, isSyncing: boolean }) => {
+const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingItems: any[], isOnline: boolean, isSyncing: boolean }) => {
+    const pendingCount = pendingItems.length;
     if (pendingCount === 0 && !isSyncing) return null;
 
+    const translateMethod = (method: string) => {
+        switch(method) {
+            case 'INSERT': return 'ΕΙΣΑΓΩΓΗ';
+            case 'UPDATE': return 'ΕΝΗΜΕΡΩΣΗ';
+            case 'DELETE': return 'ΔΙΑΓΡΑΦΗ';
+            case 'UPSERT': return 'ΕΝΗΜΕΡΩΣΗ';
+            default: return method;
+        }
+    };
+
+    const tooltipText = pendingItems.length > 0 
+        ? pendingItems.slice(0, 10).map((i: any) => `${translateMethod(i.method)}: ${i.table}`).join('\n') + (pendingCount > 10 ? `\n...και ${pendingCount - 10} ακόμα` : '')
+        : '';
+
     return (
-        <div className="fixed bottom-4 right-4 z-[250] flex flex-col gap-2 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
+        <div title={tooltipText} className="fixed bottom-4 right-4 z-[250] flex flex-col gap-2 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
             <div className={`
                 pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md min-w-[200px] transition-all
                 ${isSyncing ? 'bg-blue-900/90 border-blue-500 text-white' : 
@@ -111,10 +126,10 @@ const SyncStatusIndicator = ({ pendingCount, isOnline, isSyncing }: { pendingCou
                 </div>
                 <div className="flex flex-col">
                     <span className="text-xs font-black uppercase tracking-wider opacity-70">
-                        {isSyncing ? 'Synchronizing' : (!isOnline ? 'Offline Queue' : 'Sync Pending')}
+                        {isSyncing ? 'ΣΥΓΧΡΟΝΙΣΜΟΣ...' : (!isOnline ? 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ' : 'ΕΚΚΡΕΜΕΙ ΣΥΓΧΡΟΝΙΣΜΟΣ')}
                     </span>
                     <span className="font-bold text-sm">
-                        {pendingCount === 1 ? '1 change pending' : `${pendingCount} changes pending`}
+                        {pendingCount === 1 ? '1 αλλαγή σε αναμονή' : `${pendingCount} αλλαγές σε αναμονή`}
                     </span>
                 </div>
             </div>
@@ -170,7 +185,7 @@ function AppContent() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingItems, setPendingItems] = useState<any[]>([]);
   
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -191,9 +206,9 @@ function AppContent() {
   useEffect(() => {
     if (isLocalMode) return;
     const checkQueue = async () => {
-        const count = await offlineDb.getQueueCount();
-        setPendingCount(count);
-        return count;
+        const queue = await offlineDb.getQueue();
+        setPendingItems(queue);
+        return queue.length;
     };
     const handleSync = async () => {
         const count = await checkQueue();
@@ -375,7 +390,7 @@ function AppContent() {
 
   return (
     <>
-      <SyncStatusIndicator pendingCount={pendingCount} isOnline={isOnline} isSyncing={isSyncing} />
+      <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
 
       {/* Hidden container for print rendering - Used as a buffer for the Iframe Bridge */}
       <div ref={printContainerRef} className="print-view" aria-hidden="true">
@@ -409,8 +424,8 @@ function AppContent() {
             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-6"><X size={24} /></button>
           </div>
           <div className={`px-4 py-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                {isLocalMode ? <><HardDrive size={12}/> {!isCollapsed && 'LOCAL DB'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'SYNC'}</> : pendingCount > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingCount} PENDING`}</> : isOnline ? <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'CLOUD'}</> : <><HardDrive size={12}/> {!isCollapsed && 'OFFLINE'}</>}
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingItems.length > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                {isLocalMode ? <><HardDrive size={12}/> {!isCollapsed && 'LOCAL DB'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin"/> {!isCollapsed && 'SYNC'}</> : pendingItems.length > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingItems.length} PENDING`}</> : isOnline ? <><Cloud size={12} className="animate-pulse"/> {!isCollapsed && 'CLOUD'}</> : <><HardDrive size={12}/> {!isCollapsed && 'OFFLINE'}</>}
               </div>
           </div>
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
@@ -456,7 +471,7 @@ function AppContent() {
           <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div className="h-8"><img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" /></div>
-            <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
+            <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingItems.length > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
