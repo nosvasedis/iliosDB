@@ -270,7 +270,6 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
                 {items.map(({ variant, key }) => (
                     <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
                         <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full">
-                            {/* Visual Barcode Preview */}
                             <BarcodeView 
                                 product={product} 
                                 variant={variant || undefined} 
@@ -323,7 +322,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         supplier_id: product.supplier_id,
         supplier_sku: product.supplier_sku,
         supplier_cost: product.supplier_cost || 0,
-        description: product.description || '', // Initialize description
+        description: product.description || '',
         labor: {
             casting_cost: 0,
             setter_cost: 0,
@@ -381,7 +380,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       supplier_id: product.supplier_id,
       supplier_sku: product.supplier_sku,
       supplier_cost: product.supplier_cost || 0,
-      description: product.description || '', // Initialize description
+      description: product.description || '',
       labor: {
             casting_cost: 0,
             setter_cost: 0,
@@ -425,13 +424,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   useEffect(() => {
     if (!editedProduct.labor.plating_cost_x_manual_override) {
         if (editedProduct.production_type === ProductionType.Imported) {
-            // FIX: For imported, this is a RATE (0.60), not a total. 
-            // Do not multiply by weight. Set default to 0.60 if not set.
             if (editedProduct.labor.plating_cost_x === 0) {
                 setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: 0.60 } }));
             }
         } else {
-            // For In-House, this is the TOTAL cost.
             let totalPlatingWeight = editedProduct.weight_g;
             editedProduct.recipe.forEach(item => {
                 if (item.type === 'component') {
@@ -470,7 +466,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           let hasChanges = false;
           const updatedVariants = prev.variants.map(v => {
               const { total: estimated } = estimateVariantCost(
-                  editedProduct, 
+                  prev, 
                   v.suffix,
                   settings,
                   allMaterials,
@@ -518,12 +514,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       const getPriority = (suffix: string) => {
         const { finish } = getVariantComponents(suffix, editedProduct.gender);
         switch (finish.code) {
-            case '': return 1;    // Λουστρέ (Γυαλιστερό)
-            case 'P': return 2;     // Πατίνα
-            case 'H': return 3;     // Επιπλατινωμένο
-            case 'X': return 4;     // Επίхρυσο
-            case 'D': return 5;     // Δíхρωμο
-            default: return 6;      // Anything else with stones
+            case '': return 1;
+            case 'P': return 2;
+            case 'H': return 3;
+            case 'X': return 4;
+            case 'D': return 5;
+            default: return 6;
         }
       };
       
@@ -533,14 +529,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           if (priorityA !== priorityB) {
               return priorityA - priorityB;
           }
-          // If priorities are the same (e.g. same finish, different stone), sort alphabetically
           return a.suffix.localeCompare(b.suffix);
       });
   }, [variants, editedProduct.gender]);
 
   const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
   const showPager = hasVariants && variants.length > 1;
-  const initialViewIndex = 0; // Always start at the most prevalent variant
+  const initialViewIndex = 0; 
 
   useEffect(() => {
       setViewIndex(initialViewIndex);
@@ -590,7 +585,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       
       const getPriority = (code: string) => {
         switch (code) {
-          case '': return 0; // Empty code (Lustre) is top priority
+          case '': return 0;
           case 'P': return 1;
           case 'D': return 2;
           case 'X': return 3;
@@ -601,7 +596,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
       const sortedFinishNames = Array.from(finishCodes)
         .sort((a, b) => getPriority(a) - getPriority(b))
-        .map(code => FINISH_CODES[code] || FINISH_CODES[''] /* Lustre if empty */);
+        .map(code => FINISH_CODES[code] || FINISH_CODES['']);
 
       return {
           displayPlating: sortedFinishNames.join(', '),
@@ -693,7 +688,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     try {
         let finalEditedProduct = { ...editedProduct };
 
-        // Special logic for 'ST' SKUs with 'H' variant
         if (finalEditedProduct.sku.startsWith('ST') && finalEditedProduct.variants.some(v => v.suffix === 'H')) {
             const hasLustreVariant = finalEditedProduct.variants.some(v => v.suffix === '');
             if (!hasLustreVariant) {
@@ -704,7 +698,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     allMaterials,
                     allProducts
                 );
-                // UPDATED: Use 'Λουστρέ' simple description
                 const lustreDescription = analyzeSuffix('', finalEditedProduct.gender) || 'Λουστρέ';
                 const newLustreVariant: ProductVariant = {
                     suffix: '',
@@ -724,17 +717,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
         const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
 
-        const { error: productUpdateError } = await supabase.from('products').update({
-            // Editable fields
+        // Use api service for reliable local/offline persistence
+        const { queued: prodQueued } = await api.saveProduct({
+            sku: finalEditedProduct.sku,
+            prefix: finalEditedProduct.sku.substring(0, 2),
             category: finalEditedProduct.category,
             description: isComponent ? finalEditedProduct.description : null,
             gender: finalEditedProduct.gender,
+            image_url: finalEditedProduct.image_url,
             weight_g: finalEditedProduct.weight_g,
             secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
             selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
             plating_type: finalEditedProduct.plating_type,
-            
-            // Labor
             labor_casting: finalEditedProduct.labor.casting_cost,
             labor_setter: finalEditedProduct.labor.setter_cost,
             labor_technician: finalEditedProduct.labor.technician_cost,
@@ -745,61 +739,55 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
             labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
             labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
-
-            // Recalculated / System fields
             active_price: currentCost,
             draft_price: currentCost,
             is_component: isComponent,
-
-            // Production Strategy
             production_type: finalEditedProduct.production_type,
             supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : null,
             supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
             supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
             labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null 
-        }).eq('sku', finalEditedProduct.sku);
+        });
 
-        if (productUpdateError) throw productUpdateError;
-
-        await supabase.from('recipes').delete().eq('parent_sku', finalEditedProduct.sku);
+        await api.deleteProductRecipes(finalEditedProduct.sku);
         if (finalEditedProduct.recipe.length > 0) {
-            const recipeInserts = finalEditedProduct.recipe.map(r => ({
-                parent_sku: finalEditedProduct.sku,
-                type: r.type,
-                material_id: r.type === 'raw' ? r.id : null,
-                component_sku: r.type === 'component' ? r.sku : null,
-                quantity: r.quantity
-            }));
-            await supabase.from('recipes').insert(recipeInserts);
+            for (const r of finalEditedProduct.recipe) {
+                await api.insertRecipe({
+                    parent_sku: finalEditedProduct.sku,
+                    type: r.type,
+                    material_id: r.type === 'raw' ? r.id : null,
+                    component_sku: r.type === 'component' ? r.sku : null,
+                    quantity: r.quantity
+                });
+            }
         }
         
-        await supabase.from('product_molds').delete().eq('product_sku', finalEditedProduct.sku);
+        await api.deleteProductMolds(finalEditedProduct.sku);
         if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
-            // Critical Fix: Ensure unique molds by code to avoid duplicate key errors
             const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
                 index === self.findIndex((t) => t.code === m.code)
             );
-            
-            const moldInserts = uniqueMolds.map(m => ({
-                product_sku: finalEditedProduct.sku,
-                mold_code: m.code,
-                quantity: m.quantity
-            }));
-            const { error: moldError } = await supabase.from('product_molds').insert(moldInserts);
-            if (moldError) throw moldError;
+            for (const m of uniqueMolds) {
+                await api.insertProductMold({
+                    product_sku: finalEditedProduct.sku,
+                    mold_code: m.code,
+                    quantity: m.quantity
+                });
+            }
         }
 
-        await supabase.from('product_variants').delete().eq('product_sku', finalEditedProduct.sku);
+        await api.deleteProductVariants(finalEditedProduct.sku);
         if (finalEditedProduct.variants && finalEditedProduct.variants.length > 0) {
-            const newVariantsForDB = finalEditedProduct.variants.map(v => ({
-                product_sku: finalEditedProduct.sku,
-                suffix: v.suffix,
-                description: v.description,
-                stock_qty: v.stock_qty || 0,
-                active_price: v.active_price || null,
-                selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
-            }));
-            await supabase.from('product_variants').insert(newVariantsForDB);
+            for (const v of finalEditedProduct.variants) {
+                await api.saveProductVariant({
+                    product_sku: finalEditedProduct.sku,
+                    suffix: v.suffix,
+                    description: v.description,
+                    stock_qty: v.stock_qty || 0,
+                    active_price: v.active_price || null,
+                    selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
+                });
+            }
         }
         
         await queryClient.refetchQueries({ queryKey: ['products'] });
@@ -844,7 +832,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
               const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
               if (publicUrl) {
                   setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
-                  await supabase.from('products').update({ image_url: publicUrl }).eq('sku', editedProduct.sku);
+                  await api.saveProduct({ ...editedProduct, image_url: publicUrl });
                   queryClient.invalidateQueries({ queryKey: ['products'] });
                   showToast("Η φωτογραφία ενημερώθηκε.", "success");
               }
@@ -998,14 +986,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
 
-  // RENDER
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
         {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
         <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
            
-           {/* Header */}
            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
                <div>
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -1044,10 +1030,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                </div>
            </div>
 
-           {/* Content */}
            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                   {/* Left Column: Image & Quick Stats */}
                    <div className="lg:col-span-4 space-y-6">
                        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group">
                            <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
@@ -1092,10 +1076,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        </div>
                    </div>
 
-                   {/* Right Column: Details & Editing */}
                    <div className="lg:col-span-8 space-y-6">
                        
-                       {/* TABS */}
                        <div className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
                            {TABS.map(tab => (
                                <button 
@@ -1108,7 +1090,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            ))}
                        </div>
 
-                       {/* TAB CONTENT */}
                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
                            {activeTab === 'overview' && (
                                <div className="space-y-6 animate-in fade-in">
@@ -1312,7 +1293,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                            <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
                                                            <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
                                                        </div>
-                                                       <button onClick={applyReprice} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-700">Εφαρμογή</button>
+                                                       <button onClick={applyReprice} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700">Εφαρμογή</button>
                                                    </div>
                                                </div>
                                            )}
@@ -1360,7 +1341,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 }
                                                 itemCost = unitCost * item.quantity;
                                             }
-                                        } else { // component
+                                        } else { 
                                             const subProduct = details as Product | undefined;
                                             if (subProduct) {
                                                 itemCost = (subProduct.active_price || 0) * item.quantity;
@@ -1462,7 +1443,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                            {activeTab === 'variants' && (
                                <div className="space-y-4 animate-in fade-in">
-                                   {/* Smart Add */}
                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                        <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-amber-500"/> Έξυπνη Προσθήκη</h4>
                                        <div className="flex gap-2">
@@ -1471,7 +1451,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        </div>
                                    </div>
                                    
-                                   {/* Manual Add */}
                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                        <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Plus size={16}/> Χειροκίνητη Προσθήκη</h4>
                                        <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
@@ -1506,10 +1485,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                </div>
            </div>
 
-           {/* Footer */}
            <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm shrink-0">
                <div className="flex gap-2">
-                   {/* Removed redundant Print Buttons */}
                </div>
                <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed">
                    {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} 

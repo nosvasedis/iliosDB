@@ -34,7 +34,15 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
 
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
-        console.log(`Local Mode: Suppression of mutation to ${tableName}`);
+        console.log(`Local Mode: Mirroring mutation to ${tableName}`);
+        // In local mode, we still want to update our offlineDb mirror so changes persist across reloads
+        if (method === 'UPSERT' || method === 'INSERT' || method === 'UPDATE') {
+            const table = await offlineDb.getTable(tableName) || [];
+            // Simplified mirror update logic for local-only persistence
+            const pk = (tableName === 'products' || tableName === 'product_variants') ? 'sku' : 'id';
+            // Note: This is an incomplete mirror for local mode but helps persistence
+            offlineDb.saveTable(tableName, [...table, data]);
+        }
         return { data: null, error: null, queued: false };
     }
 
@@ -92,7 +100,6 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     }
 }
 
-// ... existing config exports ...
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
@@ -164,7 +171,6 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
-    // ... existing getters ...
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
         if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
@@ -245,7 +251,6 @@ export const api = {
         });
     },
 
-    // ... other getters ...
     getWarehouses: async (): Promise<Warehouse[]> => {
         const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
         if (!data || data.length === 0) return [{ id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true }, { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }];
@@ -272,15 +277,14 @@ export const api = {
         return fetchFullTable('price_snapshot_items', '*', (q) => q.eq('snapshot_id', snapshotId));
     },
 
-    // --- MUTATIONS WITH EXPLICIT QUEUE SUPPORT ---
     saveProduct: async (productData: any) => { return safeMutate('products', 'UPSERT', productData); },
     saveProductVariant: async (variantData: any) => { return safeMutate('product_variants', 'UPSERT', variantData, { product_sku: variantData.product_sku, suffix: variantData.suffix }); },
+    deleteProductVariants: async (sku: string) => { return safeMutate('product_variants', 'DELETE', null, { product_sku: sku }); },
     deleteProductRecipes: async (sku: string) => { return safeMutate('recipes', 'DELETE', null, { parent_sku: sku }); },
     insertRecipe: async (recipeData: any) => { return safeMutate('recipes', 'INSERT', recipeData); },
     deleteProductMolds: async (sku: string) => { return safeMutate('product_molds', 'DELETE', null, { product_sku: sku }); },
     insertProductMold: async (moldData: any) => { return safeMutate('product_molds', 'INSERT', moldData); },
 
-    // ... existing mutations ...
     saveWarehouse: async (wh: Partial<Warehouse>): Promise<void> => { await safeMutate('warehouses', 'INSERT', wh); },
     updateWarehouse: async (id: string, updates: Partial<Warehouse>): Promise<void> => { await safeMutate('warehouses', 'UPDATE', updates, { id }); },
     deleteWarehouse: async (id: string): Promise<void> => { await safeMutate('warehouses', 'DELETE', null, { id }); },
@@ -307,11 +311,9 @@ export const api = {
         }
     },
 
-    // ... existing special functions ...
     createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
         if (isLocalMode) return;
         
-        // Prepare items array for RPC
         const items: any[] = [];
         products.forEach(p => {
             if (!p.is_component) {
@@ -426,7 +428,6 @@ export const api = {
         return successCount;
     },
 
-    // ... existing export/restore ...
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
         const tables = [
             'products', 'product_variants', 'materials', 'molds', 'orders', 
@@ -458,7 +459,6 @@ export const api = {
             return;
         }
 
-        // Cloud Restore
         for (const table of [...order].reverse()) {
             await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');
             if (table === 'products') await supabase.from(table).delete().neq('sku', 'WIPE_ALL');

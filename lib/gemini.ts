@@ -1,13 +1,13 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { GEMINI_API_KEY } from "./supabase";
 
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
 
 const getClient = () => {
-    const key = GEMINI_API_KEY || process.env.API_KEY;
-    if (!key || key === 'provided-by-environment') {
-        throw new Error("Το κλειδί Gemini API λείπει.");
+    const key = process.env.API_KEY;
+    if (!key) {
+        throw new Error("Το κλειδί Gemini API λείπει από το περιβάλλον.");
     }
     return new GoogleGenAI({ apiKey: key });
 };
@@ -153,7 +153,6 @@ export const generateTrendAnalysis = async (query: string): Promise<string> => {
 
 /**
  * Identifies a product SKU from an image by comparing it against a provided list.
- * IMPROVED: Added specialized jewelry visual analysis instructions for extreme precision.
  */
 export const identifyProductFromImage = async (imageBase64: string, productContext: string): Promise<string> => {
     try {
