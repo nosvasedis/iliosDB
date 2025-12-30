@@ -204,13 +204,17 @@ export const api = {
     getProducts: async (): Promise<Product[]> => {
         const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
         if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
-        const skus = prodData.map(p => p.sku);
+        
+        // Critical Fix: Use FULL TABLE fetches instead of filtering by .in('sku', skus).
+        // Sending large arrays of SKUs (especially with Greek chars) in GET requests causes
+        // URL overflow or encoding issues, leading to "missing" data for Greek items.
+        // Client-side mapping is safer and more robust for this dataset size.
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
-            fetchFullTable('product_variants', '*', (q) => q.in('product_sku', skus)),
-            fetchFullTable('recipes', '*', (q) => q.in('parent_sku', skus)),
-            fetchFullTable('product_molds', '*', (q) => q.in('product_sku', skus)),
-            fetchFullTable('product_collections', '*', (q) => q.in('product_sku', skus)),
-            fetchFullTable('product_stock', '*', (q) => q.in('product_sku', skus))
+            fetchFullTable('product_variants'),
+            fetchFullTable('recipes'),
+            fetchFullTable('product_molds'),
+            fetchFullTable('product_collections'),
+            fetchFullTable('product_stock')
         ]);
 
         return prodData.map((p: any) => {
@@ -226,11 +230,22 @@ export const api = {
                 return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
             }) || [];
 
+            // Critical Fix: Deduplicate Molds
+            // The DB might contain duplicate rows. We use a Map to ensure unique mold codes per product.
+            const uniqueMoldsMap = new Map<string, { code: string, quantity: number }>();
+            prodMoldsData?.filter((pm: any) => pm.product_sku === p.sku).forEach((pm: any) => {
+                // If duplicates exist, this overrides, ensuring only 1 entry per mold code
+                uniqueMoldsMap.set(pm.mold_code, { code: pm.mold_code, quantity: pm.quantity || 1 });
+            });
+            const pMolds = Array.from(uniqueMoldsMap.values());
+
             return {
                 sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, image_url: p.image_url, weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
                 // Fix: Explicitly map supplier_sku from database result
                 supplier_sku: p.supplier_sku,
-                supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, molds: prodMoldsData?.filter((pm: any) => pm.product_sku === p.sku).map((pm: any) => ({ code: pm.mold_code, quantity: pm.quantity || 1 })) || [], is_component: p.is_component, variants: pVariants, recipe: (recData?.filter((r: any) => r.parent_sku === p.sku) || []).map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) })), collections: prodCollData?.filter((pc: any) => pc.product_sku === p.sku).map((pc: any) => pc.collection_id) || [],
+                supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, 
+                molds: pMolds, 
+                is_component: p.is_component, variants: pVariants, recipe: (recData?.filter((r: any) => r.parent_sku === p.sku) || []).map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) })), collections: prodCollData?.filter((pc: any) => pc.product_sku === p.sku).map((pc: any) => pc.collection_id) || [],
                 labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) }
             };
         });

@@ -775,7 +775,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         
         await supabase.from('product_molds').delete().eq('product_sku', finalEditedProduct.sku);
         if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
-            // Ensure unique molds by code to avoid duplicate key errors
+            // Critical Fix: Ensure unique molds by code to avoid duplicate key errors
             const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
                 index === self.findIndex((t) => t.code === m.code)
             );
