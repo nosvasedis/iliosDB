@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -60,7 +61,6 @@ import ProductionWorkerView from './components/ProductionWorkerView';
 import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
-// @FIX: Added missing import for SetupScreen component to resolve reference error on line 526.
 import SetupScreen from './components/SetupScreen';
 
 
@@ -239,15 +239,14 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Sync error listener (dispatched from lib/supabase.ts)
+    // Sync error listener
     const handleSyncError = (e: Event) => {
         const detail = (e as CustomEvent).detail;
         showToast(detail.message || "Σφάλμα συγχρονισμού. Το στοιχείο απορρίφθηκε.", "error");
-        checkQueue(); // Refresh pending items
+        checkQueue(); 
     };
     window.addEventListener('ilios-sync-error', handleSyncError);
 
-    // Polling for queue
     const interval = setInterval(checkQueue, 2000);
     if (navigator.onLine) handleSync();
 
@@ -269,7 +268,6 @@ function AppContent() {
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData;
     if (shouldPrint) {
-      // Small delay to allow React to render the hidden print container
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
         const iframe = iframeRef.current;
@@ -278,17 +276,14 @@ function AppContent() {
         const iframeDoc = iframe.contentWindow?.document;
         if (!iframeDoc) return;
 
-        // Reset state callback
         const cleanup = () => {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
             setAggregatedPrintData(null); setPreparationPrintData(null); 
             setTechnicianPrintData(null);
         };
 
-        // Transfer content and styles to iframe
         iframeDoc.open();
         
-        // Grab all current stylesheets and fonts
         let styles = '';
         document.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
             styles += el.outerHTML;
@@ -301,8 +296,19 @@ function AppContent() {
               <style>
                 body { background: white !important; margin: 0; padding: 0; }
                 .print-view { display: block !important; }
-                @page { size: A4; margin: 0; }
-                /* Force background graphics to show up */
+                /* Label Printing Logic */
+                .print-area { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; }
+                .label-container { 
+                    page-break-after: always !important; 
+                    break-after: page !important;
+                    margin: 0 !important;
+                    display: flex !important;
+                }
+                @media print {
+                  @page { size: auto; margin: 0; }
+                  html, body { height: 100%; margin: 0 !important; padding: 0 !important; }
+                  .label-container { display: flex !important; }
+                }
                 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
               </style>
             </head>
@@ -311,12 +317,11 @@ function AppContent() {
                 ${printContent.innerHTML}
               </div>
               <script>
-                // Wait for all resources (especially barcodes/images) to load before printing
                 window.onload = function() {
                   setTimeout(function() {
                     window.focus();
                     window.print();
-                  }, 300);
+                  }, 500);
                 };
               </script>
             </body>
@@ -324,14 +329,11 @@ function AppContent() {
         `);
         iframeDoc.close();
 
-        // Listen for window focus to reset state (detects when user closes print dialog)
         const handleAfterPrint = () => {
             cleanup();
             window.removeEventListener('focus', handleAfterPrint);
         };
         window.addEventListener('focus', handleAfterPrint, { once: true });
-        
-        // Fallback cleanup timer in case 'focus' event doesn't fire nicely on some browsers
         setTimeout(cleanup, 5000);
 
       }, 800); 
@@ -411,7 +413,6 @@ function AppContent() {
     <>
       <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
 
-      {/* Hidden container for print rendering - Used as a buffer for the Iframe Bridge */}
       <div ref={printContainerRef} className="print-view" aria-hidden="true">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {batchToPrint && <ProductionWorkerView batch={batchToPrint} allMolds={molds} allProducts={products} allMaterials={materials} />}
@@ -427,7 +428,6 @@ function AppContent() {
         )}
       </div>
 
-      {/* The invisible Iframe Bridge for reliable printing across all devices */}
       <iframe 
         ref={iframeRef} 
         id="print-iframe" 
