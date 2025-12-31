@@ -332,11 +332,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                     />
                                     {availableSuffixes.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-2 flex flex-wrap gap-1.5 z-[100] p-3 bg-white rounded-2xl border border-slate-100 shadow-2xl max-h-48 overflow-y-auto custom-scrollbar ring-4 ring-black/5">
-                                            <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> Προτάσεις Παραλλαγών</div>
+                                            <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> ΠΡΟΤΑΣΕΙΣ ΠΑΡΑΛΛΑΓΩΝ</div>
                                             {availableSuffixes.map(s => {
                                                 const info = getScanProductInfo(); const { finish, stone } = getVariantComponents(s.suffix, info?.product?.gender);
                                                 return <button key={s.suffix} onClick={() => selectSuffix(s.suffix)} className="bg-slate-50 hover:bg-emerald-50 text-slate-600 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1" title={s.desc}>
-                                                    <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'LUSTRE'}</span>
+                                                    <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'ΛΟΥΣΤΡΕ'}</span>
                                                     {stone.code && <span className={STONE_CATEGORIES[stone.code] || 'text-emerald-400'}>{stone.code}</span>}
                                                 </button>;
                                             })}
