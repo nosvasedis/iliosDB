@@ -34,14 +34,9 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
 
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
-        console.log(`Local Mode: Mirroring mutation to ${tableName}`);
-        // In local mode, we still want to update our offlineDb mirror so changes persist across reloads
         if (method === 'UPSERT' || method === 'INSERT' || method === 'UPDATE') {
             const table = await offlineDb.getTable(tableName) || [];
-            // Simplified mirror update logic for local-only persistence
-            const pk = (tableName === 'products' || tableName === 'product_variants') ? 'sku' : 'id';
-            // Note: This is an incomplete mirror for local mode but helps persistence
-            offlineDb.saveTable(tableName, [...table, data]);
+            offlineDb.saveTable(tableName, [...table, ...(Array.isArray(data) ? data : [data])]);
         }
         return { data: null, error: null, queued: false };
     }
@@ -360,8 +355,17 @@ export const api = {
     },
 
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
-        const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
-        if (!order) throw new Error("Order not found");
+        // Robust fetch: try server, then local mirror, then sync queue if needed
+        let order: Order | null = null;
+        try {
+            const { data } = await supabase.from('orders').select('*').eq('id', orderId).single();
+            order = data;
+        } catch (e) {
+            const localOrders = await offlineDb.getTable('orders');
+            order = localOrders?.find(o => o.id === orderId) || null;
+        }
+
+        if (!order) throw new Error("Order not found in cloud or local mirror. Sync may be required.");
 
         const batches: any[] = [];
         for (const item of order.items) {
@@ -377,6 +381,7 @@ export const api = {
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
             batches.push({
+                id: crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15), // Ensure Client-Side ID
                 order_id: orderId,
                 sku: item.sku,
                 variant_suffix: item.variant_suffix || null,
@@ -392,7 +397,8 @@ export const api = {
         }
 
         if (batches.length > 0) {
-            await safeMutate('production_batches', 'INSERT', batches);
+            // Use UPSERT for safety during sync retries
+            await safeMutate('production_batches', 'UPSERT', batches);
         }
 
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { id: orderId });
@@ -422,20 +428,18 @@ export const api = {
                     await offlineDb.dequeue(item.id);
                     successCount++;
                 } else {
-                    console.error("Sync item failed:", error);
-                    // Discard bad requests (4xx range, unique violations on simple inserts that fail, etc.) to unblock queue
-                    // Supabase errors don't strictly follow HTTP codes in `error` object sometimes, but usually have code.
-                    // PGRST100-PGRST199 are query parsing errors (client fault).
-                    // Codes starting with 23 are constraint violations (often client data error if not handled by upsert).
-                    // We dispatch event so UI can show toast.
+                    console.error(`Sync item failed [${item.table}]:`, error);
                     const errCode = error.code || '';
-                    if (errCode.startsWith('23') || errCode.startsWith('42') || errCode.startsWith('PGRST')) {
-                        console.warn("Discarding malformed sync item:", item);
+                    // 23503: Foreign key violation (e.g. order doesn't exist yet)
+                    // We only discard if it's a structural or data error that won't resolve (4xx, 23505 unique violation on insert)
+                    if (errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
+                        console.warn("Discarding non-recoverable sync item:", item);
                         await offlineDb.dequeue(item.id);
                         window.dispatchEvent(new CustomEvent('ilios-sync-error', { 
                             detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${item.method}). Η ενέργεια απορρίφθηκε.` } 
                         }));
                     }
+                    // For foreign key errors (23503), we leave them in queue to retry after potential parents are processed.
                 }
             } catch (err) {
                 console.error("Sync network/unexpected error:", err);
