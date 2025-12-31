@@ -54,18 +54,21 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
             try {
                 const encodedSku = transliterateForBarcode(finalSku);
                 
-                // Calculate optimized barcode parameters
-                // width: 1.5 - 3 is usually safe for 50mm labels. 
-                // We calculate a multiplier based on width to fill space.
-                const barcodeWidthMultiplier = Math.max(1, Math.floor(width / (encodedSku.length * 1.5)));
+                // BARCODE OPTIMIZATION:
+                // height: Use approx 40-50% of label height for the bars themselves
+                // width: 1.5 - 2.0 is the "Golden Ratio" for small thermal jewelry labels
+                const barWidth = width < 45 ? 1.4 : 1.8;
                 
                 JsBarcode(svgRef.current, encodedSku, {
                     format: 'CODE128',
                     displayValue: false, 
-                    height: height * 2.5, // Draw larger for better clarity
-                    width: barcodeWidthMultiplier, 
+                    height: height * 1.5, // Relative height for rendering
+                    width: barWidth, 
                     margin: 0,
-                    background: 'transparent'
+                    background: 'transparent',
+                    valid: (valid) => {
+                        if (!valid) console.warn("Invalid SKU for barcode:", encodedSku);
+                    }
                 });
             } catch (e) {
                 console.error("JsBarcode error:", e);
@@ -74,17 +77,18 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [finalSku, format, width, height]);
 
     // FONT CALCULATIONS (in mm)
-    const skuFontSize = Math.min(height * 0.16, width * 0.15, 4);
-    const detailsFontSize = Math.min(height * 0.12, width * 0.12, 3);
-    const brandFontSize = Math.min(height * 0.14, width * 0.18, 3.5);
-    const stoneFontSize = Math.min(height * 0.11, width * 0.14, 2.5);
+    // Scaled for high readability and separation
+    const skuFontSize = Math.min(height * 0.14, width * 0.14, 3.8);
+    const detailsFontSize = Math.min(height * 0.11, width * 0.11, 2.8);
+    const brandFontSize = Math.min(height * 0.10, width * 0.15, 2.5); // Smaller as requested
+    const stoneFontSize = Math.min(height * 0.10, width * 0.13, 2.2);
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
 
     const containerStyle: React.CSSProperties = {
         width: `${width}mm`,
         height: `${height}mm`,
-        padding: '1.5mm',
+        padding: '1mm 1.5mm', // Slightly less top/bottom padding to gain space
         boxSizing: 'border-box',
         backgroundColor: 'white',
         color: 'black',
@@ -101,13 +105,13 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     if (format === 'simple') {
         return (
             <div className="label-container" style={containerStyle}>
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
-                    <svg ref={svgRef} style={{ width: '100%', height: '80%' }} />
-                </div>
-                <div className="w-full text-center leading-none mt-1">
+                <div className="w-full text-center leading-none">
                     <span className="font-bold block uppercase" style={{ fontSize: `${skuFontSize}mm` }}>
                         {finalSku}
                     </span>
+                </div>
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden py-1">
+                    <svg ref={svgRef} style={{ maxWidth: '100%', maxHeight: '100%' }} />
                 </div>
             </div>
         );
@@ -115,35 +119,35 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     return (
         <div className="label-container" style={containerStyle}>
-            {/* SKU HEADER */}
-            <div className="w-full text-center leading-none">
+            {/* SKU HEADER - Pushed to the top */}
+            <div className="w-full text-center leading-none mb-0.5">
                 <span className="font-black block uppercase tracking-tight" style={{ fontSize: `${skuFontSize}mm` }}>
                     {finalSku}
                 </span>
             </div>
 
-            {/* BARCODE CENTER */}
+            {/* BARCODE CENTER - Maximized vertical space */}
             <div className="flex-1 w-full flex items-center justify-center overflow-hidden py-1">
-                <svg ref={svgRef} style={{ maxWidth: '100%', maxHeight: '100%' }} />
+                <svg ref={svgRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
             </div>
 
-            {/* BRAND & STONE */}
-            <div className="w-full text-center leading-tight mb-1">
-                <span className="font-black tracking-[0.2em] text-slate-900 block uppercase" style={{ fontSize: `${brandFontSize}mm` }}>
-                    ILIOS
-                </span>
+            {/* BRAND & STONE - Slightly smaller and lower */}
+            <div className="w-full text-center leading-tight mt-0.5">
                 {stoneName && (
-                    <span className="font-bold text-slate-700 block truncate" style={{ fontSize: `${stoneFontSize}mm` }}>
+                    <span className="font-bold text-slate-700 block truncate leading-none mb-0.5" style={{ fontSize: `${stoneFontSize}mm` }}>
                         {stoneName}
                     </span>
                 )}
+                <span className="font-black tracking-[0.25em] text-slate-500 block uppercase leading-none" style={{ fontSize: `${brandFontSize}mm` }}>
+                    ILIOS
+                </span>
             </div>
 
             {/* PRICE & HALLMARK FOOTER */}
-            <div className="w-full flex justify-between items-end border-t border-black/20 pt-1 leading-none">
+            <div className="w-full flex justify-between items-end border-t border-black/10 pt-0.5 leading-none mt-0.5">
                  <span className="font-black" style={{ fontSize: `${detailsFontSize}mm` }}>{priceDisplay}</span>
                  <div className="flex items-center">
-                    <span className="font-bold text-slate-800" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
+                    <span className="font-bold text-slate-400" style={{ fontSize: `${detailsFontSize * 0.8}mm` }}>925°</span>
                  </div>
             </div>
         </div>
