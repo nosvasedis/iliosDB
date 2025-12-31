@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -39,7 +38,6 @@ import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collect
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
-import SetupScreen from './components/SetupScreen';
 import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
 
 // Pages
@@ -62,6 +60,8 @@ import ProductionWorkerView from './components/ProductionWorkerView';
 import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
+// @FIX: Added missing import for SetupScreen component to resolve reference error on line 526.
+import SetupScreen from './components/SetupScreen';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
@@ -497,7 +497,7 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'resources' && (

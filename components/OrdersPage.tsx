@@ -11,6 +11,7 @@ import { getSizingInfo, isSizable } from '../utils/sizing';
 interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
+  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
   materials: Material[];
   onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
@@ -113,13 +114,15 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     );
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, onPrintPreparation, onPrintTechnician, allBatches, showToast }: {
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels, products, allBatches, showToast }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
+    products: Product[];
     allBatches: ProductionBatch[] | undefined;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }) => {
@@ -127,6 +130,27 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
 
     const handlePrintOrder = () => {
         onPrintOrder?.(order);
+        onClose();
+    };
+
+    const handlePrintLabelsAction = () => {
+        const itemsToPrint: any[] = [];
+        for (const item of order.items) {
+            const product = products.find(p => p.sku === item.sku);
+            if (product) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                itemsToPrint.push({
+                    product,
+                    variant,
+                    quantity: item.quantity,
+                    format: 'standard'
+                });
+            }
+        }
+        if (itemsToPrint.length > 0) {
+            onPrintLabels?.(itemsToPrint);
+            showToast(`Στάλθηκαν ${itemsToPrint.length} είδη ετικετών για εκτύπωση.`, "success");
+        }
         onClose();
     };
 
@@ -154,6 +178,13 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
             disabled: !onPrintOrder,
         },
         {
+            label: "Εκτύπωση Ετικετών",
+            icon: <Tag size={20} />,
+            color: "emerald",
+            action: handlePrintLabelsAction,
+            disabled: !onPrintLabels,
+        },
+        {
             label: "Συγκεντρωτική Παραγωγής",
             icon: <FileText size={20} />,
             color: "blue",
@@ -178,6 +209,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
     
     const colors = {
         slate: { bg: 'bg-slate-100', text: 'text-slate-700', hover: 'hover:bg-slate-200', border: 'border-slate-200' },
+        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', hover: 'hover:bg-emerald-100', border: 'border-emerald-200' },
         blue: { bg: 'bg-blue-50', text: 'text-blue-700', hover: 'hover:bg-blue-100', border: 'border-blue-200' },
         purple: { bg: 'bg-purple-50', text: 'text-purple-700', hover: 'hover:bg-purple-100', border: 'border-purple-200' },
         orange: { bg: 'bg-orange-50', text: 'text-orange-700', hover: 'hover:bg-orange-100', border: 'border-orange-200' },
@@ -185,7 +217,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
 
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Επιλογές Εκτύπωσης</h2>
@@ -193,7 +225,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
                 </div>
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {options.map(opt => {
                         const colorClass = colors[opt.color as keyof typeof colors];
                         return (
@@ -210,7 +242,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
                                 `}
                             >
                                 <div className="p-3 bg-white rounded-xl shadow-sm">{opt.icon}</div>
-                                <span className="text-sm">{opt.label}</span>
+                                <span className="text-xs uppercase tracking-wider">{opt.label}</span>
                             </button>
                         );
                     })}
@@ -228,7 +260,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
 };
 
 
-export default function OrdersPage({ products, onPrintOrder, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -530,6 +562,28 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
         finally { setIsProcessingMove(false); }
     };
 
+    const handlePrintOrderLabels = (order: Order) => {
+        const itemsToPrint: any[] = [];
+        for (const item of order.items) {
+            const product = products.find(p => p.sku === item.sku);
+            if (product) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                itemsToPrint.push({
+                    product,
+                    variant,
+                    quantity: item.quantity,
+                    format: 'standard'
+                });
+            }
+        }
+        if (itemsToPrint.length > 0) {
+            onPrintLabels?.(itemsToPrint);
+            showToast(`Στάλθηκαν ${itemsToPrint.length} είδη ετικετών για εκτύπωση.`, "success");
+        } else {
+            showToast("Δεν βρέθηκαν προϊόντα για εκτύπωση ετικετών.", "error");
+        }
+    };
+
 
   const getStatusColor = (status: OrderStatus) => {
       switch(status) {
@@ -780,8 +834,9 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
                                 <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
                                 <td className="p-4 text-right">
                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => setManagingOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
-                                        <button onClick={() => setPrintModalOrder(order)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
+                                        <button onClick={() => handlePrintOrderLabels(order)} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
+                                        <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
+                                        <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
                                     </div>
                                 </td>
                             </tr>
@@ -886,9 +941,11 @@ export default function OrdersPage({ products, onPrintOrder, materials, onPrintA
             order={printModalOrder}
             onClose={() => setPrintModalOrder(null)}
             onPrintOrder={onPrintOrder}
+            onPrintLabels={onPrintLabels}
             onPrintAggregated={onPrintAggregated}
             onPrintPreparation={onPrintPreparation}
             onPrintTechnician={onPrintTechnician}
+            products={products}
             allBatches={enrichedBatches} 
             showToast={showToast}
         />
