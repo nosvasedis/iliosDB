@@ -1,4 +1,3 @@
-
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -170,11 +169,8 @@ export const calculateProductCost = (
 
   if (product.production_type === ProductionType.Imported) {
       const silverCost = product.weight_g * silverPrice;
-      // For Imported: technician_cost is usually the 'Making Charge' per gram
       const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
       
-      // For Imported: plating_cost_x is the 'Plating Surcharge' per gram
-      // FIX: Only apply plating surcharge if the product is explicitly plated (not None/Lustre)
       let platingCost = 0;
       if (product.plating_type !== PlatingType.None) {
           platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
@@ -235,18 +231,12 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
     const cleanScanned = scanned.trim().toUpperCase();
     
     for (const p of products) {
-        // 1. Direct SKU Match
         if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: undefined };
-        
-        // 2. Transliterated SKU Match
         if (transliterateForBarcode(p.sku).toUpperCase() === cleanScanned) return { product: p, variant: undefined };
-        
-        // 3. Variant Check
         if (p.variants) {
             for (const v of p.variants) {
                 const fullGreek = (p.sku + v.suffix).toUpperCase();
                 const fullLatin = transliterateForBarcode(fullGreek);
-                
                 if (fullGreek === cleanScanned || fullLatin === cleanScanned) {
                     return { product: p, variant: v };
                 }
@@ -256,6 +246,10 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
     return null;
 };
 
+/**
+ * INTELLIGENT DECOMPOSITION
+ * Now supports composite suffixes like XSLE (Gold + Stone)
+ */
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let relevantStones = {};
     if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
@@ -265,48 +259,52 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     const finishKeys = Object.keys(FINISH_CODES).filter(k => k !== '').sort((a, b) => b.length - a.length);
     const cleanSuffix = suffix.toUpperCase();
 
-    // STRATEGY 1: Finish First Priority
-    // Attempt to match a finish code at the start of the string first.
-    // This resolves collisions like PCO (Patina+Copper vs Green Copper).
-    for (const fCode of finishKeys) {
-        if (cleanSuffix.startsWith(fCode)) {
-            const remainder = cleanSuffix.slice(fCode.length);
-            // Check if the remainder is a valid stone code
-            if (relevantStones.hasOwnProperty(remainder)) {
-                return {
-                    finish: { code: fCode, name: FINISH_CODES[fCode] },
-                    stone: { code: remainder, name: (relevantStones as any)[remainder] }
-                };
-            }
-        }
-    }
-
-    // STRATEGY 2: Longest Stone Match (Fallback)
-    // If no [Finish]+[Stone] pattern is found, fall back to finding the longest stone suffix.
-    // This handles cases with no finish (Lustre) or non-standard formats.
-    const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
-    let detectedStoneCode = '';
     let detectedFinishCode = '';
-    let remainder = cleanSuffix;
+    let detectedStoneCode = '';
+    let workingString = cleanSuffix;
 
-    for (const sCode of stoneKeys) {
-        if (remainder.endsWith(sCode)) {
-            detectedStoneCode = sCode;
-            remainder = remainder.slice(0, -sCode.length);
-            break; 
+    // STEP 1: Detect Finish Prefix (X, P, D, H)
+    for (const fCode of finishKeys) {
+        if (workingString.startsWith(fCode)) {
+            detectedFinishCode = fCode;
+            workingString = workingString.slice(fCode.length);
+            break;
         }
     }
-    for (const fCode of finishKeys) {
-        if (remainder === fCode) { // Match exact remainder for finish
-            detectedFinishCode = fCode;
-            remainder = ''; // Consumed
-            break;
+
+    // STEP 2: Handle 'S' Bridge Indicator (Common in SKUs like XSLE)
+    if (workingString.startsWith('S') && workingString.length > 1) {
+        // If the remaining part starts with S and has more characters, 
+        // it's likely a stone separator.
+        const potentialStone = workingString.slice(1);
+        if (relevantStones.hasOwnProperty(potentialStone)) {
+            workingString = potentialStone;
+        }
+    }
+
+    // STEP 3: Detect Stone Code
+    if (relevantStones.hasOwnProperty(workingString)) {
+        detectedStoneCode = workingString;
+    } else {
+        // Fallback: search for longest stone match at the end if the exact match failed
+        const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
+        for (const sCode of stoneKeys) {
+            if (cleanSuffix.endsWith(sCode)) {
+                detectedStoneCode = sCode;
+                break;
+            }
         }
     }
     
     return {
-        finish: { code: detectedFinishCode, name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] },
-        stone: { code: detectedStoneCode, name: (relevantStones as any)[detectedStoneCode] || '' }
+        finish: { 
+            code: detectedFinishCode, 
+            name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] 
+        },
+        stone: { 
+            code: detectedStoneCode, 
+            name: (relevantStones as any)[detectedStoneCode] || '' 
+        }
     };
 };
 
@@ -321,17 +319,12 @@ export const estimateVariantCost = (
     const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
     const { finish, stone } = getVariantComponents(variantSuffix, masterProduct.gender);
 
-    // --- FIX FOR IMPORTED PRODUCTS ---
     if (masterProduct.production_type === ProductionType.Imported) {
         const silverCost = masterProduct.weight_g * silverPrice;
-        // Technician cost is essentially the base making charge per gram
         const technicianCost = masterProduct.weight_g * (masterProduct.labor.technician_cost || 0);
-        // Stone setting cost is fixed per piece
         const stoneCost = masterProduct.labor.stone_setting_cost || 0;
         
         let platingCost = 0;
-        // Only apply plating surcharge if the variant is actually plated (X, H, D). 
-        // Lustre ('' or 'P') should strictly ignore plating costs.
         if (['X', 'H', 'D'].includes(finish.code)) {
             platingCost = masterProduct.weight_g * (masterProduct.labor.plating_cost_x || 0);
         }
@@ -352,7 +345,6 @@ export const estimateVariantCost = (
         };
     }
 
-    // --- IN HOUSE CALCULATION (UNCHANGED) ---
     const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
     const silverCost = totalWeight * silverPrice;
     let materialsCost = 0;
@@ -406,28 +398,37 @@ export const parseSku = (sku: string) => {
   return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
 };
 
+/**
+ * ANALYZE SKU
+ * Updated to handle complex sequences like [BASE][FINISH][INDICATOR][STONE]
+ */
 export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
     let gender = forcedGender || (parseSku(cleanSku).gender as Gender);
-    let relevantStones = gender === Gender.Men ? STONE_CODES_MEN : (gender === Gender.Women ? STONE_CODES_WOMEN : { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN });
-    
-    // Attempt decomposition using new logic (Finish First)
-    // We try to find the longest possible suffix that decodes into valid components
     
     let bestMatch = { isVariant: false, masterSku: cleanSku, suffix: '', detectedPlating: PlatingType.None, variantDescription: '' };
     
-    // Iterate from end of string to find a split point where suffix is valid
-    for (let i = cleanSku.length - 1; i >= 2; i--) {
+    // We iterate from the end of the string to find the longest possible suffix 
+    // that decomposes into a valid Finish or Stone.
+    // SKUs usually have at least a 2-char prefix and some digits, so we stop at index 3.
+    for (let i = cleanSku.length - 1; i >= 3; i--) {
         const potentialMaster = cleanSku.substring(0, i);
-        const potentialSuffix = cleanSku.substring(i);
+        const potentialSuffix = cleanSuffixStartsAt(cleanSku, i);
         
         const components = getVariantComponents(potentialSuffix, gender);
+        
+        // If we found a valid finish or a valid stone
         if (components.finish.code || components.stone.code) {
-             const platingMap: any = { 'P': PlatingType.None, 'X': PlatingType.GoldPlated, 'D': PlatingType.TwoTone, 'H': PlatingType.Platinum, '': PlatingType.None };
+             const platingMap: any = { 
+                'P': PlatingType.None, 
+                'X': PlatingType.GoldPlated, 
+                'D': PlatingType.TwoTone, 
+                'H': PlatingType.Platinum, 
+                '': PlatingType.None 
+             };
+             
              const desc = analyzeSuffix(potentialSuffix, gender);
              
-             // Heuristic: Prefer matches where master SKU looks "normal" (e.g. ends in digit)
-             // But accept letters if strict match found.
              bestMatch = {
                  isVariant: true,
                  masterSku: potentialMaster,
@@ -435,18 +436,26 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
                  detectedPlating: platingMap[components.finish.code] || PlatingType.None,
                  variantDescription: desc || ''
              };
-             // If we found a match that explains the whole suffix, break.
-             // But simplistic logic: usually we assume suffix starts after the SKU base.
-             // In this context `analyzeSku` is fuzzy. `getVariantComponents` does the heavy lifting.
-             break; 
+             // If this decomposition leaves a master SKU that ends with a digit, 
+             // it's highly likely to be the correct split.
+             if (/\d$/.test(potentialMaster)) break; 
         }
     }
     
     return bestMatch;
 };
 
+// Helper for analyzeSku
+const cleanSuffixStartsAt = (sku: string, index: number): string => {
+    return sku.substring(index);
+};
+
 export const analyzeSuffix = (suffix: string, gender?: Gender): string | null => {
     const { finish, stone } = getVariantComponents(suffix, gender);
     if (!finish.code && !stone.code && suffix) return null;
-    return (finish.code !== '' || !stone.code) ? (stone.name ? `${finish.name} - ${stone.name}` : finish.name) : (stone.name || null);
+    
+    if (finish.code && stone.code) {
+        return `${finish.name} - ${stone.name}`;
+    }
+    return finish.code ? finish.name : (stone.name || null);
 };
