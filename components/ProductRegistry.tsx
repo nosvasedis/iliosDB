@@ -53,8 +53,8 @@ const ProductCard: React.FC<{
             const priority = (suffix: string) => {
                 if (suffix === '') return 0; 
                 if (suffix.includes('P')) return 1;
-                if (suffix.includes('H')) return 2; 
-                if (suffix.includes('X')) return 3;
+                if (suffix.includes('X')) return 2; // Priority: Gold (X) before Platinum (H)
+                if (suffix.includes('H')) return 3; 
                 if (suffix.includes('D')) return 4;
                 return 5;
             };
@@ -450,7 +450,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                   <button onClick={() => setShowSubFilters(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full z-10"><X size={16}/></button>
                   {groupedCategories.children.get(filterParentCategory) && (
                       <div className="flex items-center gap-3 flex-wrap">
-                          <span className="text-xs font-bold text-slate-400 uppercase shrink-0">Τύπος:</span>
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0">Τύπος:</span>
                           <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
                           {Array.from(groupedCategories.children.get(filterParentCategory)!).map((subCat: string) => (
                               <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
@@ -458,11 +458,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                       </div>
                   )}
                   <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Gem size={12}/> Πέτρες:</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0 flex items-center gap-1"><Gem size={12}/> Πέτρες:</span>
                       {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1"><Palette size={12}/> Φινίρισμα:</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0 flex items-center gap-1"><Palette size={12}/> Φινίρισμα:</span>
                       {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
                   </div>
               </div>

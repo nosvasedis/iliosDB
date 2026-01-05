@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
@@ -516,8 +515,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         switch (finish.code) {
             case '': return 1;
             case 'P': return 2;
-            case 'H': return 3;
-            case 'X': return 4;
+            case 'X': return 3; // Priority: X (Gold) before H (Platinum)
+            case 'H': return 4; 
             case 'D': return 5;
             default: return 6;
         }
@@ -587,8 +586,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         switch (code) {
           case '': return 0;
           case 'P': return 1;
-          case 'D': return 2;
-          case 'X': return 3;
+          case 'X': return 2; // Priority: X before H
+          case 'D': return 3;
           case 'H': return 4;
           default: return 5;
         }
