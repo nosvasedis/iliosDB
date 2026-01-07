@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera } from 'lucide-react';
@@ -51,11 +52,12 @@ const ProductCard: React.FC<{
         if (!hasVariants) return [];
         return [...variants].sort((a, b) => {
             const priority = (suffix: string) => {
-                if (suffix === '') return 0; 
-                if (suffix.includes('P')) return 1;
-                if (suffix.includes('X')) return 2; // Priority: Gold (X) before Platinum (H)
-                if (suffix.includes('H')) return 3; 
-                if (suffix.includes('D')) return 4;
+                // Priority Order: Lustre > P > D > X > H
+                if (suffix === '' || !['P','D','X','H'].some(c => suffix.startsWith(c))) return 0; 
+                if (suffix.startsWith('P')) return 1;
+                if (suffix.startsWith('D')) return 2;
+                if (suffix.startsWith('X')) return 3;
+                if (suffix.startsWith('H')) return 4;
                 return 5;
             };
             return priority(a.suffix) - priority(b.suffix);

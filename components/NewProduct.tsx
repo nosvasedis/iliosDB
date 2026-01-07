@@ -335,8 +335,8 @@ const getMaterialIcon = (type?: string) => {
 const availableFinishes = [
     { code: '', label: 'Λουστρέ', color: 'bg-slate-100 border-slate-300 text-slate-700' },
     { code: 'P', label: 'Πατίνα', color: 'bg-stone-200 border-stone-400 text-stone-800' },
-    { code: 'X', label: 'Επίχρυσο', color: 'bg-amber-100 border-amber-300 text-amber-800' },
     { code: 'D', label: 'Δίχρωμο', color: 'bg-orange-100 border-orange-300 text-orange-800' },
+    { code: 'X', label: 'Επίχρυσο', color: 'bg-amber-100 border-amber-300 text-amber-800' },
     { code: 'H', label: 'Επιπλατινωμένο', color: 'bg-cyan-100 border-cyan-300 text-cyan-800' }
 ];
 
@@ -609,7 +609,21 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       // 'bridge' state variable holds 'S' if detected in Master SKU
       const masterHasBridge = bridge === 'S'; // This is detected from the input SKU
 
-      selectedFinishes.forEach(finishCode => {
+      // Sort selected finishes by priority before processing
+      const sortedFinishes = [...selectedFinishes].sort((a, b) => {
+          const getP = (c: string) => {
+              // Priority Order: Lustre > P > D > X > H
+              if (c === '') return 0;
+              if (c === 'P') return 1;
+              if (c === 'D') return 2;
+              if (c === 'X') return 3;
+              if (c === 'H') return 4;
+              return 5;
+          };
+          return getP(a) - getP(b);
+      });
+
+      sortedFinishes.forEach(finishCode => {
           // Rule: If Master defines a specific plating (e.g. X), we cannot generate variants 
           // with a conflicting plating (e.g. H) as children via suffixing.
           if (masterPlatingCode && masterPlatingCode !== '' && finishCode !== masterPlatingCode) {

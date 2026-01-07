@@ -513,12 +513,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       
       const getPriority = (suffix: string) => {
         const { finish } = getVariantComponents(suffix, editedProduct.gender);
+        // Priority Order: Lustre > P > D > X > H
         switch (finish.code) {
             case '': return 1;
             case 'P': return 2;
-            case 'X': return 3; // Priority: X (Gold) before H (Platinum)
-            case 'H': return 4; 
-            case 'D': return 5;
+            case 'D': return 3;
+            case 'X': return 4;
+            case 'H': return 5;
             default: return 6;
         }
       };
@@ -587,8 +588,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         switch (code) {
           case '': return 0;
           case 'P': return 1;
-          case 'X': return 2; // Priority: X before H
-          case 'D': return 3;
+          case 'D': return 2;
+          case 'X': return 3;
           case 'H': return 4;
           default: return 5;
         }
