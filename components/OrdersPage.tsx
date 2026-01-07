@@ -861,21 +861,31 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto">
                     <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider">Ενέργειες Παραγγελίας</h4>
-                    <div className="space-y-3">
-                        <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"><Edit size={18}/> Επεξεργασία</button>
-                        {managingOrder.status === OrderStatus.Pending && (
-                            <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
-                        )}
-                        {managingOrder.status === OrderStatus.Ready && (
-                            <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Delivered); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"><PackageCheck size={18}/> Σήμανση ως "Παραδόθηκε"</button>
-                        )}
-                        {(managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.Ready) && (
-                            <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Pending); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300 transition-colors"><RefreshCcw size={18}/> Επαναφορά σε "Εκκρεμεί"</button>
-                        )}
-                        <div className="!mt-6 pt-4 border-t border-slate-100">
-                            <button onClick={() => { handleDeleteOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors"><Trash2 size={18}/> Οριστική Διαγραφή</button>
-                        </div>
-                    </div>
+                    {(() => {
+                        const currentOrderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
+                        const isProductionComplete = currentOrderBatches.length > 0 && currentOrderBatches.every(b => b.current_stage === ProductionStage.Ready);
+                        const canDeliver = managingOrder.status === OrderStatus.Ready || (managingOrder.status === OrderStatus.InProduction && isProductionComplete);
+
+                        return (
+                            <div className="space-y-3">
+                                <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"><Edit size={18}/> Επεξεργασία</button>
+                                {managingOrder.status === OrderStatus.Pending && (
+                                    <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
+                                )}
+                                
+                                {canDeliver && (
+                                    <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Delivered); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"><PackageCheck size={18}/> Σήμανση ως "Παραδόθηκε"</button>
+                                )}
+
+                                {(managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.Ready) && (
+                                    <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Pending); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300 transition-colors"><RefreshCcw size={18}/> Επαναφορά σε "Εκκρεμεί"</button>
+                                )}
+                                <div className="!mt-6 pt-4 border-t border-slate-100">
+                                    <button onClick={() => { handleDeleteOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors"><Trash2 size={18}/> Οριστική Διαγραφή</button>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {(() => {
                         const enhancedBatches = batches?.filter(b => b.order_id === managingOrder.id).map(b => ({...b, product_details: products.find(p => p.sku === b.sku)})) || [];
