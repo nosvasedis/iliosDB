@@ -76,8 +76,7 @@ const ProductCard: React.FC<{
     let displayLabel = 'Βασικό';
 
     if (currentVariant) {
-        const { finish } = getVariantComponents(currentVariant.suffix, product.gender);
-        displaySku = `${product.sku}${finish.code}`;
+        displaySku = `${product.sku}${currentVariant.suffix}`;
         displayLabel = currentVariant.description || currentVariant.suffix;
         if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
         if (currentVariant.active_price) displayCost = currentVariant.active_price;

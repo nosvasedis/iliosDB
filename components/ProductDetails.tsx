@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
@@ -697,7 +698,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     allMaterials,
                     allProducts
                 );
-                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender) || 'Λουστρέ';
+                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender, finalEditedProduct.plating_type) || 'Λουστρέ';
                 const newLustreVariant: ProductVariant = {
                     suffix: '',
                     description: lustreDescription,
@@ -1453,7 +1454,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                        <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Plus size={16}/> Χειροκίνητη Προσθήκη</h4>
                                        <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
-                                           <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => { setNewVariantSuffix(e.target.value.toUpperCase()); setManualSuffixAnalysis(analyzeSuffix(e.target.value, editedProduct.gender)); }} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
+                                           <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => { setNewVariantSuffix(e.target.value.toUpperCase()); setManualSuffixAnalysis(analyzeSuffix(e.target.value, editedProduct.gender, editedProduct.plating_type)); }} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
                                            <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm"/>
                                            <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black">Add</button>
                                        </div>
