@@ -450,16 +450,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           // RESPECT DETECTED PROPERTIES EVEN FOR NEW MASTERS (e.g. Bridge S + Gold X)
           setPlating(analysis.detectedPlating); 
           setBridge(analysis.detectedBridge || '');
-          
-          // Pre-select the finish if it was detected (e.g. from X)
-          if(analysis.detectedPlating !== PlatingType.None) {
-             const finishCode = getVariantComponents(skuTrimmed, gender as Gender).finish.code;
-             // Don't auto-add to selected finishes if it's part of the master SKU definition for now, 
-             // or do we? Usually master defines the "base".
-             // If MN050XS is master, it is Gold. The available finishes should reflect that.
-             // But if we want to generate variants, we might want to know available options.
-             // Let's keep it simple: just set the main plating type.
-          }
       }
     } else {
         setCategory(''); setGender(''); setIsSTX(false);
@@ -603,12 +593,49 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   const handleSmartAddBatch = () => {
       let addedCount = 0;
+      let skippedCount = 0;
       const upperStoneSuffix = smartAddStoneSuffix.toUpperCase().trim();
       
+      // Determine what properties the Master SKU inherently possesses
+      const platingMap: Record<string, string> = {
+          [PlatingType.GoldPlated]: 'X',
+          [PlatingType.Platinum]: 'H',
+          [PlatingType.TwoTone]: 'D',
+          [PlatingType.None]: ''
+      };
+      
+      // Map current master plating type to a code (e.g. 'X' for Gold)
+      const masterPlatingCode = platingMap[plating] || '';
+      // 'bridge' state variable holds 'S' if detected in Master SKU
+      const masterHasBridge = bridge === 'S'; // This is detected from the input SKU
+
       selectedFinishes.forEach(finishCode => {
-          // Construct Full Suffix with Bridge S awareness
-          // If bridge exists, pattern is [Finish]S[Stone]
-          let fullSuffix = finishCode + bridge + upperStoneSuffix;
+          // Rule: If Master defines a specific plating (e.g. X), we cannot generate variants 
+          // with a conflicting plating (e.g. H) as children via suffixing.
+          if (masterPlatingCode && masterPlatingCode !== '' && finishCode !== masterPlatingCode) {
+              skippedCount++;
+              return; // Skip incompatible finish
+          }
+
+          let fullSuffix = '';
+          
+          // 1. Finish Code
+          if (!masterPlatingCode && finishCode !== '') {
+              fullSuffix += finishCode;
+          }
+          
+          // 2. Bridge Code Handling (Corrected)
+          // If the Master SKU (e.g. MN050S) implies a bridge structure but NOT a specific finish, 
+          // and we are adding a finish (e.g. X), the standard result is MN050SX.
+          // Since the Master is MN050S, the suffix for Gold would effectively be 'X'.
+          // However, if we simply append 'X' to 'MN050S', we get 'MN050SX'.
+          // This is correct: Root(MN050S) + Suffix(X) = MN050SX.
+          // BUT, if the user wants MN050XSPR (X before S), while using MN050S as root, it's impossible via suffixing.
+          // The system will generate MN050SXPR (Master MN050S + Suffix XPR).
+          // This logic below ensures we don't double-add 'S' if the master already has it.
+          
+          // 3. Stone Code
+          fullSuffix += upperStoneSuffix;
           
           if (fullSuffix === '' && variants.some(v => v.suffix === '')) return; 
           if (variants.some(v => v.suffix === fullSuffix)) return;
@@ -632,6 +659,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           showToast(`Προστέθηκαν ${addedCount} παραλλαγές`, "success");
           setSmartAddStoneSuffix('');
           if (stoneSuffixRef.current) stoneSuffixRef.current.focus();
+      } else if (skippedCount > 0) {
+          showToast(`Παραλείφθηκαν ${skippedCount} μη συμβατές παραλλαγές (π.χ. Πλατίνα σε Χρυσό κωδικό).`, "info");
       } else {
           showToast("Δεν προστέθηκαν νέες παραλλαγές (ίσως υπάρχουν ήδη).", "info");
       }
@@ -693,18 +722,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const toggleFinish = (code: string) => {
       setSelectedFinishes(prev => {
           let newSelection = [...prev];
-          if (newSelection.includes(code)) {
-              newSelection = newSelection.filter(c => c !== code);
+          
+          // Logic: Metal finishes (X, H, D, P) are mutually exclusive with Lustre ('') in terms of intent
+          if (code === '') {
+              // If selecting Lustre, clear everything else (optional, but cleaner)
+              // Or just ensure Lustre is toggled.
+              if (newSelection.includes('')) newSelection = newSelection.filter(c => c !== '');
+              else newSelection.push('');
           } else {
-              newSelection.push(code);
-              // Requirement: If adding a metal finish (X/H/D/P), unselect Lustre ('')
-              if (code !== '') {
-                  newSelection = newSelection.filter(c => c !== '');
+              // If selecting a Metal finish (X, H...), ensure Lustre is removed
+              if (newSelection.includes(code)) {
+                  newSelection = newSelection.filter(c => c !== code);
+              } else {
+                  newSelection.push(code);
+                  newSelection = newSelection.filter(c => c !== ''); // Remove Lustre
               }
           }
-          // If emptied, we could default back to '', but for now let it be empty until user clicks.
-          // To prevent confusion, if user deselects everything, maybe re-add ''?
-          // For now, respect user action.
+          
           return newSelection;
       });
   };
