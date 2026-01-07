@@ -1,4 +1,3 @@
-
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -353,10 +352,15 @@ export const estimateVariantCost = (
         if (item.type === 'raw') {
             const mat = allMaterials.find(m => m.id === item.id);
             if (mat) {
-                let unitCost = mat.cost_per_unit;
+                // FIXED LOGIC: Correctly determine unit cost (base vs variant)
+                // If variant price exists, it REPLACES the base cost for this calculation.
+                let unitCost = Number(mat.cost_per_unit);
                 if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] !== undefined) {
-                    unitCost = mat.variant_prices[stone.code];
-                    stoneDifferential += (unitCost - mat.cost_per_unit) * item.quantity;
+                    const variantPrice = Number(mat.variant_prices[stone.code]);
+                    if (!isNaN(variantPrice)) {
+                        unitCost = variantPrice;
+                        stoneDifferential += (unitCost - mat.cost_per_unit) * item.quantity;
+                    }
                 }
                 materialsCost += (unitCost * item.quantity);
             }
