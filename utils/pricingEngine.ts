@@ -252,7 +252,7 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
  * Analyzes a variant suffix to extract the Finish Code (e.g., P, X, D) and the Stone/Detail code (e.g., CO, AI).
  */
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
-    let relevantStones = {};
+    let relevantStones: Record<string, string> = {};
     if (gender === Gender.Men) relevantStones = STONE_CODES_MEN;
     else if (gender === Gender.Women) relevantStones = STONE_CODES_WOMEN;
     else relevantStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
@@ -264,7 +264,42 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let detectedFinishCode = '';
     let detectedBridge = '';
 
-    // STRATEGY 1: Find Stone Code First (at the END of the string) from known dictionaries
+    // STRATEGY 1: LOOKAHEAD FOR FINISH CODE FIRST
+    // If the suffix starts with a known finish (P, X, D, H) and the remainder is a valid stone or empty, 
+    // we prioritize this decomposition. This solves conflicts like "PCO" (Patina + Copper vs Lustre + Green Copper).
+    const possibleFinishes = ['P', 'X', 'D', 'H'];
+    const firstChar = workingString.charAt(0);
+    const restOfSuffix = workingString.substring(1);
+    
+    if (possibleFinishes.includes(firstChar)) {
+        let potentialStone = restOfSuffix;
+        let potentialBridge = '';
+        if (restOfSuffix.endsWith('S')) {
+            potentialStone = restOfSuffix.slice(0, -1);
+            potentialBridge = 'S';
+        }
+
+        // If the rest is empty or a known stone code, we've found our finish.
+        if (potentialStone === '' || (relevantStones as any)[potentialStone]) {
+            detectedFinishCode = firstChar;
+            detectedStoneCode = potentialStone;
+            detectedBridge = potentialBridge;
+            
+            return {
+                finish: { 
+                    code: detectedFinishCode, 
+                    name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] 
+                },
+                bridge: detectedBridge,
+                stone: { 
+                    code: detectedStoneCode, 
+                    name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || '' 
+                }
+            };
+        }
+    }
+
+    // STRATEGY 2: Find Stone Code from the END (Standard stripping)
     const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     for (const sCode of stoneKeys) {
         if (workingString.endsWith(sCode)) {
@@ -289,14 +324,11 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
         }
     }
 
-    // STRATEGY 2 (FALLBACK): If no exact finish match found, check if it starts with a finish code
-    // This handles cases where the stone code wasn't found in the dictionary (e.g. gender mismatch)
-    // but the suffix clearly starts with a finish code (e.g. 'PCO' -> 'P' + 'CO')
+    // STRATEGY 3 (FALLBACK): If no exact finish match found, check if it starts with a finish code
     if (!detectedFinishCode && workingString.length > 0) {
         for (const fCode of finishKeys) {
             if (workingString.startsWith(fCode)) {
                 detectedFinishCode = fCode;
-                // If we haven't detected a stone yet, assume the rest is the stone/desc
                 if (!detectedStoneCode) {
                      const potentialStone = workingString.substring(fCode.length);
                      if (potentialStone) {
@@ -373,14 +405,11 @@ export const estimateVariantCost = (
         if (item.type === 'raw') {
             const mat = allMaterials.find(m => m.id === item.id);
             if (mat) {
-                // FIXED LOGIC: Correctly determine unit cost (base vs variant)
-                // If variant price exists, it REPLACES the base cost for this calculation.
                 let unitCost = Number(mat.cost_per_unit);
                 if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] !== undefined) {
                     const variantPrice = Number(mat.variant_prices[stone.code]);
                     if (!isNaN(variantPrice)) {
                         unitCost = variantPrice;
-                        // Calculate total difference caused by this specific material substitution
                         stoneDifferential += (unitCost - mat.cost_per_unit) * item.quantity;
                     }
                 }
@@ -473,11 +502,8 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     };
 
     // SEARCH FOR BRIDGE PATTERN [ROOT][FINISH]S (e.g., MN050XS)
-    // NOTE: We now explicitly return isVariant: false for these to enforce creating a new Master Product
-    // instead of merging into the non-S root. This allows separate molds/weights for bridge versions.
     const bridgeMatch = cleanSku.match(/^([A-Z-]+\d+)([XPHD])(S)$/);
     if (bridgeMatch) {
-        // const root = bridgeMatch[1]; // We don't use root here anymore for association
         const finishCode = bridgeMatch[2];
         const bridgeChar = bridgeMatch[3];
         return {
@@ -491,7 +517,6 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     }
 
     // SEARCH FOR PLAIN FINISH PATTERN [ROOT][FINISH] (e.g., MN050X)
-    // Only triggers if it ends in a finish code and follows a number
     const plainFinishMatch = cleanSku.match(/^([A-Z-]+\d+)([XPHD])$/);
     if (plainFinishMatch) {
         const root = plainFinishMatch[1];
