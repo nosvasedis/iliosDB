@@ -360,6 +360,8 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [secondaryWeight, setSecondaryWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
   const [selectedFinishes, setSelectedFinishes] = useState<string[]>(['']); 
+  const [finishPrices, setFinishPrices] = useState<Record<string, number>>({}); // Store prices for each selected finish
+  
   const [bridge, setBridge] = useState(''); // NEW: Detected bridge like 'S'
   
   const [supplierId, setSupplierId] = useState<string>(''); 
@@ -458,6 +460,24 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [sku, gender]);
 
+  // Sync Selling Price logic
+  useEffect(() => {
+      // Keep sellingPrice in sync with the price of the Master Finish (based on plating state)
+      // This ensures backward compatibility while allowing specific pricing in the new UI
+      const platingMap: Record<string, string> = { 
+          [PlatingType.None]: '', 
+          [PlatingType.GoldPlated]: 'X', 
+          [PlatingType.TwoTone]: 'D', 
+          [PlatingType.Platinum]: 'H' 
+      };
+      const masterCode = platingMap[plating] || '';
+      
+      // If we have a price for this specific code, sync it to the main sellingPrice state
+      if (finishPrices[masterCode] !== undefined) {
+          setSellingPrice(finishPrices[masterCode]);
+      }
+  }, [finishPrices, plating]);
+
   // Dynamic Master Plating Label with Smart Mapping
   const platingMasterLabel = useMemo(() => {
     // Show all selected finishes dynamically
@@ -491,8 +511,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   useEffect(() => { if (productionType === ProductionType.InHouse && !labor.casting_cost_manual_override) setLabor(prev => ({...prev, casting_cost: isSTX ? 0 : (weight + secondaryWeight) * 0.15})); }, [weight, secondaryWeight, productionType, isSTX, labor.casting_cost_manual_override]);
   useEffect(() => { if (!labor.plating_cost_x_manual_override) {
       if (productionType === ProductionType.Imported) { if (labor.plating_cost_x === 0) setLabor(prev => ({ ...prev, plating_cost_x: 0.60 })); } 
-      else { let total = weight; recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += sub.weight_g * item.quantity; } }); setLabor(prev => ({ ...prev, plating_cost_x: parseFloat((total * 0.60).toFixed(2)) })); }
-  } }, [weight, recipe, products, labor.plating_cost_x_manual_override, productionType]);
+      else { 
+          // FIX: Calculate Plating X on TOTAL weight (Weight + Secondary + Components)
+          let total = weight + secondaryWeight; 
+          recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += sub.weight_g * item.quantity; } }); 
+          setLabor(prev => ({ ...prev, plating_cost_x: parseFloat((total * 0.60).toFixed(2)) })); 
+      }
+  } }, [weight, secondaryWeight, recipe, products, labor.plating_cost_x_manual_override, productionType]);
   useEffect(() => { if (!labor.plating_cost_d_manual_override) { let total = secondaryWeight || 0; recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += ((sub.secondary_weight_g || 0) * item.quantity); } }); setLabor(prev => ({ ...prev, plating_cost_d: parseFloat((total * 0.60).toFixed(2)) })); } }, [secondaryWeight, recipe, products, labor.plating_cost_d_manual_override]);
 
   const currentTempProduct: Product = useMemo(() => ({
@@ -663,13 +688,17 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
           const { total: estimatedCost } = estimateVariantCost(currentTempProduct, fullSuffix, settings!, materials, products);
           const desc = analyzeSuffix(fullSuffix, gender as Gender, plating);
+          
+          // SMART PRICE PICKER: Use specific price for this finish if set, otherwise default
+          const specificPrice = finishPrices[finishCode];
+          const finalPrice = (specificPrice !== undefined && specificPrice > 0) ? specificPrice : sellingPrice;
 
           const newV: ProductVariant = {
               suffix: fullSuffix,
               description: desc || fullSuffix,
               stock_qty: 0,
               active_price: parseFloat(estimatedCost.toFixed(2)),
-              selling_price: isSTX ? 0 : sellingPrice
+              selling_price: isSTX ? 0 : finalPrice
           };
           
           setVariants(prev => [...prev, newV]);
@@ -725,7 +754,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
         else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
         if (onCancel) onCancel();
-        else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); }
+        else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); }
     } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error.message}`, "error"); } finally { setIsUploading(false); }
   };
 
@@ -886,7 +915,41 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </div>
                             <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 space-y-4">
                                 <div className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-2"><DollarSign size={14}/> Τιμολόγηση</div>
-                                <div className="flex gap-4">{productionType === ProductionType.InHouse && (<label className="flex-1 flex items-center gap-3 p-3 border border-emerald-200 rounded-xl bg-white cursor-pointer"><input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-emerald-600 rounded" /><span className="font-bold text-emerald-900">Είναι Εξάρτημα (STX);</span></label>)}{!isSTX && (<div className="flex-1"><label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική (Βασική)</label><div className="flex items-center gap-1"><input type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value))} className="w-full p-2.5 border border-emerald-200 bg-white rounded-xl font-bold focus:ring-4 focus:ring-emerald-500/20 outline-none"/><span className="text-emerald-600 font-bold">€</span></div></div>)}</div>
+                                <div className="flex gap-4">
+                                    {productionType === ProductionType.InHouse && (
+                                        <label className="flex items-center gap-3 p-3 border border-emerald-200 rounded-xl bg-white cursor-pointer shrink-0">
+                                            <input type="checkbox" checked={isSTX} onChange={(e) => setIsSTX(e.target.checked)} className="h-5 w-5 text-emerald-600 rounded" />
+                                            <span className="font-bold text-emerald-900">Εξάρτημα (STX)</span>
+                                        </label>
+                                    )}
+                                    {!isSTX && (
+                                        <div className="flex-1 grid grid-cols-2 gap-3">
+                                            {selectedFinishes.map(finishCode => (
+                                                <div key={finishCode}>
+                                                    <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική ({FINISH_CODES[finishCode]})</label>
+                                                    <div className="flex items-center gap-1">
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.01" 
+                                                            value={finishPrices[finishCode] || 0} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value);
+                                                                setFinishPrices(prev => ({...prev, [finishCode]: val}));
+                                                                // Sync main selling price if this is the master finish
+                                                                const platingMap: any = { [PlatingType.None]: '', [PlatingType.GoldPlated]: 'X', [PlatingType.TwoTone]: 'D', [PlatingType.Platinum]: 'H' };
+                                                                if (platingMap[plating] === finishCode) {
+                                                                    setSellingPrice(val);
+                                                                }
+                                                            }} 
+                                                            className="w-full p-2.5 border border-emerald-200 bg-white rounded-xl font-bold focus:ring-4 focus:ring-emerald-500/20 outline-none text-sm"
+                                                        />
+                                                        <span className="text-emerald-600 font-bold text-xs">€</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 {isSTX && (<><div><label className="block text-sm font-bold text-emerald-900 mb-1.5">Περιγραφή STX</label><input type="text" value={stxDescription} onChange={(e) => setStxDescription(e.target.value)} className="w-full p-3 border border-emerald-200 rounded-xl bg-white focus:ring-4 focus:ring-emerald-500/20 outline-none" placeholder="π.χ. Μικρή Πεταλούδα" /></div><div className="text-xs text-emerald-700 italic flex items-center gap-1 bg-emerald-100/50 p-2 rounded"><Info size={14}/> Τα εξαρτήματα (STX) δεν έχουν τιμή πώλησης, μόνο κόστος παραγωγής.</div></>)}
                             </div>
                         </div>
@@ -958,7 +1021,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {currentStep === 3 && productionType === ProductionType.InHouse && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100"><h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18}/> Κόστη Εργατικών</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} onChange={val => setLabor({...labor, casting_cost: val})} isOverridden={labor.casting_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, casting_cost_manual_override: !prev.casting_cost_manual_override}))} hint="Από Συνολικό Βάρος"/><LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} /><LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} /><LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X/H (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} hint="Από Βασικό Βάρος" /><LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" /><LaborCostCard icon={<Users size={14}/>} label="Φασόν / Έξτρα (€)" value={labor.subcontract_cost} onChange={val => setLabor({...labor, subcontract_cost: val})} /></div></div>
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100"><h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18}/> Κόστη Εργατικών</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><LaborCostCard icon={<Flame size={14}/>} label="Χυτήριο (€)" value={labor.casting_cost} onChange={val => setLabor({...labor, casting_cost: val})} isOverridden={labor.casting_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, casting_cost_manual_override: !prev.casting_cost_manual_override}))} hint="Από Συνολικό Βάρος"/><LaborCostCard icon={<Crown size={14}/>} label="Καρφωτής (€)" value={labor.setter_cost} onChange={val => setLabor({...labor, setter_cost: val})} /><LaborCostCard icon={<Hammer size={14}/>} label="Τεχνίτης (€)" value={labor.technician_cost} onChange={val => setLabor({...labor, technician_cost: val})} isOverridden={labor.technician_cost_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, technician_cost_manual_override: !prev.technician_cost_manual_override}))} /><LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση X/H (€)" value={labor.plating_cost_x} onChange={val => setLabor({...labor, plating_cost_x: val})} isOverridden={labor.plating_cost_x_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_x_manual_override: !prev.plating_cost_x_manual_override}))} hint="Από Συνολικό Βάρος (Βασικό+Comp+Sec)" /><LaborCostCard icon={<Coins size={14}/>} label="Επιμετάλλωση D (€)" value={labor.plating_cost_d} onChange={val => setLabor({...labor, plating_cost_d: val})} isOverridden={labor.plating_cost_d_manual_override} onToggleOverride={() => setLabor(prev => ({...prev, plating_cost_d_manual_override: !prev.plating_cost_d_manual_override}))} hint="Από Β' Βάρος" /><LaborCostCard icon={<Users size={14}/>} label="Φασόν / Έξτρα (€)" value={labor.subcontract_cost} onChange={val => setLabor({...labor, subcontract_cost: val})} /></div></div>
                 </div>
             )}
             
@@ -1118,11 +1181,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                             <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">Ag</div>
                                             <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
                                             <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
-                                            {/* PLATING ADD-ON */}
+                                            
+                                            {/* PLATING ADD-ONS VISUALIZATION */}
                                             {representativeVariantInfo.platingCost > 0 && (
-                                                <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`${representativeVariantInfo.label}: +${formatCurrency(representativeVariantInfo.platingCost)}`}>
-                                                    {representativeVariantInfo.label.includes('D') ? '+D' : '+X'}
-                                                </div>
+                                                <>
+                                                    {/* If it's pure X plating, show one big block. If mixed variants exist, maybe just show the add-on */}
+                                                    {/* Showing specific blocks if labor values exist */}
+                                                    {labor.plating_cost_d > 0 && (
+                                                        <div className="h-6 bg-orange-100 flex items-center justify-center text-[10px] font-bold text-orange-600 border-b border-white/50" title={`Plating D: +${formatCurrency(labor.plating_cost_d)}`}>
+                                                            +D
+                                                        </div>
+                                                    )}
+                                                    {labor.plating_cost_x > 0 && (
+                                                        <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`Plating X: +${formatCurrency(labor.plating_cost_x)}`}>
+                                                            +X
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                         <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(representativeVariantInfo.total)}</div>
@@ -1151,15 +1226,22 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         </div>
                                         <span className="font-bold text-slate-800">{formatCurrency(costBreakdown?.materials)}</span>
                                     </div>
-                                    {representativeVariantInfo.platingCost > 0 && (
+                                    {labor.plating_cost_x > 0 && (
                                         <div className="flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 bg-amber-100 rounded-full"></div> 
-                                                <span className="text-slate-600 font-medium">
-                                                    {representativeVariantInfo.label}
-                                                </span>
+                                                <span className="text-slate-600 font-medium">Επιμετάλλωση X/H</span>
                                             </div>
-                                            <span className="font-bold text-slate-800">+{formatCurrency(representativeVariantInfo.platingCost)}</span>
+                                            <span className="font-bold text-slate-800">+{formatCurrency(labor.plating_cost_x)}</span>
+                                        </div>
+                                    )}
+                                    {labor.plating_cost_d > 0 && (
+                                        <div className="flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-orange-100 rounded-full"></div> 
+                                                <span className="text-slate-600 font-medium">Επιμετάλλωση D</span>
+                                            </div>
+                                            <span className="font-bold text-slate-800">+{formatCurrency(labor.plating_cost_d)}</span>
                                         </div>
                                     )}
                                 </div>
