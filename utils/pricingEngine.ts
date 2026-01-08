@@ -249,6 +249,7 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
 
 /**
  * INTELLIGENT DECOMPOSITION
+ * Analyzes a variant suffix to extract the Finish Code (e.g., P, X, D) and the Stone/Detail code (e.g., CO, AI).
  */
 export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let relevantStones = {};
@@ -263,7 +264,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let detectedFinishCode = '';
     let detectedBridge = '';
 
-    // STRATEGY: Find Stone Code First (at the END of the string)
+    // STRATEGY 1: Find Stone Code First (at the END of the string) from known dictionaries
     const stoneKeys = Object.keys(relevantStones).sort((a, b) => b.length - a.length);
     for (const sCode of stoneKeys) {
         if (workingString.endsWith(sCode)) {
@@ -287,6 +288,25 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             break;
         }
     }
+
+    // STRATEGY 2 (FALLBACK): If no exact finish match found, check if it starts with a finish code
+    // This handles cases where the stone code wasn't found in the dictionary (e.g. gender mismatch)
+    // but the suffix clearly starts with a finish code (e.g. 'PCO' -> 'P' + 'CO')
+    if (!detectedFinishCode && workingString.length > 0) {
+        for (const fCode of finishKeys) {
+            if (workingString.startsWith(fCode)) {
+                detectedFinishCode = fCode;
+                // If we haven't detected a stone yet, assume the rest is the stone/desc
+                if (!detectedStoneCode) {
+                     const potentialStone = workingString.substring(fCode.length);
+                     if (potentialStone) {
+                         detectedStoneCode = potentialStone;
+                     }
+                }
+                break;
+            }
+        }
+    }
     
     return {
         finish: { 
@@ -296,7 +316,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
         bridge: detectedBridge,
         stone: { 
             code: detectedStoneCode, 
-            name: (relevantStones as any)[detectedStoneCode] || '' 
+            name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || '' 
         }
     };
 };
