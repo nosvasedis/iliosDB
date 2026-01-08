@@ -758,28 +758,46 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       });
   };
 
-  // --- CALCULATE MAX COST FOR "FINISHED" VIEW ---
-  // Find highest cost variant or calculate hypothetical max (e.g. Gold Plated)
-  const maxFinishedCost = useMemo(() => {
-      if (variants.length > 0) {
-          const maxVariant = variants.reduce((max, v) => (v.active_price || 0) > max ? (v.active_price || 0) : max, masterEstimatedCost);
-          return maxVariant;
-      }
-      // If no variants, assume the cost of Gold Plating if selected, or add it hypothetically
-      if (productionType === ProductionType.InHouse) {
-          // If plating is already part of master labor, masterEstimatedCost includes it.
-          // Check if "X" or "H" is selected in finishes
-          const hasExpensivePlating = selectedFinishes.includes('X') || selectedFinishes.includes('H') || plating === PlatingType.GoldPlated;
-          if (hasExpensivePlating) return masterEstimatedCost; // Already calculated
-          
-          // Add hypothetical plating cost for the "Puzzle" visualization
-          const hypotheticalPlatingCost = labor.plating_cost_x || ((weight + secondaryWeight) * 0.60);
-          return masterEstimatedCost + hypotheticalPlatingCost;
-      }
-      return masterEstimatedCost;
-  }, [variants, masterEstimatedCost, selectedFinishes, plating, labor, weight, secondaryWeight, productionType]);
+  // --- REPRESENTATIVE COST ANALYSIS ---
+  // Replaces the confusing "Max Cost" logic with a specific breakdown of the relevant variant
+  const representativeVariantInfo = useMemo(() => {
+      let targetCost = masterEstimatedCost;
+      let platingCost = 0;
+      let label = '';
 
-  const platingCostDifference = Math.max(0, maxFinishedCost - masterEstimatedCost);
+      if (variants.length > 0) {
+          // Prioritize plated variants for the "Finished" view to show value add
+          const platedVariants = variants.filter(v => v.suffix.includes('X') || v.suffix.includes('D') || v.suffix.includes('H'));
+          // If we have plated variants, pick the most expensive one to show max potential cost
+          const targetVariant = platedVariants.length > 0 
+              ? platedVariants.reduce((p, c) => (p.active_price||0) > (c.active_price||0) ? p : c)
+              : variants.reduce((p, c) => (p.active_price||0) > (c.active_price||0) ? p : c);
+
+          const est = estimateVariantCost(currentTempProduct, targetVariant.suffix, settings!, materials, products);
+          targetCost = est.total;
+          platingCost = est.breakdown.details.plating_cost || 0;
+          
+          if (targetVariant.suffix.includes('D')) label = 'Επιμετάλλωση D';
+          else if (targetVariant.suffix.includes('X') || targetVariant.suffix.includes('H')) label = 'Επιμετάλλωση X/H';
+          else if (platingCost > 0) label = 'Επιμετάλλωση';
+          
+      } else {
+          // No variants. If Master is plated (Step 1), show its plating cost.
+          if (currentTempProduct.plating_type !== PlatingType.None) {
+             const est = calculateProductCost(currentTempProduct, settings!, materials, products);
+             const details = est.breakdown.details || {};
+             platingCost = (details.plating_cost_x || 0) + (details.plating_cost_d || 0);
+             if (platingCost > 0) {
+                 if (currentTempProduct.plating_type === PlatingType.TwoTone) label = 'Επιμετάλλωση D';
+                 else label = 'Επιμετάλλωση X/H';
+             }
+          }
+      }
+
+      return { total: targetCost, platingCost, label };
+  }, [variants, masterEstimatedCost, currentTempProduct, settings, materials, products, labor, productionType]);
+
+  const platingCostDifference = Math.max(0, representativeVariantInfo.total - masterEstimatedCost);
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
@@ -1101,13 +1119,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                             <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
                                             <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
                                             {/* PLATING ADD-ON */}
-                                            {platingCostDifference > 0 && (
-                                                <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`Επιμετάλλωση: +${formatCurrency(platingCostDifference)}`}>
-                                                    +Επιμ.
+                                            {representativeVariantInfo.platingCost > 0 && (
+                                                <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`${representativeVariantInfo.label}: +${formatCurrency(representativeVariantInfo.platingCost)}`}>
+                                                    {representativeVariantInfo.label.includes('D') ? '+D' : '+X'}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(maxFinishedCost)}</div>
+                                        <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(representativeVariantInfo.total)}</div>
                                     </div>
                                 </div>
 
@@ -1133,13 +1151,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         </div>
                                         <span className="font-bold text-slate-800">{formatCurrency(costBreakdown?.materials)}</span>
                                     </div>
-                                    {platingCostDifference > 0 && (
+                                    {representativeVariantInfo.platingCost > 0 && (
                                         <div className="flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 bg-amber-100 rounded-full"></div> 
-                                                <span className="text-slate-600 font-medium">Επιμετάλλωση (Max)</span>
+                                                <span className="text-slate-600 font-medium">
+                                                    {representativeVariantInfo.label}
+                                                </span>
                                             </div>
-                                            <span className="font-bold text-slate-800">+{formatCurrency(platingCostDifference)}</span>
+                                            <span className="font-bold text-slate-800">+{formatCurrency(representativeVariantInfo.platingCost)}</span>
                                         </div>
                                     )}
                                 </div>
