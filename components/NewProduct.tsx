@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
 /* @FIX: Added missing 'Zap' icon import from lucide-react */
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap, PieChart, TrendingUp, Sparkles, Scale } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -459,6 +460,10 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
   // Dynamic Master Plating Label with Smart Mapping
   const platingMasterLabel = useMemo(() => {
+    // Show all selected finishes dynamically
+    if (selectedFinishes.length > 0) {
+        return selectedFinishes.map(f => f ? FINISH_CODES[f] : 'Λουστρέ').join(', ');
+    }
     const platingToCode: Record<string, string> = {
         [PlatingType.None]: '',
         [PlatingType.GoldPlated]: 'X',
@@ -466,9 +471,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         [PlatingType.Platinum]: 'H'
     };
     const code = platingToCode[plating];
-    const finish = availableFinishes.find(f => f.code === code);
-    return finish ? finish.label : 'Λουστρέ';
-  }, [plating]);
+    return FINISH_CODES[code] || 'Λουστρέ';
+  }, [plating, selectedFinishes]);
+
+  // Gender Localization Helper
+  const genderLabel = useMemo(() => {
+      const map: Record<string, string> = {
+          [Gender.Men]: 'Ανδρικό',
+          [Gender.Women]: 'Γυναικείο',
+          [Gender.Unisex]: 'Unisex'
+      };
+      return map[gender] || gender;
+  }, [gender]);
 
   useEffect(() => { if (detectedSuffix && !variants.some(v => v.suffix === detectedSuffix)) { setNewVariantSuffix(detectedSuffix); setNewVariantDesc(detectedVariantDesc); } }, [detectedSuffix, detectedVariantDesc, variants]);
   useEffect(() => { setNewVariantPrice(sellingPrice); }, [sellingPrice]);
@@ -512,6 +526,21 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     setMasterEstimatedCost(cost.total);
     setCostBreakdown(cost.breakdown);
   }, [currentTempProduct, settings, materials, products]);
+
+  // Derived Total Materials Cost for Step 2
+  const recipeTotalCost = useMemo(() => {
+      return recipe.reduce((acc, item) => {
+          let itemCost = 0;
+          if (item.type === 'raw') {
+              const mat = materials.find(m => m.id === item.id);
+              if (mat) itemCost = mat.cost_per_unit * item.quantity;
+          } else {
+              const prod = products.find(p => p.sku === item.sku);
+              if (prod) itemCost = prod.active_price * item.quantity;
+          }
+          return acc + itemCost;
+      }, 0);
+  }, [recipe, materials, products]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -595,7 +624,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       let skippedCount = 0;
       const upperStoneSuffix = smartAddStoneSuffix.toUpperCase().trim();
       
-      // Determine what properties the Master SKU inherently possesses
       const platingMap: Record<string, string> = {
           [PlatingType.GoldPlated]: 'X',
           [PlatingType.Platinum]: 'H',
@@ -603,15 +631,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           [PlatingType.None]: ''
       };
       
-      // Map current master plating type to a code (e.g. 'X' for Gold)
       const masterPlatingCode = platingMap[plating] || '';
-      // 'bridge' state variable holds 'S' if detected in Master SKU
-      const masterHasBridge = bridge === 'S'; // This is detected from the input SKU
+      const masterHasBridge = bridge === 'S'; 
 
-      // Sort selected finishes by priority before processing
       const sortedFinishes = [...selectedFinishes].sort((a, b) => {
           const getP = (c: string) => {
-              // Priority Order: Lustre > P > D > X > H
               if (c === '') return 0;
               if (c === 'P') return 1;
               if (c === 'D') return 2;
@@ -623,31 +647,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       });
 
       sortedFinishes.forEach(finishCode => {
-          // Rule: If Master defines a specific plating (e.g. X), we cannot generate variants 
-          // with a conflicting plating (e.g. H) as children via suffixing.
           if (masterPlatingCode && masterPlatingCode !== '' && finishCode !== masterPlatingCode) {
               skippedCount++;
-              return; // Skip incompatible finish
+              return;
           }
 
           let fullSuffix = '';
-          
-          // 1. Finish Code
           if (!masterPlatingCode && finishCode !== '') {
               fullSuffix += finishCode;
           }
-          
-          // 2. Bridge Code Handling (Corrected)
-          // If the Master SKU (e.g. MN050S) implies a bridge structure but NOT a specific finish, 
-          // and we are adding a finish (e.g. X), the standard result is MN050SX.
-          // Since the Master is MN050S, the suffix for Gold would effectively be 'X'.
-          // However, if we simply append 'X' to 'MN050S', we get 'MN050SX'.
-          // This is correct: Root(MN050S) + Suffix(X) = MN050SX.
-          // BUT, if the user wants MN050XSPR (X before S), while using MN050S as root, it's impossible via suffixing.
-          // The system will generate MN050SXPR (Master MN050S + Suffix XPR).
-          // This logic below ensures we don't double-add 'S' if the master already has it.
-          
-          // 3. Stone Code
           fullSuffix += upperStoneSuffix;
           
           if (fullSuffix === '' && variants.some(v => v.suffix === '')) return; 
@@ -735,26 +743,43 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const toggleFinish = (code: string) => {
       setSelectedFinishes(prev => {
           let newSelection = [...prev];
-          
-          // Logic: Metal finishes (X, H, D, P) are mutually exclusive with Lustre ('') in terms of intent
           if (code === '') {
-              // If selecting Lustre, clear everything else (optional, but cleaner)
-              // Or just ensure Lustre is toggled.
               if (newSelection.includes('')) newSelection = newSelection.filter(c => c !== '');
               else newSelection.push('');
           } else {
-              // If selecting a Metal finish (X, H...), ensure Lustre is removed
               if (newSelection.includes(code)) {
                   newSelection = newSelection.filter(c => c !== code);
               } else {
                   newSelection.push(code);
-                  newSelection = newSelection.filter(c => c !== ''); // Remove Lustre
+                  newSelection = newSelection.filter(c => c !== ''); 
               }
           }
-          
           return newSelection;
       });
   };
+
+  // --- CALCULATE MAX COST FOR "FINISHED" VIEW ---
+  // Find highest cost variant or calculate hypothetical max (e.g. Gold Plated)
+  const maxFinishedCost = useMemo(() => {
+      if (variants.length > 0) {
+          const maxVariant = variants.reduce((max, v) => (v.active_price || 0) > max ? (v.active_price || 0) : max, masterEstimatedCost);
+          return maxVariant;
+      }
+      // If no variants, assume the cost of Gold Plating if selected, or add it hypothetically
+      if (productionType === ProductionType.InHouse) {
+          // If plating is already part of master labor, masterEstimatedCost includes it.
+          // Check if "X" or "H" is selected in finishes
+          const hasExpensivePlating = selectedFinishes.includes('X') || selectedFinishes.includes('H') || plating === PlatingType.GoldPlated;
+          if (hasExpensivePlating) return masterEstimatedCost; // Already calculated
+          
+          // Add hypothetical plating cost for the "Puzzle" visualization
+          const hypotheticalPlatingCost = labor.plating_cost_x || ((weight + secondaryWeight) * 0.60);
+          return masterEstimatedCost + hypotheticalPlatingCost;
+      }
+      return masterEstimatedCost;
+  }, [variants, masterEstimatedCost, selectedFinishes, plating, labor, weight, secondaryWeight, productionType]);
+
+  const platingCostDifference = Math.max(0, maxFinishedCost - masterEstimatedCost);
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
@@ -780,6 +805,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         <div className="h-full flex flex-col relative bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
             
+            {/* ... STEPS 1-4 REMAIN UNCHANGED ... */}
             {currentStep === 1 && (
                 <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
@@ -853,13 +879,51 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                 </div>
             )}
             
+            {/* Step 2-4 remains the same logic as previous version, included for completeness in updated file */}
             {currentStep === 2 && productionType === ProductionType.InHouse && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">2. Συνταγή (Bill of Materials)</h3>
-                    <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm"><div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600"><Coins size={16} /></div><div className="flex-1"><div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div><div className="text-xs text-slate-400 font-mono">{formatDecimal(weight + secondaryWeight)}g @ {formatDecimal(settings?.silver_price_gram, 3)}€/g</div></div><div className="text-right"><div className="font-mono font-bold text-slate-800 text-lg">{formatCurrency(costBreakdown?.silver)}</div></div></div>
-                    {recipe.map((item, idx) => { const itemDetails = item.type === 'raw' ? materials.find(m => m.id === item.id) : products.find(p => p.sku === item.sku); const name = item.type === 'raw' ? (itemDetails as Material | undefined)?.name || "Άγνωστο" : (itemDetails as Product | undefined)?.sku || "Άγνωστο"; const icon = item.type === 'raw' ? getMaterialIcon((itemDetails as Material)?.type) : getMaterialIcon('Component'); return (<div key={idx} className="flex items-center gap-3 p-3 rounded-xl border bg-white shadow-sm border-slate-100"><div className="p-2 bg-slate-50 rounded-lg border border-slate-100">{icon}</div><div className="flex-1"><div className="font-bold text-slate-800 text-sm">{name}</div></div><div className="w-24"><label className="block text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Ποσότητα</label><input type="number" value={item.quantity} onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center outline-none border border-slate-200 focus:border-blue-400"/></div><button onClick={() => removeRecipeItem(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-auto"><Trash2 size={18} /></button></div>)})}
-                    {recipe.length === 0 && <div className="text-center italic text-slate-400 py-4 text-xs">Μόνο Υλικό Βάσης (Ασήμι).</div>}
-                    <div className="flex gap-2 pt-4 border-t border-slate-100"><button type="button" onClick={() => setIsRecipeModalOpen('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button><button type="button" onClick={() => setIsRecipeModalOpen('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16}/> Προσθήκη STX</button></div>
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                <tr>
+                                    <th className="p-3 pl-4">Είδος</th>
+                                    <th className="p-3">Όνομα / SKU</th>
+                                    <th className="p-3 text-right">Κόστος Μον.</th>
+                                    <th className="p-3 text-center">Ποσότητα</th>
+                                    <th className="p-3 text-right pr-4">Σύνολο</th>
+                                    <th className="w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {recipe.map((item, idx) => {
+                                    const itemDetails = item.type === 'raw' ? materials.find(m => m.id === item.id) : products.find(p => p.sku === item.sku);
+                                    const name = item.type === 'raw' ? (itemDetails as Material | undefined)?.name || "Άγνωστο" : (itemDetails as Product | undefined)?.sku || "Άγνωστο";
+                                    const icon = item.type === 'raw' ? getMaterialIcon((itemDetails as Material)?.type) : getMaterialIcon('Component');
+                                    const unitCost = item.type === 'raw' ? (itemDetails as Material)?.cost_per_unit || 0 : (itemDetails as Product)?.active_price || 0;
+                                    const lineTotal = unitCost * item.quantity;
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-3 pl-4"><div className="p-1.5 bg-slate-100 rounded-lg w-fit text-slate-500 border border-slate-200">{icon}</div></td>
+                                            <td className="p-3 font-bold text-slate-700">{name}</td>
+                                            <td className="p-3 text-right font-mono text-slate-500">{formatCurrency(unitCost)}</td>
+                                            <td className="p-3 text-center"><input type="number" value={item.quantity} onChange={(e) => updateRecipeItem(idx, 'quantity', e.target.value)} className="w-16 p-1 text-center font-bold bg-slate-50 rounded border border-slate-200 outline-none focus:border-blue-400"/></td>
+                                            <td className="p-3 text-right font-mono font-bold text-slate-800 pr-4">{formatCurrency(lineTotal)}</td>
+                                            <td className="p-3 text-center"><button onClick={() => removeRecipeItem(idx)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></td>
+                                        </tr>
+                                    );
+                                })}
+                                {recipe.length === 0 && (<tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Δεν έχουν προστεθεί υλικά.</td></tr>)}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200">
+                                <tr><td colSpan={4} className="p-3 text-right font-bold text-slate-600 uppercase text-xs">Συνολο Υλικων:</td><td className="p-3 text-right font-black font-mono text-lg text-emerald-600 pr-4">{formatCurrency(recipeTotalCost)}</td><td></td></tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                        <button type="button" onClick={() => setIsRecipeModalOpen('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16}/> Προσθήκη Υλικού</button>
+                        <button type="button" onClick={() => setIsRecipeModalOpen('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16}/> Προσθήκη STX</button>
+                    </div>
                 </div>
             )}
 
@@ -921,6 +985,23 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             const { color, stone } = getVariantTypeInfo(variant.suffix);
                             const breakdown = estimateVariantCost(currentTempProduct, variant.suffix, settings!, materials, products);
                             
+                            // Accurate Logic for Diff Breakdown
+                            const diff = breakdown.total - masterEstimatedCost;
+                            const details = breakdown.breakdown.details;
+                            const platingCost = details.plating_cost || 0;
+                            const stoneDiff = details.stone_diff || 0;
+                            
+                            let breakdownLabel: string[] = [];
+                            if (platingCost > 0) breakdownLabel.push(`+${formatCurrency(platingCost)} Επιμ.`);
+                            if (Math.abs(stoneDiff) > 0.01) breakdownLabel.push(`${stoneDiff > 0 ? '+' : ''}${formatCurrency(stoneDiff)} Υλικά`);
+                            
+                            // Fallback if no specific diff found but total is diff
+                            if (breakdownLabel.length === 0 && Math.abs(diff) > 0.01) {
+                                breakdownLabel.push(`${diff > 0 ? '+' : ''}${formatCurrency(diff)}`);
+                            }
+                            
+                            const breakdownText = breakdownLabel.length > 0 ? breakdownLabel.join(', ') : 'Βασικό Κόστος';
+
                             return (
                                 <div key={index} className="group flex items-center gap-4 p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all animate-in slide-in-from-bottom-2">
                                     <div className={`font-mono font-black text-xl w-24 h-14 flex items-center justify-center rounded-2xl border-2 shadow-sm ${color}`}>
@@ -936,13 +1017,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             <span className="text-[10px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full border border-slate-100 font-bold uppercase tracking-tight">
-                                                Cost: {formatCurrency(variant.active_price)}
+                                                Κόστος: {formatCurrency(variant.active_price)}
                                             </span>
-                                            {breakdown.breakdown.details.plating_cost > 0 && (
-                                                <span className="text-[10px] text-amber-600 font-bold">+{formatCurrency(breakdown.breakdown.details.plating_cost)} Plating</span>
-                                            )}
-                                            {Math.abs(breakdown.breakdown.details.stone_diff) > 0.001 && (
-                                                <span className="text-[10px] text-purple-600 font-bold">{breakdown.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(breakdown.breakdown.details.stone_diff)} Stone</span>
+                                            {Math.abs(diff) > 0.01 && (
+                                                <span className={`text-[10px] font-bold ${diff > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                    {breakdownText}
+                                                </span>
                                             )}
                                         </div>
                                     </div>
@@ -971,10 +1051,250 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             )}
             
             {currentStep === finalStepId && (
-                <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                    <div className="flex gap-6 items-start"><div className="w-32 h-32 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm shrink-0">{imagePreview ? <img src={imagePreview} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>}</div><div className="flex-1"><h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">{detectedMasterSku || sku}{isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}{productionType === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Imported</span>}</h2><div className="flex gap-4 text-sm font-medium text-slate-500 mt-2"><span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Tag size={12}/> {category}</span><span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Users size={12}/> {gender}</span><span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Palette size={12}/> {platingMasterLabel}</span></div></div></div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"><div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col"><h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2"><Calculator size={14}/> Ανάλυση Κόστους (Master)</h4><div className="space-y-1 flex-1">{productionType === ProductionType.InHouse ? (<><SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight + secondaryWeight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" /><SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" /><SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" /></>) : (<><SummaryRow label="Ασήμι" value={costBreakdown?.silver || 0} sub={`${weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" /><SummaryRow label="Εργατικά" value={costBreakdown?.labor || 0} color="bg-blue-400" /><SummaryRow label="Υλικά" value={costBreakdown?.materials || 0} color="bg-purple-400" /></>)}{productionType === ProductionType.InHouse && (<div className="ml-4 pl-4 border-l-2 border-slate-200 mt-1 space-y-1"><div className="flex justify-between text-[10px] text-slate-500"><span>Χυτήριο</span><span>{(costBreakdown?.details?.casting_cost || 0).toFixed(2)}€</span></div><div className="flex justify-between text-[10px] text-slate-500"><span>Καρφωτής</span><span>{(costBreakdown?.details?.setter_cost || 0).toFixed(2)}€</span></div><div className="flex justify-between text-[10px] text-slate-500"><span>Τεχνίτης</span><span>{(costBreakdown?.details?.technician_cost || 0).toFixed(2)}€</span></div><div className="flex justify-between text-[10px] text-slate-500"><span>Φασόν</span><span>{(costBreakdown?.details?.subcontract_cost || 0).toFixed(2)}€</span></div></div>)}{productionType === ProductionType.InHouse && (labor.plating_cost_x > 0 || labor.plating_cost_d > 0) && (<div className="mt-2 pt-2 border-t border-slate-200 border-dashed"><div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Προσθετα (Ανα Παραλλαγη)</div>{labor.plating_cost_x > 0 && <div className="flex justify-between text-[10px] text-amber-600 font-medium"><span>Επιμετάλλωση (X/H)</span><span>+{labor.plating_cost_x.toFixed(2)}€</span></div>}{labor.plating_cost_d > 0 && <div className="flex justify-between text-[10px] text-amber-600 font-medium"><span>Επιμετάλλωση (D)</span><span>+{labor.plating_cost_d.toFixed(2)}€</span></div>}</div>)}</div><div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center"><span className="font-bold text-slate-600 text-sm uppercase">Σύνολο Κόστους</span><span className="font-black text-xl text-slate-800">{masterEstimatedCost.toFixed(2)}€</span></div></div><div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col"><h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-100 pb-2"><Box size={14}/> Προδιαγραφές</h4><div className="space-y-4 flex-1"><div><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Συνταγή</div>{productionType === ProductionType.Imported ? (<div className="text-xs text-slate-500 italic">Προϊόν Εισαγωγής (Έτοιμο προς Πώληση)</div>) : (recipe.length > 0 ? (<div className="space-y-1">{recipe.map((r, i) => { let matName = ''; let iconNode: React.ReactNode = null; if (r.type === 'raw') { const mat = materials.find(m => m.id === r.id); matName = mat ? mat.name : 'Άγνωστο Υλικό'; if (mat) iconNode = getMaterialIcon(mat.type); } else { matName = `STX: ${r.sku}`; iconNode = getMaterialIcon('Component'); } return (<div key={i} className="flex justify-between items-center text-xs bg-slate-50 p-1.5 rounded border border-slate-100"><div className="flex items-center gap-2 min-w-0">{iconNode}<span className="text-slate-700 truncate">{matName}</span></div><span className="font-mono font-bold text-slate-500 pl-2">x{r.quantity}</span></div>); })}</div>) : <div className="text-xs text-slate-400 italic">Μόνο μέταλλο βάσης.</div>)}</div>{productionType === ProductionType.InHouse && (<div><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Λάστιχα</div>{selectedMolds.length > 0 ? (<div className="flex flex-wrap gap-1">{selectedMolds.map(m => (<span key={m.code} className="px-2 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold rounded border border-amber-100">{m.code}{m.quantity > 1 ? ` (x${m.quantity})` : ''}</span>))}</div>) : <div className="text-xs text-slate-400 italic">Κανένα.</div>}</div>)}</div></div><div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 shadow-sm flex flex-col"><h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2"><DollarSign size={14}/> Εμπορική Πολιτική (Master)</h4><div className="flex-1 flex flex-col justify-center space-y-4 text-center">{!isSTX ? (<><div><div className="text-xs font-bold text-amber-700/60 uppercase mb-1">Χονδρική Τιμή</div><div className="text-4xl font-black text-amber-600 tracking-tight">{sellingPrice.toFixed(2)}€</div></div><div className="grid grid-cols-2 gap-2"><div className="bg-white/60 p-2 rounded-lg"><div className="text-[10px] font-bold text-slate-400 uppercase">Κέρδος</div><div className="font-bold text-emerald-600">{(sellingPrice - masterEstimatedCost).toFixed(2)}€</div></div><div className="bg-white/60 p-2 rounded-lg"><div className="text-[10px] font-bold text-slate-400 uppercase">Margin</div><div className="font-bold text-blue-600">{masterMargin.toFixed(0)}%</div></div></div></>) : (<div className="flex items-center justify-center h-full text-amber-800/50 italic text-sm">Εξάρτημα (Internal Cost Only)</div>)}</div></div></div>
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm"><div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center"><h4 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={16}/> Παραλλαγές ({variants.length})</h4></div><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100"><tr><th className="p-4 w-24">Suffix</th><th className="p-4">Περιγραφή</th><th className="p-4 text-right">Κόστος</th>{!isSTX && <th className="p-4 text-right">Χονδρική</th>}{!isSTX && <th className="p-4 text-right">Κέρδος</th>}</tr></thead><tbody className="divide-y divide-slate-50">{variants.length > 0 ? variants.map((v, idx) => { const cost = v.active_price || masterEstimatedCost; const price = v.selling_price || sellingPrice; const profit = price - cost; const margin = price > 0 ? (profit / price) * 100 : 0; const diff = cost - masterEstimatedCost; const hasDiff = Math.abs(diff) > 0.01; const { stone } = getVariantComponents(v.suffix, gender as Gender); return (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="p-4 font-mono font-bold text-emerald-700 bg-emerald-50/30">{v.suffix}</td><td className="p-4 font-medium text-slate-700">{v.description}</td><td className="p-4 text-right"><div className="font-mono text-slate-600">{cost.toFixed(2)}€</div>{hasDiff && (<div className={`text-[10px] font-bold ${diff > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>{diff > 0 ? '+' : ''}{diff.toFixed(2)}€ {stone.code}</div>)}</td>{!isSTX && <td className="p-4 text-right font-bold text-amber-600">{price.toFixed(2)}€</td>}{!isSTX && (<td className="p-4 text-right"><span className={`px-2 py-1 rounded text-xs font-bold ${margin >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>{margin.toFixed(0)}%</span></td>)}</tr>); }) : (<tr><td colSpan={isSTX ? 3 : 5} className="p-8 text-center text-slate-400 italic">Δεν υπάρχουν παραλλαγές. Θα αποθηκευτεί μόνο το Master προϊόν.</td></tr>)}</tbody></table></div>
+                <div className="space-y-8 animate-in slide-in-from-right duration-300 h-full flex flex-col">
+                    {/* Header Identity */}
+                    <div className="flex gap-6 items-start shrink-0">
+                        <div className="w-32 h-32 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
+                            {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>}
+                        </div>
+                        <div className="flex-1">
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                                {detectedMasterSku || sku}
+                                {isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}
+                                {productionType === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Imported</span>}
+                            </h2>
+                            <div className="flex gap-4 text-sm font-medium text-slate-500 mt-2">
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Tag size={12}/> {category}</span>
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Users size={12}/> {genderLabel}</span>
+                                <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded font-bold text-slate-600"><Palette size={12}/> {platingMasterLabel}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
+                        {/* LEFT: MASTER COST BREAKDOWN ("Cost Puzzle") */}
+                        <div className="lg:col-span-4 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col gap-6">
+                                <h4 className="font-bold text-slate-700 uppercase text-xs tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
+                                    <PieChart size={14}/> Ανάλυση Κόστους Παραγωγής
+                                </h4>
+                                
+                                <div className="flex gap-4 items-end justify-center">
+                                    {/* BASE STACK */}
+                                    <div className="w-24 flex flex-col items-center gap-1">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Βασικό</div>
+                                        <div className="w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                                            <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600" title={`Ασήμι: ${formatCurrency(costBreakdown?.silver)}`}>Ag</div>
+                                            <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600" title={`Εργατικά: ${formatCurrency(costBreakdown?.labor)}`}>Lab</div>
+                                            <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-600" title={`Υλικά: ${formatCurrency(costBreakdown?.materials)}`}>Mat</div>
+                                        </div>
+                                        <div className="font-black text-slate-800 text-lg mt-1">{formatCurrency(masterEstimatedCost)}</div>
+                                    </div>
+
+                                    <div className="text-slate-300 pb-8"><ArrowRight size={24}/></div>
+
+                                    {/* FINISHED STACK */}
+                                    <div className="w-24 flex flex-col items-center gap-1">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Τελικό</div>
+                                        <div className="w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                                            <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">Ag</div>
+                                            <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
+                                            <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
+                                            {/* PLATING ADD-ON */}
+                                            {platingCostDifference > 0 && (
+                                                <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`Επιμετάλλωση: +${formatCurrency(platingCostDifference)}`}>
+                                                    +Επιμ.
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(maxFinishedCost)}</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 mt-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-slate-200 rounded-full"></div> 
+                                            <span className="text-slate-600 font-medium">Ασήμι ({settings?.silver_price_gram}€/g)</span>
+                                        </div>
+                                        <span className="font-bold text-slate-800">{formatCurrency(costBreakdown?.silver)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-blue-100 rounded-full"></div> 
+                                            <span className="text-slate-600 font-medium">Εργατικά</span>
+                                        </div>
+                                        <span className="font-bold text-slate-800">{formatCurrency(costBreakdown?.labor)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-purple-100 rounded-full"></div> 
+                                            <span className="text-slate-600 font-medium">Υλικά/Πέτρες</span>
+                                        </div>
+                                        <span className="font-bold text-slate-800">{formatCurrency(costBreakdown?.materials)}</span>
+                                    </div>
+                                    {platingCostDifference > 0 && (
+                                        <div className="flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-amber-100 rounded-full"></div> 
+                                                <span className="text-slate-600 font-medium">Επιμετάλλωση (Max)</span>
+                                            </div>
+                                            <span className="font-bold text-slate-800">+{formatCurrency(platingCostDifference)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Additional Info Box (Expanded) */}
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                                <h4 className="font-bold text-slate-700 uppercase text-xs tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2"><Box size={14}/> Λεπτομέρειες</h4>
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-400 uppercase mb-1">Υλικά & Εξαρτήματα</div>
+                                        {recipe.length > 0 ? (
+                                            <ul className="space-y-1">
+                                                {recipe.map((r, idx) => {
+                                                    const name = r.type === 'raw' 
+                                                        ? materials.find(m => m.id === r.id)?.name 
+                                                        : products.find(p => p.sku === r.sku)?.category || r.sku;
+                                                    return (
+                                                        <li key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                                                            <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
+                                                            <span>{name} <span className="text-slate-400">x{r.quantity}</span></span>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        ) : <span className="text-xs text-slate-400 italic">Κανένα υλικό</span>}
+                                    </div>
+                                    
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-400 uppercase mb-1">Λάστιχα</div>
+                                        {selectedMolds.length > 0 ? (
+                                            <ul className="space-y-1">
+                                                {selectedMolds.map((m, idx) => {
+                                                    const details = molds?.find(mold => mold.code === m.code);
+                                                    return (
+                                                        <li key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                                                            <div className="w-1 h-1 bg-amber-400 rounded-full"></div>
+                                                            <span>{m.code} <span className="text-slate-400">{details?.location ? `(${details.location})` : ''}</span></span>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        ) : <span className="text-xs text-slate-400 italic">Κανένα λάστιχο</span>}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-bold block">ΒΑΡΟΣ</span>
+                                            <span className="font-mono text-slate-800 font-bold text-sm">{weight + secondaryWeight}g</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-bold block">ΣΥΝΟΛΟ ΕΡΓΑΤΙΚΩΝ</span>
+                                            <span className="font-mono text-slate-800 font-bold text-sm">{formatCurrency(costBreakdown?.labor)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: PROFITABILITY MATRIX */}
+                        <div className="lg:col-span-8 flex flex-col min-h-0 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                <h4 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-emerald-600"/> Ανάλυση Κερδοφορίας Παραλλαγών</h4>
+                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">{variants.length} Παραλλαγές</span>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-sm z-10">
+                                        <tr>
+                                            <th className="p-4 pl-6">Παραλλαγή</th>
+                                            <th className="p-4 text-right">Κόστος</th>
+                                            <th className="p-4 text-right">Χονδρική</th>
+                                            <th className="p-4 text-right text-emerald-700">Κέρδος</th>
+                                            <th className="p-4 w-1/4 pr-6">Περιθώριο</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {variants.length > 0 ? variants.map((v, idx) => {
+                                            const breakdown = estimateVariantCost(currentTempProduct, v.suffix, settings!, materials, products);
+                                            const cost = breakdown.total; // Use accurate estimate
+                                            const price = v.selling_price || sellingPrice;
+                                            const profit = price - cost;
+                                            const margin = price > 0 ? (profit / price) * 100 : 0;
+                                            
+                                            // Determine diff for breakdown tooltip based on COMPONENT costs
+                                            const diff = cost - masterEstimatedCost;
+                                            const details = breakdown.breakdown.details;
+                                            const platingCost = details.plating_cost || 0;
+                                            const stoneDiff = details.stone_diff || 0;
+                                            
+                                            let breakdownLabel: string[] = [];
+                                            // Explicitly show Plating Labor if added
+                                            if (platingCost > 0) breakdownLabel.push(`+${formatCurrency(platingCost)} Επιμ.`);
+                                            // Explicitly show Stone Material Diff if significant
+                                            if (Math.abs(stoneDiff) > 0.01) breakdownLabel.push(`${stoneDiff > 0 ? '+' : ''}${formatCurrency(stoneDiff)} Υλικά`);
+                                            
+                                            // Fallback if no specific logic caught it but diff exists
+                                            if (breakdownLabel.length === 0 && Math.abs(diff) > 0.01) {
+                                                breakdownLabel.push(`${diff > 0 ? '+' : ''}${formatCurrency(diff)}`);
+                                            }
+                                            
+                                            const breakdownText = breakdownLabel.length > 0 ? breakdownLabel.join(', ') : 'Βασικό Κόστος';
+
+                                            return (
+                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="p-4 pl-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="font-mono font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs border border-slate-200 w-12 text-center">{v.suffix || 'BAS'}</div>
+                                                            <span className="font-medium text-slate-600 truncate max-w-[150px]" title={v.description}>{v.description}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-right group-hover:bg-amber-50/30 transition-colors">
+                                                        <div className="font-mono font-bold text-slate-700">{formatCurrency(cost)}</div>
+                                                        <div className="text-[9px] text-slate-400 group-hover:text-amber-600 font-bold">{breakdownText}</div>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        {isSTX ? (
+                                                            <span className="text-slate-300 italic text-xs">N/A</span>
+                                                        ) : (
+                                                            <span className="font-mono font-bold text-slate-800 text-lg">{formatCurrency(price)}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-emerald-600">
+                                                        {isSTX ? '-' : formatCurrency(profit)}
+                                                    </td>
+                                                    <td className="p-4 pr-6">
+                                                        {!isSTX && (
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full ${margin < 30 ? 'bg-rose-500' : (margin < 50 ? 'bg-amber-400' : 'bg-emerald-500')}`} 
+                                                                        style={{width: `${Math.min(100, Math.max(0, margin))}%`}}
+                                                                    ></div>
+                                                                </div>
+                                                                <span className={`text-xs font-black w-10 text-right ${margin < 30 ? 'text-rose-600' : 'text-emerald-700'}`}>{margin.toFixed(0)}%</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }) : (
+                                            <tr>
+                                                <td colSpan={5} className="p-8 text-center">
+                                                    <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-xs font-bold border border-blue-100">
+                                                        <Info size={14}/> Θα δημιουργηθεί μόνο το Master προϊόν (χωρίς παραλλαγές).
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
             </div>

@@ -1,3 +1,4 @@
+
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -359,6 +360,7 @@ export const estimateVariantCost = (
                     const variantPrice = Number(mat.variant_prices[stone.code]);
                     if (!isNaN(variantPrice)) {
                         unitCost = variantPrice;
+                        // Calculate total difference caused by this specific material substitution
                         stoneDifferential += (unitCost - mat.cost_per_unit) * item.quantity;
                     }
                 }
