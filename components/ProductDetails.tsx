@@ -17,7 +17,7 @@ import BarcodeView from './BarcodeView';
 const PLATING_LABELS: Record<string, string> = {
     [PlatingType.None]: 'Λουστρέ',
     [PlatingType.GoldPlated]: 'Επίхρυσο',
-    [PlatingType.TwoTone]: 'Δíхρωμο',
+    [PlatingType.TwoTone]: 'Δίχρωμο',
     [PlatingType.Platinum]: 'Πλατίνα'
 };
 
@@ -605,6 +605,28 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       };
   }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
 
+  // Group variants by finish code for the pricing section
+  const finishGroups = useMemo(() => {
+      if (!hasVariants) return {};
+      const groups: Record<string, ProductVariant[]> = {};
+      // Use sorted list to ensure base variants (shorter suffixes) likely come first
+      sortedVariantsList.forEach(v => {
+          const { finish } = getVariantComponents(v.suffix, editedProduct.gender);
+          // Normalize: if suffix is empty or minimal, code matches finish code
+          const code = finish.code || '';
+          if (!groups[code]) groups[code] = [];
+          groups[code].push(v);
+      });
+      return groups;
+  }, [sortedVariantsList, editedProduct.gender, hasVariants]);
+
+  const sortedFinishCodes = useMemo(() => {
+      return Object.keys(finishGroups).sort((a, b) => {
+          const order = { '': 1, 'P': 2, 'D': 3, 'X': 4, 'H': 5 };
+          return (order[a as keyof typeof order] || 9) - (order[b as keyof typeof order] || 9);
+      });
+  }, [finishGroups]);
+
   const updateCalculatedPrice = (marginPercent: number) => {
        const marginDecimal = marginPercent / 100;
        if (marginDecimal >= 1) {
@@ -1141,32 +1163,91 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </select>
                                                 </div>
                                             )}
-                                           {!editedProduct.is_component && (
-                                               <div>
-                                                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Τιμή Πώλησης (€)</label>
-                                                   <div className="flex gap-2">
-                                                       <input type="number" step="0.01" className="w-full p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} />
-                                                       <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600"><Calculator size={20}/></button>
-                                                   </div>
-                                               </div>
-                                           )}
                                        </div>
-                                        {showRepriceTool && (
-                                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 animate-in slide-in-from-top-2">
-                                               <h4 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
-                                               <div className="flex items-end gap-4">
-                                                   <div>
-                                                       <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
-                                                       <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center"/>
+                                       
+                                       {!editedProduct.is_component && (
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Coins size={14}/> Τιμές Πώλησης ανά Φινίρισμα</label>
+                                                    <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="text-slate-400 hover:text-emerald-600 transition-colors"><Calculator size={16}/></button>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {/* CASE 1: NO VARIANTS (Simple Product) */}
+                                                    {!hasVariants && (
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">
+                                                                Λουστρέ
+                                                            </label>
+                                                            <div className="relative">
+                                                                <input 
+                                                                    type="number" step="0.01" 
+                                                                    className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
+                                                                    value={editedProduct.selling_price} 
+                                                                    onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} 
+                                                                />
+                                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium">€</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* CASE 2: VARIANTS EXIST (Grouped by Finish) */}
+                                                    {hasVariants && sortedFinishCodes.map(code => {
+                                                        const group = finishGroups[code];
+                                                        // Use the price of the first variant as representative
+                                                        const price = group[0]?.selling_price || 0;
+                                                        const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
+                                                        
+                                                        return (
+                                                            <div key={code}>
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">
+                                                                    {label}
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <input 
+                                                                        type="number" step="0.01" 
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold font-mono text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
+                                                                        value={price} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value) || 0;
+                                                                            const newVars = [...editedProduct.variants];
+                                                                            
+                                                                            // Update all variants belonging to this finish group
+                                                                            group.forEach(gVar => {
+                                                                                const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
+                                                                                if (idx !== -1) {
+                                                                                    newVars[idx] = { ...newVars[idx], selling_price: val };
+                                                                                }
+                                                                            });
+                                                                            setEditedProduct({ ...editedProduct, variants: newVars });
+                                                                        }} 
+                                                                    />
+                                                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">€</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                
+                                                {showRepriceTool && (
+                                                   <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 mt-4">
+                                                       <h4 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
+                                                       <div className="flex items-end gap-4">
+                                                           <div>
+                                                               <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
+                                                               <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center bg-white"/>
+                                                           </div>
+                                                           <div>
+                                                               <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
+                                                               <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
+                                                           </div>
+                                                           <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
+                                                       </div>
                                                    </div>
-                                                   <div>
-                                                       <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
-                                                       <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
-                                                   </div>
-                                                   <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
-                                               </div>
-                                           </div>
+                                               )}
+                                            </div>
                                        )}
+
                                        <div>
                                             <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
                                                 <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</span>
