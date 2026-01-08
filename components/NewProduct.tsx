@@ -787,46 +787,59 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       });
   };
 
-  // --- REPRESENTATIVE COST ANALYSIS ---
-  // Replaces the confusing "Max Cost" logic with a specific breakdown of the relevant variant
-  const representativeVariantInfo = useMemo(() => {
-      let targetCost = masterEstimatedCost;
-      let platingCost = 0;
-      let label = '';
-
-      if (variants.length > 0) {
-          // Prioritize plated variants for the "Finished" view to show value add
-          const platedVariants = variants.filter(v => v.suffix.includes('X') || v.suffix.includes('D') || v.suffix.includes('H'));
-          // If we have plated variants, pick the most expensive one to show max potential cost
-          const targetVariant = platedVariants.length > 0 
-              ? platedVariants.reduce((p, c) => (p.active_price||0) > (c.active_price||0) ? p : c)
-              : variants.reduce((p, c) => (p.active_price||0) > (c.active_price||0) ? p : c);
-
-          const est = estimateVariantCost(currentTempProduct, targetVariant.suffix, settings!, materials, products);
-          targetCost = est.total;
-          platingCost = est.breakdown.details.plating_cost || 0;
-          
-          if (targetVariant.suffix.includes('D')) label = 'Επιμετάλλωση D';
-          else if (targetVariant.suffix.includes('X') || targetVariant.suffix.includes('H')) label = 'Επιμετάλλωση X/H';
-          else if (platingCost > 0) label = 'Επιμετάλλωση';
-          
-      } else {
-          // No variants. If Master is plated (Step 1), show its plating cost.
-          if (currentTempProduct.plating_type !== PlatingType.None) {
-             const est = calculateProductCost(currentTempProduct, settings!, materials, products);
-             const details = est.breakdown.details || {};
-             platingCost = (details.plating_cost_x || 0) + (details.plating_cost_d || 0);
-             if (platingCost > 0) {
-                 if (currentTempProduct.plating_type === PlatingType.TwoTone) label = 'Επιμετάλλωση D';
-                 else label = 'Επιμετάλλωση X/H';
-             }
+  // --- REPLACED representativeVariantInfo WITH finalStacks ---
+  const finalStacks = useMemo(() => {
+      const stacks = [];
+      
+      const hasX = variants.some(v => v.suffix.includes('X') || v.suffix.includes('H')) || [PlatingType.GoldPlated, PlatingType.Platinum].includes(plating);
+      const hasD = variants.some(v => v.suffix.includes('D')) || plating === PlatingType.TwoTone;
+      
+      // Helper to generate stack data
+      const getStackData = (type: 'X' | 'D' | 'Base') => {
+          let est;
+          // Strategy: Use actual variant if exists to capture specific stone differences, otherwise estimation
+          if (type === 'Base') {
+               // Base is master cost
+               est = calculateProductCost(currentTempProduct, settings!, materials, products);
+          } else {
+               const variant = variants.find(v => {
+                  if (type === 'X') return v.suffix.includes('X') || v.suffix.includes('H');
+                  if (type === 'D') return v.suffix.includes('D');
+                  return false;
+               });
+               const suffix = variant ? variant.suffix : type;
+               est = estimateVariantCost(currentTempProduct, suffix, settings!, materials, products);
           }
+          
+          const details = est.breakdown.details || {};
+          const platingCost = (details.plating_cost || 0);
+          // Base labor excludes plating for visualization separation
+          const baseLabor = (est.breakdown.labor || 0) - platingCost;
+          
+          return {
+              total: est.total,
+              silver: est.breakdown.silver || 0,
+              materials: est.breakdown.materials || 0,
+              baseLabor,
+              platingCost,
+              type
+          };
+      };
+
+      if (hasD) {
+          stacks.push({ ...getStackData('D'), label: 'Τελικό (D)', colorClass: 'bg-orange-100 text-orange-600', borderClass: 'border-orange-200' });
       }
-
-      return { total: targetCost, platingCost, label };
-  }, [variants, masterEstimatedCost, currentTempProduct, settings, materials, products, labor, productionType]);
-
-  const platingCostDifference = Math.max(0, representativeVariantInfo.total - masterEstimatedCost);
+      if (hasX) {
+          stacks.push({ ...getStackData('X'), label: 'Τελικό (X)', colorClass: 'bg-amber-100 text-amber-600', borderClass: 'border-amber-200' });
+      }
+      
+      // If no plating at all (Lustre only), show standard Final
+      if (stacks.length === 0) {
+          stacks.push({ ...getStackData('Base'), label: 'Τελικό', colorClass: 'bg-slate-100 text-slate-500', borderClass: 'border-slate-200' });
+      }
+      
+      return stacks;
+  }, [variants, plating, currentTempProduct, settings, materials, products, labor, masterEstimatedCost]);
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-96px)] md:h-[calc(100vh-64px)] flex flex-col">
@@ -1174,34 +1187,24 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
 
                                     <div className="text-slate-300 pb-8"><ArrowRight size={24}/></div>
 
-                                    {/* FINISHED STACK */}
-                                    <div className="w-24 flex flex-col items-center gap-1">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Τελικό</div>
-                                        <div className="w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
-                                            <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">Ag</div>
-                                            <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
-                                            <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
-                                            
-                                            {/* PLATING ADD-ONS VISUALIZATION */}
-                                            {representativeVariantInfo.platingCost > 0 && (
-                                                <>
-                                                    {/* If it's pure X plating, show one big block. If mixed variants exist, maybe just show the add-on */}
-                                                    {/* Showing specific blocks if labor values exist */}
-                                                    {labor.plating_cost_d > 0 && (
-                                                        <div className="h-6 bg-orange-100 flex items-center justify-center text-[10px] font-bold text-orange-600 border-b border-white/50" title={`Plating D: +${formatCurrency(labor.plating_cost_d)}`}>
-                                                            +D
-                                                        </div>
-                                                    )}
-                                                    {labor.plating_cost_x > 0 && (
-                                                        <div className="h-6 bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 border-b border-white/50" title={`Plating X: +${formatCurrency(labor.plating_cost_x)}`}>
-                                                            +X
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
+                                    {/* FINAL STACKS (Dynamic) */}
+                                    {finalStacks.map((stack, idx) => (
+                                        <div key={idx} className="w-24 flex flex-col items-center gap-1 animate-in slide-in-from-right-4 fade-in" style={{animationDelay: `${idx * 100}ms`}}>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stack.label}</div>
+                                            <div className={`w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border bg-white ${stack.borderClass}`}>
+                                                <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">Ag</div>
+                                                <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
+                                                <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
+                                                
+                                                {stack.platingCost > 0 && (
+                                                    <div className={`h-6 flex items-center justify-center text-[10px] font-bold border-b border-white/50 ${stack.colorClass}`} title={`Plating: +${formatCurrency(stack.platingCost)}`}>
+                                                        +{stack.type}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(stack.total)}</div>
                                         </div>
-                                        <div className="font-black text-emerald-600 text-lg mt-1">{formatCurrency(representativeVariantInfo.total)}</div>
-                                    </div>
+                                    ))}
                                 </div>
 
                                 <div className="space-y-2 mt-2">
