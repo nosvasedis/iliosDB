@@ -162,7 +162,13 @@ export default function PriceListPage({ products, onPrint }: Props) {
 
         // 4. Subtitle Details
         const localizedGenders = selectedGenders.map(g => genderLabels[g]).join(', ');
-        const filtersDesc = `Κατηγορίες: ${selectedCategories.length === allCategories.length ? 'Όλες' : selectedCategories.length + ' επιλεγμένες'} • Φύλο: ${localizedGenders}`;
+        let filtersDesc = `Φύλο: ${localizedGenders}`;
+        
+        if (selectedCategories.length > 1 && selectedCategories.length < allCategories.length) {
+             filtersDesc = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + filtersDesc;
+        } else if (selectedCategories.length === allCategories.length) {
+             filtersDesc = `Κατηγορίες: Όλες • ` + filtersDesc;
+        }
         
         onPrint({
             title,

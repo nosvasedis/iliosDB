@@ -40,47 +40,58 @@ export default function PriceListPrintView({ data }: Props) {
 
             {/* CONTENT - CSS COLUMNS LAYOUT */}
             <div className="text-xs" style={{ columnCount: 3, columnGap: '20px' }}>
-                {data.items.map((item, idx) => (
-                    <div 
-                        key={idx} 
-                        className="flex justify-between items-baseline py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[24px]"
-                    >
-                        {/* SKU */}
-                        <div className="text-[11px] font-black text-slate-800 mr-2 shrink-0">
-                            {item.skuBase}
-                        </div>
+                {data.items.map((item, idx) => {
+                    const isSinglePrice = item.priceGroups.length === 1;
+                    
+                    return (
+                        <div 
+                            key={idx} 
+                            className="flex justify-between items-baseline py-1 px-1 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[20px]"
+                        >
+                            {/* SKU - Shrink to fit but visible */}
+                            <div className="text-[11px] font-black text-slate-800 mr-1 shrink-0">
+                                {item.skuBase}
+                            </div>
 
-                        {/* PRICE GROUPS */}
-                        <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-right items-baseline flex-1">
-                            {item.priceGroups.map((pg, pgIdx) => {
-                                // Filter suffixes: replace empty string with bullet or similar if desired, or handle specially.
-                                // If group has ONLY empty string, we just show price.
-                                // If group has empty string AND others, we show bullet + others.
-                                const hasBase = pg.suffixes.includes('');
-                                const visibleSuffixes = pg.suffixes.filter(s => s !== '');
-                                
-                                return (
-                                    <div key={pgIdx} className="flex items-baseline gap-1 whitespace-nowrap">
-                                        {(hasBase || visibleSuffixes.length > 0) && (
-                                            <span className="font-semibold text-[9px] text-slate-500 tracking-tight">
-                                                {hasBase && <span className="mr-0.5">•</span>}
-                                                {visibleSuffixes.map((s, i) => (
-                                                    <React.Fragment key={i}>
-                                                        {(i > 0 || hasBase) && <span className="text-slate-300 mx-[1px]">/</span>}
-                                                        {s}
-                                                    </React.Fragment>
-                                                ))}
-                                            </span>
-                                        )}
-                                        <span className="font-mono font-medium text-slate-600 text-xs">
-                                            {pg.price.toFixed(2)}€
-                                        </span>
-                                    </div>
-                                );
-                            })}
+                            {/* PRICE GROUPS */}
+                            <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5 text-right items-baseline flex-1">
+                                {isSinglePrice ? (
+                                    // If all variants have the same price, hide suffixes to save space/avoid clutter
+                                    <span className="font-mono font-bold text-slate-700 text-[11px] whitespace-nowrap">
+                                        {item.priceGroups[0].price.toFixed(2)}€
+                                    </span>
+                                ) : (
+                                    item.priceGroups.map((pg, pgIdx) => {
+                                        // Filter suffixes
+                                        const hasBase = pg.suffixes.includes('');
+                                        const visibleSuffixes = pg.suffixes.filter(s => s !== '');
+                                        
+                                        return (
+                                            <div key={pgIdx} className="inline-flex flex-wrap justify-end items-baseline gap-x-1 gap-y-0 max-w-full">
+                                                {(hasBase || visibleSuffixes.length > 0) && (
+                                                    <span className="font-semibold text-[8px] text-slate-500 tracking-tight leading-none text-right break-words">
+                                                        {hasBase && <span className="mr-0.5">•</span>}
+                                                        {visibleSuffixes.map((s, i) => (
+                                                            <React.Fragment key={i}>
+                                                                {(i > 0 || hasBase) && <span className="text-slate-300 mx-[1px]">/</span>}
+                                                                {s}
+                                                                {/* Soft break opportunity after slash */}
+                                                                <wbr />
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </span>
+                                                )}
+                                                <span className="font-mono font-bold text-slate-700 text-[11px] whitespace-nowrap">
+                                                    {pg.price.toFixed(2)}€
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
