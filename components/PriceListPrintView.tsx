@@ -6,7 +6,14 @@ export interface PriceListPrintData {
     title: string;
     subtitle: string;
     date: string;
-    items: { skuBase: string; suffixes: string; price: number; category: string }[];
+    items: { 
+        skuBase: string; 
+        category: string;
+        priceGroups: {
+            suffixes: string[];
+            price: number;
+        }[];
+    }[];
 }
 
 interface Props {
@@ -36,24 +43,42 @@ export default function PriceListPrintView({ data }: Props) {
                 {data.items.map((item, idx) => (
                     <div 
                         key={idx} 
-                        className="flex justify-between items-start py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50"
+                        className="flex justify-between items-baseline py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[24px]"
                     >
-                        <div className="text-[11px] text-slate-800 leading-tight flex-1 pr-2 min-w-0">
-                            <span className="font-black">{item.skuBase}</span>
-                            {item.suffixes && (
-                                <span className="font-semibold text-[9px] text-slate-500 ml-1 tracking-tight">
-                                    {item.suffixes.split('/').map((s, i) => (
-                                        <React.Fragment key={i}>
-                                            {i > 0 && <span className="text-slate-300 mx-[1px]">/</span>}
-                                            {s}
-                                            {/* Allow breaking after every suffix item */}
-                                            <wbr />
-                                        </React.Fragment>
-                                    ))}
-                                </span>
-                            )}
+                        {/* SKU */}
+                        <div className="text-[11px] font-black text-slate-800 mr-2 shrink-0">
+                            {item.skuBase}
                         </div>
-                        <span className="font-mono font-medium text-slate-600 text-xs whitespace-nowrap pt-0.5">{item.price.toFixed(2)}€</span>
+
+                        {/* PRICE GROUPS */}
+                        <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-right items-baseline flex-1">
+                            {item.priceGroups.map((pg, pgIdx) => {
+                                // Filter suffixes: replace empty string with bullet or similar if desired, or handle specially.
+                                // If group has ONLY empty string, we just show price.
+                                // If group has empty string AND others, we show bullet + others.
+                                const hasBase = pg.suffixes.includes('');
+                                const visibleSuffixes = pg.suffixes.filter(s => s !== '');
+                                
+                                return (
+                                    <div key={pgIdx} className="flex items-baseline gap-1 whitespace-nowrap">
+                                        {(hasBase || visibleSuffixes.length > 0) && (
+                                            <span className="font-semibold text-[9px] text-slate-500 tracking-tight">
+                                                {hasBase && <span className="mr-0.5">•</span>}
+                                                {visibleSuffixes.map((s, i) => (
+                                                    <React.Fragment key={i}>
+                                                        {(i > 0 || hasBase) && <span className="text-slate-300 mx-[1px]">/</span>}
+                                                        {s}
+                                                    </React.Fragment>
+                                                ))}
+                                            </span>
+                                        )}
+                                        <span className="font-mono font-medium text-slate-600 text-xs">
+                                            {pg.price.toFixed(2)}€
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 ))}
             </div>

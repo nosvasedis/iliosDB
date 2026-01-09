@@ -60,7 +60,12 @@ export default function PriceListPage({ products, onPrint }: Props) {
     };
 
     const filteredItems = useMemo(() => {
-        const items: { skuBase: string, suffixes: string, price: number, category: string }[] = [];
+        // Map to store aggregated data: SKU -> { category, variantPrices }
+        const productMap = new Map<string, { 
+            skuBase: string, 
+            category: string, 
+            variantMap: Record<string, number> 
+        }>();
         
         products.forEach(p => {
             if (p.is_component) return; // Skip STX/Components for pricelist usually
@@ -74,46 +79,57 @@ export default function PriceListPage({ products, onPrint }: Props) {
             // 3. Search Filter
             if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) return;
 
-            if (p.variants && p.variants.length > 0) {
-                // GROUPING LOGIC: Group variants by exact Price
-                const priceGroups: Record<number, string[]> = {};
+            const variantMap: Record<string, number> = {};
+            let hasValidPrice = false;
 
+            // Collect all variants with prices
+            if (p.variants && p.variants.length > 0) {
                 p.variants.forEach(v => {
                     const price = v.selling_price || p.selling_price || 0;
                     if (price > 0) {
-                        if (!priceGroups[price]) priceGroups[price] = [];
-                        priceGroups[price].push(v.suffix);
+                        variantMap[v.suffix] = price;
+                        hasValidPrice = true;
                     }
                 });
-
-                // Create entries for each price group
-                Object.entries(priceGroups).forEach(([priceStr, suffixes]) => {
-                    const price = parseFloat(priceStr);
-                    // Sort suffixes alphabetically for consistency
-                    suffixes.sort();
-                    
-                    // Join suffixes. If one suffix is empty string (base item), join handles it (e.g. "/P/X" or "P/X")
-                    // We want to display them nicely. 
-                    const joinedSuffixes = suffixes.join('/');
-                    
-                    items.push({
-                        skuBase: p.sku,
-                        suffixes: joinedSuffixes,
-                        price: price,
-                        category: p.category
-                    });
-                });
             } else {
+                // If no variants, check base price
                 const price = p.selling_price || 0;
                 if (price > 0) {
-                    items.push({
-                        skuBase: p.sku,
-                        suffixes: '',
-                        price: price,
-                        category: p.category
-                    });
+                    variantMap[''] = price; // Empty suffix for base
+                    hasValidPrice = true;
                 }
             }
+
+            if (hasValidPrice) {
+                productMap.set(p.sku, {
+                    skuBase: p.sku,
+                    category: p.category,
+                    variantMap
+                });
+            }
+        });
+
+        // Convert map to final array structure
+        const items = Array.from(productMap.values()).map(item => {
+            // Invert variantMap to group by price: { 10: ['P', 'X'], 15: ['D'] }
+            const priceToSuffixes: Record<number, string[]> = {};
+            
+            Object.entries(item.variantMap).forEach(([suffix, price]) => {
+                if (!priceToSuffixes[price]) priceToSuffixes[price] = [];
+                priceToSuffixes[price].push(suffix);
+            });
+
+            // Convert to array of price groups sorted by price
+            const priceGroups = Object.entries(priceToSuffixes).map(([priceStr, suffixes]) => ({
+                price: parseFloat(priceStr),
+                suffixes: suffixes.sort() // Sort suffixes alphabetically
+            })).sort((a, b) => a.price - b.price);
+
+            return {
+                skuBase: item.skuBase,
+                category: item.category,
+                priceGroups
+            };
         });
 
         return items.sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
@@ -236,7 +252,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
                             <Layers size={18} className="text-indigo-500"/> Προεπισκόπηση
                         </h2>
                         <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-bold">
-                            {filteredItems.length} Εγγραφές
+                            {filteredItems.length} Κωδικοί
                         </span>
                     </div>
                     
@@ -244,19 +260,26 @@ export default function PriceListPage({ products, onPrint }: Props) {
                         {filteredItems.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {filteredItems.slice(0, 60).map((item, idx) => (
-                                    <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-baseline">
-                                                <span className="font-black text-slate-700">{item.skuBase}</span>
-                                                {item.suffixes && <span className="text-[10px] font-bold text-slate-400 ml-1 truncate max-w-[80px]">{item.suffixes}</span>}
-                                            </div>
+                                    <div key={idx} className="flex flex-col justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm min-h-[60px]">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-black text-slate-700">{item.skuBase}</span>
                                         </div>
-                                        <span className="font-mono text-slate-500 font-bold">{item.price.toFixed(2)}€</span>
+                                        <div className="space-y-1">
+                                            {item.priceGroups.map((pg, pgIdx) => (
+                                                <div key={pgIdx} className="flex justify-between items-center text-xs">
+                                                    <span className="font-bold text-slate-400 truncate max-w-[80px]">
+                                                        {pg.suffixes.includes('') && <span className="mr-1">•</span>}
+                                                        {pg.suffixes.filter(s => s !== '').join('/')}
+                                                    </span>
+                                                    <span className="font-mono text-slate-600 font-medium">{pg.price.toFixed(2)}€</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))}
                                 {filteredItems.length > 60 && (
                                     <div className="col-span-full text-center py-4 text-slate-400 text-xs italic">
-                                        ...και {filteredItems.length - 60} ακόμη εγγραφές
+                                        ...και {filteredItems.length - 60} ακόμη κωδικοί
                                     </div>
                                 )}
                             </div>
