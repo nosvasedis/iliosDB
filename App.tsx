@@ -29,7 +29,8 @@ import {
   AlertTriangle,
   MonitorOff,
   CheckCircle,
-  CloudOff
+  CloudOff,
+  ScrollText
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
@@ -62,9 +63,11 @@ import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
 import SetupScreen from './components/SetupScreen';
+import PriceListPage from './components/PriceListPage';
+import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 
 
-type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist';
 
 export interface AggregatedBatch extends ProductionBatch {
     cost_per_piece: number;
@@ -197,6 +200,7 @@ function AppContent() {
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
+  const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
@@ -266,7 +270,7 @@ function AppContent() {
 
   // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData;
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -279,7 +283,7 @@ function AppContent() {
         const cleanup = () => {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
             setAggregatedPrintData(null); setPreparationPrintData(null); 
-            setTechnicianPrintData(null);
+            setTechnicianPrintData(null); setPriceListPrintData(null);
         };
 
         iframeDoc.open();
@@ -340,7 +344,7 @@ function AppContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
 
   const handleNav = (page: Page) => { setActivePage(page); if (window.innerWidth < 768) setIsSidebarOpen(false); };
   const toggleCollapse = () => setIsCollapsed(!isCollapsed);
@@ -419,6 +423,7 @@ function AppContent() {
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
+        {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
         {printItems.length > 0 && (
             <div className="print-area">
             {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, format: item.format || 'standard' }))).map((item, idx) => (
@@ -479,6 +484,7 @@ function AppContent() {
             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<DollarSign size={22} />} label="Τιμολόγηση" isActive={activePage === 'pricing'} isCollapsed={isCollapsed} onClick={() => handleNav('pricing')} />
             <NavItem icon={<Printer size={22} />} label="Μαζική Εκτύπωση" isActive={activePage === 'batch-print'} isCollapsed={isCollapsed} onClick={() => handleNav('batch-print')} />
+            <NavItem icon={<ScrollText size={22} />} label="Τιμοκατάλογος" isActive={activePage === 'pricelist'} isCollapsed={isCollapsed} onClick={() => handleNav('pricelist')} />
             <div className="mt-auto pt-6">
               <NavItem icon={<SettingsIcon size={22} />} label="Ρυθμίσεις" isActive={activePage === 'settings'} isCollapsed={isCollapsed} onClick={() => handleNav('settings')} />
               <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center' : 'px-4'}`}>
@@ -522,6 +528,7 @@ function AppContent() {
               {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} />}
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
+              {activePage === 'pricelist' && <PriceListPage products={products} onPrint={(data) => setPriceListPrintData(data)} />}
             </div>
           </div>
         </main>
