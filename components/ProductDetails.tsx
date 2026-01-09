@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -504,6 +504,32 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const masterCost = currentCostCalc.total;
+
+  const updateCalculatedPrice = (margin: number) => {
+      const marginDecimal = margin / 100;
+      if (marginDecimal >= 1) {
+          setCalculatedPrice(0);
+          return;
+      }
+      const price = masterCost / (1 - marginDecimal);
+      setCalculatedPrice(roundPrice(price));
+  };
+
+  const handleStandardFormula = () => {
+      const breakdown = currentCostCalc.breakdown;
+      const weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+      const suggested = calculateSuggestedWholesalePrice(weight, breakdown.silver, breakdown.labor, breakdown.materials);
+      setCalculatedPrice(suggested);
+      
+      if (suggested > 0 && suggested > masterCost) {
+          const impliedMargin = ((suggested - masterCost) / suggested) * 100;
+          setTargetMargin(parseFloat(impliedMargin.toFixed(1)));
+      }
+  };
+
+  const applyReprice = () => {
+      setEditedProduct(prev => ({ ...prev, selling_price: calculatedPrice }));
+  };
   
   const variants = editedProduct.variants || [];
   const hasVariants = variants.length > 0;
@@ -627,53 +653,73 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       });
   }, [finishGroups]);
 
-  const updateCalculatedPrice = (marginPercent: number) => {
-       const marginDecimal = marginPercent / 100;
-       if (marginDecimal >= 1) {
-           setCalculatedPrice(0);
-           return;
-       }
-       const price = roundPrice(displayedCost / (1 - marginDecimal));
-       setCalculatedPrice(price);
+  // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME)
+  const getSuggestedPriceForFinish = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
+      // Find a representative variant for this finish (e.g., Lustre variant for Lustre Group)
+      // Prioritize the simplest one (shortest suffix) to avoid stone bias if possible
+      const groupVariants = finishGroups[finishCode] || [];
+      const representative = groupVariants.length > 0 ? groupVariants[0] : null; 
+      
+      let weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+      let costBreakdown: any = currentCostCalc.breakdown;
+
+      if (representative) {
+          const est = estimateVariantCost(editedProduct, representative.suffix, settings, allMaterials, allProducts);
+          costBreakdown = est.breakdown;
+          weight = est.breakdown.details?.total_weight || weight;
+      } else if (!hasVariants) {
+          // Simple product logic
+          const est = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+          costBreakdown = est.breakdown;
+          weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+      }
+
+      if (mode === 'formula') {
+          return calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
+      } else {
+          // Margin Mode
+          const totalCost = costBreakdown.silver + costBreakdown.labor + costBreakdown.materials;
+          const marginDecimal = margin / 100;
+          if (marginDecimal >= 1) return 0;
+          return roundPrice(totalCost / (1 - marginDecimal));
+      }
   };
 
-  const handleStandardFormula = () => {
-      // Get the correct breakdown based on view
-      const costBreakdown = isVariantView 
-        ? estimateVariantCost(editedProduct, currentViewVariant!.suffix, settings, allMaterials, allProducts).breakdown
-        : currentCostCalc.breakdown;
-        
-      const weight = isVariantView 
-        ? (currentCostCalc.breakdown.details?.total_weight || editedProduct.weight_g + (editedProduct.secondary_weight_g || 0))
-        : (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
+  const handleApplyAllSuggestions = (mode: 'formula' | 'margin') => {
+      const updates = [...(editedProduct.variants || [])];
+      let masterPriceUpdate = editedProduct.selling_price;
 
-      const suggested = calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
-      setCalculatedPrice(suggested);
-  };
-
-  const applyReprice = async () => {
-      if (calculatedPrice <= 0) return;
-      const targetName = isVariantView ? `παραλλαγή ${currentViewVariant?.suffix}` : 'βασικό προϊόν';
-      const confirmed = await confirm({
-          title: 'Ενημέρωση Τιμής',
-          message: `Θέλετε να αλλάξετε την τιμή για ${targetName} από ${displayedPrice.toFixed(2)}€ σε ${calculatedPrice.toFixed(2)}€;`,
-          confirmText: 'Εφαρμογή'
+      // Update Variants
+      sortedFinishCodes.forEach(code => {
+          const group = finishGroups[code];
+          const suggested = getSuggestedPriceForFinish(code, mode, targetMargin);
+          
+          group.forEach(variant => {
+              const idx = updates.findIndex(v => v.suffix === variant.suffix);
+              if (idx !== -1) {
+                  updates[idx] = { ...updates[idx], selling_price: suggested };
+              }
+          });
       });
 
-      if (confirmed) {
-          if (isVariantView && currentViewVariant) {
-              const variantsCopy = [...editedProduct.variants];
-              const originalIdx = variantsCopy.findIndex(v => v.suffix === currentViewVariant!.suffix);
-              if (originalIdx >= 0) {
-                  variantsCopy[originalIdx] = { ...variantsCopy[originalIdx], selling_price: parseFloat(calculatedPrice.toFixed(2)) };
-                  setEditedProduct(prev => ({ ...prev, variants: variantsCopy }));
-              }
-          } else {
-              setEditedProduct(prev => ({...prev, selling_price: parseFloat(calculatedPrice.toFixed(2))}));
-          }
-          setShowRepriceTool(false);
-          showToast('Η νέα τιμή εφαρμόστηκε. Πατήστε Αποθήκευση για οριστικοποίηση.', 'info');
+      // Update Master if needed (Simple Product or if Master Price is synced)
+      if (!hasVariants) {
+          masterPriceUpdate = getSuggestedPriceForFinish('', mode, targetMargin);
+      } else {
+          // Sync Master Price to whatever the "Master Finish" variant became
+          // Assuming master is usually Lustre/Patina/Gold based on plating_type
+          // For simplicity, we just keep master as is or update if it matches a variant group
+          // Usually better to leave master alone if it acts as a container, 
+          // BUT here selling_price on Product is used for simple products or as fallback.
       }
+
+      setEditedProduct(prev => ({
+          ...prev,
+          variants: updates,
+          selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price
+      }));
+      
+      showToast('Οι τιμές ενημερώθηκαν μαζικά.', 'success');
   };
 
   const addRecipeItem = (type: 'raw' | 'component') => {
@@ -1180,10 +1226,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        </div>
                                        
                                        {!editedProduct.is_component && (
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Coins size={14}/> Τιμές Πώλησης ανά Φινίρισμα</label>
-                                                    <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="text-slate-400 hover:text-emerald-600 transition-colors"><Calculator size={16}/></button>
+                                                    <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`text-slate-400 hover:text-emerald-600 transition-colors ${showRepriceTool ? 'text-emerald-500 bg-emerald-100 p-1 rounded' : ''}`}><Calculator size={16}/></button>
                                                 </div>
                                                 
                                                 <div className="grid grid-cols-2 gap-3">
@@ -1202,15 +1248,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 />
                                                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium">€</span>
                                                             </div>
+                                                            {showRepriceTool && (
+                                                                <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                    <ArrowUpRight size={10} className="text-blue-400"/> {getSuggestedPriceForFinish('', 'formula', targetMargin).toFixed(2)}€
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
 
                                                     {/* CASE 2: VARIANTS EXIST (Grouped by Finish) */}
                                                     {hasVariants && sortedFinishCodes.map(code => {
                                                         const group = finishGroups[code];
-                                                        // Use the price of the first variant as representative
                                                         const price = group[0]?.selling_price || 0;
                                                         const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
+                                                        const suggested = getSuggestedPriceForFinish(code, 'formula', targetMargin);
                                                         
                                                         return (
                                                             <div key={code}>
@@ -1225,43 +1276,53 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                         onChange={e => {
                                                                             const val = parseFloat(e.target.value) || 0;
                                                                             const newVars = [...editedProduct.variants];
-                                                                            
-                                                                            // Update all variants belonging to this finish group
                                                                             group.forEach(gVar => {
                                                                                 const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
-                                                                                if (idx !== -1) {
-                                                                                    newVars[idx] = { ...newVars[idx], selling_price: val };
-                                                                                }
+                                                                                if (idx !== -1) newVars[idx] = { ...newVars[idx], selling_price: val };
                                                                             });
                                                                             setEditedProduct({ ...editedProduct, variants: newVars });
                                                                         }} 
                                                                     />
                                                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">€</span>
                                                                 </div>
+                                                                {showRepriceTool && (
+                                                                    <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                        <ArrowUpRight size={10} className="text-blue-400"/> {suggested.toFixed(2)}€
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
                                                 
                                                 {showRepriceTool && (
-                                                   <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 mt-4">
-                                                       <h4 className="font-bold text-blue-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
-                                                       <div className="flex items-end gap-4">
-                                                           <div>
-                                                               <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
-                                                               <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center bg-white"/>
+                                                   <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2">
+                                                       <h4 className="font-bold text-slate-700 text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2 py-1 rounded text-blue-700 border border-blue-100">
+                                                           <Wand2 size={12}/> Μαζική Ανατιμολόγηση
+                                                       </h4>
+                                                       
+                                                       <div className="flex items-center gap-4 mb-4">
+                                                           <div className="flex-1">
+                                                               <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Target Margin</label>
+                                                               <div className="flex items-center gap-2">
+                                                                   <input 
+                                                                        type="range" min="10" max="90" step="5" 
+                                                                        value={targetMargin} 
+                                                                        onChange={e => setTargetMargin(parseInt(e.target.value))}
+                                                                        className="w-full accent-blue-500 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                                                   />
+                                                                   <span className="text-xs font-bold text-slate-700 w-8">{targetMargin}%</span>
+                                                               </div>
                                                            </div>
-                                                           <div className="flex items-center gap-2">
-                                                               <button onClick={handleStandardFormula} className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center gap-1">
-                                                                   <Calculator size={12}/> Standard
-                                                               </button>
-                                                           </div>
-                                                           <div>
-                                                               <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
-                                                               <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
-                                                           </div>
-                                                           <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
+                                                           <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                                                               Apply Margin
+                                                           </button>
                                                        </div>
+
+                                                       <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
+                                                           <Calculator size={16}/> Εφαρμογή Ilios Formula (All)
+                                                       </button>
+                                                       <p className="text-[9px] text-slate-400 mt-2 text-center">(NonMetal x 2) + Metal + (Weight x 2) applied to each finish</p>
                                                    </div>
                                                )}
                                             </div>
