@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -13,7 +13,7 @@ GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.wor
 
 interface Props {
     allProducts: Product[];
-    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number }[]) => void;
+    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     skusText: string;
     setSkusText: (text: string) => void;
 }
@@ -43,6 +43,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     const [foundItemsCount, setFoundItemsCount] = useState(0);
     const [notFoundItems, setNotFoundItems] = useState<string[]>([]);
     const [showScanner, setShowScanner] = useState(false);
+    const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>('standard');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
 
@@ -59,7 +60,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         setNotFoundItems([]);
 
         const lines = skusText.split(/\r?\n/).filter(line => line.trim() !== '');
-        const itemsToPrint: { product: Product; variant?: ProductVariant; quantity: number }[] = [];
+        const itemsToPrint: { product: Product; variant?: ProductVariant; quantity: number; format: 'standard' | 'simple' | 'retail' }[] = [];
         const notFound: string[] = [];
 
         for (const line of lines) {
@@ -78,7 +79,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 if (p.variants) {
                     for (const v of p.variants) {
                         if (`${p.sku}${v.suffix}` === rawSku) {
-                            itemsToPrint.push({ product: p, variant: v, quantity });
+                            itemsToPrint.push({ product: p, variant: v, quantity, format: labelFormat });
                             found = true;
                             break;
                         }
@@ -90,7 +91,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             if (!found) {
                 const product = allProducts.find(p => p.sku === rawSku);
                 if (product) {
-                    itemsToPrint.push({ product, quantity });
+                    itemsToPrint.push({ product, quantity, format: labelFormat });
                     found = true;
                 }
             }
@@ -103,7 +104,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         setTimeout(() => {
             if (itemsToPrint.length > 0) {
                 setPrintItems(itemsToPrint);
-                showToast(`Στάλθηκαν ${itemsToPrint.reduce((a,b)=>a+b.quantity,0)} ετικέτες για εκτύπωση.`, 'success');
+                showToast(`Στάλθηκαν ${itemsToPrint.reduce((a,b)=>a+b.quantity,0)} ετικέτες για εκτύπωση (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
             } else {
                 showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", 'error');
             }
@@ -113,7 +114,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }, 500);
     };
 
-    // --- SMART ENTRY LOGIC (SYCED FROM INVENTORY) ---
+    // ... (Existing smart entry code remains unchanged)
     const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value.toUpperCase();
         setScanInput(val);
@@ -151,7 +152,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         const targetCode = scanSuggestion || scanInput;
         if (!targetCode) return;
 
-        // Check if product exists via bridge
         const match = findProductByScannedCode(targetCode, allProducts);
         if (!match) {
             showToast("Ο κωδικός δεν βρέθηκε.", "error");
@@ -159,13 +159,10 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }
 
         const finalCode = match.product.sku + (match.variant?.suffix || '');
-
-        // Add to the list
         const currentLines = skusText.split('\n').filter(l => l.trim());
         const newLine = `${finalCode} ${scanQty}`;
         setSkusText([...currentLines, newLine].join('\n'));
 
-        // Reset
         setScanInput('');
         setScanSuggestion('');
         setScanQty(1);
@@ -228,6 +225,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     };
 
     const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        // ... (Same as before)
         const file = e.target.files?.[0];
         if (!file || file.type !== 'application/pdf') {
             showToast('Παρακαλώ επιλέξτε αρχείο PDF.', 'error');
@@ -402,7 +400,25 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         </div>
                      </div>
 
-                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-h-[200px]">
+                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                        <h2 className="font-bold text-slate-800 mb-4 text-center">Ρυθμίσεις Ετικέτας</h2>
+                        <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
+                            <button 
+                                onClick={() => setLabelFormat('standard')}
+                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Tag size={14}/> Χονδρική
+                            </button>
+                            <button 
+                                onClick={() => setLabelFormat('retail')}
+                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <ShoppingBag size={14}/> Λιανική
+                            </button>
+                        </div>
+                     </div>
+
+                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-h-[100px]">
                         {(foundItemsCount > 0 || notFoundItems.length > 0) ? (
                             <div className="animate-in fade-in">
                                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2"><FileText size={18} /> Αποτέλεσμα</h2>
@@ -424,7 +440,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                 </div>
                             </div>
                         ) : (
-                             <div className="text-center text-slate-400 py-12 flex flex-col items-center">
+                             <div className="text-center text-slate-400 py-6 flex flex-col items-center">
                                  <History size={40} className="mb-2 opacity-20"/>
                                  <p className="text-sm font-medium">Τα αποτελέσματα της τελευταίας επεξεργασίας θα εμφανιστούν εδώ.</p>
                              </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { GlobalSettings } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, AlertCircle } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, AlertCircle, Tag } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,7 +56,9 @@ export default function SettingsPage() {
             silver_price_gram: settings.silver_price_gram, 
             loss_percentage: settings.loss_percentage,
             barcode_width_mm: settings.barcode_width_mm,
-            barcode_height_mm: settings.barcode_height_mm
+            barcode_height_mm: settings.barcode_height_mm,
+            retail_barcode_width_mm: settings.retail_barcode_width_mm,
+            retail_barcode_height_mm: settings.retail_barcode_height_mm
         }).eq('id', 1);
 
         if (localGeminiKey !== GEMINI_API_KEY) {
@@ -246,28 +248,35 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-                    <HardDrive className="text-rose-500" size={20}/>
-                    Συντήρηση & Επαναφορά
+                    <Tag className="text-purple-500" size={20}/>
+                    Διαστάσεις Ετικετών (mm)
                 </h2>
-                <div className="space-y-4">
-                    <button onClick={handleForceSync} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 transition-colors font-bold text-slate-700">
-                        <RefreshCw size={18} className={isMaintenanceAction ? 'animate-spin' : ''}/> Συγχρονισμός Εκκρεμοτήτων
-                    </button>
-                    
-                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
-                    <button onClick={() => fileInputRef.current?.click()} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl hover:bg-blue-100 transition-colors font-bold text-blue-700">
-                        <Upload size={18}/> Επαναφορά από Backup (JSON)
-                    </button>
-
-                    <button onClick={handleWipeCache} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl hover:bg-rose-100 transition-colors font-bold text-rose-600">
-                        <Trash2 size={18}/> Εκκαθάριση Cache (Hard Reset)
-                    </button>
-                    
-                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
-                        <AlertCircle className="text-amber-500 shrink-0" size={18}/>
-                        <p className="text-[10px] text-amber-800 leading-tight">
-                            Η επαναφορά από Backup θα αντικαταστήσει <strong>όλα</strong> τα δεδομένα σας. Χρησιμοποιήστε την μόνο για μεταφορά σε νέο σύστημα ή ανάκτηση μετά από σφάλμα.
-                        </p>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Χονδρική (Standard)</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Width</label>
+                                <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Height</label>
+                                <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="col-span-2 border-t border-slate-100 pt-3">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Λιανική (Retail)</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Width</label>
+                                <input type="number" value={settings.retail_barcode_width_mm || 40} onChange={(e) => setSettings({...settings, retail_barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Height</label>
+                                <input type="number" value={settings.retail_barcode_height_mm || 20} onChange={(e) => setSettings({...settings, retail_barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -275,7 +284,7 @@ export default function SettingsPage() {
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
                     <Shield className="text-emerald-500" size={20}/>
-                    Τοπική Ρύθμιση (Browser)
+                    Τοπική Ρύθμιση & Συντήρηση
                 </h2>
                 <div className="space-y-4">
                     <div>
@@ -284,16 +293,19 @@ export default function SettingsPage() {
                         </label>
                         <input type="password" value={localGeminiKey} onChange={(e) => setLocalGeminiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 font-mono text-sm"/>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Label Width (mm)</label>
-                            <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Label Height (mm)</label>
-                            <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
-                        </div>
-                    </div>
+                    
+                    <button onClick={handleForceSync} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors font-bold text-slate-700 text-sm mt-4">
+                        <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''}/> Συγχρονισμός Εκκρεμοτήτων
+                    </button>
+                    
+                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors font-bold text-blue-700 text-sm">
+                        <Upload size={16}/> Επαναφορά από Backup
+                    </button>
+
+                    <button onClick={handleWipeCache} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-colors font-bold text-rose-600 text-sm">
+                        <Trash2 size={16}/> Εκκαθάριση Cache (Hard Reset)
+                    </button>
                 </div>
             </div>
       </div>

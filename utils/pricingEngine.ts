@@ -28,6 +28,18 @@ export const roundPrice = (price: number): number => {
 };
 
 /**
+ * Codifies a price for Retail Label.
+ * Format: 1 + PriceInteger + 9
+ * Example: 36.90 -> 3690 -> 136909
+ */
+export const codifyPrice = (price: number): string => {
+    if (!price || price <= 0) return '';
+    // Convert to integer cents (e.g. 36.90 -> 3690)
+    const cents = Math.round(price * 100);
+    return `1${cents}9`;
+};
+
+/**
  * Calculates the Ilios Standard Suggested Wholesale Price.
  * Formula: (Non-Metal Costs * 2) + Metal Cost + (2€ * Total Weight)
  */

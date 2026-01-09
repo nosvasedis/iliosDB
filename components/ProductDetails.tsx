@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -27,7 +27,7 @@ interface Props {
   allMaterials: Material[];
   onClose: () => void;
   onSave?: (updatedProduct: Product) => void;
-  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
+  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
   settings: GlobalSettings;
   collections: Collection[];
   allMolds: Mold[];
@@ -35,6 +35,7 @@ interface Props {
 }
 
 const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+    // ... (unchanged)
     const color = 
         analysis.verdict === 'Excellent' ? 'emerald' : 
         analysis.verdict === 'Fair' ? 'blue' : 
@@ -237,19 +238,21 @@ const SummaryRow = ({ label, value, sub, color }: { label: string, value: string
 );
 
 const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Product; variants: ProductVariant[]; onPrint: (items: any[]) => void; settings: GlobalSettings; }) => {
+    const [format, setFormat] = useState<'standard' | 'retail'>('standard');
+
     const handlePrintItem = (variant: ProductVariant | null, qty: number) => {
         onPrint([{
             product,
             variant: variant || undefined,
             quantity: qty,
-            format: 'standard'
+            format: format
         }]);
     };
 
     const handlePrintAll = () => {
         const items = variants.length > 0 
-            ? variants.map(v => ({ product, variant: v, quantity: 1, format: 'standard' as const }))
-            : [{ product, quantity: 1, format: 'standard' as const }];
+            ? variants.map(v => ({ product, variant: v, quantity: 1, format: format }))
+            : [{ product, quantity: 1, format: format }];
         onPrint(items);
     };
 
@@ -259,8 +262,15 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
 
     return (
         <div className="flex flex-col gap-4 h-full">
-            <div className="flex justify-between items-center mb-2">
-                <h4 className="font-bold text-slate-700">Προεπισκόπηση Ετικετών</h4>
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-2 gap-4">
+                <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button onClick={() => setFormat('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <Tag size={14}/> Χονδρική
+                    </button>
+                    <button onClick={() => setFormat('retail')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <ShoppingBag size={14}/> Λιανική
+                    </button>
+                </div>
                 <button onClick={handlePrintAll} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">
                     <Printer size={16}/> Εκτύπωση Όλων (1x)
                 </button>
@@ -269,13 +279,13 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
                 {items.map(({ variant, key }) => (
                     <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
-                        <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full">
+                        <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full relative overflow-hidden">
                             <BarcodeView 
                                 product={product} 
                                 variant={variant || undefined} 
-                                width={settings.barcode_width_mm} 
-                                height={settings.barcode_height_mm} 
-                                format="standard"
+                                width={format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm} 
+                                height={format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm} 
+                                format={format}
                             />
                         </div>
                         
@@ -300,6 +310,7 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
 };
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
+  // ... (rest of the file remains unchanged until the return logic for BarcodeGallery)
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
@@ -367,6 +378,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     return baseTabs;
   }, [editedProduct.production_type, editedProduct.variants?.length]);
 
+  // ... (useEffects and handlers mostly unchanged, omitted for brevity, keeping only the updated BarcodeGallery render)
+
   useEffect(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
     setEditedProduct({ 
@@ -409,6 +422,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
   
+  // ... (omitting duplicate useEffects for brevity, they are unchanged)
   useEffect(() => {
     if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
         const baseCastingCost = editedProduct.weight_g * 0.15;
@@ -1076,6 +1090,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
            
            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
+               {/* ... (Existing header code) ... */}
                <div>
                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                        <span>{displayedSku}</span>
@@ -1116,6 +1131,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                    <div className="lg:col-span-4 space-y-6">
+                       {/* ... (Existing left column code) ... */}
                        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group">
                            <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
                                {editedProduct.image_url ? (
@@ -1176,6 +1192,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
                            {activeTab === 'overview' && (
                                <div className="space-y-6 animate-in fade-in">
+                                   {/* ... (Existing Overview code) ... */}
                                    {editedProduct.production_type === ProductionType.InHouse ? (
                                     <>
                                        <div className="grid grid-cols-2 gap-6">
@@ -1472,6 +1489,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                            {activeTab === 'recipe' && (
                                <div className="space-y-4 animate-in fade-in">
+                                   {/* ... (Existing Recipe code) ... */}
                                    <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
                                        <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
                                            <Coins size={16} />
@@ -1557,6 +1575,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                            {activeTab === 'labor' && (
                                <div className="space-y-6 animate-in fade-in">
+                                   {/* ... (Existing Labor code) ... */}
                                    <div>
                                        <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών</h3>
                                        <div className="space-y-2">
@@ -1610,6 +1629,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                            {activeTab === 'variants' && (
                                <div className="space-y-4 animate-in fade-in">
+                                   {/* ... (Existing Variants code) ... */}
                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                        <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-amber-500"/> Έξυπνη Προσθήκη</h4>
                                        <div className="flex gap-2">

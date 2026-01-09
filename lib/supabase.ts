@@ -211,6 +211,8 @@ export const api = {
               loss_percentage: Number(data.loss_percentage), 
               barcode_width_mm: Number(data.barcode_width_mm) || 50, 
               barcode_height_mm: Number(data.barcode_height_mm) || 30,
+              retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || 40,
+              retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || 20,
               last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
             };
             offlineDb.saveTable('global_settings', [settings]);
