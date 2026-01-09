@@ -136,45 +136,48 @@ export default function PriceListPage({ products, onPrint }: Props) {
     }, [products, selectedGenders, selectedCategories, searchTerm]);
 
     const handlePrint = () => {
-        // 1. Generate Localized Gender String
-        const genderStr = selectedGenders.length === 3 
-            ? 'Πλήρης Κατάλογος' 
-            : selectedGenders.map(g => genderLabels[g]).join(' & ');
+        const dateStr = new Date().toLocaleDateString('el-GR');
 
-        // 2. Generate Category String
+        // 1. Gender String
+        let genderStr = '';
+        if (selectedGenders.length === 3) {
+            genderStr = ''; // Don't redundantly state "All Genders" if categories are specific, or handle in title logic
+        } else {
+            genderStr = selectedGenders.map(g => genderLabels[g]).join(' & ');
+        }
+
+        // 2. Category String
         let catStr = '';
         if (selectedCategories.length === allCategories.length) {
-            catStr = ''; // Implied in "Full Catalog" or appended if specific genders
-        } else if (selectedCategories.length <= 3) {
+            catStr = 'Πλήρης Κατάλογος';
+        } else if (selectedCategories.length <= 4) {
             catStr = selectedCategories.join(', ');
         } else {
             catStr = 'Επιλεγμένα Είδη';
         }
 
-        // 3. Construct Precise Title
+        // 3. Construct Specific Title (Used for Filename)
         let title = '';
-        if (selectedGenders.length === 3 && selectedCategories.length === allCategories.length) {
-            title = 'Γενικός Τιμοκατάλογος Χονδρικής';
+        if (selectedCategories.length === allCategories.length && selectedGenders.length === 3) {
+            title = `Τιμοκατάλογος - Όλα - ${dateStr}`;
         } else {
-            title = `Τιμοκατάλογος: ${genderStr}`;
-            if (catStr) title += ` - ${catStr}`;
+            // e.g. "Δαχτυλίδια (Γυναικεία) - 10/10/2023"
+            const suffix = genderStr ? ` (${genderStr})` : '';
+            title = `${catStr}${suffix} - ${dateStr}`;
         }
 
-        // 4. Subtitle Details
-        const localizedGenders = selectedGenders.map(g => genderLabels[g]).join(', ');
-        let filtersDesc = `Φύλο: ${localizedGenders}`;
-        
-        if (selectedCategories.length > 1 && selectedCategories.length < allCategories.length) {
-             filtersDesc = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + filtersDesc;
-        } else if (selectedCategories.length === allCategories.length) {
-             filtersDesc = `Κατηγορίες: Όλες • ` + filtersDesc;
+        // 4. Subtitle (Minimal, as per request)
+        // Redundant info removed.
+        let subtitle = `${filteredItems.length} Κωδικοί`;
+        if (selectedCategories.length > 4 && selectedCategories.length < allCategories.length) {
+             subtitle = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + subtitle;
         }
         
         onPrint({
             title,
-            subtitle: filtersDesc,
+            subtitle,
             items: filteredItems,
-            date: new Date().toLocaleDateString('el-GR')
+            date: dateStr
         });
     };
 

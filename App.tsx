@@ -280,6 +280,18 @@ function AppContent() {
         const iframeDoc = iframe.contentWindow?.document;
         if (!iframeDoc) return;
 
+        // Determine Filename/Title for "Save as PDF"
+        let docTitle = 'Ilios_Print_Job';
+        if (priceListPrintData) {
+            docTitle = priceListPrintData.title; // Set Title for PDF Filename
+        } else if (orderToPrint) {
+            docTitle = `Order_${orderToPrint.id}_${orderToPrint.customer_name}`;
+        } else if (batchToPrint) {
+            docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id}`;
+        } else if (aggregatedPrintData) {
+            docTitle = `Production_${new Date().toISOString().split('T')[0]}`;
+        }
+
         const cleanup = () => {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
             setAggregatedPrintData(null); setPreparationPrintData(null); 
@@ -296,6 +308,7 @@ function AppContent() {
         iframeDoc.write(`
           <html>
             <head>
+              <title>${docTitle}</title>
               ${styles}
               <style>
                 body { background: white !important; margin: 0; padding: 0; }
