@@ -10,10 +10,16 @@ interface Props {
 }
 
 const genderOptions = [
-    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={16}/> },
+    { label: 'Αντρικά', value: Gender.Men, icon: <User size={16}/> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16}/> },
     { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16}/> }
 ];
+
+const genderLabels: Record<string, string> = {
+    [Gender.Men]: 'Αντρικά',
+    [Gender.Women]: 'Γυναικεία',
+    [Gender.Unisex]: 'Unisex'
+};
 
 export default function PriceListPage({ products, onPrint }: Props) {
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
@@ -26,7 +32,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
         return Array.from(cats).sort();
     }, [products]);
 
-    // Initialize all categories as selected by default? Or none? Let's say ALL by default to make it easy.
+    // Initialize all categories as selected by default
     React.useEffect(() => {
         if (allCategories.length > 0 && selectedCategories.length === 0) {
             setSelectedCategories(allCategories);
@@ -95,8 +101,33 @@ export default function PriceListPage({ products, onPrint }: Props) {
     }, [products, selectedGenders, selectedCategories, searchTerm]);
 
     const handlePrint = () => {
-        const title = `Τιμοκατάλογος Χονδρικής`;
-        const filtersDesc = `Κατηγορίες: ${selectedCategories.length === allCategories.length ? 'Όλες' : selectedCategories.join(', ')} • Φύλο: ${selectedGenders.join(', ')}`;
+        // 1. Generate Localized Gender String
+        const genderStr = selectedGenders.length === 3 
+            ? 'Πλήρης Κατάλογος' 
+            : selectedGenders.map(g => genderLabels[g]).join(' & ');
+
+        // 2. Generate Category String
+        let catStr = '';
+        if (selectedCategories.length === allCategories.length) {
+            catStr = ''; // Implied in "Full Catalog" or appended if specific genders
+        } else if (selectedCategories.length <= 3) {
+            catStr = selectedCategories.join(', ');
+        } else {
+            catStr = 'Επιλεγμένα Είδη';
+        }
+
+        // 3. Construct Precise Title
+        let title = '';
+        if (selectedGenders.length === 3 && selectedCategories.length === allCategories.length) {
+            title = 'Γενικός Τιμοκατάλογος Χονδρικής';
+        } else {
+            title = `Τιμοκατάλογος: ${genderStr}`;
+            if (catStr) title += ` - ${catStr}`;
+        }
+
+        // 4. Subtitle Details
+        const localizedGenders = selectedGenders.map(g => genderLabels[g]).join(', ');
+        const filtersDesc = `Κατηγορίες: ${selectedCategories.length === allCategories.length ? 'Όλες' : selectedCategories.length + ' επιλεγμένες'} • Φύλο: ${localizedGenders}`;
         
         onPrint({
             title,
@@ -115,7 +146,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
                     </div>
                     Τιμοκατάλογος
                 </h1>
-                <p className="text-slate-500 mt-2 ml-14">Δημιουργία και εκτύπωση λίστα τιμών χονδρικής.</p>
+                <p className="text-slate-500 mt-2 ml-14">Δημιουργία και εκτύπωση λίστας τιμών χονδρικής.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
