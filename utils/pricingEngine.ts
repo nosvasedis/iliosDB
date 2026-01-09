@@ -85,6 +85,7 @@ export const analyzeSupplierValue = (
         } else if (item.type === 'component') {
             const sub = allProducts.find(p => p.sku === item.sku);
             if (sub) {
+                // Use stored cost for supplier analysis as we don't have the full tree easily here
                 materialCost += (sub.supplier_cost || sub.draft_price || 0) * item.quantity;
             }
         }
@@ -161,11 +162,11 @@ export const calculateProductCost = (
   depth: number = 0,
   visitedSkus: Set<string> = new Set(),
   silverPriceOverride?: number
-): { total: number; breakdown: any } => {
-  if (visitedSkus.has(product.sku)) return { total: 0, breakdown: { error: 'Circular Dependency' } };
+): { total: number; rawTotal: number; breakdown: any } => {
+  if (visitedSkus.has(product.sku)) return { total: 0, rawTotal: 0, breakdown: { error: 'Circular Dependency' } };
   const newVisited = new Set(visitedSkus);
   newVisited.add(product.sku);
-  if (depth > 10) return { total: 0, breakdown: {} };
+  if (depth > 10) return { total: 0, rawTotal: 0, breakdown: {} };
   const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
 
   if (product.production_type === ProductionType.Imported) {
@@ -181,6 +182,7 @@ export const calculateProductCost = (
       const totalCost = silverCost + technicianCost + platingCost + stoneCost;
       return {
           total: roundPrice(totalCost),
+          rawTotal: totalCost,
           breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost_x: platingCost, stone_setting_cost: stoneCost } }
       };
   }
@@ -196,7 +198,8 @@ export const calculateProductCost = (
       const subProduct = allProducts.find(p => p.sku === item.sku);
       if (subProduct) {
         const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1, newVisited, silverPriceOverride);
-        materialsCost += (subCost.total * item.quantity);
+        // Use rawTotal for accumulation to prevent premature rounding errors
+        materialsCost += (subCost.rawTotal * item.quantity);
       }
     }
   });
@@ -206,7 +209,17 @@ export const calculateProductCost = (
   let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
   const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
   const totalCost = silverBaseCost + materialsCost + laborTotal;
-  return { total: roundPrice(totalCost), breakdown: { silver: silverBaseCost, materials: materialsCost, labor: laborTotal, details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0 } } };
+  
+  return { 
+      total: roundPrice(totalCost), 
+      rawTotal: totalCost, 
+      breakdown: { 
+          silver: silverBaseCost, 
+          materials: materialsCost, 
+          labor: laborTotal, 
+          details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0 } 
+      } 
+  };
 };
 
 /**
@@ -363,7 +376,7 @@ export const estimateVariantCost = (
     allMaterials: Material[],
     allProducts: Product[],
     silverPriceOverride?: number
-): { total: number; breakdown: any } => {
+): { total: number; rawTotal: number; breakdown: any } => {
     const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
     const { finish, stone } = getVariantComponents(variantSuffix, masterProduct.gender);
     const labor: Partial<LaborCost> = masterProduct.labor || {};
@@ -383,6 +396,7 @@ export const estimateVariantCost = (
         const totalCost = silverCost + technicianCost + stoneCost + platingCost;
         return {
             total: roundPrice(totalCost),
+            rawTotal: totalCost,
             breakdown: { 
                 silver: silverCost, 
                 labor: technicianCost + platingCost, 
@@ -419,7 +433,8 @@ export const estimateVariantCost = (
             const subProduct = allProducts.find(p => p.sku === item.sku);
             if (subProduct) {
                 const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
-                materialsCost += (subCost.total * item.quantity);
+                // Use rawTotal for accumulation
+                materialsCost += (subCost.rawTotal * item.quantity);
             }
         }
     });
@@ -442,6 +457,7 @@ export const estimateVariantCost = (
 
     return { 
         total: roundPrice(totalCost), 
+        rawTotal: totalCost,
         breakdown: { 
             silver: silverCost, 
             materials: materialsCost, 
