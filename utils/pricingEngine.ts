@@ -189,17 +189,23 @@ export const calculateProductCost = (
 
   const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
   const silverBaseCost = totalWeight * silverPrice;
+  
   let materialsCost = 0;
   product.recipe.forEach(item => {
     if (item.type === 'raw') {
       const mat = allMaterials.find(m => m.id === item.id);
-      if (mat) materialsCost += (mat.cost_per_unit * item.quantity);
+      if (mat) {
+          // Accumulate with 4-decimal precision to avoid float drift (e.g. 2.70 -> 2.62)
+          const lineCost = mat.cost_per_unit * item.quantity;
+          materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
+      }
     } else if (item.type === 'component') {
       const subProduct = allProducts.find(p => p.sku === item.sku);
       if (subProduct) {
         const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1, newVisited, silverPriceOverride);
         // Use rawTotal for accumulation to prevent premature rounding errors
-        materialsCost += (subCost.rawTotal * item.quantity);
+        const lineCost = subCost.rawTotal * item.quantity;
+        materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
       }
     }
   });
@@ -215,7 +221,7 @@ export const calculateProductCost = (
       rawTotal: totalCost, 
       breakdown: { 
           silver: silverBaseCost, 
-          materials: materialsCost, 
+          materials: parseFloat(materialsCost.toFixed(2)), // Final visual rounding
           labor: laborTotal, 
           details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0 } 
       } 
@@ -427,14 +433,16 @@ export const estimateVariantCost = (
                         stoneDifferential += (unitCost - mat.cost_per_unit) * item.quantity;
                     }
                 }
-                materialsCost += (unitCost * item.quantity);
+                const lineCost = unitCost * item.quantity;
+                materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
             }
         } else if (item.type === 'component') {
             const subProduct = allProducts.find(p => p.sku === item.sku);
             if (subProduct) {
                 const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
                 // Use rawTotal for accumulation
-                materialsCost += (subCost.rawTotal * item.quantity);
+                const lineCost = subCost.rawTotal * item.quantity;
+                materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
             }
         }
     });
@@ -460,7 +468,7 @@ export const estimateVariantCost = (
         rawTotal: totalCost,
         breakdown: { 
             silver: silverCost, 
-            materials: materialsCost, 
+            materials: parseFloat(materialsCost.toFixed(2)), 
             labor: laborTotal, 
             details: { 
                 casting_cost: castingCost, 
