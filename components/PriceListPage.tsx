@@ -60,7 +60,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
     };
 
     const filteredItems = useMemo(() => {
-        const items: { sku: string, price: number, category: string }[] = [];
+        const items: { skuBase: string, suffixes: string, price: number, category: string }[] = [];
         
         products.forEach(p => {
             if (p.is_component) return; // Skip STX/Components for pricelist usually
@@ -75,21 +75,40 @@ export default function PriceListPage({ products, onPrint }: Props) {
             if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) return;
 
             if (p.variants && p.variants.length > 0) {
+                // GROUPING LOGIC: Group variants by exact Price
+                const priceGroups: Record<number, string[]> = {};
+
                 p.variants.forEach(v => {
                     const price = v.selling_price || p.selling_price || 0;
                     if (price > 0) {
-                        items.push({
-                            sku: `${p.sku}${v.suffix}`,
-                            price: price,
-                            category: p.category
-                        });
+                        if (!priceGroups[price]) priceGroups[price] = [];
+                        priceGroups[price].push(v.suffix);
                     }
+                });
+
+                // Create entries for each price group
+                Object.entries(priceGroups).forEach(([priceStr, suffixes]) => {
+                    const price = parseFloat(priceStr);
+                    // Sort suffixes alphabetically for consistency
+                    suffixes.sort();
+                    
+                    // Join suffixes. If one suffix is empty string (base item), join handles it (e.g. "/P/X" or "P/X")
+                    // We want to display them nicely. 
+                    const joinedSuffixes = suffixes.join('/');
+                    
+                    items.push({
+                        skuBase: p.sku,
+                        suffixes: joinedSuffixes,
+                        price: price,
+                        category: p.category
+                    });
                 });
             } else {
                 const price = p.selling_price || 0;
                 if (price > 0) {
                     items.push({
-                        sku: p.sku,
+                        skuBase: p.sku,
+                        suffixes: '',
                         price: price,
                         category: p.category
                     });
@@ -97,7 +116,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
             }
         });
 
-        return items.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+        return items.sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
     }, [products, selectedGenders, selectedCategories, searchTerm]);
 
     const handlePrint = () => {
@@ -146,7 +165,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
                     </div>
                     Τιμοκατάλογος
                 </h1>
-                <p className="text-slate-500 mt-2 ml-14">Δημιουργία και εκτύπωση λίστας τιμών χονδρικής.</p>
+                <p className="text-slate-500 mt-2 ml-14">Δημιουργία και εκτύπωση λίστας τιμών χονδρικής (Συμπτυγμένη).</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
@@ -217,7 +236,7 @@ export default function PriceListPage({ products, onPrint }: Props) {
                             <Layers size={18} className="text-indigo-500"/> Προεπισκόπηση
                         </h2>
                         <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-bold">
-                            {filteredItems.length} Είδη
+                            {filteredItems.length} Εγγραφές
                         </span>
                     </div>
                     
@@ -226,13 +245,18 @@ export default function PriceListPage({ products, onPrint }: Props) {
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {filteredItems.slice(0, 60).map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm">
-                                        <span className="font-black text-slate-700">{item.sku}</span>
-                                        <span className="font-mono text-slate-500">{item.price.toFixed(2)}€</span>
+                                        <div className="flex flex-col">
+                                            <div className="flex items-baseline">
+                                                <span className="font-black text-slate-700">{item.skuBase}</span>
+                                                {item.suffixes && <span className="text-[10px] font-bold text-slate-400 ml-1 truncate max-w-[80px]">{item.suffixes}</span>}
+                                            </div>
+                                        </div>
+                                        <span className="font-mono text-slate-500 font-bold">{item.price.toFixed(2)}€</span>
                                     </div>
                                 ))}
                                 {filteredItems.length > 60 && (
                                     <div className="col-span-full text-center py-4 text-slate-400 text-xs italic">
-                                        ...και {filteredItems.length - 60} ακόμη είδη
+                                        ...και {filteredItems.length - 60} ακόμη εγγραφές
                                     </div>
                                 )}
                             </div>

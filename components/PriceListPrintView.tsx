@@ -6,7 +6,7 @@ export interface PriceListPrintData {
     title: string;
     subtitle: string;
     date: string;
-    items: { sku: string; price: number; category: string }[];
+    items: { skuBase: string; suffixes: string; price: number; category: string }[];
 }
 
 interface Props {
@@ -38,8 +38,15 @@ export default function PriceListPrintView({ data }: Props) {
                         key={idx} 
                         className="flex justify-between items-baseline py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50"
                     >
-                        <span className="font-black text-slate-800 text-[11px]">{item.sku}</span>
-                        <span className="font-mono font-medium text-slate-600">{item.price.toFixed(2)}€</span>
+                        <div className="text-[11px] text-slate-800 leading-tight">
+                            <span className="font-black">{item.skuBase}</span>
+                            {item.suffixes && (
+                                <span className="font-semibold text-[9px] text-slate-500 ml-0.5 tracking-tight">
+                                    {item.suffixes}
+                                </span>
+                            )}
+                        </div>
+                        <span className="font-mono font-medium text-slate-600 text-xs ml-2 whitespace-nowrap">{item.price.toFixed(2)}€</span>
                     </div>
                 ))}
             </div>
