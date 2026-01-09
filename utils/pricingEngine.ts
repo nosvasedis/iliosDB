@@ -27,6 +27,22 @@ export const roundPrice = (price: number): number => {
   return parseFloat((Math.round(price * 10) / 10).toFixed(2));
 };
 
+/**
+ * Calculates the Ilios Standard Suggested Wholesale Price.
+ * Formula: (Non-Metal Costs * 2) + Metal Cost + (2€ * Total Weight)
+ */
+export const calculateSuggestedWholesalePrice = (
+    totalWeight: number,
+    silverCost: number,
+    laborCost: number,
+    materialCost: number
+): number => {
+    const nonMetalCost = laborCost + materialCost;
+    const weightSurcharge = totalWeight * 2;
+    const suggestedPrice = (nonMetalCost * 2) + silverCost + weightSurcharge;
+    return roundPrice(suggestedPrice);
+};
+
 export const calculateTechnicianCost = (weight_g: number): number => {
   let cost = 0;
   if (weight_g <= 0) return 0;

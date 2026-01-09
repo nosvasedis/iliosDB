@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -111,7 +111,7 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
             <div className="space-y-2 pt-1">
                 <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
-                    <span className={`font-bold text-${color}-700`}>{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
+                    <span className="font-bold text-slate-700">{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
                 </div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
                     <div className="h-full bg-slate-400" style={{ width: `${(analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100}%` }} title="Υλικά" />
@@ -635,6 +635,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
        }
        const price = roundPrice(displayedCost / (1 - marginDecimal));
        setCalculatedPrice(price);
+  };
+
+  const handleStandardFormula = () => {
+      // Get the correct breakdown based on view
+      const costBreakdown = isVariantView 
+        ? estimateVariantCost(editedProduct, currentViewVariant!.suffix, settings, allMaterials, allProducts).breakdown
+        : currentCostCalc.breakdown;
+        
+      const weight = isVariantView 
+        ? (currentCostCalc.breakdown.details?.total_weight || editedProduct.weight_g + (editedProduct.secondary_weight_g || 0))
+        : (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
+
+      const suggested = calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
+      setCalculatedPrice(suggested);
   };
 
   const applyReprice = async () => {
@@ -1237,6 +1251,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                <label className="text-[10px] font-bold text-blue-600 uppercase">Στόχος Margin (%)</label>
                                                                <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-blue-200 font-bold text-center bg-white"/>
                                                            </div>
+                                                           <div className="flex items-center gap-2">
+                                                               <button onClick={handleStandardFormula} className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center gap-1">
+                                                                   <Calculator size={12}/> Standard
+                                                               </button>
+                                                           </div>
                                                            <div>
                                                                <label className="text-[10px] font-bold text-blue-600 uppercase">Προτεινόμενη Τιμή</label>
                                                                <div className="font-mono font-black text-xl text-blue-900">{calculatedPrice}€</div>
@@ -1371,11 +1390,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                            <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Margin (%)</label>
                                                            <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white"/>
                                                        </div>
+                                                       <div className="flex items-center gap-2">
+                                                           <button onClick={handleStandardFormula} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
+                                                               <Calculator size={12}/> Standard
+                                                           </button>
+                                                       </div>
                                                        <div>
                                                            <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
                                                            <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
                                                        </div>
-                                                       <button onClick={applyReprice} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700">Εφαρμογή</button>
+                                                       <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
                                                    </div>
                                                </div>
                                            )}

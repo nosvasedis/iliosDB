@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, ChevronRight, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info } from 'lucide-react';
-import { calculateProductCost, formatCurrency, formatDecimal, roundPrice } from '../utils/pricingEngine';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, ChevronRight, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator } from 'lucide-react';
+import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -14,7 +14,7 @@ interface Props {
 }
 
 type Mode = 'cost' | 'selling' | 'history';
-type MarkupMode = 'adjust' | 'target';
+type MarkupMode = 'adjust' | 'target' | 'formula';
 
 interface ComparisonProduct extends Product {
     prev_draft_price: number; // The "Previous Cost" based on historical silver
@@ -85,7 +85,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                  return { ...p, draft_price: parseFloat(newSelling.toFixed(2)), prev_draft_price: p.selling_price }; 
             });
             showToast(`Υπολογίστηκε νέα τιμή χονδρικής (${markupPercent > 0 ? '+' : ''}${markupPercent}%).`, 'info');
-        } else { // markupMode === 'target'
+        } else if (markupMode === 'target') {
              if (markupPercent >= 100 || markupPercent <= 0) {
                 showToast("Το περιθώριο πρέπει να είναι μεταξύ 1 και 99.", "error");
                 return;
@@ -96,6 +96,18 @@ export default function PricingManager({ products, settings, materials }: Props)
                  return { ...p, draft_price: roundPrice(newSelling), prev_draft_price: p.selling_price };
             });
             showToast(`Υπολογίστηκε νέα τιμή για στόχο περιθωρίου ${markupPercent}%.`, 'info');
+        } else if (markupMode === 'formula') {
+            updatedProducts = products.map(p => {
+                const cost = calculateProductCost(p, settings, materials, products);
+                const totalWeight = p.weight_g + (p.secondary_weight_g || 0);
+                
+                // If it has variants, we use master calculation for base, but we should actually process variants individually later
+                // For mass update, we typically update the Master Price (selling_price)
+                const suggested = calculateSuggestedWholesalePrice(totalWeight, cost.breakdown.silver, cost.breakdown.labor, cost.breakdown.materials);
+                
+                return { ...p, draft_price: suggested, prev_draft_price: p.selling_price };
+            });
+            showToast(`Υπολογίστηκε νέα τιμή βάσει προτύπου Ilios (x2 + Metal + Weight).`, 'info');
         }
     }
 
@@ -321,38 +333,56 @@ export default function PricingManager({ products, settings, materials }: Props)
                             <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
                                 <button
                                     onClick={() => { setMarkupMode('adjust'); setMarkupPercent(0); }}
-                                    className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Αναπροσαρμογή
                                 </button>
                                 <button
                                     onClick={() => { setMarkupMode('target'); setMarkupPercent(60); }}
-                                    className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    Στόχος Περιθωρίου
+                                    Στόχος
+                                </button>
+                                <button
+                                    onClick={() => { setMarkupMode('formula'); setMarkupPercent(0); }}
+                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'formula' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Τύπος Ilios
                                 </button>
                             </div>
 
-                            <label className="block text-sm font-bold text-amber-800 mb-2 uppercase tracking-wide">
-                                {markupMode === 'adjust' ? 'Ποσοστό Αναπροσαρμογής (%)' : 'Επιθυμητό Περιθώριο Κέρδους (%)'}
-                            </label>
-                            <div className="relative">
-                                <input 
-                                    type="number" 
-                                    value={markupPercent} 
-                                    onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
-                                    className="w-full p-4 border border-amber-200 rounded-2xl bg-white text-slate-900 font-mono text-2xl font-black focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
-                                    placeholder="0"
-                                />
-                                <Percent className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            </div>
+                            {markupMode !== 'formula' && (
+                                <>
+                                <label className="block text-sm font-bold text-amber-800 mb-2 uppercase tracking-wide">
+                                    {markupMode === 'adjust' ? 'Ποσοστό Αναπροσαρμογής (%)' : 'Επιθυμητό Περιθώριο Κέρδους (%)'}
+                                </label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        value={markupPercent} 
+                                        onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
+                                        className="w-full p-4 border border-amber-200 rounded-2xl bg-white text-slate-900 font-mono text-2xl font-black focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
+                                        placeholder="0"
+                                    />
+                                    <Percent className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                </div>
+                                </>
+                            )}
+                            
+                            {markupMode === 'formula' && (
+                                <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+                                    <Calculator className="text-emerald-500 mb-2" size={24}/>
+                                    <p className="font-bold text-emerald-800">Αυτόματος Υπολογισμός</p>
+                                    <p className="text-xs text-emerald-600 mt-1">(NonMetal x 2) + Silver + (Weight x 2)</p>
+                                </div>
+                            )}
                         </div>
                         <div>
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Οδηγίες</h4>
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                                {markupMode === 'adjust' 
-                                    ? "Αλλάζει τις τρέχουσες τιμές χονδρικής κατά το ποσοστό που θα ορίσετε (π.χ. +5% για πληθωρισμό)." 
-                                    : "Υπολογίζει νέες τιμές χονδρικής ώστε κάθε SKU να έχει το ίδιο περιθώριο κέρδους βάσει του τρέχοντος κόστους."}
+                                {markupMode === 'adjust' && "Αλλάζει τις τρέχουσες τιμές χονδρικής κατά το ποσοστό που θα ορίσετε (π.χ. +5% για πληθωρισμό)."}
+                                {markupMode === 'target' && "Υπολογίζει νέες τιμές χονδρικής ώστε κάθε SKU να έχει το ίδιο περιθώριο κέρδους βάσει του τρέχοντος κόστους."}
+                                {markupMode === 'formula' && "Εφαρμόζει τον τυπικό μαθηματικό τύπο του Ilios για υπολογισμό προτεινόμενης χονδρικής βάσει κόστους εργατικών/υλικών (x2) και βάρους."}
                             </div>
                         </div>
                     </div>
