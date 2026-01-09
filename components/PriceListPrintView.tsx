@@ -36,17 +36,24 @@ export default function PriceListPrintView({ data }: Props) {
                 {data.items.map((item, idx) => (
                     <div 
                         key={idx} 
-                        className="flex justify-between items-baseline py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50"
+                        className="flex justify-between items-start py-1 px-2 border-b border-slate-100 break-inside-avoid odd:bg-slate-50"
                     >
-                        <div className="text-[11px] text-slate-800 leading-tight">
+                        <div className="text-[11px] text-slate-800 leading-tight flex-1 pr-2 min-w-0">
                             <span className="font-black">{item.skuBase}</span>
                             {item.suffixes && (
-                                <span className="font-semibold text-[9px] text-slate-500 ml-0.5 tracking-tight">
-                                    {item.suffixes}
+                                <span className="font-semibold text-[9px] text-slate-500 ml-1 tracking-tight">
+                                    {item.suffixes.split('/').map((s, i) => (
+                                        <React.Fragment key={i}>
+                                            {i > 0 && <span className="text-slate-300 mx-[1px]">/</span>}
+                                            {s}
+                                            {/* Allow breaking after every suffix item */}
+                                            <wbr />
+                                        </React.Fragment>
+                                    ))}
                                 </span>
                             )}
                         </div>
-                        <span className="font-mono font-medium text-slate-600 text-xs ml-2 whitespace-nowrap">{item.price.toFixed(2)}€</span>
+                        <span className="font-mono font-medium text-slate-600 text-xs whitespace-nowrap pt-0.5">{item.price.toFixed(2)}€</span>
                     </div>
                 ))}
             </div>
