@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage } from '../types';
+import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage, Gender } from '../types';
 import { 
   TrendingUp, 
   Package, 
@@ -25,7 +26,8 @@ import {
   FileText,
   Lightbulb,
   ShieldCheck,
-  Rocket
+  Rocket,
+  Filter
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -138,6 +140,7 @@ export default function Dashboard({ products, settings }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory' | 'smart'>('overview');
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const { showToast } = useUI();
 
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -219,11 +222,12 @@ export default function Dashboard({ products, settings }: Props) {
   const categoryData = useMemo(() => {
       const counts: Record<string, number> = {};
       products.filter(p => !p.is_component).forEach(p => {
+          if (categoryGenderFilter !== 'All' && p.gender !== categoryGenderFilter) return;
           const cat = p.category.split(' ')[0]; 
           counts[cat] = (counts[cat] || 0) + 1;
       });
       return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
-  }, [products]);
+  }, [products, categoryGenderFilter]);
 
   const productionStageData = useMemo(() => {
       if (!batches) return [];
@@ -300,9 +304,24 @@ export default function Dashboard({ products, settings }: Props) {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                      <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 mb-6">
-                          <PieChart size={20} className="text-blue-500"/> Κατανομή Κατηγοριών
-                      </h3>
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                              <PieChart size={20} className="text-blue-500"/> Κατανομή Κατηγοριών
+                          </h3>
+                          <div className="relative">
+                              <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                              <select 
+                                  value={categoryGenderFilter} 
+                                  onChange={(e) => setCategoryGenderFilter(e.target.value as any)}
+                                  className="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg py-2 pl-7 pr-3 outline-none cursor-pointer hover:border-blue-300 transition-all appearance-none"
+                              >
+                                  <option value="All">Όλα τα Φύλα</option>
+                                  <option value={Gender.Women}>Γυναικεία</option>
+                                  <option value={Gender.Men}>Ανδρικά</option>
+                                  <option value={Gender.Unisex}>Unisex</option>
+                              </select>
+                          </div>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                           <div className="h-64">
                               <ResponsiveContainer width="100%" height="100%">
@@ -324,6 +343,7 @@ export default function Dashboard({ products, settings }: Props) {
                                       <span className="font-black text-slate-400">{item.value}</span>
                                   </div>
                               ))}
+                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν δεδομένα για αυτή την επιλογή.</div>}
                           </div>
                       </div>
                   </div>
