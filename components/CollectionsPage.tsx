@@ -220,7 +220,9 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
     const productsInSelectedCollection = useMemo(() => {
         if (!selectedCollection || !allProducts) return [];
-        return allProducts.filter(p => p.collections?.includes(selectedCollection.id));
+        return allProducts
+            .filter(p => p.collections?.includes(selectedCollection.id))
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
     }, [selectedCollection, allProducts]);
 
     const filteredAvailableProducts = useMemo(() => {
@@ -229,7 +231,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         return allProducts.filter(p => 
             !p.collections?.includes(selectedCollection.id) &&
             p.sku.toLowerCase().includes(searchLower)
-        );
+        ).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
     }, [allProducts, selectedCollection, searchTerm]);
 
     if (loadingCollections) {
