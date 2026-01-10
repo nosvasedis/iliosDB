@@ -11,8 +11,8 @@ export const INITIAL_SETTINGS: GlobalSettings = {
   loss_percentage: 0.0, // Updated to 0 as requested
   barcode_width_mm: 50,
   barcode_height_mm: 30,
-  retail_barcode_width_mm: 40, // Default smaller retail label
-  retail_barcode_height_mm: 20, 
+  retail_barcode_width_mm: 72, // Updated to 7.2cm
+  retail_barcode_height_mm: 10, // Updated to 1cm
   last_calc_silver_price: 0.82,
 };
 

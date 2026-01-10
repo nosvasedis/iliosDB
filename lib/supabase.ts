@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -206,13 +207,15 @@ export const api = {
         try {
             const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
             if (error || !data) throw new Error('Data Error');
+            
+            // Use INITIAL_SETTINGS as robust defaults if DB columns are missing or zero
             const settings = { 
               silver_price_gram: Number(data.silver_price_gram), 
               loss_percentage: Number(data.loss_percentage), 
-              barcode_width_mm: Number(data.barcode_width_mm) || 50, 
-              barcode_height_mm: Number(data.barcode_height_mm) || 30,
-              retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || 40,
-              retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || 20,
+              barcode_width_mm: Number(data.barcode_width_mm) || INITIAL_SETTINGS.barcode_width_mm, 
+              barcode_height_mm: Number(data.barcode_height_mm) || INITIAL_SETTINGS.barcode_height_mm,
+              retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || INITIAL_SETTINGS.retail_barcode_width_mm,
+              retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || INITIAL_SETTINGS.retail_barcode_height_mm,
               last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
             };
             offlineDb.saveTable('global_settings', [settings]);
