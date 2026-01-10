@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem, ProductVariant } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle } from 'lucide-react';
 import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, calculateSuggestedWholesalePrice, estimateVariantCost } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
@@ -50,7 +50,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   
   // Update state for batching
   const [isCommitting, setIsCommitting] = useState(false);
-  const [progress, setProgress] = useState<{ current: number, total: number } | null>(null);
+  const [progress, setProgress] = useState<{ current: number, total: number, failed: number } | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -206,7 +206,15 @@ export default function PricingManager({ products, settings, materials }: Props)
   });
 
   const commitPrices = async () => {
-    const count = filteredList.filter(i => i.hasChange).length;
+    // 1. Identify ONLY items that genuinely need an update
+    const updatesToApply = isCalculated ? calculatedData.filter(i => i.hasChange) : [];
+    const count = updatesToApply.length;
+
+    if (count === 0) {
+        showToast("Δεν υπάρχουν αλλαγές προς ενημέρωση.", 'info');
+        return;
+    }
+
     const yes = await confirm({
         title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Χονδρικής',
         message: mode === 'cost' 
@@ -218,17 +226,19 @@ export default function PricingManager({ products, settings, materials }: Props)
     if (!yes) return;
 
     setIsCommitting(true);
+    let successCount = 0;
+    let failCount = 0;
     
     try {
-        const updatesToApply = isCalculated ? calculatedData.filter(i => i.hasChange) : [];
-        setProgress({ current: 0, total: updatesToApply.length });
+        setProgress({ current: 0, total: count, failed: 0 });
         
-        // Batch Processing Configuration
-        const BATCH_SIZE = 20; // Conservative batch size to prevent timeouts
+        // 2. Reduced Batch Size for Stability
+        const BATCH_SIZE = 10; 
         
         for (let i = 0; i < updatesToApply.length; i += BATCH_SIZE) {
             const batch = updatesToApply.slice(i, i + BATCH_SIZE);
             
+            // 3. Map Promises
             const promises = batch.map(item => {
                 const updates: any = {};
                 if (mode === 'cost') {
@@ -249,13 +259,30 @@ export default function PricingManager({ products, settings, materials }: Props)
                 }
             });
 
-            // Wait for current batch to finish
-            await Promise.all(promises);
+            // 4. Use allSettled to ensure 1 failure doesn't kill the batch
+            const results = await Promise.allSettled(promises);
             
-            // Update progress
-            setProgress({ current: Math.min(i + BATCH_SIZE, updatesToApply.length), total: updatesToApply.length });
+            results.forEach(res => {
+                if (res.status === 'fulfilled' && !res.value.error) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    console.error("Batch item failed:", res);
+                }
+            });
+            
+            // 5. Update progress UI
+            setProgress({ 
+                current: Math.min(i + BATCH_SIZE, count), 
+                total: count, 
+                failed: failCount 
+            });
+
+            // 6. Throttle slightly to breathe
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
         
+        // Update global settings if cost mode
         if (mode === 'cost') {
             await supabase.from('global_settings').update({ 
                 last_calc_silver_price: settings.silver_price_gram 
@@ -270,10 +297,16 @@ export default function PricingManager({ products, settings, materials }: Props)
         setIsCalculated(false);
         setCalculatedData([]);
         setProgress(null);
-        showToast("Οι τιμές ενημερώθηκαν επιτυχώς!", 'success');
+        
+        if (failCount > 0) {
+            showToast(`Ενημερώθηκαν ${successCount}, απέτυχαν ${failCount}.`, 'warning');
+        } else {
+            showToast(`Επιτυχής ενημέρωση ${successCount} κωδικών!`, 'success');
+        }
+
     } catch(err) {
         console.error(err);
-        showToast("Σφάλμα κατά την ενημέρωση.", 'error');
+        showToast("Κρίσιμο σφάλμα κατά την ενημέρωση.", 'error');
     } finally {
         setIsCommitting(false);
         setProgress(null);
@@ -507,8 +540,9 @@ export default function PricingManager({ products, settings, materials }: Props)
                 ) : (
                     <div className="flex flex-col gap-3 w-full">
                         {isCommitting && progress && (
-                            <div className="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+                            <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden relative">
                                 <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }}></div>
+                                {progress.failed > 0 && <div className="absolute top-0 right-0 h-full bg-red-500" style={{ width: `${(progress.failed / progress.total) * 100}%` }}></div>}
                             </div>
                         )}
                         <div className="flex gap-3 justify-center">
@@ -517,9 +551,12 @@ export default function PricingManager({ products, settings, materials }: Props)
                             </button>
                             <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
                                 {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                                {isCommitting ? `Ενημέρωση (${progress ? Math.round((progress.current/progress.total)*100) : 0}%)...` : 'Εφαρμογή Τιμών'}
+                                {isCommitting 
+                                    ? `Ενημέρωση (${progress ? Math.round((progress.current/progress.total)*100) : 0}%)...` 
+                                    : `Εφαρμογή σε ${calculatedData.filter(i => i.hasChange).length}`}
                             </button>
                         </div>
+                        {progress?.failed ? <p className="text-[10px] text-red-500 text-center font-bold">{progress.failed} απέτυχαν (θα αγνοηθούν)</p> : null}
                     </div>
                 )}
                 </div>
@@ -533,6 +570,11 @@ export default function PricingManager({ products, settings, materials }: Props)
                         {isCalculated ? <Layers size={18} className="text-emerald-500"/> : <AlertCircle size={18}/>}
                         {isCalculated ? 'Ανάλυση & Προεπισκόπηση' : 'Όλοι οι Κωδικοί & Παραλλαγές'}
                         <span className="bg-white px-2 py-0.5 rounded text-xs border border-slate-200">{filteredList.length} items</span>
+                        {isCalculated && (
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-xs border border-emerald-200 ml-2">
+                                {filteredList.filter(i => i.hasChange).length} με αλλαγές
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-4">
                         {isCalculated && mode === 'cost' && <span className="text-xs bg-amber-50 px-2 py-1 rounded text-amber-700 font-bold border border-amber-100">Νέα Βάση: {settings.silver_price_gram}€/g</span>}
