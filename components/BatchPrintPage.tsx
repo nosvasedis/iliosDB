@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -49,9 +49,14 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
     // Smart Entry State
     const [scanInput, setScanInput] = useState('');
-    const [scanSuggestion, setScanSuggestion] = useState('');
-    const [availableSuffixes, setAvailableSuffixes] = useState<{suffix: string, desc: string}[]>([]);
     const [scanQty, setScanQty] = useState(1);
+    
+    // Revamped State for Visuals
+    const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
+    const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
+    const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
+    const [typedSuffixPart, setTypedSuffixPart] = useState('');
+
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handlePrint = () => {
@@ -114,112 +119,167 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }, 500);
     };
 
-    // ... (Existing smart entry code remains unchanged)
+    // --- REVAMPED SMART INPUT LOGIC ---
     const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value.toUpperCase();
         setScanInput(val);
 
-        if (val.length === 0) {
-            setScanSuggestion('');
-            setAvailableSuffixes([]);
+        if (val.length < 2) {
+            setCandidateProducts([]);
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+            setTypedSuffixPart('');
             return;
         }
 
-        const match = findProductByScannedCode(val, allProducts);
-        if (match) {
-            const { product, variant } = match;
-            setScanSuggestion(product.sku + (variant?.suffix || ''));
-            setAvailableSuffixes(product.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
+        // 1. Identify Potential Masters & Partial Suffixes
+        let bestMaster: Product | null = null;
+        let suffixPart = '';
+        
+        // Strategy A: Exact Master Match (e.g. typing "DA100")
+        const exactMaster = allProducts.find(p => p.sku === val);
+        
+        // Strategy B: Prefix Match (e.g. typing "DA100X" -> Master "DA100")
+        // We look for the longest master SKU that matches the start of the input
+        const potentialMasters = allProducts.filter(p => val.startsWith(p.sku));
+        const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
+
+        if (exactMaster) {
+            bestMaster = exactMaster;
+            suffixPart = '';
+        } else if (longestPrefixMaster) {
+            bestMaster = longestPrefixMaster;
+            suffixPart = val.replace(longestPrefixMaster.sku, '');
+        }
+
+        // 2. Set Visual Candidates (Top 6 matches for what is typed so far)
+        // If we found a specific master context, prioritize showing that master + siblings
+        // Otherwise show anything starting with the input
+        let candidates: Product[] = [];
+        if (bestMaster) {
+            candidates = [bestMaster]; // Always show the context first
         } else {
-            const masterMatch = allProducts.find(p => p.sku.startsWith(val));
-            setScanSuggestion(masterMatch ? masterMatch.sku : '');
-            setAvailableSuffixes([]);
+            candidates = allProducts.filter(p => p.sku.startsWith(val)).slice(0, 6);
+        }
+        setCandidateProducts(candidates);
+
+        // 3. Set Variants & Suffix Logic
+        if (bestMaster) {
+            setActiveMasterProduct(bestMaster);
+            setTypedSuffixPart(suffixPart);
+            
+            if (bestMaster.variants) {
+                // Filter variants that START with the typed suffix part
+                // e.g. Master: DA100, SuffixPart: "X" -> Matches "X", "XKR", "XP" etc.
+                const validVariants = bestMaster.variants
+                    .filter(v => v.suffix.startsWith(suffixPart))
+                    .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
+                
+                setFilteredVariants(validVariants);
+            } else {
+                setFilteredVariants([]);
+            }
+        } else {
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+            setTypedSuffixPart('');
         }
     };
 
+    const selectProductCandidate = (product: Product) => {
+        // If clicking a candidate, we set it as the context
+        setScanInput(product.sku);
+        setActiveMasterProduct(product);
+        setCandidateProducts([product]);
+        setTypedSuffixPart('');
+        // Show all variants
+        if (product.variants) {
+            setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+        } else {
+            setFilteredVariants([]);
+        }
+        inputRef.current?.focus();
+    };
+
     const selectSuffix = (suffix: string) => {
-        const info = getScanProductInfo();
-        if (info?.product) {
-            const fullCode = info.product.sku + suffix;
+        if (activeMasterProduct) {
+            const fullCode = activeMasterProduct.sku + suffix;
             setScanInput(fullCode);
-            setScanSuggestion(fullCode);
-            setAvailableSuffixes([]);
+            // Don't clear master, keep context but maybe narrow variants? 
+            // For now, assume selection means "I want this one"
+            setTypedSuffixPart(suffix);
+            setFilteredVariants([]); // Clear suggestions to indicate selection made
             inputRef.current?.focus();
         }
     };
 
     const executeSmartAdd = () => {
-        const targetCode = scanSuggestion || scanInput;
-        if (!targetCode) return;
-
-        const match = findProductByScannedCode(targetCode, allProducts);
+        if (!activeMasterProduct && !scanInput) return;
+        
+        // If we have a master and a suffix picked (or typed fully)
+        let finalCode = scanInput;
+        
+        // Validate
+        const match = findProductByScannedCode(finalCode, allProducts);
+        
         if (!match) {
-            showToast("Ο κωδικός δεν βρέθηκε.", "error");
-            return;
+            // Check if it's a valid master with NO variants
+            const exactMaster = allProducts.find(p => p.sku === finalCode);
+            if (exactMaster && (!exactMaster.variants || exactMaster.variants.length === 0)) {
+                // Valid simple product
+            } else if (match) {
+                // Valid variant or master
+            } else {
+                showToast("Ο κωδικός δεν βρέθηκε ή είναι ατελής.", "error");
+                return;
+            }
         }
 
-        const finalCode = match.product.sku + (match.variant?.suffix || '');
         const currentLines = skusText.split('\n').filter(l => l.trim());
         const newLine = `${finalCode} ${scanQty}`;
         setSkusText([...currentLines, newLine].join('\n'));
 
+        // Reset
         setScanInput('');
-        setScanSuggestion('');
         setScanQty(1);
-        setAvailableSuffixes([]);
+        setCandidateProducts([]);
+        setActiveMasterProduct(null);
+        setFilteredVariants([]);
         inputRef.current?.focus();
         showToast(`Προστέθηκε: ${finalCode}`, 'success');
     };
 
-    const getScanProductInfo = () => {
-        const t = scanSuggestion || scanInput;
-        if (!t) return null;
-        const match = findProductByScannedCode(t, allProducts);
-        if (!match) return null;
-        return { product: match.product, variant: match.variant, variantSuffix: match.variant?.suffix || '' };
-    };
-
+    // --- VISUALIZERS ---
     const SkuVisualizer = () => {
-        if (!scanSuggestion && !scanInput) return null;
-        const textToRender = scanSuggestion || scanInput;
-        const match = findProductByScannedCode(textToRender, allProducts);
-        const prod = match?.product;
+        if (!activeMasterProduct) return null;
         
-        let masterPart = prod ? prod.sku : textToRender;
-        let suffixPart = prod ? textToRender.substring(prod.sku.length) : '';
+        // Master part is colored black/standard
+        // Suffix part is colored based on stone/metal
+        
+        const masterLen = activeMasterProduct.sku.length;
+        const masterStr = scanInput.slice(0, masterLen);
+        const suffixStr = scanInput.slice(masterLen);
 
-        const { finish, stone } = prod ? getVariantComponents(suffixPart, prod.gender) : { finish: { code: '' }, stone: { code: '' } };
-        const finishColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-        const stoneColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+        const { finish, stone } = getVariantComponents(suffixStr, activeMasterProduct.gender);
+        const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+        const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
 
-        const renderChars = (fullText: string, typedText: string) => {
-            return fullText.split('').map((char, i) => {
-                const isGhost = i >= typedText.length;
-                const isSuffix = prod && i >= prod.sku.length;
-                let colorClass = 'text-slate-800';
+        const renderSuffixChars = () => {
+            return suffixStr.split('').map((char, i) => {
+                let colorClass = 'text-slate-400';
                 
-                if (isSuffix) {
-                    const suffixIndex = i - prod!.sku.length;
-                    if (finish.code && suffixPart.startsWith(finish.code) && suffixIndex < finish.code.length) {
-                        colorClass = finishColor;
-                    } else if (stone.code && suffixPart.endsWith(stone.code) && suffixIndex >= (suffixPart.length - stone.code.length)) {
-                        colorClass = stoneColor;
-                    } else {
-                        colorClass = 'text-slate-400';
-                    }
-                }
-
-                return (
-                    <span key={i} className={`${colorClass} ${isGhost ? 'opacity-30 italic font-medium' : 'font-black'}`}>
-                        {char}
-                    </span>
-                );
+                // Heuristic coloring for visual feedback while typing
+                if (finish.code && i < finish.code.length) colorClass = fColor;
+                else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
+                
+                return <span key={i} className={colorClass}>{char}</span>
             });
         };
 
         return (
             <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                {renderChars(textToRender, scanInput)}
+                <span className="text-slate-900 font-black">{masterStr}</span>
+                <span className="font-black flex">{renderSuffixChars()}</span>
             </div>
         );
     };
@@ -308,32 +368,75 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
                         <ScanBarcode size={22} className="animate-pulse" />
                     </div>
-                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη στην Ουρά</h2>
+                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end overflow-visible">
-                    <div className="md:col-span-8 relative overflow-visible">
-                        <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
-                        <div className="relative">
-                            <SkuVisualizer />
-                            <input 
-                                ref={inputRef}
-                                type="text"
-                                value={scanInput}
-                                onChange={handleSmartInput}
-                                onKeyDown={e => {
-                                    if(e.key === 'ArrowRight' && scanSuggestion) { e.preventDefault(); setScanInput(scanSuggestion); }
-                                    if(e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); }
-                                }}
-                                placeholder="Σκανάρετε ή πληκτρολογήστε..."
-                                className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
-                            />
-                            
-                            {availableSuffixes.length > 0 && (
-                                <div className="absolute top-full left-0 right-0 mt-2 flex flex-wrap gap-1.5 z-[100] p-3 bg-white rounded-2xl border border-slate-100 shadow-2xl max-h-48 overflow-y-auto custom-scrollbar ring-4 ring-black/5">
-                                    <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> Προτάσεις Παραλλαγών</div>
-                                    {availableSuffixes.map(s => {
-                                        const { finish, stone } = getVariantComponents(s.suffix, getScanProductInfo()?.product?.gender);
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start overflow-visible">
+                    <div className="md:col-span-8 relative overflow-visible space-y-4">
+                        
+                        <div>
+                            <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
+                            <div className="relative">
+                                <SkuVisualizer />
+                                <input 
+                                    ref={inputRef}
+                                    type="text"
+                                    value={scanInput}
+                                    onChange={handleSmartInput}
+                                    onKeyDown={e => {
+                                        if(e.key === 'ArrowRight' && filteredVariants.length > 0) { 
+                                            // Maybe autocomplete the first variant? For now simple arrow movement.
+                                        }
+                                        if(e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); }
+                                    }}
+                                    placeholder="Πληκτρολογήστε..."
+                                    className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
+                                />
+                            </div>
+                        </div>
+
+                        {/* VISUAL CANDIDATES STRIP */}
+                        {candidateProducts.length > 0 && (
+                            <div className="animate-in slide-in-from-top-2 fade-in">
+                                <label className="text-[9px] text-slate-400 font-bold uppercase mb-1.5 ml-1 block tracking-widest flex items-center gap-1">
+                                    <Search size={10}/> {activeMasterProduct ? 'ΕΠΙΛΕΓΜΕΝΟ ΠΡΟΪΟΝ' : 'ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ'}
+                                </label>
+                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                    {candidateProducts.map(p => (
+                                        <div 
+                                            key={p.sku} 
+                                            onClick={() => selectProductCandidate(p)}
+                                            className={`
+                                                flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all min-w-[180px] group
+                                                ${activeMasterProduct?.sku === p.sku 
+                                                    ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md' 
+                                                    : 'bg-slate-50 border-slate-200 hover:border-emerald-300 hover:bg-white'}
+                                            `}
+                                        >
+                                            <div className="w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                                                {p.image_url ? (
+                                                    <img src={p.image_url} className="w-full h-full object-cover" alt={p.sku}/>
+                                                ) : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16}/></div>}
+                                            </div>
+                                            <div>
+                                                <div className={`font-black text-sm leading-none ${activeMasterProduct?.sku === p.sku ? 'text-emerald-800' : 'text-slate-700'}`}>{p.sku}</div>
+                                                <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[100px]">{p.category}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VARIANT SUGGESTIONS GRID */}
+                        {filteredVariants.length > 0 && (
+                            <div className="animate-in slide-in-from-top-2 fade-in bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                                <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest flex items-center gap-1">
+                                    <Lightbulb size={10} className="text-amber-500"/> ΔΙΑΘΕΣΙΜΕΣ ΠΑΡΑΛΛΑΓΕΣ
+                                </label>
+                                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                    {filteredVariants.map(s => {
+                                        const { finish, stone } = getVariantComponents(s.suffix, activeMasterProduct?.gender);
                                         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
                                         const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
                                         
@@ -341,27 +444,29 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                             <button 
                                                 key={s.suffix} 
                                                 onClick={() => selectSuffix(s.suffix)}
-                                                className="bg-slate-50 hover:bg-emerald-50 text-slate-600 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1"
+                                                className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-300 flex items-center gap-1 group active:scale-95"
                                                 title={s.desc}
                                             >
                                                 <span className={fColor}>{finish.code || 'LUSTRE'}</span>
                                                 {stone.code && <span className={sColor}>{stone.code}</span>}
+                                                <span className="ml-1.5 text-[9px] text-slate-300 font-normal group-hover:text-emerald-400 normal-case">{s.desc}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="md:col-span-4 flex gap-3 items-end h-full">
+                    <div className="md:col-span-4 flex gap-3 items-start h-full pt-6">
                         <div className="w-24 shrink-0">
                             <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
                             <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
                         </div>
                         <button 
                             onClick={executeSmartAdd}
-                            className="flex-1 h-[54px] bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95"
+                            disabled={!activeMasterProduct && !scanInput}
+                            className="flex-1 h-[54px] bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:translate-y-0"
                         >
                             <Plus size={28}/>
                         </button>
