@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus } from 'lucide-react';
+import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -82,12 +82,55 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         queryClient.invalidateQueries({ queryKey: ['products'] });
     };
 
+    const expandSkuRange = (token: string): string[] => {
+        // Regex to capture PREFIX and NUMBER from formats like "RN300" or "STX-500"
+        // Range Pattern: START - END (e.g., RN300-RN325)
+        const rangeRegex = /^([A-Z-]+)(\d+)-([A-Z-]+)(\d+)$/i;
+        const match = token.match(rangeRegex);
+
+        if (!match) return [token];
+
+        const [, prefix1, num1Str, prefix2, num2Str] = match;
+
+        // Ensure prefixes match (case-insensitive check, but use original case for reconstruction if needed)
+        if (prefix1.toUpperCase() !== prefix2.toUpperCase()) return [token];
+
+        const start = parseInt(num1Str, 10);
+        const end = parseInt(num2Str, 10);
+
+        if (start > end) return [token];
+        
+        // Safety cap to prevent massive loops
+        if (end - start > 1000) return [token];
+
+        const expanded: string[] = [];
+        const paddingLength = num1Str.length;
+        const shouldPad = num1Str.startsWith('0') && num1Str.length > 1;
+
+        for (let i = start; i <= end; i++) {
+            let numPart = i.toString();
+            if (shouldPad) {
+                numPart = numPart.padStart(paddingLength, '0');
+            }
+            expanded.push(`${prefix1}${numPart}`);
+        }
+
+        return expanded;
+    };
+
     const handleBulkAdd = async () => {
         if (!selectedCollection || !allProducts || !bulkSkus.trim()) return;
         
         setIsBulkAdding(true);
         const lines = bulkSkus.split(/[\n, ]+/).filter(x => x.trim().length > 0);
         
+        // Expand ranges
+        const expandedSkus: string[] = [];
+        lines.forEach(token => {
+            const result = expandSkuRange(token.trim().toUpperCase());
+            expandedSkus.push(...result);
+        });
+
         let foundCount = 0;
         let notFoundCount = 0;
         
@@ -95,8 +138,10 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             // Collect all promises for parallel execution
             const updates = [];
             
-            for (const rawSku of lines) {
-                const sku = rawSku.toUpperCase().trim();
+            // Use a Set to avoid duplicates if ranges overlap
+            const uniqueSkus = Array.from(new Set(expandedSkus));
+
+            for (const sku of uniqueSkus) {
                 const product = allProducts.find(p => p.sku === sku);
                 
                 if (product) {
@@ -283,10 +328,13 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             <textarea 
                                                 value={bulkSkus}
                                                 onChange={e => setBulkSkus(e.target.value)}
-                                                placeholder={`Επικολλήστε κωδικούς εδώ (π.χ. από Excel)...\nDA100\nXR2020\nSTX-505`}
+                                                placeholder={`Επικολλήστε κωδικούς εδώ (π.χ. από Excel)...\nDA100\nXR2020\nSTX-505\nRN300-RN325`}
                                                 className="w-full p-3 text-sm font-mono border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all h-24 resize-none"
                                             />
-                                            <p className="text-[10px] text-blue-400 mt-1 ml-1">* Χωρίζονται με κενό, κόμμα ή νέα γραμμή.</p>
+                                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-blue-500 font-medium">
+                                                <Info size={12}/>
+                                                <p>Υποστηρίζει εύρος (π.χ. <strong>RN300-RN325</strong>).</p>
+                                            </div>
                                         </div>
                                         <button 
                                             onClick={handleBulkAdd} 
