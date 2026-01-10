@@ -279,14 +279,22 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
                 {items.map(({ variant, key }) => (
                     <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
-                        <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full relative overflow-hidden">
-                            <BarcodeView 
-                                product={product} 
-                                variant={variant || undefined} 
-                                width={format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm} 
-                                height={format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm} 
-                                format={format}
-                            />
+                        {/* 
+                            Barcode Preview Container
+                            - overflow-x-auto: Allows scrolling if the label is wider than the card (common for retail labels)
+                            - min-h: Ensures enough vertical space
+                            - padding: reduced to maximize space
+                        */}
+                        <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full relative overflow-x-auto custom-scrollbar">
+                            <div className={`${format === 'retail' ? 'scale-125 origin-center p-4' : ''} transition-transform`}>
+                                <BarcodeView 
+                                    product={product} 
+                                    variant={variant || undefined} 
+                                    width={format === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm} 
+                                    height={format === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm} 
+                                    format={format}
+                                />
+                            </div>
                         </div>
                         
                         <div className="w-full text-center">
@@ -310,7 +318,6 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
 };
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
-  // ... (rest of the file remains unchanged until the return logic for BarcodeGallery)
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
@@ -378,8 +385,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     return baseTabs;
   }, [editedProduct.production_type, editedProduct.variants?.length]);
 
-  // ... (useEffects and handlers mostly unchanged, omitted for brevity, keeping only the updated BarcodeGallery render)
-
   useEffect(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
     setEditedProduct({ 
@@ -422,7 +427,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
   
-  // ... (omitting duplicate useEffects for brevity, they are unchanged)
   useEffect(() => {
     if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
         const baseCastingCost = editedProduct.weight_g * 0.15;

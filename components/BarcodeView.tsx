@@ -60,8 +60,9 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 
                 // BARCODE OPTIMIZATION
                 // retail: needs to be very short to fit in 1cm height alongside text
-                const barWidth = format === 'retail' ? 1.0 : (activeWidth < 45 ? 1.6 : 1.9);
-                const barHeight = format === 'retail' ? 25 : 100; // 25 relative units ensures it's short enough
+                // Reduced barWidth significantly for retail to fit in small space
+                const barWidth = format === 'retail' ? 0.8 : (activeWidth < 45 ? 1.6 : 1.9);
+                const barHeight = format === 'retail' ? 15 : 100; // Very short bars for retail
                 
                 JsBarcode(svgRef.current, encodedSku, {
                     format: 'CODE128',
@@ -135,22 +136,23 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 <div style={{ flex: 1, height: '100%', display: 'flex' }}>
                     
                     {/* Part 1 (Left of content): SKU & Barcode */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 1mm', overflow: 'hidden' }}>
-                        <span className="font-black block uppercase" style={{ fontSize: '2.5mm', lineHeight: 1 }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black block uppercase leading-none" style={{ fontSize: '2mm' }}>
                             {finalSku}
                         </span>
-                        <div style={{ width: '100%', height: '5mm', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                        {/* Smaller container for the barcode to ensure it fits */}
+                        <div style={{ width: '100%', height: '3.5mm', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginTop: '0.5mm' }}>
                              <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
                         </div>
                     </div>
 
                     {/* Part 2 (Right of content): Codified Price & Stone */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 1mm', overflow: 'hidden' }}>
-                        <span className="font-black" style={{ fontSize: '3mm', lineHeight: 1 }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black leading-none" style={{ fontSize: '2.5mm' }}>
                             {codifiedPrice}
                         </span>
                         {stoneName && (
-                            <span className="font-bold block truncate" style={{ fontSize: '1.8mm', lineHeight: 1, marginTop: '0.5mm', textAlign: 'center', maxWidth: '100%' }}>
+                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.5mm', marginTop: '0.5mm', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {stoneName}
                             </span>
                         )}
