@@ -59,12 +59,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 const encodedSku = transliterateForBarcode(finalSku);
                 
                 // BARCODE OPTIMIZATION
-                // Retail: Increased barWidth to 1.4 to ensure solid lines (less "dense" artifacts).
-                // Standard: Keeps original density.
-                const barWidth = format === 'retail' ? 1.4 : (activeWidth < 45 ? 1.6 : 1.9);
-                
-                // Retail: Short bars (18 units) to fit in 10mm height with text.
-                const barHeight = format === 'retail' ? 18 : 100; 
+                // retail: needs to be very short to fit in 1cm height alongside text
+                // Reduced barWidth significantly for retail to fit in small space
+                const barWidth = format === 'retail' ? 0.8 : (activeWidth < 45 ? 1.6 : 1.9);
+                const barHeight = format === 'retail' ? 15 : 100; // Very short bars for retail
                 
                 JsBarcode(svgRef.current, encodedSku, {
                     format: 'CODE128',
@@ -134,27 +132,27 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 {/* Print-only spacer logic handled by print media queries implicitly or just blank div */}
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable Area Wrapper (Remaining ~3.7cm split into 2 columns) */}
+                {/* Printable Area Wrapper (Remaining ~3.7cm split into 2) */}
                 <div style={{ flex: 1, height: '100%', display: 'flex' }}>
                     
-                    {/* Part 1 (Left): SKU & Barcode - Takes 55% width to allow wider barcode (easier scanning) */}
-                    <div style={{ flex: '5.5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
-                        <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm' }}>
+                    {/* Part 1 (Left of content): SKU & Barcode */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black block uppercase leading-none" style={{ fontSize: '2mm' }}>
                             {finalSku}
                         </span>
-                        {/* WIDER container for the barcode to scan better */}
-                        <div style={{ width: '100%', height: '4mm', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginTop: '0.5mm' }}>
+                        {/* Smaller container for the barcode to ensure it fits */}
+                        <div style={{ width: '100%', height: '3.5mm', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginTop: '0.5mm' }}>
                              <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
                         </div>
                     </div>
 
-                    {/* Part 2 (Right): Codified Price & Stone - Takes 45% width */}
-                    <div style={{ flex: '4.5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
-                        <span className="font-black leading-none" style={{ fontSize: '3mm' }}>
+                    {/* Part 2 (Right of content): Codified Price & Stone */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black leading-none" style={{ fontSize: '2.5mm' }}>
                             {codifiedPrice}
                         </span>
                         {stoneName && (
-                            <span className="font-bold block text-center leading-none" style={{ fontSize: '2.2mm', marginTop: '0.5mm', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.5mm', marginTop: '0.5mm', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {stoneName}
                             </span>
                         )}
