@@ -117,18 +117,42 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       const val = (typeof e === 'string' ? e : e.target.value).toUpperCase();
       setScanInput(val);
       setScanSize('');
-      if (val.length === 0) { setScanSuggestion(''); setAvailableSuffixes([]); return; }
       
+      if (val.length === 0) { 
+          setScanSuggestion(''); 
+          setAvailableSuffixes([]); 
+          return; 
+      }
+      
+      // 1. Try Exact Match (Master or Variant)
       const match = findProductByScannedCode(val, products);
       if (match) {
           const { product } = match;
           setScanSuggestion(product.sku + (match.variant?.suffix || ''));
           setAvailableSuffixes(product.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
       } else {
-          const masterMatch = products.find(p => p.sku.startsWith(val) || transliterateForBarcode(p.sku).startsWith(val));
+          // 2. Try identifying Master by looking at what starts with the typed value (Standard Autocomplete)
+          // OR if the typed value STARTS with a known master SKU (Variant Typing Logic)
+          
+          // Logic: Find longest master SKU that matches the START of 'val'
+          const potentialMasters = products.filter(p => val.startsWith(p.sku));
+          const variantTypingMatch = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
+
+          // Logic: Find master SKU that starts with 'val' (Standard Autocomplete)
+          const standardAutocompleteMatch = products.find(p => p.sku.startsWith(val) || transliterateForBarcode(p.sku).startsWith(val));
+
+          const masterMatch = variantTypingMatch || standardAutocompleteMatch;
+
           if (masterMatch) {
               setScanSuggestion(masterMatch.sku);
-              setAvailableSuffixes(masterMatch.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
+              // Filter suggestions if we are typing a variant
+              if (variantTypingMatch) {
+                  const typedSuffix = val.replace(masterMatch.sku, '');
+                  const filtered = masterMatch.variants?.filter(v => v.suffix.startsWith(typedSuffix)).map(v => ({ suffix: v.suffix, desc: v.description })) || [];
+                  setAvailableSuffixes(filtered);
+              } else {
+                  setAvailableSuffixes(masterMatch.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
+              }
           } else {
               setScanSuggestion(''); setAvailableSuffixes([]);
           }
@@ -174,35 +198,58 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   const getScanProductInfo = () => { 
-      const t = scanSuggestion || scanInput; if (!t) return null;
-      const match = findProductByScannedCode(t, products); 
-      if(!match) return null;
+      // Enhanced lookup that respects potential masters from partial input
+      let t = scanSuggestion || scanInput; 
+      if (!t) return null;
+      
+      let match = findProductByScannedCode(t, products);
+      if (!match) {
+          // Fallback: Check if scanSuggestion is just a master and input has suffix parts
+          const master = products.find(p => p.sku === scanSuggestion);
+          if (master) {
+              const suffix = scanInput.replace(master.sku, '');
+              // Try to find the closest variant match for visualization
+              const variant = master.variants?.find(v => v.suffix === suffix) || master.variants?.find(v => v.suffix.startsWith(suffix));
+              if (variant) {
+                  return { product: master, variant: variant, variantSuffix: variant.suffix };
+              }
+              return { product: master, variant: undefined, variantSuffix: suffix };
+          }
+          return null;
+      }
       return { product: match.product, variant: match.variant, variantSuffix: match.variant?.suffix || '' }; 
   }
 
   const SkuVisualizer = () => {
-    if (!scanSuggestion && !scanInput) return null;
-    const textToRender = scanSuggestion || scanInput;
-    const match = findProductByScannedCode(textToRender, products);
-    const prod = match?.product;
-    let masterPart = prod ? prod.sku : textToRender;
-    let suffixPart = prod ? textToRender.substring(prod.sku.length) : '';
-    const { finish, stone } = prod ? getVariantComponents(suffixPart, prod.gender) : { finish: { code: '' }, stone: { code: '' } };
+    // VISUALIZER FIX: Always render input text even if not matched
+    const info = getScanProductInfo();
+    const textToRender = scanInput;
+    
+    if (!info) {
+        return (
+            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                <span className="text-slate-800 font-bold">{textToRender}</span>
+            </div>
+        );
+    }
+
+    const { product, variantSuffix } = info;
+    const masterLen = product.sku.length;
+    const masterPart = textToRender.substring(0, masterLen);
+    const suffixPart = textToRender.substring(masterLen);
+
+    const { finish, stone } = getVariantComponents(suffixPart, product.gender);
     const finishColor = FINISH_COLORS[finish.code] || 'text-slate-400';
     const stoneColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+
     return (
         <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-            {textToRender.split('').map((char, i) => {
-                const isGhost = i >= scanInput.length;
-                const isSuffix = prod && i >= prod.sku.length;
-                let colorClass = 'text-slate-800';
-                if (isSuffix) {
-                    const sIdx = i - prod!.sku.length;
-                    if (finish.code && suffixPart.startsWith(finish.code) && sIdx < finish.code.length) colorClass = finishColor;
-                    else if (stone.code && suffixPart.endsWith(stone.code) && sIdx >= (suffixPart.length - stone.code.length)) colorClass = stoneColor;
-                    else colorClass = 'text-slate-400';
-                }
-                return <span key={i} className={`${colorClass} ${isGhost ? 'opacity-30 italic font-medium' : 'font-black'}`}>{char}</span>;
+            <span className="text-slate-900 font-black">{masterPart}</span>
+            {suffixPart.split('').map((char, i) => {
+                let colorClass = 'text-slate-400';
+                if (finish.code && i < finish.code.length) colorClass = finishColor;
+                else if (stone.code && i >= (suffixPart.length - stone.code.length)) colorClass = stoneColor;
+                return <span key={i} className={`${colorClass} font-black`}>{char}</span>;
             })}
         </div>
     );

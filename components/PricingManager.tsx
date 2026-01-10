@@ -119,12 +119,13 @@ export default function PricingManager({ products, settings, materials }: Props)
         const productItems: PricingItem[] = [];
         
         // Helper to process a specific item (Variant or Master)
-        const processItem = (variantSuffix: string | null, currentVal: number, name: string): PricingItem => {
+        // BUG FIX: Added isVariantRow explicit flag to handle empty suffix variants correctly
+        const processItem = (variantSuffix: string | null, currentVal: number, name: string, isVariantRow: boolean): PricingItem => {
             let newVal = 0;
             let costBasis = 0;
             
             // Recalculate cost FRESH
-            const costCalc = variantSuffix 
+            const costCalc = isVariantRow && variantSuffix !== null
                 ? estimateVariantCost(product, variantSuffix, settings, materials, products)
                 : calculateProductCost(product, settings, materials, products);
             
@@ -162,17 +163,19 @@ export default function PricingManager({ products, settings, materials }: Props)
                 currentPrice: currentVal, // Old/Current Value
                 newPrice: newVal,         // New/Proposed Value
                 costBasis: freshCost,
-                isVariant: !!variantSuffix,
+                isVariant: isVariantRow, // Correctly identifies if this targets product_variants or products table
                 hasChange
             };
         };
 
         if (product.variants && product.variants.length > 0) {
             product.variants.forEach(v => {
-                productItems.push(processItem(v.suffix, mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0), v.description || product.category));
+                // Pass TRUE for isVariantRow, even if suffix is empty
+                productItems.push(processItem(v.suffix, mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0), v.description || product.category, true));
             });
         } else {
-            productItems.push(processItem(null, mode === 'cost' ? (product.active_price || 0) : (product.selling_price || 0), product.category));
+            // Pass FALSE for Master (Simple Product)
+            productItems.push(processItem(null, mode === 'cost' ? (product.active_price || 0) : (product.selling_price || 0), product.category, false));
         }
         
         return productItems;
@@ -251,7 +254,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                 if (item.isVariant) {
                     return supabase.from('product_variants')
                         .update(updates)
-                        .match({ product_sku: item.masterSku, suffix: item.variantSuffix });
+                        .match({ product_sku: item.masterSku, suffix: item.variantSuffix || '' }); // Ensure empty string for null suffix if variant
                 } else {
                     return supabase.from('products')
                         .update(updates)

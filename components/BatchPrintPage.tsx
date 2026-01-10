@@ -251,7 +251,14 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
     // --- VISUALIZERS ---
     const SkuVisualizer = () => {
-        if (!activeMasterProduct) return null;
+        // FIX: Always return a visualizer so the text is not invisible when no product matches
+        if (!activeMasterProduct) {
+            return (
+                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                    <span className="text-slate-800 font-bold">{scanInput}</span>
+                </div>
+            );
+        }
         
         // Master part is colored black/standard
         // Suffix part is colored based on stone/metal
