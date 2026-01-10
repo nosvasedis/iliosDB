@@ -152,7 +152,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                             {codifiedPrice}
                         </span>
                         {stoneName && (
-                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.5mm', marginTop: '0.5mm', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.8mm', marginTop: '0.5mm', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {stoneName}
                             </span>
                         )}
