@@ -28,7 +28,8 @@ export default function PriceListPage({ products, onPrint }: Props) {
 
     // Extract all unique categories
     const allCategories = useMemo(() => {
-        const cats = new Set(products.map(p => p.category).filter(Boolean));
+        // Exclude STX/Components from the category list options
+        const cats = new Set(products.filter(p => !p.is_component).map(p => p.category).filter(Boolean));
         return Array.from(cats).sort();
     }, [products]);
 
@@ -224,18 +225,22 @@ export default function PriceListPage({ products, onPrint }: Props) {
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar border border-slate-100 rounded-xl p-2">
-                            {allCategories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => toggleCategory(cat)}
-                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 mb-1 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-800' : 'text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedCategories.includes(cat) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
-                                        {selectedCategories.includes(cat) && <div className="w-2 h-2 bg-white rounded-sm" />}
-                                    </div>
-                                    {cat}
-                                </button>
-                            ))}
+                            {allCategories.length > 0 ? (
+                                allCategories.map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => toggleCategory(cat)}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 mb-1 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-800' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedCategories.includes(cat) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
+                                            {selectedCategories.includes(cat) && <div className="w-2 h-2 bg-white rounded-sm" />}
+                                        </div>
+                                        {cat}
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="text-xs text-slate-400 p-2">Δεν βρέθηκαν κατηγορίες.</div>
+                            )}
                         </div>
                     </div>
 
