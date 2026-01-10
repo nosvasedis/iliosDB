@@ -332,7 +332,19 @@ export default function PricingManager({ products, settings, materials }: Props)
     setSelectedSnapshot(snap);
     try {
         const items = await api.getPriceSnapshotItems(snap.id);
-        const comparison: SnapshotComparisonItem[] = items.map(item => {
+        
+        // Smart Filter: Identify SKUs that have variants in this snapshot
+        const skuHasVariantsInSnapshot = new Set<string>();
+        items.forEach(i => {
+            if (i.variant_suffix) skuHasVariantsInSnapshot.add(i.product_sku);
+        });
+
+        // Filter out "Ghost" masters (null suffix) if variants exist for that SKU
+        const filteredItems = items.filter(i => {
+            return i.variant_suffix !== null || !skuHasVariantsInSnapshot.has(i.product_sku);
+        });
+
+        const comparison: SnapshotComparisonItem[] = filteredItems.map(item => {
             let currentPrice = 0;
             const p = products.find(prod => prod.sku === item.product_sku);
             if (item.variant_suffix) {

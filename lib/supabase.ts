@@ -357,12 +357,16 @@ export const api = {
         
         const items: any[] = [];
         products.forEach(p => {
-            if (!p.is_component) {
+            if (p.is_component) return;
+
+            // FIX: If variants exist, save ONLY variants. If no variants, save Master.
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    items.push({ product_sku: p.sku, variant_suffix: v.suffix, price: v.selling_price || 0 });
+                });
+            } else {
                 items.push({ product_sku: p.sku, variant_suffix: null, price: p.selling_price || 0 });
             }
-            p.variants?.forEach(v => {
-                items.push({ product_sku: p.sku, variant_suffix: v.suffix, price: v.selling_price || 0 });
-            });
         });
 
         if (!navigator.onLine) {
