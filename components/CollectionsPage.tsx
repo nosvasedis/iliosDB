@@ -133,11 +133,9 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         let foundCount = 0;
         let notFoundCount = 0;
+        const newAssociations: { product_sku: string, collection_id: number }[] = [];
         
         try {
-            // Collect all promises for parallel execution
-            const updates = [];
-            
             // Use a Set to avoid duplicates if ranges overlap
             const uniqueSkus = Array.from(new Set(expandedSkus));
 
@@ -148,19 +146,26 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                     foundCount++;
                     // Only add if not already in collection
                     if (!product.collections?.includes(selectedCollection.id)) {
-                        const newCollections = [...(product.collections || []), selectedCollection.id];
-                        updates.push(api.setProductCollections(sku, newCollections));
+                        newAssociations.push({ product_sku: sku, collection_id: selectedCollection.id });
                     }
                 } else {
                     notFoundCount++;
                 }
             }
             
-            await Promise.all(updates);
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
-            
-            setBulkSkus('');
-            showToast(`Προστέθηκαν ${foundCount} κωδικοί. ${notFoundCount > 0 ? `${notFoundCount} δεν βρέθηκαν.` : ''}`, notFoundCount > 0 ? 'warning' : 'success');
+            if (newAssociations.length > 0) {
+                // Use the new batch API instead of looping
+                await api.addProductsToCollection(newAssociations);
+                await queryClient.invalidateQueries({ queryKey: ['products'] });
+                setBulkSkus('');
+                showToast(`Προστέθηκαν ${foundCount} κωδικοί.`, 'success');
+            } else if (foundCount > 0) {
+                showToast(`Οι ${foundCount} κωδικοί βρίσκονται ήδη στη συλλογή.`, 'info');
+            }
+
+            if (notFoundCount > 0) {
+                showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
+            }
             
         } catch (e) {
             console.error(e);

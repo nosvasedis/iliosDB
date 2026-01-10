@@ -62,7 +62,7 @@ export const offlineDb = {
         }
     },
 
-    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string }): Promise<number> => {
+    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean }): Promise<number> => {
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         const store = tx.objectStore(SYNC_STORE);

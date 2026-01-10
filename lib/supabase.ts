@@ -67,7 +67,12 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
-async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, options?: { match?: Record<string, any>, onConflict?: string }): Promise<{ data: any, error: any, queued: boolean }> {
+async function safeMutate(
+    tableName: string, 
+    method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', 
+    data: any, 
+    options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean }
+): Promise<{ data: any, error: any, queued: boolean }> {
     // 1. Local Mode Strategy
     if (isLocalMode) {
         const table = await offlineDb.getTable(tableName) || [];
@@ -85,10 +90,17 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
                     if (row.sku && item.sku) return row.sku === item.sku;
                     if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) return row.product_sku === item.product_sku && row.suffix === item.suffix;
                     if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
+                    if (tableName === 'product_collections' && row.product_sku && row.collection_id) return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
                     return false;
                 });
 
-                if (idx >= 0) newTable[idx] = { ...newTable[idx], ...item };
+                if (idx >= 0) {
+                    // If method is UPSERT and ignoreDuplicates is true, DO NOTHING on conflict
+                    if (method === 'UPSERT' && options?.ignoreDuplicates) {
+                        return; // Skip update
+                    }
+                    newTable[idx] = { ...newTable[idx], ...item };
+                }
                 else if (method === 'UPSERT') newTable.push(item);
             });
         } 
@@ -109,7 +121,15 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
     // but try to send it if online.
     
     // Always enqueue first to ensure it survives a reload if network fails
-    const queueId = await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match: options?.match, onConflict: options?.onConflict });
+    const queueId = await offlineDb.enqueue({ 
+        type: 'MUTATION', 
+        table: tableName, 
+        method, 
+        data, 
+        match: options?.match, 
+        onConflict: options?.onConflict,
+        ignoreDuplicates: options?.ignoreDuplicates
+    });
 
     if (!navigator.onLine) {
         return { data: null, error: null, queued: true };
@@ -120,7 +140,10 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         if (method === 'INSERT') query = supabase.from(tableName).insert(data).select();
         else if (method === 'UPDATE') query = supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku }).select();
         else if (method === 'DELETE') query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
-        else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, { onConflict: options?.onConflict }).select();
+        else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, { 
+            onConflict: options?.onConflict, 
+            ignoreDuplicates: options?.ignoreDuplicates 
+        }).select();
         
         const { data: resData, error } = await query!;
         
@@ -195,10 +218,17 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
                     if (op.match) return Object.entries(op.match).every(([k, v]) => row[k] === v);
                     if (row.id && item.id) return row.id === item.id;
                     if (row.sku && item.sku) return row.sku === item.sku;
+                    // Product Collections Logic
+                    if (tableName === 'product_collections' && row.product_sku && row.collection_id) {
+                        return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
+                    }
                     return false;
                 });
                 
-                if (idx >= 0) mergedData[idx] = { ...mergedData[idx], ...item };
+                if (idx >= 0) {
+                    if (op.method === 'UPSERT' && op.ignoreDuplicates) return;
+                    mergedData[idx] = { ...mergedData[idx], ...item };
+                }
                 else if (op.method === 'UPSERT') mergedData.push(item);
             });
         }
@@ -449,6 +479,17 @@ export const api = {
         }
     },
 
+    addProductsToCollection: async (items: { product_sku: string, collection_id: number }[]): Promise<void> => {
+        if (items.length === 0) return;
+        // Batch INSERT/UPSERT with ignoreDuplicates. 
+        // This is safe: if relation exists, it stays. If not, it is created.
+        // It avoids the DELETE permission issue and greatly reduces network calls.
+        await safeMutate('product_collections', 'UPSERT', items, { 
+            onConflict: 'product_sku, collection_id',
+            ignoreDuplicates: true
+        });
+    },
+
     createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
         if (isLocalMode) return;
         
@@ -568,7 +609,10 @@ export const api = {
                 if (item.method === 'INSERT') query = supabase.from(item.table).insert(cleanData);
                 else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });
-                else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { onConflict: item.onConflict });
+                else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { 
+                    onConflict: item.onConflict,
+                    ignoreDuplicates: item.ignoreDuplicates 
+                });
                 
                 const { error } = await query!;
                 
