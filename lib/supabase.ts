@@ -68,6 +68,7 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
 }
 
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, options?: { match?: Record<string, any>, onConflict?: string }): Promise<{ data: any, error: any, queued: boolean }> {
+    // 1. Local Mode Strategy
     if (isLocalMode) {
         const table = await offlineDb.getTable(tableName) || [];
         let newTable = [...table];
@@ -79,34 +80,21 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         else if (method === 'UPDATE' || method === 'UPSERT') {
             payload.forEach(item => {
                 const idx = newTable.findIndex(row => {
-                    // Match logic: ID, SKU, or Match Object
-                    if (options?.match) {
-                        return Object.entries(options.match).every(([k, v]) => row[k] === v);
-                    }
+                    if (options?.match) return Object.entries(options.match).every(([k, v]) => row[k] === v);
                     if (row.id && item.id) return row.id === item.id;
                     if (row.sku && item.sku) return row.sku === item.sku;
-                    // Composite keys for variants
-                    if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) {
-                        return row.product_sku === item.product_sku && row.suffix === item.suffix;
-                    }
-                    if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) {
-                        return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
-                    }
+                    if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) return row.product_sku === item.product_sku && row.suffix === item.suffix;
+                    if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
                     return false;
                 });
 
-                if (idx >= 0) {
-                    newTable[idx] = { ...newTable[idx], ...item };
-                } else if (method === 'UPSERT') {
-                    newTable.push(item);
-                }
+                if (idx >= 0) newTable[idx] = { ...newTable[idx], ...item };
+                else if (method === 'UPSERT') newTable.push(item);
             });
         } 
         else if (method === 'DELETE') {
-            if (options?.match) {
-                newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
-            } else if (data) {
-                 // Try to delete by ID/SKU if match not provided but data is
+            if (options?.match) newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
+            else if (data) {
                  const targets = Array.isArray(data) ? data : [data];
                  newTable = newTable.filter(row => !targets.some(t => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
             }
@@ -116,8 +104,14 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         return { data: data, error: null, queued: false };
     }
 
+    // 2. Hybrid/Cloud Strategy: Optimistic Update to Local Cache + Cloud Sync
+    // We queue it immediately for the "Optimistic UI" effect via fetchFullTable merging, 
+    // but try to send it if online.
+    
+    // Always enqueue first to ensure it survives a reload if network fails
+    const queueId = await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match: options?.match, onConflict: options?.onConflict });
+
     if (!navigator.onLine) {
-        await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match: options?.match, onConflict: options?.onConflict });
         return { data: null, error: null, queued: true };
     }
 
@@ -129,45 +123,96 @@ async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELE
         else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, { onConflict: options?.onConflict }).select();
         
         const { data: resData, error } = await query!;
+        
         if (error) throw error;
+        
+        // Success: Remove from queue
+        await offlineDb.dequeue(queueId);
         return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false };
     } catch (err) {
-        console.warn(`Cloud mutation failed. Enqueueing for retry:`, err);
-        await offlineDb.enqueue({ type: 'MUTATION', table: tableName, method, data, match: options?.match, onConflict: options?.onConflict });
+        console.warn(`Cloud mutation failed. Keeping in queue for retry:`, err);
         return { data: null, error: null, queued: true };
     }
 }
 
+/**
+ * Enhanced Fetch: Merges Cloud Data + Local Pending Changes (Optimistic UI)
+ */
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
-    if (!navigator.onLine || isLocalMode) {
+    if (isLocalMode) {
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
     }
 
-    try {
-        let allData: any[] = [];
-        let from = 0;
-        let to = 999;
-        let hasMore = true;
+    let baseData: any[] = [];
 
-        while (hasMore) {
-            let query = supabase.from(tableName).select(select).range(from, to);
-            if (filter) query = filter(query);
-            const { data, error } = await fetchWithTimeout(query, 4000);
-            if (error) throw error;
-            if (data && data.length > 0) {
-                allData = [...allData, ...data];
-                if (data.length < 1000) hasMore = false;
-                else { from += 1000; to += 1000; }
-            } else hasMore = false;
+    // 1. Fetch Baseline from Server (or Local Cache if offline)
+    if (!navigator.onLine) {
+        baseData = await offlineDb.getTable(tableName) || [];
+    } else {
+        try {
+            let allData: any[] = [];
+            let from = 0;
+            let to = 999;
+            let hasMore = true;
+
+            while (hasMore) {
+                let query = supabase.from(tableName).select(select).range(from, to);
+                if (filter) query = filter(query);
+                const { data, error } = await fetchWithTimeout(query, 4000);
+                if (error) throw error;
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    if (data.length < 1000) hasMore = false;
+                    else { from += 1000; to += 1000; }
+                } else hasMore = false;
+            }
+            baseData = allData;
+            offlineDb.saveTable(tableName, allData); // Update cache
+        } catch (err) {
+            baseData = await offlineDb.getTable(tableName) || [];
         }
-        
-        offlineDb.saveTable(tableName, allData);
-        return allData;
-    } catch (err) {
-        const localData = await offlineDb.getTable(tableName);
-        return localData || [];
     }
+
+    // 2. Apply Pending Changes (Optimistic UI Merging)
+    const queue = await offlineDb.getQueue();
+    const pendingOps = queue.filter(op => op.table === tableName);
+
+    if (pendingOps.length === 0) return baseData;
+
+    // Deep clone to avoid mutating cache reference
+    let mergedData = [...baseData];
+
+    pendingOps.forEach(op => {
+        const payload = Array.isArray(op.data) ? op.data : (op.data ? [op.data] : []);
+        
+        if (op.method === 'INSERT') {
+            mergedData = [...mergedData, ...payload];
+        } 
+        else if (op.method === 'UPDATE' || op.method === 'UPSERT') {
+            payload.forEach((item: any) => {
+                const idx = mergedData.findIndex((row: any) => {
+                    if (op.match) return Object.entries(op.match).every(([k, v]) => row[k] === v);
+                    if (row.id && item.id) return row.id === item.id;
+                    if (row.sku && item.sku) return row.sku === item.sku;
+                    return false;
+                });
+                
+                if (idx >= 0) mergedData[idx] = { ...mergedData[idx], ...item };
+                else if (op.method === 'UPSERT') mergedData.push(item);
+            });
+        }
+        else if (op.method === 'DELETE') {
+            if (op.match) {
+                mergedData = mergedData.filter((row: any) => !Object.entries(op.match).every(([k, v]) => row[k] === v));
+            } else if (op.data) {
+                 const targets = payload;
+                 mergedData = mergedData.filter((row: any) => !targets.some((t: any) => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
+            }
+        }
+    });
+
+    return mergedData;
 }
 
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
@@ -533,11 +578,12 @@ export const api = {
                 } else {
                     console.error(`Sync item failed [${item.table}]: ${error.message || JSON.stringify(error)}`, { data: item.data });
                     const errCode = error.code || '';
-                    if (errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
+                    // 42501 = RLS violation, 23505 = Unique Violation, 42* = Syntax/Schema error
+                    if (errCode === '42501' || errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
                         console.warn("Discarding non-recoverable sync item:", item);
                         await offlineDb.dequeue(item.id);
                         window.dispatchEvent(new CustomEvent('ilios-sync-error', { 
-                            detail: { message: `Αποτυχία συγχρονισμού για ${item.table}. Η ενέργεια απορρίφθηκε λόγω σφάλματος δεδομένων.` } 
+                            detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}). Η ενέργεια απορρίφθηκε.` } 
                         }));
                     }
                 }

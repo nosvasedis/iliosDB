@@ -1,3 +1,4 @@
+
 /**
  * Simple IndexedDB wrapper for mirroring Supabase data locally.
  * This ensures "Zero-Lag" loading and "Offline-Read" capability.
@@ -61,12 +62,18 @@ export const offlineDb = {
         }
     },
 
-    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string }) => {
+    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string }): Promise<number> => {
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
-        tx.objectStore(SYNC_STORE).add({ 
+        const store = tx.objectStore(SYNC_STORE);
+        const request = store.add({ 
             ...operation, 
             timestamp: new Date().toISOString() 
+        });
+
+        return new Promise((resolve, reject) => {
+            request.onsuccess = (event: any) => resolve(event.target.result);
+            request.onerror = () => reject(request.error);
         });
     },
 
@@ -94,6 +101,10 @@ export const offlineDb = {
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         tx.objectStore(SYNC_STORE).delete(id);
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
     },
 
     clearAll: async () => {
