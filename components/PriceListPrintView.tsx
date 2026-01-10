@@ -24,17 +24,20 @@ export default function PriceListPrintView({ data }: Props) {
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-inside-avoid break-inside-avoid">
             {/* HEADER */}
-            <header className="flex justify-between items-start border-b-2 border-slate-800 pb-4 mb-6">
-                <div className="max-w-[70%]">
-                    <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain mb-2" />
-                    <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight leading-tight truncate pr-4">{data.title}</h1>
-                    <p className="text-slate-500 text-xs mt-1 truncate">{data.subtitle}</p>
+            <header className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
+                <div className="flex items-center gap-4 max-w-[75%]">
+                    <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
+                    <h1 className="text-base font-black text-slate-800 uppercase tracking-tight leading-tight">{data.title}</h1>
                 </div>
-                <div className="text-right flex-shrink-0">
-                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">ΗΜΕΡΟΜΗΝΙΑ</p>
-                    <p className="text-slate-800 font-bold text-sm">{data.date}</p>
-                    <p className="text-slate-400 text-[10px] mt-2 uppercase font-bold tracking-widest">ΣΥΝΟΛΟ ΕΙΔΩΝ</p>
-                    <p className="text-slate-800 font-bold text-sm">{data.items.length}</p>
+                <div className="text-right flex-shrink-0 flex gap-6">
+                    <div>
+                        <p className="text-slate-400 text-[8px] uppercase font-bold tracking-widest">ΗΜΕΡΟΜΗΝΙΑ</p>
+                        <p className="text-slate-800 font-bold text-xs">{data.date}</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400 text-[8px] uppercase font-bold tracking-widest">ΣΥΝΟΛΟ</p>
+                        <p className="text-slate-800 font-bold text-xs">{data.items.length} είδη</p>
+                    </div>
                 </div>
             </header>
 
