@@ -59,11 +59,11 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 const encodedSku = transliterateForBarcode(finalSku);
                 
                 // BARCODE OPTIMIZATION
-                // Retail: Increased barWidth from 0.8 to 1.4 to make lines thicker and less dense (easier to scan).
+                // Retail: Increased barWidth to 1.4 to ensure solid lines (less "dense" artifacts).
                 // Standard: Keeps original density.
                 const barWidth = format === 'retail' ? 1.4 : (activeWidth < 45 ? 1.6 : 1.9);
                 
-                // Retail: Short bars (15) to fit in 10mm height.
+                // Retail: Short bars (18 units) to fit in 10mm height with text.
                 const barHeight = format === 'retail' ? 18 : 100; 
                 
                 JsBarcode(svgRef.current, encodedSku, {
@@ -134,10 +134,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 {/* Print-only spacer logic handled by print media queries implicitly or just blank div */}
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable Area Wrapper (Remaining ~3.7cm split into 2) */}
+                {/* Printable Area Wrapper (Remaining ~3.7cm split into 2 columns) */}
                 <div style={{ flex: 1, height: '100%', display: 'flex' }}>
                     
-                    {/* Part 1 (Left of content): SKU & Barcode - Takes 55% width to allow wider barcode */}
+                    {/* Part 1 (Left): SKU & Barcode - Takes 55% width to allow wider barcode (easier scanning) */}
                     <div style={{ flex: '5.5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
                         <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm' }}>
                             {finalSku}
@@ -148,7 +148,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                         </div>
                     </div>
 
-                    {/* Part 2 (Right of content): Codified Price & Stone - Takes 45% width */}
+                    {/* Part 2 (Right): Codified Price & Stone - Takes 45% width */}
                     <div style={{ flex: '4.5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
                         <span className="font-black leading-none" style={{ fontSize: '3mm' }}>
                             {codifiedPrice}
