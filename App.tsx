@@ -509,7 +509,7 @@ function AppContent() {
           </nav>
           <div className="p-4 bg-black/20">
             <button onClick={toggleCollapse} className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">{isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider"><ChevronLeft size={16}/> <span>Σύμπτυξη</span></div>}</button>
-            {!isCollapsed && <div className="mt-4 text-[10px] text-slate-500 text-center font-medium"><p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3)}€</span></p><p className="opacity-50 mt-1">v1.1</p></div>}
+            {!isCollapsed && <div className="mt-4 text-[10px] text-slate-500 text-center font-medium"><p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3)}€</span></p><p className="opacity-50 mt-1">v1.2</p></div>}
           </div>
         </aside>
         <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 ${isCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
@@ -536,12 +536,12 @@ function AppContent() {
                     {resourceTab === 'molds' && <MoldsPage />}
                 </div>
               )}
-              {activePage === 'collections' && <CollectionsPage />}
+              {activePage === 'collections' && <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />}
               {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
               {activePage === 'batch-print' && <BatchPrintPage allProducts={products} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} />}
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
-              {activePage === 'pricelist' && <PriceListPage products={products} onPrint={(data) => setPriceListPrintData(data)} />}
+              {activePage === 'pricelist' && <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />}
             </div>
           </div>
         </main>

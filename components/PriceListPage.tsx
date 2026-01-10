@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product, Gender } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users } from 'lucide-react';
+import { Product, Gender, Collection } from '../types';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 
 interface Props {
     products: Product[];
+    collections: Collection[];
     onPrint: (data: PriceListPrintData) => void;
 }
 
@@ -21,9 +22,10 @@ const genderLabels: Record<string, string> = {
     [Gender.Unisex]: 'Unisex'
 };
 
-export default function PriceListPage({ products, onPrint }: Props) {
+export default function PriceListPage({ products, collections, onPrint }: Props) {
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [selectedCollectionId, setSelectedCollectionId] = useState<number | 'none'>('none');
     const [searchTerm, setSearchTerm] = useState('');
 
     // Extract all unique categories
@@ -71,13 +73,19 @@ export default function PriceListPage({ products, onPrint }: Props) {
         products.forEach(p => {
             if (p.is_component) return; // Skip STX/Components for pricelist usually
             
-            // 1. Filter by Gender
-            if (!selectedGenders.includes(p.gender)) return;
-            
-            // 2. Filter by Category
-            if (!selectedCategories.includes(p.category)) return;
+            // PRIORITY FILTER: Collection
+            if (selectedCollectionId !== 'none') {
+                if (!p.collections?.includes(selectedCollectionId)) return;
+                // If collection is active, we IGNORE gender/category filters to show everything in collection
+            } else {
+                // STANDARD FILTERS
+                // 1. Filter by Gender
+                if (!selectedGenders.includes(p.gender)) return;
+                // 2. Filter by Category
+                if (!selectedCategories.includes(p.category)) return;
+            }
 
-            // 3. Search Filter
+            // 3. Search Filter (always active)
             if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) return;
 
             const variantMap: Record<string, number> = {};
@@ -134,44 +142,39 @@ export default function PriceListPage({ products, onPrint }: Props) {
         });
 
         return items.sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
-    }, [products, selectedGenders, selectedCategories, searchTerm]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionId]);
 
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
-
-        // 1. Gender String
-        let genderStr = '';
-        if (selectedGenders.length === 3) {
-            genderStr = ''; // Don't redundantly state "All Genders" if categories are specific, or handle in title logic
-        } else {
-            genderStr = selectedGenders.map(g => genderLabels[g]).join(' & ');
-        }
-
-        // 2. Category String
-        let catStr = '';
-        if (selectedCategories.length === allCategories.length) {
-            catStr = 'Πλήρης Κατάλογος';
-        } else if (selectedCategories.length <= 4) {
-            catStr = selectedCategories.join(', ');
-        } else {
-            catStr = 'Επιλεγμένα Είδη';
-        }
-
-        // 3. Construct Specific Title (Used for Filename)
         let title = '';
-        if (selectedCategories.length === allCategories.length && selectedGenders.length === 3) {
-            title = `Τιμοκατάλογος - Όλα - ${dateStr}`;
+        let subtitle = `${filteredItems.length} Κωδικοί`;
+
+        if (selectedCollectionId !== 'none') {
+            const collectionName = collections.find(c => c.id === selectedCollectionId)?.name || 'Collection';
+            title = `${collectionName} - ${dateStr}`;
+            subtitle = `Συλλογή • ` + subtitle;
         } else {
-            // e.g. "Δαχτυλίδια (Γυναικεία) - 10/10/2023"
+            // Standard Logic
+            let genderStr = '';
+            if (selectedGenders.length !== 3) {
+                genderStr = selectedGenders.map(g => genderLabels[g]).join(' & ');
+            }
+
+            let catStr = '';
+            if (selectedCategories.length === allCategories.length) {
+                catStr = 'Πλήρης Κατάλογος';
+            } else if (selectedCategories.length <= 4) {
+                catStr = selectedCategories.join(', ');
+            } else {
+                catStr = 'Επιλεγμένα Είδη';
+            }
+
             const suffix = genderStr ? ` (${genderStr})` : '';
             title = `${catStr}${suffix} - ${dateStr}`;
-        }
-
-        // 4. Subtitle (Minimal, as per request)
-        // Redundant info removed.
-        let subtitle = `${filteredItems.length} Κωδικοί`;
-        if (selectedCategories.length > 4 && selectedCategories.length < allCategories.length) {
-             subtitle = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + subtitle;
+            
+            if (selectedCategories.length > 4 && selectedCategories.length < allCategories.length) {
+                 subtitle = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + subtitle;
+            }
         }
         
         onPrint({
@@ -201,46 +204,61 @@ export default function PriceListPage({ products, onPrint }: Props) {
                         <Filter size={18} /> Φίλτρα Εκτύπωσης
                     </div>
 
-                    <div className="space-y-3">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
-                        <div className="flex flex-wrap gap-2">
-                            {genderOptions.map(opt => (
-                                <button
-                                    key={opt.value}
-                                    onClick={() => toggleGender(opt.value)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                                >
-                                    {selectedGenders.includes(opt.value) ? <CheckSquare size={16}/> : <Square size={16}/>}
-                                    {opt.label}
-                                </button>
-                            ))}
-                        </div>
+                    {/* Collection Filter */}
+                    <div className="space-y-3 pb-4 border-b border-slate-100">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-2"><FolderKanban size={14}/> Συλλογή (Override)</label>
+                        <select 
+                            value={selectedCollectionId} 
+                            onChange={(e) => setSelectedCollectionId(e.target.value === 'none' ? 'none' : Number(e.target.value))}
+                            className={`w-full p-3 rounded-xl border outline-none font-bold text-sm transition-all cursor-pointer ${selectedCollectionId !== 'none' ? 'bg-indigo-50 border-indigo-300 text-indigo-800 ring-2 ring-indigo-200' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                        >
+                            <option value="none">-- Καμία (Χρήση Φίλτρων) --</option>
+                            {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
                     </div>
 
-                    <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                        <div className="flex justify-between items-center">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορίες</label>
-                            <button onClick={toggleAllCategories} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">
-                                {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar border border-slate-100 rounded-xl p-2">
-                            {allCategories.length > 0 ? (
-                                allCategories.map(cat => (
+                    <div className={`space-y-6 flex-1 flex flex-col min-h-0 transition-opacity duration-300 ${selectedCollectionId !== 'none' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                        <div className="space-y-3">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
+                            <div className="flex flex-wrap gap-2">
+                                {genderOptions.map(opt => (
                                     <button
-                                        key={cat}
-                                        onClick={() => toggleCategory(cat)}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 mb-1 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-800' : 'text-slate-600 hover:bg-slate-50'}`}
+                                        key={opt.value}
+                                        onClick={() => toggleGender(opt.value)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                                     >
-                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedCategories.includes(cat) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
-                                            {selectedCategories.includes(cat) && <div className="w-2 h-2 bg-white rounded-sm" />}
-                                        </div>
-                                        {cat}
+                                        {selectedGenders.includes(opt.value) ? <CheckSquare size={16}/> : <Square size={16}/>}
+                                        {opt.label}
                                     </button>
-                                ))
-                            ) : (
-                                <div className="text-xs text-slate-400 p-2">Δεν βρέθηκαν κατηγορίες.</div>
-                            )}
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορίες</label>
+                                <button onClick={toggleAllCategories} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">
+                                    {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar border border-slate-100 rounded-xl p-2">
+                                {allCategories.length > 0 ? (
+                                    allCategories.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => toggleCategory(cat)}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 mb-1 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-800' : 'text-slate-600 hover:bg-slate-50'}`}
+                                        >
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedCategories.includes(cat) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
+                                                {selectedCategories.includes(cat) && <div className="w-2 h-2 bg-white rounded-sm" />}
+                                            </div>
+                                            {cat}
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="text-xs text-slate-400 p-2">Δεν βρέθηκαν κατηγορίες.</div>
+                                )}
+                            </div>
                         </div>
                     </div>
 

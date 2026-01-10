@@ -69,11 +69,51 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
 
 async function safeMutate(tableName: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, options?: { match?: Record<string, any>, onConflict?: string }): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
-        if (method === 'UPSERT' || method === 'INSERT' || method === 'UPDATE') {
-            const table = await offlineDb.getTable(tableName) || [];
-            offlineDb.saveTable(tableName, [...table, ...(Array.isArray(data) ? data : [data])]);
+        const table = await offlineDb.getTable(tableName) || [];
+        let newTable = [...table];
+        const payload = Array.isArray(data) ? data : (data ? [data] : []);
+
+        if (method === 'INSERT') {
+            newTable = [...newTable, ...payload];
+        } 
+        else if (method === 'UPDATE' || method === 'UPSERT') {
+            payload.forEach(item => {
+                const idx = newTable.findIndex(row => {
+                    // Match logic: ID, SKU, or Match Object
+                    if (options?.match) {
+                        return Object.entries(options.match).every(([k, v]) => row[k] === v);
+                    }
+                    if (row.id && item.id) return row.id === item.id;
+                    if (row.sku && item.sku) return row.sku === item.sku;
+                    // Composite keys for variants
+                    if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) {
+                        return row.product_sku === item.product_sku && row.suffix === item.suffix;
+                    }
+                    if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) {
+                        return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
+                    }
+                    return false;
+                });
+
+                if (idx >= 0) {
+                    newTable[idx] = { ...newTable[idx], ...item };
+                } else if (method === 'UPSERT') {
+                    newTable.push(item);
+                }
+            });
+        } 
+        else if (method === 'DELETE') {
+            if (options?.match) {
+                newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
+            } else if (data) {
+                 // Try to delete by ID/SKU if match not provided but data is
+                 const targets = Array.isArray(data) ? data : [data];
+                 newTable = newTable.filter(row => !targets.some(t => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
+            }
         }
-        return { data: null, error: null, queued: false };
+
+        await offlineDb.saveTable(tableName, newTable);
+        return { data: data, error: null, queued: false };
     }
 
     if (!navigator.onLine) {
@@ -241,6 +281,18 @@ export const api = {
 
     getCollections: async (): Promise<Collection[]> => {
         return fetchFullTable('collections', '*', (q) => q.order('name'));
+    },
+
+    saveCollection: async (name: string): Promise<void> => {
+        const payload: any = { name };
+        if (isLocalMode) {
+            payload.id = Date.now();
+        }
+        await safeMutate('collections', 'INSERT', payload);
+    },
+
+    deleteCollection: async (id: number): Promise<void> => {
+        await safeMutate('collections', 'DELETE', null, { match: { id } });
     },
 
     getProducts: async (): Promise<Product[]> => {

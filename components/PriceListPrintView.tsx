@@ -25,12 +25,12 @@ export default function PriceListPrintView({ data }: Props) {
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-inside-avoid break-inside-avoid">
             {/* HEADER */}
             <header className="flex justify-between items-start border-b-2 border-slate-800 pb-4 mb-6">
-                <div>
+                <div className="max-w-[70%]">
                     <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain mb-2" />
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">{data.title}</h1>
-                    <p className="text-slate-500 text-xs mt-1 max-w-sm">{data.subtitle}</p>
+                    <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight leading-tight truncate pr-4">{data.title}</h1>
+                    <p className="text-slate-500 text-xs mt-1 truncate">{data.subtitle}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                     <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">ΗΜΕΡΟΜΗΝΙΑ</p>
                     <p className="text-slate-800 font-bold text-sm">{data.date}</p>
                     <p className="text-slate-400 text-[10px] mt-2 uppercase font-bold tracking-widest">ΣΥΝΟΛΟ ΕΙΔΩΝ</p>
