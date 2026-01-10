@@ -47,7 +47,10 @@ export default function PricingManager({ products, settings, materials }: Props)
   
   const [isCalculated, setIsCalculated] = useState(false);
   const [calculatedData, setCalculatedData] = useState<PricingItem[]>([]);
+  
+  // Update state for batching
   const [isCommitting, setIsCommitting] = useState(false);
+  const [progress, setProgress] = useState<{ current: number, total: number } | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -148,8 +151,6 @@ export default function PricingManager({ products, settings, materials }: Props)
             }
 
             // Determine if there is a "change" worth highlighting
-            // In Cost mode, we compare with stored active_price (currentVal)
-            // In Selling mode, we compare with stored selling_price (currentVal)
             const hasChange = Math.abs(newVal - currentVal) > 0.01;
 
             return {
@@ -220,28 +221,40 @@ export default function PricingManager({ products, settings, materials }: Props)
     
     try {
         const updatesToApply = isCalculated ? calculatedData.filter(i => i.hasChange) : [];
+        setProgress({ current: 0, total: updatesToApply.length });
         
-        const promises = updatesToApply.map(item => {
-            const updates: any = {};
-            if (mode === 'cost') {
-                updates.active_price = item.newPrice;
-                if (!item.isVariant) updates.draft_price = item.newPrice;
-            } else {
-                updates.selling_price = item.newPrice;
-            }
+        // Batch Processing Configuration
+        const BATCH_SIZE = 20; // Conservative batch size to prevent timeouts
+        
+        for (let i = 0; i < updatesToApply.length; i += BATCH_SIZE) {
+            const batch = updatesToApply.slice(i, i + BATCH_SIZE);
+            
+            const promises = batch.map(item => {
+                const updates: any = {};
+                if (mode === 'cost') {
+                    updates.active_price = item.newPrice;
+                    if (!item.isVariant) updates.draft_price = item.newPrice;
+                } else {
+                    updates.selling_price = item.newPrice;
+                }
 
-            if (item.isVariant) {
-                return supabase.from('product_variants')
-                    .update(updates)
-                    .match({ product_sku: item.masterSku, suffix: item.variantSuffix });
-            } else {
-                return supabase.from('products')
-                    .update(updates)
-                    .eq('sku', item.masterSku);
-            }
-        });
+                if (item.isVariant) {
+                    return supabase.from('product_variants')
+                        .update(updates)
+                        .match({ product_sku: item.masterSku, suffix: item.variantSuffix });
+                } else {
+                    return supabase.from('products')
+                        .update(updates)
+                        .eq('sku', item.masterSku);
+                }
+            });
 
-        await Promise.all(promises);
+            // Wait for current batch to finish
+            await Promise.all(promises);
+            
+            // Update progress
+            setProgress({ current: Math.min(i + BATCH_SIZE, updatesToApply.length), total: updatesToApply.length });
+        }
         
         if (mode === 'cost') {
             await supabase.from('global_settings').update({ 
@@ -250,15 +263,20 @@ export default function PricingManager({ products, settings, materials }: Props)
             await queryClient.invalidateQueries({ queryKey: ['settings'] });
         }
 
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        // Wait a beat to ensure DB is consistent before refetch
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await queryClient.invalidateQueries({ queryKey: ['products'] });
+        
         setIsCalculated(false);
         setCalculatedData([]);
+        setProgress(null);
         showToast("Οι τιμές ενημερώθηκαν επιτυχώς!", 'success');
     } catch(err) {
         console.error(err);
         showToast("Σφάλμα κατά την ενημέρωση.", 'error');
     } finally {
         setIsCommitting(false);
+        setProgress(null);
     }
   };
 
@@ -487,14 +505,21 @@ export default function PricingManager({ products, settings, materials }: Props)
                         {mode === 'cost' ? 'Υπολογισμός Κόστους' : 'Υπολογισμός Τιμών'}
                     </button>
                 ) : (
-                    <div className="flex gap-3">
-                        <button onClick={() => { setIsCalculated(false); setCalculatedData([]); }} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">
-                            Ακύρωση
-                        </button>
-                        <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
-                            {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                            {isCommitting ? 'Ενημέρωση...' : 'Εφαρμογή Τιμών'}
-                        </button>
+                    <div className="flex flex-col gap-3 w-full">
+                        {isCommitting && progress && (
+                            <div className="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+                                <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }}></div>
+                            </div>
+                        )}
+                        <div className="flex gap-3 justify-center">
+                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
+                                Ακύρωση
+                            </button>
+                            <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
+                                {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
+                                {isCommitting ? `Ενημέρωση (${progress ? Math.round((progress.current/progress.total)*100) : 0}%)...` : 'Εφαρμογή Τιμών'}
+                            </button>
+                        </div>
                     </div>
                 )}
                 </div>
@@ -535,9 +560,6 @@ export default function PricingManager({ products, settings, materials }: Props)
                             // Calculate margin dynamically based on updated values
                             let margin = 0;
                             if (mode === 'cost') {
-                                // Assume Selling Price remains static in Cost Mode
-                                // Since we don't have easy access to selling price for every item here without bloating state,
-                                // we skip dynamic margin calc in Cost Mode preview for now or rely on cost delta.
                                 margin = 0;
                             } else {
                                 // Selling Mode: New Selling - Current Cost
