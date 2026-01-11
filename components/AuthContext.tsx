@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -41,8 +40,11 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     // 1. Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       if (session?.user) {
         // Await profile fetch before turning off loading
@@ -52,19 +54,30 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
     });
 
     // 2. Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        // If we switch sessions, re-fetch profile
-        await fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_IN' && session) {
+          // Explicitly set loading true for sign-in actions to prevent "Profile Error" flash
+          setLoading(true);
+          setSession(session);
+          await fetchProfile(session.user.id);
+          setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setProfile(null);
+          setLoading(false);
+      } else if (session?.user) {
+          // Token refresh, etc. Update session but don't toggle loading to avoid flicker
+          setSession(session);
+          // Optional: background refresh if needed, but getSession handles initial load
       }
-      // Ensure loading is off after state change handled
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+        mounted = false;
+        subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
