@@ -124,6 +124,23 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const displayPlating = variantDetails.finish.name || PLATING_LABELS[product.plating_type] || product.plating_type;
   const displayStone = variantDetails.stone.name;
 
+  // Clean description for QR section: Removes the plating name if it's redundant
+  const qrDescription = useMemo(() => {
+      if (variantDetails.stone.name) return variantDetails.stone.name;
+      
+      if (activeVariant) {
+          let d = activeVariant.description || '';
+          // Remove plating name from start if present (case insensitive)
+          const finishRegex = new RegExp(`^${displayPlating}`, 'i');
+          d = d.replace(finishRegex, '').trim();
+          // Remove leading hyphens/spaces
+          d = d.replace(/^[-\s]+/, '');
+          
+          if (d) return d;
+      }
+      return product.category;
+  }, [variantDetails, activeVariant, displayPlating, product.category]);
+
   const activeTechData = useMemo(() => {
       const suffix = activeVariant?.suffix || '';
       const { finish } = getVariantComponents(suffix, product.gender);
@@ -433,7 +450,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                       </div>
                                       {/* Pill Box - Fixed Alignment */}
                                       <div className="flex items-center justify-center">
-                                           <span className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-1 rounded-full capitalize shadow-sm">
+                                           <span className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 h-5 flex items-center justify-center rounded-full capitalize shadow-sm pb-[1px]">
                                               {displayGender}
                                            </span>
                                       </div>
@@ -443,7 +460,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                   <div className="grid grid-cols-2 gap-2">
                                       <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">Υλικό / Φινίρισμα</span>
-                                          <span className="font-bold text-slate-700 text-[9px] leading-tight break-words">{displayPlating.toLowerCase()}</span>
+                                          <span className="font-bold text-slate-700 text-[9px] leading-tight break-words">{displayPlating}</span>
                                       </div>
                                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Βάρος</span>
@@ -456,7 +473,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                               {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain mix-blend-multiply" />}
                                           </div>
                                           <div className="flex-1 flex flex-col justify-center">
-                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight break-words">{displayLabel}</span>
+                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight break-words">{qrDescription}</span>
                                           </div>
                                       </div>
                                   </div>
