@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
@@ -30,18 +30,33 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
 };
 
-// Robust Base64 converter
+// Robust Base64 converter that forces requests through the Cloudflare Worker to ensure CORS headers
 const toBase64 = async (url: string): Promise<string | null> => {
     try {
-        // Append timestamp to prevent caching issues with CORS
-        const response = await fetch(url, { 
+        let fetchUrl = url;
+        
+        // If it's an R2 URL, replace the domain with the Worker domain
+        // This ensures we hit the worker code that applies CORS headers
+        if (url.includes('r2.dev')) {
+            const filename = url.split('/').pop();
+            if (filename) {
+                fetchUrl = `${CLOUDFLARE_WORKER_URL}/${filename}`;
+            }
+        }
+
+        const response = await fetch(fetchUrl, { 
             method: 'GET',
             mode: 'cors',
-            cache: 'no-cache',
+            cache: 'no-cache', // Bypass browser cache to ensure we get fresh headers
             headers: {
-                'Access-Control-Allow-Origin': '*'
+                // If the worker requires auth for GET, add it here. 
+                // Based on your worker code, GET is protected if it's not the silver route? 
+                // Actually, the worker allows public GET if it's just fetching an object.
+                // But let's add the header just in case if your logic changes.
+                // 'Authorization': AUTH_KEY_SECRET 
             }
         });
+
         if (!response.ok) throw new Error('Network response was not ok');
         const blob = await response.blob();
         return new Promise((resolve) => {
@@ -51,8 +66,8 @@ const toBase64 = async (url: string): Promise<string | null> => {
             reader.readAsDataURL(blob);
         });
     } catch (e) {
-        console.warn("Base64 conversion failed, falling back to URL", e);
-        return null; // Fallback will be handled in render
+        console.warn("Base64 conversion failed", e);
+        return null; 
     }
 };
 
@@ -100,7 +115,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   useEffect(() => {
       const sku = `${product.sku}${activeVariant?.suffix || ''}`;
       const safeSku = transliterateForBarcode(sku);
-      QRCode.toDataURL(safeSku, { margin: 1, width: 200, color: { dark: '#060b00', light: '#ffffff' } })
+      QRCode.toDataURL(safeSku, { margin: 0, width: 200, color: { dark: '#060b00', light: '#ffffff' } })
           .then(url => setQrDataUrl(url))
           .catch(err => console.error(err));
   }, [product.sku, activeVariant]);
@@ -108,8 +123,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   // Pre-load image as base64 when share modal opens
   useEffect(() => {
       if (showShareModal && product.image_url) {
-          // Reset previous
-          setCardImageBase64(null);
+          setCardImageBase64(null); // Reset to show loading state if needed
           toBase64(product.image_url).then(base64 => {
               if (base64) setCardImageBase64(base64);
           });
@@ -131,24 +145,20 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const displayLabel = activeVariant ? (activeVariant.description || activeVariant.suffix) : product.category;
   const displaySku = `${product.sku}${activeVariant?.suffix || ''}`;
 
-  const displayPlating = useMemo(() => {
+  const variantDetails = useMemo(() => {
       if (activeVariant) {
-          const { finish } = getVariantComponents(activeVariant.suffix, product.gender);
-          return finish.name || PLATING_LABELS[product.plating_type];
+          return getVariantComponents(activeVariant.suffix, product.gender);
       }
-      if (variants.length > 0) {
-          const suffixPlatings = new Set<string>();
-          variants.forEach(v => {
-             if (v.suffix.includes('X')) suffixPlatings.add('Επίχρυσο');
-             else if (v.suffix.includes('H')) suffixPlatings.add('Επιπλατινωμένο');
-             else if (v.suffix.includes('D')) suffixPlatings.add('Δίχρωμο');
-             else if (v.suffix.includes('P')) suffixPlatings.add('Πατίνα');
-             else if (v.suffix === '') suffixPlatings.add('Λουστρέ');
-          });
-          if (suffixPlatings.size > 0) return Array.from(suffixPlatings).join(', ');
-      }
+      // Fallback for master
+      return getVariantComponents('', product.gender);
+  }, [activeVariant, product.gender]);
+
+  const displayPlating = useMemo(() => {
+      if (variantDetails.finish.name) return variantDetails.finish.name;
       return PLATING_LABELS[product.plating_type] || product.plating_type;
-  }, [product, variants, activeVariant]);
+  }, [variantDetails, product.plating_type]);
+
+  const displayStone = variantDetails.stone.name;
 
   // --- Dynamic Tech Data based on Variant ---
   const activeTechData = useMemo(() => {
@@ -176,17 +186,17 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           let blob: Blob | null = null;
 
           if (shareTab === 'card' && cardRef.current) {
-              // Wait a bit for rendering stability
-              await new Promise(r => setTimeout(r, 200)); 
+              // Wait a bit for rendering stability (fonts, images)
+              await new Promise(r => setTimeout(r, 250)); 
               
               const canvas = await html2canvas(cardRef.current, {
                   scale: 3, // High resolution for Retina displays
                   useCORS: true, 
-                  backgroundColor: '#ffffff',
+                  backgroundColor: '#ffffff', // Force white background
                   logging: false,
                   allowTaint: true
               });
-              blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+              blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
           } else if (shareTab === 'qr' && qrDataUrl) {
               const res = await fetch(qrDataUrl);
               blob = await res.blob();
@@ -220,8 +230,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
   };
 
+  // ... (Stock logic handlers remain identical)
   const handleAdjustStock = async () => {
-      // ... (Stock logic remains the same)
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
       const finalQty = type === 'remove' ? -qty : qty;
@@ -277,7 +287,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   };
 
   const handleTransferStock = async () => {
-      // ... (Transfer logic remains the same)
       if (!transferModal) return;
       const { sourceId, targetId, qty } = transferModal;
       if (sourceId === targetId) { showToast("Επιλέξτε διαφορετική αποθήκη.", "error"); return; }
@@ -393,8 +402,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 className="w-full h-full object-cover cursor-pointer" 
                 alt={product.sku} 
                 onClick={() => setShowFullImage(true)}
-                // Removed crossOrigin to avoid strict CORS block during simple display.
-                // The Share function uses Base64 converter to handle it.
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
@@ -634,61 +641,69 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           /* PRODUCT CARD PREVIEW (RENDERED) */
                           <div 
                             ref={cardRef}
-                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[3/4] flex flex-col border border-slate-200 relative"
+                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[4/6] flex flex-col relative border border-slate-200"
                           >
-                              {/* Background Image / Placeholder using Base64 state */}
+                              {/* Background Image / Placeholder */}
                               <div className="absolute inset-0 z-0 bg-white">
                                   {cardImageBase64 ? (
-                                      <img src={cardImageBase64} className="w-full h-full object-cover" alt="Product Background" />
+                                      <img src={cardImageBase64} className="w-full h-full object-cover" alt="Product" />
                                   ) : (
                                       <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
                                           {product.image_url ? (
-                                              /* Fallback to URL with crossOrigin if Base64 fails */
                                               <img src={product.image_url} className="w-full h-full object-cover" crossOrigin="anonymous" alt="Fallback" />
                                           ) : (
                                               <ImageIcon size={48}/>
                                           )}
                                       </div>
                                   )}
-                                  {/* Gradient Overlay for Text Readability - Stronger at bottom */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-black/30"></div>
+                                  {/* Gradient Overlays */}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40 opacity-80"></div>
                               </div>
 
-                              {/* Branding - Top Left */}
+                              {/* Branding - Top */}
                               <div className="relative z-10 p-5 pt-6 w-full flex justify-between items-start">
-                                  <div className="bg-white/10 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest border border-white/20 shadow-sm">
+                                  <div className="bg-white/10 backdrop-blur-md text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border border-white/20 shadow-sm">
                                       {APP_LOGO ? 'ILIOS KOSMIMA' : 'ILIOS'}
                                   </div>
-                                  
-                                  {/* Price Tag - Top Right */}
-                                  {displayPrice > 0 && (
-                                      <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-black text-sm shadow-lg flex items-center gap-1 animate-in slide-in-from-right-4">
-                                          {formatCurrency(displayPrice)}
-                                      </div>
-                                  )}
                               </div>
 
                               {/* Footer Details - Bottom */}
                               <div className="mt-auto relative z-10 p-5 text-white w-full">
-                                  <div className="flex justify-between items-end gap-2">
-                                      <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-2 mb-1 opacity-80">
-                                              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold uppercase">{product.category}</span>
-                                              <span className="text-[10px] font-medium">{product.weight_g}g</span>
+                                  <div className="flex items-end gap-3">
+                                      <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 mb-2">
+                                              <span className="text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded font-bold uppercase border border-white/10 tracking-wide">{product.category}</span>
                                           </div>
-                                          <h3 className="text-3xl font-black leading-none tracking-tight shadow-black drop-shadow-md truncate">{displaySku}</h3>
-                                          <p className="text-xs font-bold opacity-80 uppercase tracking-wide mt-1.5 truncate">{displayLabel}</p>
+                                          <h3 className="text-4xl font-black leading-none tracking-tighter shadow-black drop-shadow-md truncate">{displaySku}</h3>
+                                          <p className="text-sm font-bold opacity-90 mt-1 uppercase tracking-wide truncate">{displayLabel}</p>
                                           
-                                          {/* Variant / Metal Info */}
-                                          <div className="mt-3 flex items-center gap-2">
-                                              <div className="h-1 w-8 bg-emerald-500 rounded-full"></div>
-                                              <span className="text-[10px] uppercase font-bold tracking-wider opacity-90">{displayPlating}</span>
+                                          {/* Variant Specs */}
+                                          <div className="mt-4 flex items-center gap-3 text-xs font-bold text-white/90">
+                                              <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                                  <Palette size={12}/> {displayPlating}
+                                              </div>
+                                              {displayStone && (
+                                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                                      <Gem size={12}/> {displayStone}
+                                                  </div>
+                                              )}
+                                               <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                                  <Weight size={12}/> {product.weight_g}g
+                                              </div>
                                           </div>
                                       </div>
+                                  </div>
+
+                                  <div className="mt-5 pt-4 border-t border-white/20 flex justify-between items-end">
+                                      {displayPrice > 0 ? (
+                                          <div>
+                                              <div className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-0.5">Τιμή</div>
+                                              <div className="text-2xl font-black tracking-tight">{formatCurrency(displayPrice)}</div>
+                                          </div>
+                                      ) : <div></div>}
                                       
-                                      {/* QR Code Embedded - White Box */}
-                                      <div className="w-14 h-14 bg-white p-1 rounded-xl shadow-xl shrink-0 flex items-center justify-center">
-                                          {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain" />}
+                                      <div className="bg-white p-1.5 rounded-xl shadow-lg">
+                                          {qrDataUrl && <img src={qrDataUrl} className="w-12 h-12 object-contain" />}
                                       </div>
                                   </div>
                               </div>
