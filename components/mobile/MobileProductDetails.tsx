@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2 } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
@@ -30,12 +30,19 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
 };
 
-// Helper to convert URL to Base64 to bypass CORS in html2canvas
+// Robust Base64 converter
 const toBase64 = async (url: string): Promise<string | null> => {
     try {
-        // If it's an R2 URL, we might need to go through the worker or fetch normally
-        // Attempt standard fetch first
-        const response = await fetch(url, { mode: 'cors' });
+        // Append timestamp to prevent caching issues with CORS
+        const response = await fetch(url, { 
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: {
+                'Access-Control-Allow-Origin': '*'
+            }
+        });
+        if (!response.ok) throw new Error('Network response was not ok');
         const blob = await response.blob();
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -44,9 +51,8 @@ const toBase64 = async (url: string): Promise<string | null> => {
             reader.readAsDataURL(blob);
         });
     } catch (e) {
-        // Fallback: Just return null, the canvas will show placeholder
-        console.warn("Base64 conversion failed", e);
-        return null;
+        console.warn("Base64 conversion failed, falling back to URL", e);
+        return null; // Fallback will be handled in render
     }
 };
 
@@ -101,7 +107,9 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
 
   // Pre-load image as base64 when share modal opens
   useEffect(() => {
-      if (showShareModal && product.image_url && !cardImageBase64) {
+      if (showShareModal && product.image_url) {
+          // Reset previous
+          setCardImageBase64(null);
           toBase64(product.image_url).then(base64 => {
               if (base64) setCardImageBase64(base64);
           });
@@ -168,14 +176,15 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           let blob: Blob | null = null;
 
           if (shareTab === 'card' && cardRef.current) {
-              // Wait for image to render if base64 logic is pending
-              await new Promise(r => setTimeout(r, 100)); 
+              // Wait a bit for rendering stability
+              await new Promise(r => setTimeout(r, 200)); 
               
               const canvas = await html2canvas(cardRef.current, {
-                  scale: 3, // High resolution
+                  scale: 3, // High resolution for Retina displays
                   useCORS: true, 
                   backgroundColor: '#ffffff',
-                  logging: false
+                  logging: false,
+                  allowTaint: true
               });
               blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
           } else if (shareTab === 'qr' && qrDataUrl) {
@@ -212,6 +221,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   };
 
   const handleAdjustStock = async () => {
+      // ... (Stock logic remains the same)
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
       const finalQty = type === 'remove' ? -qty : qty;
@@ -267,6 +277,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   };
 
   const handleTransferStock = async () => {
+      // ... (Transfer logic remains the same)
       if (!transferModal) return;
       const { sourceId, targetId, qty } = transferModal;
       if (sourceId === targetId) { showToast("Επιλέξτε διαφορετική αποθήκη.", "error"); return; }
@@ -382,8 +393,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 className="w-full h-full object-cover cursor-pointer" 
                 alt={product.sku} 
                 onClick={() => setShowFullImage(true)}
-                // Removed crossOrigin here to allow normal loading. 
-                // Proxy logic handles share card generation separately.
+                // Removed crossOrigin to avoid strict CORS block during simple display.
+                // The Share function uses Base64 converter to handle it.
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
@@ -623,51 +634,61 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           /* PRODUCT CARD PREVIEW (RENDERED) */
                           <div 
                             ref={cardRef}
-                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[4/5] flex flex-col border border-slate-200 relative"
+                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[3/4] flex flex-col border border-slate-200 relative"
                           >
                               {/* Background Image / Placeholder using Base64 state */}
-                              <div className="absolute inset-0 z-0">
+                              <div className="absolute inset-0 z-0 bg-white">
                                   {cardImageBase64 ? (
                                       <img src={cardImageBase64} className="w-full h-full object-cover" alt="Product Background" />
                                   ) : (
                                       <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
-                                          <ImageIcon size={48}/>
+                                          {product.image_url ? (
+                                              /* Fallback to URL with crossOrigin if Base64 fails */
+                                              <img src={product.image_url} className="w-full h-full object-cover" crossOrigin="anonymous" alt="Fallback" />
+                                          ) : (
+                                              <ImageIcon size={48}/>
+                                          )}
                                       </div>
                                   )}
-                                  {/* Gradient Overlay for Text Readability */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+                                  {/* Gradient Overlay for Text Readability - Stronger at bottom */}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-black/30"></div>
                               </div>
 
-                              {/* Branding */}
-                              <div className="relative z-10 p-4 pt-5">
-                                  <div className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black px-2 py-1 rounded w-fit uppercase tracking-widest border border-white/20">
+                              {/* Branding - Top Left */}
+                              <div className="relative z-10 p-5 pt-6 w-full flex justify-between items-start">
+                                  <div className="bg-white/10 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest border border-white/20 shadow-sm">
                                       {APP_LOGO ? 'ILIOS KOSMIMA' : 'ILIOS'}
                                   </div>
+                                  
+                                  {/* Price Tag - Top Right */}
+                                  {displayPrice > 0 && (
+                                      <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-black text-sm shadow-lg flex items-center gap-1 animate-in slide-in-from-right-4">
+                                          {formatCurrency(displayPrice)}
+                                      </div>
+                                  )}
                               </div>
 
-                              {/* Footer Details */}
-                              <div className="mt-auto relative z-10 p-5 pt-0 text-white">
-                                  <div className="flex justify-between items-end mb-3">
-                                      <div>
-                                          <h3 className="text-3xl font-black leading-none tracking-tight shadow-black drop-shadow-sm">{displaySku}</h3>
-                                          <p className="text-xs font-bold opacity-80 uppercase tracking-wide mt-1">{displayLabel}</p>
+                              {/* Footer Details - Bottom */}
+                              <div className="mt-auto relative z-10 p-5 text-white w-full">
+                                  <div className="flex justify-between items-end gap-2">
+                                      <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 mb-1 opacity-80">
+                                              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold uppercase">{product.category}</span>
+                                              <span className="text-[10px] font-medium">{product.weight_g}g</span>
+                                          </div>
+                                          <h3 className="text-3xl font-black leading-none tracking-tight shadow-black drop-shadow-md truncate">{displaySku}</h3>
+                                          <p className="text-xs font-bold opacity-80 uppercase tracking-wide mt-1.5 truncate">{displayLabel}</p>
+                                          
+                                          {/* Variant / Metal Info */}
+                                          <div className="mt-3 flex items-center gap-2">
+                                              <div className="h-1 w-8 bg-emerald-500 rounded-full"></div>
+                                              <span className="text-[10px] uppercase font-bold tracking-wider opacity-90">{displayPlating}</span>
+                                          </div>
                                       </div>
                                       
-                                      {/* QR Code Embedded */}
-                                      <div className="w-12 h-12 bg-white p-1 rounded-lg shadow-lg shrink-0">
+                                      {/* QR Code Embedded - White Box */}
+                                      <div className="w-14 h-14 bg-white p-1 rounded-xl shadow-xl shrink-0 flex items-center justify-center">
                                           {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain" />}
-                                      </div>
-                                  </div>
-                                  
-                                  <div className="flex gap-2">
-                                      {displayPrice > 0 && (
-                                          <div className="bg-emerald-500/90 backdrop-blur-md text-white px-3 py-1.5 rounded-lg font-black text-sm shadow-sm flex items-center gap-1">
-                                              <span className="text-[10px] font-normal opacity-80">Τιμή</span>
-                                              {formatCurrency(displayPrice)}
-                                          </div>
-                                      )}
-                                      <div className="bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 border border-white/10">
-                                          <Weight size={10}/> {product.weight_g}g
                                       </div>
                                   </div>
                               </div>
