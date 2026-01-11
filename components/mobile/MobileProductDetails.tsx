@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { SYSTEM_IDS } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
@@ -39,6 +39,48 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(
       variants.length > 0 ? variants[0] : null
   );
+
+  // --- PRICE SWAPPER LOGIC ---
+  const [priceIndex, setPriceIndex] = useState(0);
+
+  // Build a list of price options. If variants exist, ignore master price.
+  const priceOptions = useMemo(() => {
+      if (variants.length > 0) {
+          // Sort variants: P (Plain/Lustre) -> X (Gold) -> Others
+          const sorted = [...variants].sort((a, b) => {
+              const score = (s: string) => {
+                  if (s === '' || s === 'P') return 1;
+                  if (s === 'X') return 2;
+                  return 3;
+              };
+              return score(a.suffix) - score(b.suffix);
+          });
+          
+          return sorted.map(v => ({
+              price: v.selling_price || 0,
+              label: v.suffix || 'BAS', // BAS = Basic/Lustre
+              desc: v.description
+          }));
+      }
+      // Fallback to master if no variants
+      return [{ 
+          price: product.selling_price || 0, 
+          label: 'MST', 
+          desc: 'Master' 
+      }];
+  }, [product, variants]);
+
+  const currentPriceObj = priceOptions[priceIndex] || priceOptions[0];
+
+  const nextPrice = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setPriceIndex((prev) => (prev + 1) % priceOptions.length);
+  };
+
+  const prevPrice = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setPriceIndex((prev) => (prev - 1 + priceOptions.length) % priceOptions.length);
+  };
   
   // Display Logic Helpers
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
@@ -56,20 +98,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           if (suffixPlatings.size > 0) return Array.from(suffixPlatings).join(', ');
       }
       return PLATING_LABELS[product.plating_type] || product.plating_type;
-  }, [product, variants]);
-
-  const displayPrice = useMemo(() => {
-      if (product.selling_price && product.selling_price > 0) return formatCurrency(product.selling_price);
-      if (variants.length > 0) {
-          const prices = variants.map(v => v.selling_price || 0).filter(p => p > 0);
-          if (prices.length > 0) {
-              const min = Math.min(...prices);
-              const max = Math.max(...prices);
-              if (min === max) return formatCurrency(min);
-              return `${formatCurrency(min)} - ${formatCurrency(max)}`;
-          }
-      }
-      return '-';
   }, [product, variants]);
 
   // Generates a rich image card for sharing
@@ -267,22 +295,48 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           
           {/* Main Stats Cards */}
           <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
-                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1"><DollarSign size={10}/> Τιμή Χονδρικής</div>
-                  <div className="text-xl font-black text-slate-800 tracking-tight truncate w-full">
-                      {displayPrice}
+              {/* INTERACTIVE PRICE CARD */}
+              <div className="bg-white p-2.5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
+                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1 justify-center w-full">
+                      <DollarSign size={10}/> Τιμή Χονδρικής
+                  </div>
+                  
+                  <div className="flex items-center justify-between w-full mt-1">
+                      {priceOptions.length > 1 && (
+                          <button onClick={prevPrice} className="p-1.5 hover:bg-slate-50 text-slate-400 rounded-lg active:scale-95 transition-all">
+                              <ChevronLeft size={18}/>
+                          </button>
+                      )}
+                      
+                      <div className="flex flex-col items-center justify-center flex-1">
+                          <div className="text-xl font-black text-slate-800 tracking-tight truncate">
+                              {currentPriceObj.price > 0 ? formatCurrency(currentPriceObj.price) : '-'}
+                          </div>
+                          {priceOptions.length > 1 && (
+                              <div className="text-[10px] font-bold text-white bg-slate-800 px-1.5 py-0.5 rounded uppercase mt-0.5 tracking-wide">
+                                  {currentPriceObj.label}
+                              </div>
+                          )}
+                      </div>
+
+                      {priceOptions.length > 1 && (
+                          <button onClick={nextPrice} className="p-1.5 hover:bg-slate-50 text-slate-400 rounded-lg active:scale-95 transition-all">
+                              <ChevronRight size={18}/>
+                          </button>
+                      )}
                   </div>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+
+              <div className="bg-white p-2.5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center justify-center">
                   <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1"><Weight size={10}/> Βάρος (g)</div>
                   <div className="text-xl font-black text-slate-800 tracking-tight">{product.weight_g.toFixed(2)}</div>
               </div>
           </div>
 
-          {/* Variants */}
+          {/* Variants List */}
           {variants.length > 0 && (
               <div className="space-y-3">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Παραλλαγές ({variants.length})</h3>
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Λίστα Παραλλαγών ({variants.length})</h3>
                   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                       {variants.map((v, idx) => (
                           <div 
