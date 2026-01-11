@@ -30,7 +30,8 @@ import {
   MonitorOff,
   CheckCircle,
   CloudOff,
-  ScrollText
+  ScrollText,
+  ShieldAlert
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
@@ -43,6 +44,7 @@ import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
+import EmployeeApp from './components/employee/EmployeeApp';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -156,7 +158,28 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
     }
 
     if (!session) return <AuthScreen />;
-    if (profile && !profile.is_approved) return <PendingApprovalScreen onLogout={signOut} />;
+    
+    // SECURITY FIX: Ensure profile exists before granting access
+    if (!profile) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-center p-4">
+                <div className="bg-red-50 p-6 rounded-3xl border border-red-100 max-w-md w-full">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">Σφάλμα Προφίλ</h2>
+                    <p className="text-slate-500 mb-6 text-sm">
+                        Δεν βρέθηκαν πληροφορίες προφίλ για το λογαριασμό σας. Παρακαλώ επικοινωνήστε με τον διαχειριστή.
+                    </p>
+                    <button onClick={signOut} className="bg-white border border-slate-200 text-slate-700 px-6 py-2 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm">
+                        Αποσύνδεση
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!profile.is_approved) return <PendingApprovalScreen onLogout={signOut} />;
 
     return <>{children}</>;
 }
@@ -393,82 +416,124 @@ function AppContent() {
     }
   }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
 
-  const handleNav = (page: Page) => { setActivePage(page); if (window.innerWidth < 768) setIsSidebarOpen(false); };
-  const toggleCollapse = () => setIsCollapsed(!isCollapsed);
-  
-  const handlePrintPreparation = (batchesToPrint: ProductionBatch[]) => { setPreparationPrintData({ batches: batchesToPrint }); };
-  const handlePrintTechnician = (batchesToPrint: ProductionBatch[]) => { setTechnicianPrintData({ batches: batchesToPrint }); };
-  const handlePrintAggregated = (batchesToPrint: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
-    if (!molds || !materials || !products || !settings) return;
-    const aggregatedMolds: AggregatedData['molds'] = new Map();
-    const aggregatedMaterials: AggregatedData['materials'] = new Map();
-    const aggregatedComponents: AggregatedData['components'] = new Map();
-    let totalSilverWeight = 0, totalProductionCost = 0, totalSilverCost = 0, totalMaterialsCost = 0, totalInHouseLaborCost = 0, totalImportedLaborCost = 0, totalSubcontractCost = 0;
-    const batchesWithCost: AggregatedBatch[] = [];
-
-    for (const batch of batchesToPrint) {
-        const product = batch.product_details;
-        if (!product) continue;
-        const costResult = batch.variant_suffix ? estimateVariantCost(product, batch.variant_suffix, settings, materials, products) : calculateProductCost(product, settings, materials, products);
-        const costPerPiece = costResult.total;
-        const totalBatchCost = costPerPiece * batch.quantity;
-        batchesWithCost.push({ ...batch, cost_per_piece: costPerPiece, total_cost: totalBatchCost });
-        totalProductionCost += totalBatchCost;
-        if (costResult.breakdown) {
-            totalSilverCost += (costResult.breakdown.silver || 0) * batch.quantity;
-            totalMaterialsCost += (costResult.breakdown.materials || 0) * batch.quantity;
-            if (product.production_type === 'Imported') totalImportedLaborCost += (costResult.breakdown.labor || 0) * batch.quantity;
-            else totalInHouseLaborCost += (costResult.breakdown.labor || 0) * batch.quantity;
-            if (costResult.breakdown.details) totalSubcontractCost += (costResult.breakdown.details.subcontract_cost || 0) * batch.quantity;
-        }
-        totalSilverWeight += batch.quantity * product.weight_g;
-        for (const pm of product.molds) {
-            const moldDetails = molds.find(m => m.code === pm.code);
-            if (moldDetails) {
-                if (!aggregatedMolds.has(pm.code)) aggregatedMolds.set(pm.code, { ...moldDetails, usedIn: new Set() });
-                aggregatedMolds.get(pm.code)!.usedIn.add(product.sku + (batch.variant_suffix || ''));
-            }
-        }
-        for (const r of product.recipe) {
-            const qty = batch.quantity * r.quantity;
-            if (r.type === 'raw') {
-                const mat = materials.find(m => m.id === r.id);
-                if (mat) {
-                    if (!aggregatedMaterials.has(mat.id)) aggregatedMaterials.set(mat.id, { name: mat.name, unit: mat.unit, totalQuantity: 0, totalCost: 0, usedIn: new Map() });
-                    const entry = aggregatedMaterials.get(mat.id)!;
-                    entry.totalQuantity += qty; entry.totalCost += qty * mat.cost_per_unit;
-                    entry.usedIn.set(product.sku + (batch.variant_suffix || ''), (entry.usedIn.get(product.sku + (batch.variant_suffix || '')) || 0) + qty);
-                }
-            } else if (r.type === 'component') {
-                const comp = products.find(p => p.sku === r.sku);
-                if (comp) {
-                    if (!aggregatedComponents.has(r.sku)) aggregatedComponents.set(r.sku, { sku: r.sku, totalQuantity: 0, totalCost: 0, usedIn: new Map() });
-                    const entry = aggregatedComponents.get(r.sku)!;
-                    entry.totalQuantity += qty; entry.totalCost += qty * comp.active_price;
-                    entry.usedIn.set(product.sku + (batch.variant_suffix || ''), (entry.usedIn.get(product.sku + (batch.variant_suffix || '')) || 0) + qty);
-                }
-            }
-        }
-    }
-    setAggregatedPrintData({ molds: aggregatedMolds, materials: aggregatedMaterials, components: aggregatedComponents, totalSilverWeight, batches: batchesWithCost, totalProductionCost, totalSilverCost, totalMaterialsCost, totalInHouseLaborCost, totalImportedLaborCost, totalSubcontractCost, orderId: orderDetails?.orderId, customerName: orderDetails?.customerName });
-  };
-
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
   }
   if (!settings || !products || !materials || !molds || !collections) return null;
   
-  // SWITCH RENDERING BASED ON DEVICE TYPE
-  if (isMobile) {
+  // ROLE-BASED ROUTING
+  // 1. Store Clerk ('user') -> Employee App
+  if (profile?.role === 'user') {
       return (
           <>
             <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
-            <MobileApp />
+            <EmployeeApp />
           </>
       );
   }
 
-  // DESKTOP RENDERING
+  // 2. Admin Logic
+  if (profile?.role === 'admin') {
+      if (isMobile) {
+          return (
+              <>
+                <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
+                <MobileApp />
+              </>
+          );
+      }
+      
+      // Desktop Admin is handled below
+  } else {
+      // Fallback for unknown role or error state (should be caught by AuthGuard, but safety first)
+      // If we are here, role is neither 'user' nor 'admin', effectively Access Denied or Local Mode
+      if (!isLocalMode) {
+          return (
+            <div className="h-screen flex items-center justify-center bg-slate-50">
+                <div className="text-center">
+                    <h2 className="text-xl font-bold text-red-600 mb-2">Μη εξουσιοδοτημένη πρόσβαση</h2>
+                    <p className="text-slate-500 mb-4">Ο ρόλος σας ({profile?.role}) δεν αναγνωρίζεται.</p>
+                    <button onClick={() => signOut()} className="underline">Αποσύνδεση</button>
+                </div>
+            </div>
+          );
+      }
+  }
+
+  const handleNav = (page: Page) => {
+    setActivePage(page);
+    setIsSidebarOpen(false);
+  };
+
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
+  const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
+      if (!settings || !materials || !products) return;
+
+      let totalSilverWeight = 0;
+      let totalSilverCost = 0;
+      let totalMaterialsCost = 0;
+      let totalInHouseLaborCost = 0;
+      let totalImportedLaborCost = 0;
+      let totalSubcontractCost = 0;
+
+      const augmentedBatches: AggregatedBatch[] = batches.map(b => {
+          const product = products.find(p => p.sku === b.sku);
+          if (!product) return { ...b, cost_per_piece: 0, total_cost: 0 };
+
+          const cost = calculateProductCost(product, settings, materials, products);
+          const costPerPiece = cost.total;
+          const totalCost = costPerPiece * b.quantity;
+
+          const w = product.weight_g + (product.secondary_weight_g || 0);
+          totalSilverWeight += (w * b.quantity);
+          totalSilverCost += (cost.breakdown.silver * b.quantity);
+          totalMaterialsCost += (cost.breakdown.materials * b.quantity);
+          
+          const labor = cost.breakdown.labor;
+          const sub = cost.breakdown.details?.subcontract_cost || 0;
+
+          if (product.production_type === 'Imported') {
+             totalImportedLaborCost += (labor * b.quantity);
+          } else {
+             totalInHouseLaborCost += (labor * b.quantity);
+          }
+          totalSubcontractCost += (sub * b.quantity);
+
+          return { ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product };
+      });
+
+      const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
+
+      setAggregatedPrintData({
+          molds: new Map(), 
+          materials: new Map(),
+          components: new Map(),
+          totalSilverWeight,
+          batches: augmentedBatches,
+          totalProductionCost,
+          totalSilverCost,
+          totalMaterialsCost,
+          totalInHouseLaborCost,
+          totalImportedLaborCost,
+          totalSubcontractCost,
+          orderId: orderDetails?.orderId,
+          customerName: orderDetails?.customerName
+      });
+  };
+
+  const handlePrintPreparation = (batches: ProductionBatch[]) => {
+      setPreparationPrintData({ batches });
+  };
+
+  const handlePrintTechnician = (batches: ProductionBatch[]) => {
+      setTechnicianPrintData({ batches });
+  };
+
+  // DESKTOP RENDERING (ADMIN)
+  // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
 
   return (
