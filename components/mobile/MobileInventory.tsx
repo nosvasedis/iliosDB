@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, Warehouse } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save, ArrowDown, ArrowUp, History, Minus, CheckCircle, ScanBarcode } from 'lucide-react';
+import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save, ArrowDown, ArrowUp, History, Minus, CheckCircle, ScanBarcode, ChevronRight } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
@@ -13,7 +13,6 @@ interface Props {
   onProductSelect: (p: Product) => void;
 }
 
-// ... (Previous subcomponents)
 interface MobileInventoryItemProps {
     product: Product;
     onClick: () => void;
@@ -75,6 +74,8 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const [qmWarehouse, setQmWarehouse] = useState(SYSTEM_IDS.CENTRAL);
     const [qmMode, setQmMode] = useState<'add' | 'remove'>('add');
     const [qmHistory, setQmHistory] = useState<{sku: string, qty: number, type: 'add'|'remove', time: Date}[]>([]);
+    
+    const [suggestions, setSuggestions] = useState<Product[]>([]);
 
     // Warehouse State
     const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
@@ -83,6 +84,33 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+
+    // Smart SKU Suggestions Logic
+    useEffect(() => {
+        const term = qmSku.trim().toUpperCase();
+        if (term.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+        
+        // Extract numeric part if any (e.g. "100" from "DA100")
+        const numericMatch = term.match(/\d+/);
+        const numberTerm = numericMatch ? numericMatch[0] : null;
+
+        const results = products.filter(p => {
+            if (p.is_component) return false;
+            // 1. Starts with input
+            if (p.sku.startsWith(term)) return true;
+            // 2. Contains numeric part (e.g. typing "100" finds "DA100")
+            if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
+            return false;
+        }).sort((a, b) => {
+            if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
+            return a.sku.localeCompare(b.sku);
+        }).slice(0, 5); // Limit to top 5
+
+        setSuggestions(results);
+    }, [qmSku, products]);
 
     // Inventory List Logic
     const inventoryList = useMemo(() => {
@@ -133,6 +161,11 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
         } else {
             showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
         }
+    };
+
+    const selectSuggestion = (p: Product) => {
+        setQmSku(p.sku);
+        setSuggestions([]);
     };
 
     const executeQuickAction = async () => {
@@ -212,7 +245,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                     onClick={() => setShowQuickManager(true)}
                     className="bg-[#060b00] text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
                 >
-                    <ArrowDown size={16}/> +/- Quick Stock
+                    <ArrowDown size={16}/> +/- Ταχεία Κίνηση
                 </button>
             </div>
             
@@ -271,7 +304,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                 <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-end p-4 animate-in slide-in-from-bottom-10">
                     <div className="bg-white w-full rounded-3xl p-6 shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                            <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><ScanBarcode className="text-emerald-600"/> Quick Stock</h3>
+                            <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><ScanBarcode className="text-emerald-600"/> Ταχεία Διαχείριση</h3>
                             <button onClick={() => setShowQuickManager(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20}/></button>
                         </div>
 
@@ -287,8 +320,8 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                                 </select>
                             </div>
 
-                            <div className="flex gap-3">
-                                <div className="flex-1">
+                            <div className="flex gap-3 items-start">
+                                <div className="flex-1 relative">
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">SKU / Κωδικός</label>
                                     <div className="flex items-center gap-2">
                                         <input 
@@ -299,6 +332,22 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                                         />
                                         <button onClick={() => setShowScanner(true)} className="p-3.5 bg-slate-900 text-white rounded-xl shadow-md active:scale-95"><Camera size={24}/></button>
                                     </div>
+                                    
+                                    {/* Smart Suggestions Dropdown */}
+                                    {suggestions.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 max-h-48 overflow-y-auto">
+                                            {suggestions.map(p => (
+                                                <button 
+                                                    key={p.sku} 
+                                                    onClick={() => selectSuggestion(p)}
+                                                    className="w-full text-left p-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between"
+                                                >
+                                                    <span className="font-bold text-slate-800">{p.sku}</span>
+                                                    <span className="text-xs text-slate-500">{p.category}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="w-24">
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label>

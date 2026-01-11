@@ -1,13 +1,12 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { Product, ProductVariant, Warehouse, Gender, PlatingType } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save } from 'lucide-react';
+import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 interface Props {
   product: Product;
@@ -34,10 +33,16 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const [showBarcode, setShowBarcode] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  
+  // Data fetching for technical details
+  const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: allProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+  const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
 
   // Modal States
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number } | null>(null);
+  const [showTechDetails, setShowTechDetails] = useState(false);
 
   const variants = product.variants || [];
   
@@ -45,14 +50,10 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       variants.length > 0 ? variants[0] : null
   );
 
-  // Ensure activeVariant matches view index logic if possible, or just default
-  // For stock management, we need a Clear "Active Variant" selector if variants exist.
-  // Using the same index logic as Pricing Swapper for UI consistency.
   const [variantIndex, setVariantIndex] = useState(0);
 
   const activeVariant = useMemo(() => {
       if (variants.length === 0) return null;
-      // Sort variants by priority for display
       const sorted = [...variants].sort((a, b) => {
           const score = (s: string) => {
               if (s === '' || s === 'P') return 1;
@@ -64,7 +65,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       return sorted[variantIndex];
   }, [variants, variantIndex]);
 
-  // Sync active variant for barcode modal
   useEffect(() => {
       if (activeVariant) setActiveVariantForBarcode(activeVariant);
   }, [activeVariant]);
@@ -146,12 +146,11 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           }
 
           const reason = type === 'set' ? `Stock Set: ${whName}` : `Manual Adj: ${whName}`;
-          await recordStockMovement(product.sku, type === 'set' ? 0 : finalQty, reason, activeVariant?.suffix || undefined); // 0 for Set is simplified logging
+          await recordStockMovement(product.sku, type === 'set' ? 0 : finalQty, reason, activeVariant?.suffix || undefined);
           
           queryClient.invalidateQueries({ queryKey: ['products'] });
           showToast("Το απόθεμα ενημερώθηκε.", "success");
           setAdjustModal(null);
-          onClose(); // Close details to refresh list properly or stay? Let's stay but data needs refresh. Mobile list is behind.
       } catch (e) {
           showToast("Σφάλμα ενημέρωσης.", "error");
       }
@@ -162,7 +161,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       const { sourceId, targetId, qty } = transferModal;
       if (sourceId === targetId) { showToast("Επιλέξτε διαφορετική αποθήκη.", "error"); return; }
 
-      // Get current source qty to validate
       let sourceQty = 0;
       if (activeVariant) {
           sourceQty = sourceId === SYSTEM_IDS.CENTRAL ? activeVariant.stock_qty : (activeVariant.location_stock?.[sourceId] || 0);
@@ -173,8 +171,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       if (qty > sourceQty) { showToast("Ανεπαρκές υπόλοιπο.", "error"); return; }
 
       try {
-          // 1. Remove from Source
-          // Re-use logic or direct calls? Direct logic for clarity.
           const variantSuffix = activeVariant?.suffix || null;
           const sku = product.sku;
 
@@ -197,36 +193,11 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                    }
                }
           };
-
-          // We cheat a bit by using the passed props 'product' stock levels, assuming they are somewhat fresh. 
-          // Ideally we fetch fresh, but for UI responsiveness we trust the prop + pessimistic check? 
-          // The constraint check above uses props. The DB constraints aren't strict on negatives usually in this schema unless defined.
           
           await updateStock(sourceId, -qty);
-          // Wait a tiny bit or just proceed optimistic
-          // We need to fetch the 'target' current stock because props might not have it if it was 0?
-          // Actually props has all locations.
           
-          // 2. Add to Target. Note: We use the *current* state from props for calculation. If concurrent edits happen, it might drift.
-          // Better: Use RPC or just accept small drift risk in basic ERP.
-          // For now, simple implementation:
-          // We need the TARGET's current stock to add to it.
-          let targetCurrent = 0;
-          if (activeVariant) targetCurrent = targetId === SYSTEM_IDS.CENTRAL ? activeVariant.stock_qty : (activeVariant.location_stock?.[targetId] || 0);
-          else targetCurrent = targetId === SYSTEM_IDS.CENTRAL ? product.stock_qty : (targetId === SYSTEM_IDS.SHOWROOM ? product.sample_qty : (product.location_stock?.[targetId] || 0));
-          
-          // Re-implement updateStock to accept absolute value or handle the read?
-          // Actually the upsert above calculates new total based on Prop State.
-          // Let's rely on that for now.
-          
-          // Wait, the updateStock function above uses `activeVariant.stock_qty` which is STALE from the closure?
-          // Yes. It uses the `product` prop.
-          // Correct fix: We need to use `activeVariant`'s data from the render scope, which is fine as long as we don't await between reads.
-          // However, for Target, we need to add `qty` to its current.
-          
-          // Let's correct `updateStock` for target:
           if (activeVariant) {
-               if (targetId === SYSTEM_IDS.CENTRAL) await supabase.from('product_variants').update({ stock_qty: activeVariant.stock_qty + qty }).match({ product_sku: sku, suffix: variantSuffix }); // Wait, source might be Central too? No source!=target.
+               if (targetId === SYSTEM_IDS.CENTRAL) await supabase.from('product_variants').update({ stock_qty: activeVariant.stock_qty + qty }).match({ product_sku: sku, suffix: variantSuffix });
                else {
                    const curr = activeVariant.location_stock?.[targetId] || 0;
                    await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: variantSuffix, warehouse_id: targetId, quantity: curr + qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
@@ -252,7 +223,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
   };
 
-  // --- RENDER HELPERS ---
   const renderStockRow = (whId: string, qty: number, isSystem: boolean, label: string) => (
       <div key={whId} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -291,25 +261,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       </div>
   );
 
-  // --- SHARE (Existing) ---
-  const shareFile = async (blob: Blob, filename: string) => {
-      const file = new File([blob], filename, { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-              await navigator.share({ files: [file] });
-          } catch (shareErr: any) { if (shareErr.name !== 'AbortError') throw shareErr; }
-      } else {
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = filename;
-          link.click();
-          showToast("Η εικόνα αποθηκεύτηκε.", "success");
-      }
-  };
-
-  const handleShareQr = async () => { /* ... existing ... */ };
-  const handleShareCard = async () => { /* ... existing ... */ };
-
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
       
@@ -328,7 +279,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
             </div>
         )}
         
-        {/* Top Actions */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-gradient-to-b from-black/40 to-transparent">
             <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95">
                 <X size={20} />
@@ -340,17 +290,24 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
             </div>
         </div>
 
-        {/* Title Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
                 <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">
                             {product.category}
+                        </span>
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">
+                            {displayGender}
                         </span>
                         {product.is_component && <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">STX</span>}
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight leading-none">{product.sku}</h1>
+                    <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold">
+                        <span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span>
+                        <span>•</span>
+                        <span>{product.weight_g}g</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -396,7 +353,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           <div className="space-y-3">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2"><MapPin size={12}/> Διαχείριση Αποθέματος</h3>
               
-              {/* Central */}
               {renderStockRow(
                   SYSTEM_IDS.CENTRAL, 
                   activeVariant ? activeVariant.stock_qty : product.stock_qty, 
@@ -404,7 +360,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   'Κεντρική Αποθήκη'
               )}
               
-              {/* Showroom */}
               {renderStockRow(
                   SYSTEM_IDS.SHOWROOM, 
                   activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty, 
@@ -412,7 +367,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   'Δειγματολόγιο'
               )}
 
-              {/* Custom Warehouses */}
               {warehouses.filter(w => !w.is_system).map(w => (
                   renderStockRow(
                       w.id,
@@ -421,6 +375,86 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       w.name
                   )
               ))}
+          </div>
+
+          {/* TECHNICAL DETAILS TOGGLE */}
+          <div className="space-y-3">
+              <button 
+                onClick={() => setShowTechDetails(!showTechDetails)}
+                className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-between px-4 hover:bg-slate-200 transition-colors"
+              >
+                  <span className="flex items-center gap-2 text-xs uppercase tracking-wide"><Hammer size={16}/> Τεχνικά & Παραγωγή</span>
+                  {showTechDetails ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+              </button>
+
+              {showTechDetails && (
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+                      {/* Recipe */}
+                      <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Box size={12}/> Συνταγή / Υλικά</h4>
+                          {product.recipe.length > 0 ? (
+                              <div className="space-y-1">
+                                  {product.recipe.map((r, idx) => {
+                                      const name = r.type === 'raw' 
+                                          ? materials?.find(m => m.id === r.id)?.name 
+                                          : allProducts?.find(p => p.sku === r.sku)?.category || r.sku;
+                                      return (
+                                          <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg">
+                                              <span className="font-bold text-slate-700">{name}</span>
+                                              <span className="font-mono font-bold text-slate-500">x{r.quantity}</span>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          ) : (
+                              <div className="text-center text-xs text-slate-400 italic">Χωρίς υλικά.</div>
+                          )}
+                      </div>
+
+                      {/* Molds */}
+                      <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><MapPin size={12}/> Λάστιχα</h4>
+                          {product.molds.length > 0 ? (
+                              <div className="space-y-1">
+                                  {product.molds.map((m, idx) => {
+                                      const moldInfo = molds?.find(md => md.code === m.code);
+                                      return (
+                                          <div key={idx} className="flex justify-between items-center text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
+                                              <span className="font-black text-amber-800 font-mono">{m.code}</span>
+                                              <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location || '-'}</span>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          ) : (
+                              <div className="text-center text-xs text-slate-400 italic">Χωρίς λάστιχα.</div>
+                          )}
+                      </div>
+
+                      {/* Labor Costs (Brief) */}
+                      <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Coins size={12}/> Εργατικά</h4>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
+                                  <span className="text-slate-500">Τεχνίτης</span>
+                                  <span className="font-bold text-slate-700">{product.labor.technician_cost}€</span>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
+                                  <span className="text-slate-500">Καρφωτής</span>
+                                  <span className="font-bold text-slate-700">{product.labor.setter_cost}€</span>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
+                                  <span className="text-slate-500">Χύτευση</span>
+                                  <span className="font-bold text-slate-700">{product.labor.casting_cost}€</span>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
+                                  <span className="text-slate-500">Επιμ.</span>
+                                  <span className="font-bold text-slate-700">{product.labor.plating_cost_x}€</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              )}
           </div>
           
           <div className="h-12"></div>
@@ -434,8 +468,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           </div>
       )}
 
-      {/* MODALS */}
-      {/* Transfer Modal */}
+      {/* Modals (Transfer/Adjust) remain the same... */}
       {transferModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
@@ -443,126 +476,40 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       <h3 className="font-black text-lg text-slate-800">Μεταφορά</h3>
                       <button onClick={() => setTransferModal(null)}><X size={20} className="text-slate-400"/></button>
                   </div>
-                  
-                  <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Από</label>
-                      <div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">
-                          {warehouses.find(w => w.id === transferModal.sourceId)?.name}
-                      </div>
-                  </div>
-
-                  <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Προς</label>
-                      <select 
-                          value={transferModal.targetId} 
-                          onChange={e => setTransferModal({...transferModal, targetId: e.target.value})}
-                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
-                      >
-                          {warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (
-                              <option key={w.id} value={w.id}>{w.name}</option>
-                          ))}
-                      </select>
-                  </div>
-
-                  <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label>
-                      <input 
-                          type="number" min="1" 
-                          value={transferModal.qty}
-                          onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})}
-                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                  </div>
-
-                  <button onClick={handleTransferStock} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
-                      <ArrowRightLeft size={20}/> Εκτέλεση
-                  </button>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Από</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Προς</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"/></div>
+                  <button onClick={handleTransferStock} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><ArrowRightLeft size={20}/> Εκτέλεση</button>
               </div>
           </div>
       )}
 
-      {/* Adjust Modal */}
       {adjustModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                      <h3 className="font-black text-lg text-slate-800">
-                          {adjustModal.type === 'add' ? 'Προσθήκη' : (adjustModal.type === 'remove' ? 'Αφαίρεση' : 'Διόρθωση')}
-                      </h3>
+                      <h3 className="font-black text-lg text-slate-800">{adjustModal.type === 'add' ? 'Προσθήκη' : (adjustModal.type === 'remove' ? 'Αφαίρεση' : 'Διόρθωση')}</h3>
                       <button onClick={() => setAdjustModal(null)}><X size={20} className="text-slate-400"/></button>
                   </div>
-                  
-                  <div className="text-center text-sm font-bold text-slate-500 mb-2">
-                      {warehouses.find(w => w.id === adjustModal.warehouseId)?.name}
-                  </div>
-
-                  {adjustModal.type === 'set' ? (
-                      <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Υπόλοιπο (Set)</label>
-                          <input 
-                              type="number" min="0" 
-                              value={adjustModal.qty}
-                              onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})}
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"
-                          />
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                          <button 
-                              onClick={() => setAdjustModal({...adjustModal, type: 'add'})}
-                              className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}
-                          >
-                              Προσθήκη (+)
-                          </button>
-                          <button 
-                              onClick={() => setAdjustModal({...adjustModal, type: 'remove'})}
-                              className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}
-                          >
-                              Αφαίρεση (-)
-                          </button>
-                      </div>
-                  )}
-
-                  {adjustModal.type !== 'set' && (
-                      <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label>
-                          <input 
-                              type="number" min="1" 
-                              value={adjustModal.qty}
-                              onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})}
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"
-                          />
-                      </div>
-                  )}
-
-                  <button 
-                    onClick={handleAdjustStock} 
-                    className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}
-                  >
-                      <Save size={20}/> Αποθήκευση
-                  </button>
+                  <div className="text-center text-sm font-bold text-slate-500 mb-2">{warehouses.find(w => w.id === adjustModal.warehouseId)?.name}</div>
+                  {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Υπόλοιπο (Set)</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
+                  {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
+                  <button onClick={handleAdjustStock} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}><Save size={20}/> Αποθήκευση</button>
               </div>
           </div>
       )}
 
-      {/* BARCODE MODAL (Existing logic preserved if needed, hidden for brevity as focused on Management) */}
       {showBarcode && (
           <div className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
               <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden relative">
                   <button onClick={() => setShowBarcode(false)} className="absolute top-4 right-4 p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 z-10"><X size={20}/></button>
                   <div className="p-8 pb-4 flex flex-col items-center">
-                      <div className="text-center mb-6">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ψηφιακή Ετικέτα</h3>
-                          <div className="text-2xl font-black text-slate-900">{displaySku}</div>
-                      </div>
-                      <div className="bg-white p-4 border-2 border-slate-900 rounded-xl w-full flex justify-center">
-                          <BarcodeView product={product} variant={activeVariantForBarcode || undefined} width={70} height={35} format="standard"/>
-                      </div>
+                      <div className="text-center mb-6"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ψηφιακή Ετικέτα</h3><div className="text-2xl font-black text-slate-900">{displaySku}</div></div>
+                      <div className="bg-white p-4 border-2 border-slate-900 rounded-xl w-full flex justify-center"><BarcodeView product={product} variant={activeVariantForBarcode || undefined} width={70} height={35} format="standard"/></div>
                   </div>
               </div>
           </div>
       )}
-
     </div>
   );
 }
