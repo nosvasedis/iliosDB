@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { SYSTEM_IDS } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
@@ -35,7 +35,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
 
   const variants = product.variants || [];
   
-  // Logic: If variants exist, start with the first one. If not, start with null (Master).
   const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(
       variants.length > 0 ? variants[0] : null
   );
@@ -43,10 +42,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   // --- PRICE SWAPPER LOGIC ---
   const [priceIndex, setPriceIndex] = useState(0);
 
-  // Build a list of price options. If variants exist, ignore master price.
   const priceOptions = useMemo(() => {
       if (variants.length > 0) {
-          // Sort variants: P (Plain/Lustre) -> X (Gold) -> Others
           const sorted = [...variants].sort((a, b) => {
               const score = (s: string) => {
                   if (s === '' || s === 'P') return 1;
@@ -58,11 +55,10 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           
           return sorted.map(v => ({
               price: v.selling_price || 0,
-              label: v.suffix || 'BAS', // BAS = Basic/Lustre
+              label: v.suffix || 'BAS', 
               desc: v.description
           }));
       }
-      // Fallback to master if no variants
       return [{ 
           price: product.selling_price || 0, 
           label: 'MST', 
@@ -82,7 +78,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       setPriceIndex((prev) => (prev - 1 + priceOptions.length) % priceOptions.length);
   };
   
-  // Display Logic Helpers
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   
   const displayPlating = useMemo(() => {
@@ -100,11 +95,79 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       return PLATING_LABELS[product.plating_type] || product.plating_type;
   }, [product, variants]);
 
-  // Generates a rich image card for sharing
-  const generateShareImage = async () => {
+  const skuText = `${product.sku}${activeVariantForBarcode?.suffix || ''}`;
+
+  // SHARED FUNCTION: Handle the actual share API call
+  const shareFile = async (blob: Blob, filename: string) => {
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+              await navigator.share({
+                  files: [file],
+                  // No text/title to keep it clean (just image)
+              });
+          } catch (shareErr: any) {
+              if (shareErr.name !== 'AbortError') throw shareErr;
+          }
+      } else {
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          link.click();
+          showToast("Η εικόνα αποθηκεύτηκε.", "success");
+      }
+  };
+
+  // --- 1. SHARE QR ONLY ---
+  const handleShareQr = async () => {
       setIsSharing(true);
       try {
-          // 1. Create a canvas
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error("Canvas init failed");
+
+          const size = 600;
+          canvas.width = size;
+          canvas.height = size;
+
+          // Background
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, size, size);
+
+          // QR Code
+          const qrUrl = await QRCode.toDataURL(skuText, { margin: 1, width: 400, color: { dark: '#000000', light: '#FFFFFF' } });
+          const qrImg = new Image();
+          await new Promise(resolve => { qrImg.onload = resolve; qrImg.src = qrUrl; });
+          
+          // Draw QR Centered slightly up
+          ctx.drawImage(qrImg, (size - 400) / 2, 50, 400, 400);
+
+          // Draw SKU Text
+          ctx.fillStyle = '#0F172A';
+          ctx.font = 'bold 40px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(skuText, size / 2, 500);
+          
+          // Branding
+          ctx.fillStyle = '#94A3B8';
+          ctx.font = 'bold 20px Inter, sans-serif';
+          ctx.fillText("ILIOS KOSMIMA", size / 2, 540);
+
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (blob) await shareFile(blob, `QR_${skuText}.png`);
+
+      } catch (err: any) {
+          console.error(err);
+          showToast(`Σφάλμα: ${err.message}`, "error");
+      } finally {
+          setIsSharing(false);
+      }
+  };
+
+  // --- 2. SHARE RICH CARD (CORS FIXED) ---
+  const handleShareCard = async () => {
+      setIsSharing(true);
+      try {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) throw new Error("Canvas init failed");
@@ -114,116 +177,126 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           canvas.width = width;
           canvas.height = height;
 
-          // 2. Background
+          // 1. Clean Background
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, width, height);
 
-          // 3. Draw Product Image
+          // 2. Draw Image (via Proxy)
           if (product.image_url) {
               const img = new Image();
-              // IMPORTANT: Allow Cross-Origin for Canvas Export
-              img.crossOrigin = "Anonymous"; 
+              img.crossOrigin = "Anonymous"; // Crucial for CORS
               
+              // CORS FIX: Use Worker URL if it's an R2 URL
+              let src = product.image_url;
+              if (src.includes('r2.dev')) {
+                  const filename = src.split('/').pop();
+                  if (filename) {
+                      src = `${CLOUDFLARE_WORKER_URL}/${filename}`; // Proxy through Worker
+                  }
+              }
+              // Cache buster to ensure fresh fetch
+              src += (src.includes('?') ? '&' : '?') + `t=${Date.now()}`;
+
               try {
                   await new Promise<void>((resolve, reject) => {
                       img.onload = () => resolve();
-                      img.onerror = () => {
-                          console.warn("Image load failed (likely CORS), skipping draw.");
-                          // Resolve anyway to continue drawing the card without the image
-                          resolve(); 
-                      };
-                      // Cache buster to bypass browser cache which might not have CORS headers
-                      img.src = `${product.image_url}?t=${new Date().getTime()}`;
+                      img.onerror = () => { console.warn("Image load failed"); resolve(); }; // Resolve to continue without image
+                      img.src = src;
                   });
-                  
+
                   if (img.complete && img.naturalWidth > 0) {
-                      // Scale to fit top area (square-ish)
-                      const imgHeight = 800;
-                      const scale = Math.max(width / img.width, imgHeight / img.height);
-                      const x = (width / 2) - (img.width / 2) * scale;
-                      const y = (imgHeight / 2) - (img.height / 2) * scale;
+                      // Image Area (Top ~65%)
+                      const imgAreaHeight = 900;
                       
+                      // Draw Image Cover style
+                      const scale = Math.max(width / img.naturalWidth, imgAreaHeight / img.naturalHeight);
+                      const x = (width / 2) - (img.naturalWidth / 2) * scale;
+                      const y = (imgAreaHeight / 2) - (img.naturalHeight / 2) * scale;
+
                       ctx.save();
                       ctx.beginPath();
-                      ctx.rect(0, 0, width, imgHeight);
+                      ctx.rect(0, 0, width, imgAreaHeight);
                       ctx.clip();
-                      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                      ctx.drawImage(img, x, y, img.naturalWidth * scale, img.naturalHeight * scale);
+                      
+                      // Slight gradient at bottom of image for text readability overlap
+                      const gradient = ctx.createLinearGradient(0, imgAreaHeight - 200, 0, imgAreaHeight);
+                      gradient.addColorStop(0, "rgba(255,255,255,0)");
+                      gradient.addColorStop(1, "rgba(255,255,255,1)");
+                      ctx.fillStyle = gradient;
+                      ctx.fillRect(0, imgAreaHeight - 200, width, 200);
+                      
                       ctx.restore();
                   }
-              } catch (imgErr) {
-                  console.warn("Image processing error", imgErr);
-              }
-          }
-
-          // 4. Draw Info Card Background
-          ctx.fillStyle = '#F8FAFC'; // Slate-50
-          ctx.fillRect(0, 800, width, height - 800);
-          
-          // 5. Text
-          ctx.fillStyle = '#0F172A'; // Slate-900
-          ctx.font = 'bold 60px Inter, sans-serif';
-          const skuText = `${product.sku}${activeVariantForBarcode?.suffix || ''}`;
-          ctx.fillText(skuText, 50, 900);
-
-          ctx.fillStyle = '#64748B'; // Slate-500
-          ctx.font = '40px Inter, sans-serif';
-          ctx.fillText(product.category, 50, 960);
-          
-          if (activeVariantForBarcode?.description) {
-              ctx.font = 'italic 36px Inter, sans-serif';
-              ctx.fillText(activeVariantForBarcode.description, 50, 1020);
-          }
-
-          const price = activeVariantForBarcode?.selling_price || product.selling_price;
-          if (price > 0) {
-              ctx.fillStyle = '#059669'; // Emerald-600
-              ctx.font = 'bold 80px Inter, sans-serif';
-              ctx.fillText(formatCurrency(price), width - 350, 920);
-          }
-
-          // 6. Generate QR
-          const qrUrl = await QRCode.toDataURL(skuText, { margin: 1, width: 250, color: { dark: '#000000', light: '#FFFFFF' } });
-          const qrImg = new Image();
-          await new Promise(resolve => {
-              qrImg.onload = resolve;
-              qrImg.src = qrUrl;
-          });
-          ctx.drawImage(qrImg, width - 300, 1050, 250, 250);
-
-          // 7. Footer Branding
-          ctx.fillStyle = '#94A3B8';
-          ctx.font = 'bold 24px Inter, sans-serif';
-          ctx.fillText("ILIOS KOSMIMA ERP", 50, 1300);
-
-          // 8. Convert to Blob (Promisified for safety)
-          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-          
-          if (!blob) throw new Error("Canvas to Blob failed");
-
-          const file = new File([blob], `${skuText}.png`, { type: 'image/png' });
-          
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              try {
-                  await navigator.share({
-                      files: [file],
-                      title: skuText,
-                      text: `Check out ${skuText}`
-                  });
-              } catch (shareErr: any) {
-                  if (shareErr.name === 'AbortError') {
-                      // User cancelled share, do nothing
-                      return;
-                  }
-                  throw shareErr;
+              } catch (e) {
+                  console.warn("Canvas image error", e);
               }
           } else {
-              // Fallback: Download
-              const link = document.createElement('a');
-              link.href = URL.createObjectURL(blob);
-              link.download = `${skuText}.png`;
-              link.click();
-              showToast("Η εικόνα αποθηκεύτηκε.", "success");
+              // Placeholder if no image
+              ctx.fillStyle = '#F1F5F9';
+              ctx.fillRect(0, 0, width, 900);
+              ctx.fillStyle = '#CBD5E1';
+              ctx.font = 'bold 100px Inter, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText("NO IMAGE", width/2, 450);
           }
+
+          // 3. Info Card Area (Bottom)
+          const infoTop = 900;
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, infoTop, width, height - infoTop);
+
+          // SKU
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#0F172A'; // Slate-900
+          ctx.font = '900 80px Inter, sans-serif';
+          ctx.fillText(skuText, 60, infoTop + 100);
+
+          // Category & Desc
+          ctx.fillStyle = '#64748B'; // Slate-500
+          ctx.font = '500 40px Inter, sans-serif';
+          ctx.fillText(product.category, 60, infoTop + 160);
+          
+          if (activeVariantForBarcode?.description) {
+              ctx.fillStyle = '#334155';
+              ctx.font = 'italic 36px Inter, sans-serif';
+              ctx.fillText(activeVariantForBarcode.description, 60, infoTop + 220);
+          }
+
+          // Price Badge
+          const price = activeVariantForBarcode?.selling_price || product.selling_price;
+          if (price > 0) {
+              const priceText = formatCurrency(price);
+              ctx.font = '900 70px Inter, sans-serif';
+              const metrics = ctx.measureText(priceText);
+              
+              // Badge background
+              ctx.fillStyle = '#ECFDF5'; // Emerald-50
+              ctx.beginPath();
+              ctx.roundRect(width - metrics.width - 100, infoTop + 40, metrics.width + 40, 90, 20);
+              ctx.fill();
+              
+              ctx.fillStyle = '#059669'; // Emerald-600
+              ctx.fillText(priceText, width - metrics.width - 80, infoTop + 110);
+          }
+
+          // 4. Footer & QR
+          // Generate QR
+          const qrUrl = await QRCode.toDataURL(skuText, { margin: 0, width: 200, color: { dark: '#0F172A', light: '#FFFFFF' } });
+          const qrImg = new Image();
+          await new Promise(resolve => { qrImg.onload = resolve; qrImg.src = qrUrl; });
+          
+          // Draw QR at bottom right
+          ctx.drawImage(qrImg, width - 260, height - 260, 200, 200);
+
+          // Brand Watermark
+          ctx.fillStyle = '#94A3B8';
+          ctx.font = 'bold 30px Inter, sans-serif';
+          ctx.fillText("ILIOS KOSMIMA", 60, height - 60);
+          
+          // Convert & Share
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (blob) await shareFile(blob, `${skuText}_card.png`);
 
       } catch (err: any) {
           console.error(err);
@@ -235,16 +308,12 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
 
   const cycleVariant = (direction: 'next' | 'prev') => {
       if (variants.length === 0) return;
-      
       const currentIndex = activeVariantForBarcode 
         ? variants.findIndex(v => v.suffix === activeVariantForBarcode.suffix) 
         : 0;
-
       let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-      
       if (newIndex >= variants.length) newIndex = 0;
       if (newIndex < 0) newIndex = variants.length - 1;
-      
       setActiveVariantForBarcode(variants[newIndex]);
   };
 
@@ -281,9 +350,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 <X size={20} />
             </button>
             <div className="flex gap-2">
-                <button onClick={generateShareImage} disabled={isSharing} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95 disabled:opacity-50">
-                    <Share2 size={20} />
-                </button>
                 <button onClick={() => setShowBarcode(true)} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95">
                     <QrCode size={20} />
                 </button>
@@ -463,7 +529,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           <BarcodeView 
                               product={product}
                               variant={activeVariantForBarcode || undefined}
-                              width={70} // Visual Width (mm equivalent)
+                              width={70} 
                               height={35}
                               format="standard"
                           />
@@ -488,14 +554,23 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       </div>
                   )}
               </div>
-              <div className="mt-6">
+              
+              <div className="mt-6 flex gap-3 w-full max-w-sm">
                   <button 
-                    onClick={generateShareImage} 
+                    onClick={handleShareQr} 
                     disabled={isSharing}
-                    className="flex items-center gap-2 text-white/80 font-bold bg-white/10 px-6 py-3 rounded-full hover:bg-white/20 transition-all disabled:opacity-50"
+                    className="flex-1 flex flex-col items-center justify-center gap-1 bg-white/10 text-white p-3 rounded-2xl hover:bg-white/20 transition-all disabled:opacity-50"
                   >
-                      {isSharing ? <Scan size={18} className="animate-spin"/> : <Share2 size={18}/>} 
-                      {isSharing ? 'Δημιουργία...' : 'Κοινοποίηση Ετικέτας'}
+                      {isSharing ? <Scan size={24} className="animate-spin"/> : <QrCode size={24}/>} 
+                      <span className="text-[10px] font-bold">Μόνο QR</span>
+                  </button>
+                  <button 
+                    onClick={handleShareCard} 
+                    disabled={isSharing}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 bg-white text-slate-900 p-3 rounded-2xl hover:bg-slate-100 transition-all shadow-lg disabled:opacity-50"
+                  >
+                      {isSharing ? <Scan size={24} className="animate-spin text-slate-400"/> : <ImageIcon size={24}/>} 
+                      <span className="text-[10px] font-bold">Share Card</span>
                   </button>
               </div>
           </div>

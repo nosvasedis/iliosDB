@@ -1,3 +1,4 @@
+
 export default {
   async fetch(request, env) {
     // 1. CORS Headers - Allow requests from your application
@@ -29,13 +30,19 @@ export default {
       const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
 
-      // Allow public access to silver price? No, keep it secured for app use only.
-      if (!authHeader || authHeader !== env.AUTH_KEY_SECRET) {
+      // SECURITY UPDATE:
+      // Allow public GET access to images (for CORS/Canvas).
+      // Protect POST/DELETE (Mutations) and special routes like /price/silver.
+      const isSilverRoute = url.pathname === '/price/silver';
+      const isMutation = ['POST', 'DELETE', 'PUT'].includes(request.method);
+      const isProtected = isMutation || isSilverRoute;
+
+      if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
         return new Response('Unauthorized', { status: 403, headers: corsHeaders });
       }
 
       // --- SPECIAL ROUTE: SILVER PRICE ---
-      if (url.pathname === '/price/silver') {
+      if (isSilverRoute) {
         try {
           // Fetch from a reliable public data source (GoldPrice.org data feed)
           const response = await fetch('https://data-asg.goldprice.org/dbXRates/EUR', {
