@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package } from 'lucide-react';
+import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
@@ -32,7 +33,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const queryClient = useQueryClient();
   const [showBarcode, setShowBarcode] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'stock'>('info'); // NEW: Tabs state
   
   // Data fetching for technical details
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -98,6 +99,22 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
       return PLATING_LABELS[product.plating_type] || product.plating_type;
   }, [product, variants]);
+
+  // --- Dynamic Tech Data based on Variant ---
+  const activeTechData = useMemo(() => {
+      const suffix = activeVariant?.suffix || '';
+      const { finish } = getVariantComponents(suffix, product.gender);
+      
+      const isGoldOrPlat = ['X', 'H'].includes(finish.code) || (!suffix && (product.plating_type === PlatingType.GoldPlated || product.plating_type === PlatingType.Platinum));
+      const isTwoTone = finish.code === 'D' || (!suffix && product.plating_type === PlatingType.TwoTone);
+      
+      return {
+          technician: product.labor.technician_cost,
+          setter: product.labor.setter_cost,
+          casting: product.labor.casting_cost,
+          plating: isGoldOrPlat ? product.labor.plating_cost_x : (isTwoTone ? product.labor.plating_cost_d : 0)
+      };
+  }, [product, activeVariant]);
 
   // --- MANAGEMENT ACTIONS ---
 
@@ -349,46 +366,57 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
               </div>
           </div>
 
-          {/* STOCK MANAGEMENT */}
-          <div className="space-y-3">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2"><MapPin size={12}/> Διαχείριση Αποθέματος</h3>
-              
-              {renderStockRow(
-                  SYSTEM_IDS.CENTRAL, 
-                  activeVariant ? activeVariant.stock_qty : product.stock_qty, 
-                  true, 
-                  'Κεντρική Αποθήκη'
-              )}
-              
-              {renderStockRow(
-                  SYSTEM_IDS.SHOWROOM, 
-                  activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty, 
-                  true, 
-                  'Δειγματολόγιο'
-              )}
-
-              {warehouses.filter(w => !w.is_system).map(w => (
-                  renderStockRow(
-                      w.id,
-                      activeVariant ? (activeVariant.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0),
-                      false,
-                      w.name
-                  )
-              ))}
+          {/* TABS CONTROLLER */}
+          <div className="flex p-1 bg-slate-100 rounded-xl mb-2">
+                <button 
+                    onClick={() => setActiveTab('info')} 
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'info' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Info size={14}/> Στοιχεία
+                </button>
+                <button 
+                    onClick={() => setActiveTab('stock')} 
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Package size={14}/> Απόθεμα
+                </button>
           </div>
 
-          {/* TECHNICAL DETAILS TOGGLE */}
-          <div className="space-y-3">
-              <button 
-                onClick={() => setShowTechDetails(!showTechDetails)}
-                className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl flex items-center justify-between px-4 hover:bg-slate-200 transition-colors"
-              >
-                  <span className="flex items-center gap-2 text-xs uppercase tracking-wide"><Hammer size={16}/> Τεχνικά & Παραγωγή</span>
-                  {showTechDetails ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
-              </button>
+          {/* TAB CONTENT: STOCK */}
+          {activeTab === 'stock' && (
+              <div className="space-y-3 animate-in fade-in slide-in-from-right-2">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2"><MapPin size={12}/> Διαχείριση Αποθέματος</h3>
+                  
+                  {renderStockRow(
+                      SYSTEM_IDS.CENTRAL, 
+                      activeVariant ? activeVariant.stock_qty : product.stock_qty, 
+                      true, 
+                      'Κεντρική Αποθήκη'
+                  )}
+                  
+                  {renderStockRow(
+                      SYSTEM_IDS.SHOWROOM, 
+                      activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty, 
+                      true, 
+                      'Δειγματολόγιο'
+                  )}
 
-              {showTechDetails && (
-                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+                  {warehouses.filter(w => !w.is_system).map(w => (
+                      renderStockRow(
+                          w.id,
+                          activeVariant ? (activeVariant.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0),
+                          false,
+                          w.name
+                      )
+                  ))}
+              </div>
+          )}
+
+          {/* TAB CONTENT: INFO */}
+          {activeTab === 'info' && (
+              <div className="space-y-3 animate-in fade-in slide-in-from-left-2">
+                  {/* TECHNICAL DETAILS TOGGLE (Always Open or Collapsible?) Let's default open in Tab */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       {/* Recipe */}
                       <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Box size={12}/> Συνταγή / Υλικά</h4>
@@ -420,7 +448,10 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                       const moldInfo = molds?.find(md => md.code === m.code);
                                       return (
                                           <div key={idx} className="flex justify-between items-center text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
-                                              <span className="font-black text-amber-800 font-mono">{m.code}</span>
+                                              <div className="flex items-center gap-2">
+                                                  <span className="font-black text-amber-800 font-mono">{m.code}</span>
+                                                  <span className="text-xs text-slate-500 font-bold">x{m.quantity}</span>
+                                              </div>
                                               <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location || '-'}</span>
                                           </div>
                                       );
@@ -431,31 +462,33 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           )}
                       </div>
 
-                      {/* Labor Costs (Brief) */}
+                      {/* Labor Costs (Brief) - Variant Sensitive */}
                       <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Coins size={12}/> Εργατικά</h4>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Coins size={12}/> Εργατικά (Εκτίμηση)</h4>
                           <div className="grid grid-cols-2 gap-2 text-xs">
                               <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
                                   <span className="text-slate-500">Τεχνίτης</span>
-                                  <span className="font-bold text-slate-700">{product.labor.technician_cost}€</span>
+                                  <span className="font-bold text-slate-700">{activeTechData.technician}€</span>
                               </div>
                               <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
                                   <span className="text-slate-500">Καρφωτής</span>
-                                  <span className="font-bold text-slate-700">{product.labor.setter_cost}€</span>
+                                  <span className="font-bold text-slate-700">{activeTechData.setter}€</span>
                               </div>
                               <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
                                   <span className="text-slate-500">Χύτευση</span>
-                                  <span className="font-bold text-slate-700">{product.labor.casting_cost}€</span>
+                                  <span className="font-bold text-slate-700">{activeTechData.casting}€</span>
                               </div>
                               <div className="bg-slate-50 p-2 rounded-lg flex justify-between">
                                   <span className="text-slate-500">Επιμ.</span>
-                                  <span className="font-bold text-slate-700">{product.labor.plating_cost_x}€</span>
+                                  <span className={`font-bold ${activeTechData.plating > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                      {activeTechData.plating > 0 ? `${activeTechData.plating}€` : '-'}
+                                  </span>
                               </div>
                           </div>
                       </div>
                   </div>
-              )}
-          </div>
+              </div>
+          )}
           
           <div className="h-12"></div>
       </div>
