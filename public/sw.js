@@ -1,3 +1,4 @@
+
 const CACHE_NAME = 'ilios-erp-v1.14'; // Increment cache version to ensure new SW is installed
 
 // Critical static assets for initial load (Cache First)
