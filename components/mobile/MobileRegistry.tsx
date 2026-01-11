@@ -1,8 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
-import { Search, ImageIcon, Tag, Weight, Layers } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { Search, ImageIcon, Tag, Weight, Layers, Camera } from 'lucide-react';
+import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
+import { useUI } from '../UIProvider';
+import BarcodeScanner from '../BarcodeScanner';
 
 interface Props {
   products: Product[];
@@ -31,6 +33,8 @@ const CategoryChip: React.FC<CategoryChipProps> = ({ label, isActive, onClick })
 export default function MobileRegistry({ products, onProductSelect }: Props) {
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
+    const [showScanner, setShowScanner] = useState(false);
+    const { showToast } = useUI();
 
     // Extract categories for filter
     const categories = useMemo(() => {
@@ -56,20 +60,39 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
         }).slice(0, 50);
     }, [products, search, selectedCategory]);
 
+    const handleScan = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            onProductSelect(match.product);
+            setShowScanner(false);
+            showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     return (
         <div className="p-4 h-full flex flex-col">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Μητρώο Κωδικών</h1>
 
             {/* Search */}
-            <div className="relative mb-4 shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Αναζήτηση κωδικού..." 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                />
+            <div className="flex gap-2 mb-4 shrink-0">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                        type="text" 
+                        placeholder="Αναζήτηση κωδικού..." 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    />
+                </div>
+                <button 
+                    onClick={() => setShowScanner(true)}
+                    className="bg-slate-900 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform"
+                >
+                    <Camera size={20} />
+                </button>
             </div>
 
             {/* Categories */}
@@ -146,6 +169,13 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                     </div>
                 )}
             </div>
+
+            {showScanner && (
+                <BarcodeScanner 
+                    onScan={handleScan} 
+                    onClose={() => setShowScanner(false)} 
+                />
+            )}
         </div>
     );
 }
