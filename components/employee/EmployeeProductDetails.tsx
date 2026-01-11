@@ -1,17 +1,17 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
-import { X, ImageIcon, Tag, Weight, CheckCircle, Package, MapPin, Layers, ChevronLeft } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
-import { SYSTEM_IDS } from '../../lib/supabase';
+import { X, ImageIcon, Tag, Package, ChevronLeft, Printer, ShoppingBag } from 'lucide-react';
+import { formatCurrency } from '../../utils/pricingEngine';
 
 interface Props {
     product: Product;
     onClose: () => void;
     warehouses: Warehouse[];
+    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
-export default function EmployeeProductDetails({ product, onClose, warehouses }: Props) {
+export default function EmployeeProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
     const variants = product.variants || [];
     
     const sortedVariants = useMemo(() => {
@@ -29,6 +29,16 @@ export default function EmployeeProductDetails({ product, onClose, warehouses }:
     }, [variants]);
 
     const totalStock = (product.stock_qty || 0) + variants.reduce((acc, v) => acc + (v.stock_qty || 0), 0);
+
+    const handlePrintLabel = (variant: ProductVariant | null, format: 'standard' | 'retail') => {
+        if (!setPrintItems) return;
+        setPrintItems([{
+            product,
+            variant: variant || undefined,
+            quantity: 1,
+            format
+        }]);
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 bg-white md:bg-transparent">
@@ -80,57 +90,30 @@ export default function EmployeeProductDetails({ product, onClose, warehouses }:
                         </div>
                     </div>
 
-                    {/* Variants Table - Improved for Mobile */}
+                    {/* Variants Table */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Tag size={18} className="text-blue-500"/> Τιμοκατάλογος
+                                <Tag size={18} className="text-blue-500"/> Τιμοκατάλογος & Ετικέτες
                             </h3>
                         </div>
                         
-                        <div className="md:hidden">
-                            {/* Mobile List View */}
-                            {variants.length > 0 ? sortedVariants.map(v => (
-                                <div key={v.suffix} className="p-4 border-b border-slate-50 last:border-0 flex justify-between items-center">
-                                    <div>
-                                        <div className="font-mono font-black text-slate-800 text-lg">{v.suffix || 'BAS'}</div>
-                                        <div className="text-xs text-slate-500 font-medium">{v.description}</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="font-black text-emerald-700 text-lg">{formatCurrency(v.selling_price || product.selling_price || 0)}</div>
-                                        <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded inline-block">Stock: {v.stock_qty}</div>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="p-4 flex justify-between items-center">
-                                    <div>
-                                        <div className="font-black text-slate-800 text-lg">MASTER</div>
-                                        <div className="text-xs text-slate-500">Βασικό Προϊόν</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="font-black text-emerald-700 text-lg">{formatCurrency(product.selling_price)}</div>
-                                        <div className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded inline-block">Stock: {product.stock_qty}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Desktop Table View */}
-                        <table className="hidden md:table w-full text-left text-sm">
+                        <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                 <tr>
                                     <th className="p-4">Παραλλαγή</th>
-                                    <th className="p-4">Περιγραφή</th>
-                                    <th className="p-4 text-center">Κεντρικό Stock</th>
-                                    <th className="p-4 text-right">Τιμή Λιανικής</th>
+                                    <th className="p-4 hidden sm:table-cell">Περιγραφή</th>
+                                    <th className="p-4 text-center hidden sm:table-cell">Stock</th>
+                                    <th className="p-4 text-right">Τιμή</th>
+                                    <th className="p-4 text-center w-32">Εκτύπωση</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {variants.length > 0 ? sortedVariants.map(v => (
                                     <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="p-4 font-mono font-bold text-slate-700">{v.suffix || 'BAS'}</td>
-                                        <td className="p-4 text-slate-600 font-medium">{v.description}</td>
-                                        <td className="p-4 text-center">
+                                        <td className="p-4 text-slate-600 font-medium hidden sm:table-cell">{v.description}</td>
+                                        <td className="p-4 text-center hidden sm:table-cell">
                                             {v.stock_qty > 0 ? (
                                                 <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{v.stock_qty}</span>
                                             ) : <span className="text-slate-300">-</span>}
@@ -138,18 +121,38 @@ export default function EmployeeProductDetails({ product, onClose, warehouses }:
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
                                             {formatCurrency(v.selling_price || product.selling_price || 0)}
                                         </td>
+                                        <td className="p-4 text-center">
+                                            <div className="flex justify-center gap-1">
+                                                <button onClick={() => handlePrintLabel(v, 'standard')} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Χονδρική">
+                                                    <Tag size={16}/>
+                                                </button>
+                                                <button onClick={() => handlePrintLabel(v, 'retail')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Λιανική">
+                                                    <ShoppingBag size={16}/>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 )) : (
                                     <tr>
                                         <td className="p-4 font-mono font-bold text-slate-700">MASTER</td>
-                                        <td className="p-4 text-slate-600">Βασικό Προϊόν</td>
-                                        <td className="p-4 text-center">
+                                        <td className="p-4 text-slate-600 hidden sm:table-cell">Βασικό Προϊόν</td>
+                                        <td className="p-4 text-center hidden sm:table-cell">
                                             {product.stock_qty > 0 ? (
                                                 <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{product.stock_qty}</span>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
                                             {formatCurrency(product.selling_price)}
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <div className="flex justify-center gap-1">
+                                                <button onClick={() => handlePrintLabel(null, 'standard')} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Χονδρική">
+                                                    <Tag size={16}/>
+                                                </button>
+                                                <button onClick={() => handlePrintLabel(null, 'retail')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Λιανική">
+                                                    <ShoppingBag size={16}/>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}

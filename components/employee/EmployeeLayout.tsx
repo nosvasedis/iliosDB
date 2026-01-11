@@ -9,7 +9,8 @@ import {
   Menu, 
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Factory
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -75,7 +76,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   {!isCollapsed && (
                       <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Store Mode</span>
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Λειτουργία Καταστήματος</span>
                           <span className="text-xs font-bold text-white truncate">{profile?.full_name || 'Πωλητής'}</span>
                       </div>
                   )}
@@ -85,6 +86,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => onNavigate('dashboard')} />
             <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
+            <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
             <NavItem icon={<Database size={22} />} label="Προϊόντα & Τιμές" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => onNavigate('registry')} />
             <NavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => onNavigate('customers')} />
             
@@ -126,6 +128,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around items-center h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
             <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
+            <MobileNavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} onClick={() => onNavigate('production')} />
             <MobileNavItem icon={<Database size={22} />} label="Προϊόντα" isActive={activePage === 'registry'} onClick={() => onNavigate('registry')} />
             <MobileNavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} onClick={() => onNavigate('customers')} />
         </nav>

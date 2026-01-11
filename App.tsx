@@ -426,8 +426,31 @@ function AppContent() {
   if (profile?.role === 'user') {
       return (
           <>
+            <div ref={printContainerRef} className="print-view" aria-hidden="true">
+                {printItems.length > 0 && (
+                    <div className="print-area">
+                    {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
+                        <BarcodeView 
+                            key={`${idx}`} 
+                            product={item.product} 
+                            variant={item.variant} 
+                            width={item.format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm} 
+                            height={item.format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm} 
+                            format={item.format} 
+                            size={item.size}
+                        />
+                    ))}
+                    </div>
+                )}
+            </div>
+            <iframe 
+                ref={iframeRef} 
+                id="print-iframe" 
+                style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }} 
+                title="Print Bridge"
+            ></iframe>
             <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
-            <EmployeeApp />
+            <EmployeeApp setPrintItems={setPrintItems} />
           </>
       );
   }
@@ -446,7 +469,6 @@ function AppContent() {
       // Desktop Admin is handled below
   } else {
       // Fallback for unknown role or error state (should be caught by AuthGuard, but safety first)
-      // If we are here, role is neither 'user' nor 'admin', effectively Access Denied or Local Mode
       if (!isLocalMode) {
           return (
             <div className="h-screen flex items-center justify-center bg-slate-50">

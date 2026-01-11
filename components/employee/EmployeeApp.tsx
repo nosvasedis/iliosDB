@@ -4,9 +4,15 @@ import EmployeeLayout from './EmployeeLayout';
 import EmployeeDashboard from './EmployeeDashboard';
 import EmployeeOrders from './EmployeeOrders';
 import EmployeeRegistry from './EmployeeRegistry';
-import CustomersPage from '../CustomersPage'; // Reuse CustomersPage as it's safe (doesn't show costs)
+import CustomersPage from '../CustomersPage';
+import EmployeeProduction from './EmployeeProduction';
+import { Product, ProductVariant } from '../../types';
 
-export default function EmployeeApp() {
+interface Props {
+    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+}
+
+export default function EmployeeApp({ setPrintItems }: Props) {
   const [activePage, setActivePage] = useState('dashboard');
 
   let content: React.ReactNode = null;
@@ -17,12 +23,13 @@ export default function EmployeeApp() {
     case 'orders':
       content = <EmployeeOrders />;
       break;
+    case 'production':
+      content = <EmployeeProduction />;
+      break;
     case 'registry':
-      content = <EmployeeRegistry />;
+      content = <EmployeeRegistry setPrintItems={setPrintItems} />;
       break;
     case 'customers':
-      // CustomersPage is generally safe for clerks (contact info, order history)
-      // If stricter control is needed, we'd make an EmployeeCustomers.tsx
       content = <CustomersPage />;
       break;
     default:
