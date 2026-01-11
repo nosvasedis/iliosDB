@@ -223,7 +223,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
               await navigator.share({
                   files: [file],
                   title: displaySku,
-                  text: `${displaySku} - ${displayLabel} (${formatCurrency(displayPrice)})`
+                  text: shareTab === 'card' ? `${displaySku} - ${displayLabel} (${formatCurrency(displayPrice)})` : undefined
               });
           } else {
               // Fallback to download
@@ -243,7 +243,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
   };
 
-  // ... (Stock logic remains the same)
   const handleAdjustStock = async () => {
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
@@ -541,7 +540,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           {/* TAB CONTENT: INFO */}
           {activeTab === 'info' && (
               <div className="space-y-3 animate-in fade-in slide-in-from-left-2">
-                  {/* TECHNICAL DETAILS TOGGLE (Always Open or Collapsible?) Let's default open in Tab */}
                   <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       {/* Recipe */}
                       <div>
@@ -754,7 +752,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           </div>
       )}
 
-      {/* Modals (Transfer/Adjust) remain the same... */}
       {transferModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
