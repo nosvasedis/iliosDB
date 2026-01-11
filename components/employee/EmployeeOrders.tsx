@@ -26,6 +26,14 @@ const STATUS_ICONS = {
     [OrderStatus.Cancelled]: <XCircle size={12} />,
 };
 
+const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+};
+
 export default function EmployeeOrders() {
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -96,7 +104,7 @@ export default function EmployeeOrders() {
                                         </div>
                                     </div>
                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${getStatusColor(order.status)}`}>
-                                        {STATUS_ICONS[order.status]} {order.status}
+                                        {STATUS_ICONS[order.status]} {STATUS_TRANSLATIONS[order.status]}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
@@ -130,7 +138,7 @@ export default function EmployeeOrders() {
                                     <td className="p-4 text-right font-black text-slate-900">{formatCurrency(order.total_price)}</td>
                                     <td className="p-4 text-center">
                                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getStatusColor(order.status)}`}>
-                                            {order.status}
+                                            {STATUS_TRANSLATIONS[order.status]}
                                         </span>
                                     </td>
                                 </tr>

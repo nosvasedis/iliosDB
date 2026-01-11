@@ -63,10 +63,12 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
 
     const filteredProducts = useMemo(() => {
         if (!selectedCollection || !products) return [];
-        return products.filter(p => 
-            p.collections?.includes(selectedCollection.id) &&
-            (p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        return products
+            .filter(p => 
+                p.collections?.includes(selectedCollection.id) &&
+                (p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+            )
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedCollection, products, searchTerm]);
 
     if (loadingCol || loadingProd) return <div className="p-12 text-center text-slate-400">Φόρτωση...</div>;

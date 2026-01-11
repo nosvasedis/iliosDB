@@ -8,6 +8,60 @@ import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
 
+interface Props {
+  products: Product[];
+  onProductSelect: (p: Product) => void;
+}
+
+interface MobileInventoryItemProps {
+    product: Product;
+    onClick: () => void;
+    totalStock: number;
+}
+
+const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onClick, totalStock }) => {
+    const variantsCount = product.variants?.length || 0;
+
+    return (
+        <div 
+            onClick={onClick}
+            className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-transform"
+        >
+            <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0 relative">
+                {product.image_url ? (
+                    <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={20}/></div>
+                )}
+                {variantsCount > 0 && (
+                    <div className="absolute bottom-0 right-0 bg-slate-900/80 text-white text-[9px] px-1.5 py-0.5 rounded-tl-lg font-bold">
+                        +{variantsCount}
+                    </div>
+                )}
+            </div>
+            
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start">
+                    <h3 className="font-black text-slate-800 text-base truncate">{product.sku}</h3>
+                    {product.selling_price > 0 && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{formatCurrency(product.selling_price)}</span>}
+                </div>
+                <p className="text-xs text-slate-500 font-medium truncate mb-2">{product.category}</p>
+                
+                <div className="flex gap-2">
+                    <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${totalStock > 0 ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                        <Box size={10}/> {totalStock}
+                    </div>
+                    {(product.sample_qty > 0) && (
+                        <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 flex items-center gap-1">
+                            <MapPin size={10}/> Δειγμ: {product.sample_qty}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function EmployeeInventory() {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
@@ -57,14 +111,14 @@ export default function EmployeeInventory() {
             .map(p => {
                 let pTotal = 0;
                 if (p.location_stock) {
-                    pTotal += Object.values(p.location_stock).reduce((a: number, b: number) => a + b, 0);
+                    pTotal += (Object.values(p.location_stock) as number[]).reduce((a, b) => a + b, 0);
                 } else {
                     pTotal += (p.stock_qty || 0) + (p.sample_qty || 0);
                 }
                 if (p.variants && p.variants.length > 0) {
                     p.variants.forEach(v => {
                         if (v.location_stock) {
-                            pTotal += Object.values(v.location_stock).reduce((a: number, b: number) => a + b, 0);
+                            pTotal += (Object.values(v.location_stock) as number[]).reduce((a, b) => a + b, 0);
                         } else {
                             pTotal += (v.stock_qty || 0);
                         }

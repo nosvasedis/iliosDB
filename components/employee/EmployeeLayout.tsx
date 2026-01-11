@@ -90,7 +90,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
             <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
             <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές (Magazine)" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
+            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
             <NavItem icon={<Package size={22} />} label="Διαχείριση Αποθήκης" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => onNavigate('inventory')} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<Database size={22} />} label="Προϊόντα & Τιμές" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => onNavigate('registry')} />
