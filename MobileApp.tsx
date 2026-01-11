@@ -9,12 +9,15 @@ import MobileInventory from './components/mobile/MobileInventory';
 import MobileProductDetails from './components/mobile/MobileProductDetails';
 import MobileResources from './components/mobile/MobileResources';
 import MobileCustomers from './components/mobile/MobileCustomers';
+import MobileRegistry from './components/mobile/MobileRegistry';
+import MobileAiStudio from './components/mobile/MobileAiStudio';
+import MobileSettings from './components/mobile/MobileSettings';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product } from './types';
 
-// Placeholder components for phases 5
+// Placeholder components for pending features
 const MobilePlaceholder = ({ title }: { title: string }) => (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400">
         <Loader2 className="mb-4 animate-spin" size={32}/>
@@ -48,15 +51,15 @@ export default function MobileApp() {
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
     
     // Sub-menu items
+    case 'registry': content = <MobileRegistry products={products} onProductSelect={setSelectedProduct} />; break;
+    case 'ai-studio': content = <MobileAiStudio />; break;
+    case 'settings': content = <MobileSettings />; break;
     case 'resources': content = <MobileResources />; break;
     case 'customers': content = <MobileCustomers />; break;
     
     // Remaining placeholders
-    case 'registry': content = <MobilePlaceholder title="Registry" />; break;
     case 'pricing': content = <MobilePlaceholder title="Pricing" />; break;
     case 'batch-print': content = <MobilePlaceholder title="Print" />; break;
-    case 'settings': content = <MobilePlaceholder title="Settings" />; break;
-    case 'ai-studio': content = <MobilePlaceholder title="AI Studio" />; break;
     
     default: content = <MobileDashboard products={products} settings={settings} />;
   }
