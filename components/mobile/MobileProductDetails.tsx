@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/pricingEngine';
 import { SYSTEM_IDS } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
+import QRCode from 'qrcode';
 
 interface Props {
   product: Product;
@@ -30,6 +31,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const { showToast } = useUI();
   const [showBarcode, setShowBarcode] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   const variants = product.variants || [];
   
@@ -48,7 +50,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
              if (v.suffix.includes('X')) suffixPlatings.add('Επίχρυσο');
              else if (v.suffix.includes('H')) suffixPlatings.add('Επιπλατινωμένο');
              else if (v.suffix.includes('D')) suffixPlatings.add('Δίχρωμο');
-             else if (v.suffix === '' || v.suffix.includes('P')) suffixPlatings.add('Λουστρέ');
+             else if (v.suffix.includes('P')) suffixPlatings.add('Πατίνα');
+             else if (v.suffix === '') suffixPlatings.add('Λουστρέ');
           });
           if (suffixPlatings.size > 0) return Array.from(suffixPlatings).join(', ');
       }
@@ -69,21 +72,114 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       return '-';
   }, [product, variants]);
 
-  const handleShare = async () => {
-      const text = `${product.sku} - ${product.category} (${product.weight_g}g)`;
-      if (navigator.share) {
-          try {
-              await navigator.share({
-                  title: product.sku,
-                  text: text,
-                  url: window.location.href
+  // Generates a rich image card for sharing
+  const generateShareImage = async () => {
+      setIsSharing(true);
+      try {
+          // 1. Create a canvas
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error("Canvas init failed");
+
+          const width = 1080;
+          const height = 1350; // Instagram Portrait Aspect
+          canvas.width = width;
+          canvas.height = height;
+
+          // 2. Background
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+
+          // 3. Draw Product Image
+          if (product.image_url) {
+              const img = new Image();
+              img.crossOrigin = "Anonymous";
+              await new Promise((resolve, reject) => {
+                  img.onload = resolve;
+                  img.onerror = resolve; // Continue even if image fails
+                  img.src = product.image_url!;
               });
-          } catch (err) {
-              console.log('Share cancelled');
+              
+              // Scale to fit top area (square-ish)
+              const imgHeight = 800;
+              const scale = Math.max(width / img.width, imgHeight / img.height);
+              const x = (width / 2) - (img.width / 2) * scale;
+              const y = (imgHeight / 2) - (img.height / 2) * scale;
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(0, 0, width, imgHeight);
+              ctx.clip();
+              ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+              ctx.restore();
           }
-      } else {
-          navigator.clipboard.writeText(text);
-          showToast('Αντιγράφηκε στο πρόχειρο!', 'success');
+
+          // 4. Draw Info Card Background
+          ctx.fillStyle = '#F8FAFC'; // Slate-50
+          ctx.fillRect(0, 800, width, height - 800);
+          
+          // 5. Text
+          ctx.fillStyle = '#0F172A'; // Slate-900
+          ctx.font = 'bold 60px Inter, sans-serif';
+          const skuText = `${product.sku}${activeVariantForBarcode?.suffix || ''}`;
+          ctx.fillText(skuText, 50, 900);
+
+          ctx.fillStyle = '#64748B'; // Slate-500
+          ctx.font = '40px Inter, sans-serif';
+          ctx.fillText(product.category, 50, 960);
+          
+          if (activeVariantForBarcode?.description) {
+              ctx.font = 'italic 36px Inter, sans-serif';
+              ctx.fillText(activeVariantForBarcode.description, 50, 1020);
+          }
+
+          const price = activeVariantForBarcode?.selling_price || product.selling_price;
+          if (price > 0) {
+              ctx.fillStyle = '#059669'; // Emerald-600
+              ctx.font = 'bold 80px Inter, sans-serif';
+              ctx.fillText(formatCurrency(price), width - 350, 920);
+          }
+
+          // 6. Generate QR
+          const qrUrl = await QRCode.toDataURL(skuText, { margin: 1, width: 250, color: { dark: '#000000', light: '#FFFFFF' } });
+          const qrImg = new Image();
+          await new Promise(resolve => {
+              qrImg.onload = resolve;
+              qrImg.src = qrUrl;
+          });
+          ctx.drawImage(qrImg, width - 300, 1050, 250, 250);
+
+          // 7. Footer Branding
+          ctx.fillStyle = '#94A3B8';
+          ctx.font = 'bold 24px Inter, sans-serif';
+          ctx.fillText("ILIOS KOSMIMA ERP", 50, 1300);
+
+          // 8. Convert to File and Share
+          canvas.toBlob(async (blob) => {
+              if (!blob) return;
+              const file = new File([blob], `${skuText}.png`, { type: 'image/png' });
+              
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                  await navigator.share({
+                      files: [file],
+                      title: skuText,
+                      text: `Check out ${skuText}`
+                  });
+              } else {
+                  // Fallback: Download
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `${skuText}.png`;
+                  link.click();
+                  showToast("Η εικόνα αποθηκεύτηκε.", "success");
+              }
+              setIsSharing(false);
+          }, 'image/png');
+
+      } catch (err) {
+          console.error(err);
+          showToast("Σφάλμα δημιουργίας εικόνας.", "error");
+          setIsSharing(false);
       }
   };
 
@@ -135,7 +231,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 <X size={20} />
             </button>
             <div className="flex gap-2">
-                <button onClick={handleShare} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95">
+                <button onClick={generateShareImage} disabled={isSharing} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95 disabled:opacity-50">
                     <Share2 size={20} />
                 </button>
                 <button onClick={() => setShowBarcode(true)} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95">
@@ -317,8 +413,13 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   )}
               </div>
               <div className="mt-6">
-                  <button onClick={() => { handleShare(); setShowBarcode(false); }} className="flex items-center gap-2 text-white/80 font-bold bg-white/10 px-6 py-3 rounded-full hover:bg-white/20 transition-all">
-                      <Share2 size={18}/> Κοινοποίηση Ετικέτας
+                  <button 
+                    onClick={generateShareImage} 
+                    disabled={isSharing}
+                    className="flex items-center gap-2 text-white/80 font-bold bg-white/10 px-6 py-3 rounded-full hover:bg-white/20 transition-all disabled:opacity-50"
+                  >
+                      {isSharing ? <Scan size={18} className="animate-spin"/> : <Share2 size={18}/>} 
+                      {isSharing ? 'Δημιουργία...' : 'Κοινοποίηση Ετικέτας'}
                   </button>
               </div>
           </div>

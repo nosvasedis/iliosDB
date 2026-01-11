@@ -3,7 +3,7 @@ import React, { useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
-import { LogOut, Coins, ShieldCheck, User, Info, Wifi, WifiOff, Upload, Save } from 'lucide-react';
+import { LogOut, Coins, ShieldCheck, User, Info, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag } from 'lucide-react';
 import { formatDecimal } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 
@@ -20,12 +20,12 @@ export default function MobileSettings() {
         signOut();
     };
 
-    const handleUpdatePrice = async (price: number) => {
+    const handleUpdateSetting = async (field: string, value: number) => {
         if (!settings) return;
         try {
-            await supabase.from('global_settings').update({ silver_price_gram: price }).eq('id', 1);
+            await supabase.from('global_settings').update({ [field]: value }).eq('id', 1);
             queryClient.invalidateQueries({ queryKey: ['settings'] });
-            showToast("Η τιμή ασημιού ενημερώθηκε.", "success");
+            showToast("Η ρύθμιση ενημερώθηκε.", "success");
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", "error");
         }
@@ -49,7 +49,7 @@ export default function MobileSettings() {
     };
 
     return (
-        <div className="p-4 h-full bg-slate-50">
+        <div className="p-4 h-full bg-slate-50 overflow-y-auto pb-24">
             <h1 className="text-2xl font-black text-slate-900 mb-6">Ρυθμίσεις</h1>
 
             <div className="space-y-4">
@@ -79,9 +79,55 @@ export default function MobileSettings() {
                                 type="number" 
                                 step="0.01" 
                                 defaultValue={settings.silver_price_gram}
-                                onBlur={(e) => handleUpdatePrice(parseFloat(e.target.value))}
+                                onBlur={(e) => handleUpdateSetting('silver_price_gram', parseFloat(e.target.value))}
                                 className="bg-white/10 border border-white/20 rounded-xl p-2 text-xl font-mono font-bold w-full outline-none focus:bg-white/20 transition-colors"
                             />
+                        </div>
+                    </div>
+                )}
+
+                {/* Label Settings */}
+                {settings && (
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                            <Tag size={14}/> Διαστάσεις Ετικετών (mm)
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase block">Χονδρική (W x H)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number" 
+                                        defaultValue={settings.barcode_width_mm}
+                                        onBlur={(e) => handleUpdateSetting('barcode_width_mm', parseInt(e.target.value))}
+                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-none"
+                                    />
+                                    <input 
+                                        type="number" 
+                                        defaultValue={settings.barcode_height_mm}
+                                        onBlur={(e) => handleUpdateSetting('barcode_height_mm', parseInt(e.target.value))}
+                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-emerald-600 uppercase block flex items-center gap-1"><ShoppingBag size={10}/> Λιανική (W x H)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number" 
+                                        defaultValue={settings.retail_barcode_width_mm}
+                                        onBlur={(e) => handleUpdateSetting('retail_barcode_width_mm', parseInt(e.target.value))}
+                                        className="w-full p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 text-center outline-none"
+                                    />
+                                    <input 
+                                        type="number" 
+                                        defaultValue={settings.retail_barcode_height_mm}
+                                        onBlur={(e) => handleUpdateSetting('retail_barcode_height_mm', parseInt(e.target.value))}
+                                        className="w-full p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 text-center outline-none"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
