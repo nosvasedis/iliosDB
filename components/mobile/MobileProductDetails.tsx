@@ -109,7 +109,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   useEffect(() => {
       const sku = `${product.sku}${activeVariant?.suffix || ''}`;
       const safeSku = transliterateForBarcode(sku);
-      QRCode.toDataURL(safeSku, { margin: 0, width: 200, color: { dark: '#060b00', light: '#ffffff' } })
+      QRCode.toDataURL(safeSku, { margin: 0, width: 200, color: { dark: '#000000', light: '#ffffff' } })
           .then(url => setQrDataUrl(url))
           .catch(err => console.error(err));
   }, [product.sku, activeVariant]);
@@ -143,7 +143,17 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);
-  const displayLabel = activeVariant ? (activeVariant.description || activeVariant.suffix) : product.category;
+  
+  // Clean description logic: Don't show suffix if description is identical
+  const displayLabel = useMemo(() => {
+      if (activeVariant) {
+          const desc = activeVariant.description || '';
+          // If description is just the plating name, we might want to be careful not to duplicate
+          return desc; 
+      }
+      return product.category;
+  }, [activeVariant, product.category]);
+
   const displaySku = `${product.sku}${activeVariant?.suffix || ''}`;
 
   const variantDetails = useMemo(() => {
@@ -159,6 +169,9 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   }, [variantDetails, product.plating_type]);
 
   const displayStone = variantDetails.stone.name;
+
+  // Check for duplicate info (e.g. Plating is "Patina" and Description is "Patina")
+  const showPlatingLine = displayPlating && displayPlating !== displayLabel;
 
   // --- Dynamic Tech Data based on Variant ---
   const activeTechData = useMemo(() => {
@@ -636,85 +649,79 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       <button onClick={() => setShowShareModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={20}/></button>
                   </div>
 
-                  <div className="p-6 flex flex-col items-center justify-center bg-slate-50 min-h-[320px]">
+                  <div className="p-6 flex flex-col items-center justify-center bg-slate-50 min-h-[400px]">
                       {shareTab === 'card' ? (
                           /* PRODUCT CARD PREVIEW (RENDERED) */
                           <div 
                             ref={cardRef}
-                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[4/6] flex flex-col relative border border-slate-200"
+                            className="bg-white rounded-[24px] shadow-xl overflow-hidden w-[320px] border border-slate-200 flex flex-col relative font-sans"
                           >
-                              {/* Background Image / Placeholder */}
-                              <div className="absolute inset-0 z-0 bg-white">
-                                  {cardImageBase64 ? (
-                                      <img 
-                                        src={cardImageBase64} 
-                                        className="w-full h-full object-contain p-8" 
-                                        alt="Product" 
-                                      />
-                                  ) : (
-                                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
-                                          {product.image_url ? (
-                                              /* Fallback to URL with crossOrigin if Base64 fails */
-                                              <img src={product.image_url} className="w-full h-full object-contain p-8" crossOrigin="anonymous" alt="Fallback" />
-                                          ) : (
-                                              <ImageIcon size={48}/>
-                                          )}
+                              {/* Header */}
+                              <div className="flex justify-between items-center p-5 pb-2">
+                                  <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-sm">
+                                          {logoBase64 ? <img src={logoBase64} className="w-5 h-5 object-contain" /> : <span className="font-bold text-xs">IL</span>}
                                       </div>
-                                  )}
-                                  {/* Gradient Overlays */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none"></div>
+                                      <span className="font-black text-slate-900 tracking-tight text-sm">ILIOS</span>
+                                  </div>
+                                  {displayPrice > 0 && <span className="text-xl font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{formatCurrency(displayPrice)}</span>}
                               </div>
 
-                              {/* Branding - Top */}
-                              <div className="relative z-10 p-5 pt-6 w-full flex justify-between items-start">
-                                  <div className="bg-white/10 backdrop-blur-md text-white p-2 rounded-xl border border-white/20 shadow-sm">
-                                      {logoBase64 ? (
-                                          <img src={logoBase64} className="w-8 h-8 object-contain drop-shadow-md"/>
+                              {/* Image Container - Fixed square to prevent stretching */}
+                              <div className="w-full flex justify-center py-4 bg-white relative">
+                                  <div className="w-[240px] h-[240px] relative flex items-center justify-center">
+                                      {cardImageBase64 ? (
+                                          <img 
+                                            src={cardImageBase64} 
+                                            className="max-w-full max-h-full object-contain drop-shadow-xl" 
+                                            alt="Product" 
+                                          />
                                       ) : (
-                                          <span className="font-black text-xs">ILIOS</span>
+                                          <div className="w-full h-full bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300">
+                                              {product.image_url ? (
+                                                  <img src={product.image_url} className="max-w-full max-h-full object-contain" crossOrigin="anonymous" alt="Fallback" />
+                                              ) : (
+                                                  <ImageIcon size={48}/>
+                                              )}
+                                          </div>
                                       )}
                                   </div>
                               </div>
 
-                              {/* Footer Details - Bottom */}
-                              <div className="mt-auto relative z-10 p-5 text-white w-full">
-                                  <div className="flex items-end gap-3">
-                                      <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 mb-2">
-                                              <span className="text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded font-bold uppercase border border-white/10 tracking-wide">{product.category}</span>
-                                          </div>
-                                          {/* SKU Handling with Word Break for Long SKUs */}
-                                          <h3 className="text-3xl font-black leading-none tracking-tighter shadow-black drop-shadow-md break-all">{displaySku}</h3>
-                                          <p className="text-sm font-bold opacity-90 mt-1 uppercase tracking-wide truncate">{displayLabel}</p>
-                                          
-                                          {/* Variant Specs */}
-                                          <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/90 flex-wrap">
-                                              <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
-                                                  <Palette size={12}/> {displayPlating}
-                                              </div>
-                                              {displayStone && (
-                                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
-                                                      <Gem size={12}/> {displayStone}
-                                                  </div>
-                                              )}
-                                               <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
-                                                  <Weight size={12}/> {product.weight_g}g
-                                              </div>
-                                          </div>
+                              {/* Details */}
+                              <div className="p-6 pt-0">
+                                  <h1 className="text-3xl font-black text-slate-900 leading-none mb-1 tracking-tight">{displaySku}</h1>
+                                  <p className="text-sm font-medium text-slate-500 mb-4">{displayLabel}</p>
+                                  
+                                  <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                                      <div>
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Κατηγορια</span>
+                                          <span className="font-bold text-slate-700">{product.category}</span>
                                       </div>
+                                      <div>
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Βαρος</span>
+                                          <span className="font-bold text-slate-700">{product.weight_g}g</span>
+                                      </div>
+                                      {(displayPlating || showPlatingLine) && (
+                                          <div className="col-span-2">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Υλικο / Φινιρισμα</span>
+                                              <span className="font-bold text-slate-700">{displayPlating}</span>
+                                          </div>
+                                      )}
+                                      {displayStone && (
+                                          <div className="col-span-2">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Πετρες</span>
+                                              <span className="font-bold text-slate-700">{displayStone}</span>
+                                          </div>
+                                      )}
                                   </div>
+                              </div>
 
-                                  <div className="mt-5 pt-4 border-t border-white/20 flex justify-between items-end">
-                                      {displayPrice > 0 ? (
-                                          <div>
-                                              <div className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-0.5">Τιμή</div>
-                                              <div className="text-2xl font-black tracking-tight">{formatCurrency(displayPrice)}</div>
-                                          </div>
-                                      ) : <div></div>}
-                                      
-                                      <div className="bg-white p-1.5 rounded-xl shadow-lg">
-                                          {qrDataUrl && <img src={qrDataUrl} className="w-12 h-12 object-contain" />}
-                                      </div>
+                              {/* Footer */}
+                              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Σκαναρετε για info</span>
+                                  <div className="bg-white p-1 rounded-lg border border-slate-200">
+                                      {qrDataUrl && <img src={qrDataUrl} className="w-12 h-12 object-contain" />}
                                   </div>
                               </div>
                           </div>

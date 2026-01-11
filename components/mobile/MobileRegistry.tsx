@@ -54,6 +54,7 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
 
     // Display Props based on current variant or master
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
+    // CRITICAL FIX: Use variant price if available, otherwise fallback to master
     const displayPrice = currentVariant ? (currentVariant.selling_price || 0) : (product.selling_price || 0);
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
     
