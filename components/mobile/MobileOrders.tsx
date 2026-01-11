@@ -1,17 +1,26 @@
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, XCircle, Truck, AlertCircle, Plus, Edit } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, XCircle, Truck, AlertCircle, Plus, Edit, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { useUI } from '../UIProvider';
+
+const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+};
 
 const STATUS_ICONS = {
-    [OrderStatus.Pending]: <Clock size={16} />,
-    [OrderStatus.InProduction]: <Package size={16} />,
-    [OrderStatus.Ready]: <CheckCircle size={16} />,
-    [OrderStatus.Delivered]: <Truck size={16} />,
-    [OrderStatus.Cancelled]: <XCircle size={16} />,
+    [OrderStatus.Pending]: <Clock size={14} />,
+    [OrderStatus.InProduction]: <Package size={14} />,
+    [OrderStatus.Ready]: <CheckCircle size={14} />,
+    [OrderStatus.Delivered]: <Truck size={14} />,
+    [OrderStatus.Cancelled]: <XCircle size={14} />,
 };
 
 const STATUS_COLORS = {
@@ -22,7 +31,7 @@ const STATUS_COLORS = {
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };
 
-const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void }> = ({ order, onEdit }) => {
+const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: (o: Order) => void }> = ({ order, onEdit, onDelete }) => {
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -34,14 +43,14 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void }> = ({ ord
                 <div className="flex justify-between items-start">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id.slice(0, 8)}...</span>
-                            <span className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id.slice(0, 8)}</span>
+                            <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
                         <h3 className="font-bold text-slate-800 text-base">{order.customer_name}</h3>
                     </div>
                     <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 border ${STATUS_COLORS[order.status]}`}>
                         {STATUS_ICONS[order.status]}
-                        <span>{order.status}</span>
+                        <span>{STATUS_TRANSLATIONS[order.status]}</span>
                     </div>
                 </div>
 
@@ -58,32 +67,38 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void }> = ({ ord
 
             {expanded && (
                 <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-3 animate-in slide-in-from-top-2">
-                    <div className="flex justify-end mb-2">
+                    <div className="flex justify-end gap-2 mb-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onDelete(order); }}
+                            className="flex items-center gap-1 bg-white border border-red-200 text-red-500 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                        >
+                            <Trash2 size={14}/> Διαγραφή
+                        </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-                            className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
                         >
-                            <Edit size={12}/> Επεξεργασία
+                            <Edit size={14}/> Επεξεργασία
                         </button>
                     </div>
                     {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-sm">
+                        <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded-lg border border-slate-100">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-400">
+                                <div className="w-8 h-8 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
                                     {item.quantity}x
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-700">{item.sku}{item.variant_suffix}</div>
+                                    <div className="font-bold text-slate-700 text-xs">{item.sku}<span className="text-slate-400">{item.variant_suffix}</span></div>
                                     {item.size_info && <div className="text-[10px] text-slate-400 font-medium">Size: {item.size_info}</div>}
                                 </div>
                             </div>
-                            <div className="font-mono text-slate-600">{formatCurrency(item.price_at_order * item.quantity)}</div>
+                            <div className="font-mono text-slate-600 text-xs font-bold">{formatCurrency(item.price_at_order * item.quantity)}</div>
                         </div>
                     ))}
                     {order.notes && (
                         <div className="mt-3 p-3 bg-yellow-50 text-yellow-800 text-xs rounded-xl border border-yellow-100 flex gap-2">
-                            <AlertCircle size={14} className="shrink-0"/>
-                            {order.notes}
+                            <AlertCircle size={14} className="shrink-0 mt-0.5"/>
+                            <span className="leading-tight">{order.notes}</span>
                         </div>
                     )}
                 </div>
@@ -98,7 +113,10 @@ interface MobileOrdersProps {
 }
 
 export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
+    const queryClient = useQueryClient();
+    const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    
     const [filter, setFilter] = useState<OrderStatus | 'ALL'>('ALL');
     const [search, setSearch] = useState('');
 
@@ -113,6 +131,31 @@ export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
         });
     }, [orders, filter, search]);
 
+    const handleDeleteOrder = async (order: Order) => {
+        if (order.status === OrderStatus.InProduction) {
+            showToast('Αδύνατη η διαγραφή (Σε Παραγωγή).', 'error');
+            return;
+        }
+        
+        const yes = await confirm({
+            title: 'Διαγραφή Παραγγελίας',
+            message: 'Είστε σίγουροι; Η ενέργεια δεν αναιρείται.',
+            isDestructive: true,
+            confirmText: 'Διαγραφή'
+        });
+
+        if (yes) {
+            try {
+                await api.deleteOrder(order.id);
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                showToast('Η παραγγελία διαγράφηκε.', 'success');
+            } catch (err: any) {
+                showToast('Σφάλμα διαγραφής.', 'error');
+            }
+        }
+    };
+
     if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
 
     const tabs = [
@@ -120,14 +163,15 @@ export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
         { id: OrderStatus.Pending, label: 'Εκκρεμεί' },
         { id: OrderStatus.InProduction, label: 'Παραγωγή' },
         { id: OrderStatus.Ready, label: 'Έτοιμα' },
+        { id: OrderStatus.Delivered, label: 'Παραδόθηκε' },
     ];
 
     return (
-        <div className="p-4 space-y-4 pb-24 h-full flex flex-col">
+        <div className="p-4 space-y-4 pb-24 h-full flex flex-col bg-slate-50">
             <div className="flex justify-between items-center shrink-0">
                 <h1 className="text-2xl font-black text-slate-900">Παραγγελίες</h1>
                 {onCreate && (
-                    <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95">
+                    <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
                         <Plus size={18}/> Νέα
                     </button>
                 )}
@@ -151,10 +195,10 @@ export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
                     <button
                         key={tab.id}
                         onClick={() => setFilter(tab.id as any)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                             filter === tab.id 
-                                ? 'bg-slate-900 text-white shadow-md' 
-                                : 'bg-white text-slate-500 border border-slate-200'
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                                : 'bg-white text-slate-500 border-slate-200'
                         }`}
                     >
                         {tab.label}
@@ -163,9 +207,14 @@ export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
             </div>
 
             {/* List */}
-            <div className="space-y-3 overflow-y-auto pb-20 custom-scrollbar">
+            <div className="space-y-3 overflow-y-auto pb-24 custom-scrollbar">
                 {filteredOrders.map(order => (
-                    <OrderCard key={order.id} order={order} onEdit={onEdit || (() => {})} />
+                    <OrderCard 
+                        key={order.id} 
+                        order={order} 
+                        onEdit={onEdit || (() => {})} 
+                        onDelete={handleDeleteOrder}
+                    />
                 ))}
                 {filteredOrders.length === 0 && (
                     <div className="text-center py-10 text-slate-400 text-sm font-medium">

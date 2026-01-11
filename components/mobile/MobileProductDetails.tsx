@@ -55,14 +55,14 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           
           return sorted.map(v => ({
               price: v.selling_price || 0,
-              label: v.suffix || 'BAS', 
+              label: v.suffix || 'ΒΑΣ', 
               desc: v.description
           }));
       }
       return [{ 
           price: product.selling_price || 0, 
-          label: 'MST', 
-          desc: 'Master' 
+          label: 'KYP', 
+          desc: 'Βασικό' 
       }];
   }, [product, variants]);
 
@@ -331,7 +331,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
-                NO IMAGE
+                ΧΩΡΙΣ ΕΙΚΟΝΑ
             </div>
         )}
         
@@ -371,7 +371,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 {product.production_type === 'Imported' && (
                     <div className="text-purple-300 flex flex-col items-end">
                         <Globe size={16} className="mb-1"/>
-                        <span className="text-[9px] font-black uppercase tracking-widest border border-purple-400/50 rounded px-1.5">Import</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest border border-purple-400/50 rounded px-1.5">ΕΙΣΑΓΩΓΗ</span>
                     </div>
                 )}
             </div>
@@ -434,13 +434,13 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           >
                               <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-mono font-bold text-xs text-slate-600 border border-slate-200">
-                                      {v.suffix || 'BAS'}
+                                      {v.suffix || 'ΒΑΣ'}
                                   </div>
                                   <div>
                                       <div className="font-bold text-slate-800 text-sm">{v.description || 'Βασικό'}</div>
                                       <div className="text-[10px] text-slate-400 font-medium">
-                                          Stock: <span className="text-slate-700 font-bold">{v.stock_qty}</span>
-                                          {v.stock_by_size && Object.keys(v.stock_by_size).length > 0 && ` • Sizes: ${Object.keys(v.stock_by_size).join(',')}`}
+                                          Απόθεμα: <span className="text-slate-700 font-bold">{v.stock_qty}</span>
+                                          {v.stock_by_size && Object.keys(v.stock_by_size).length > 0 && ` • Μεγέθη: ${Object.keys(v.stock_by_size).join(',')}`}
                                       </div>
                                   </div>
                               </div>
@@ -515,12 +515,12 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   
                   <div className="p-8 pb-4 flex flex-col items-center">
                       <div className="text-center mb-6">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Digital Label</h3>
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ψηφιακή Ετικέτα</h3>
                           <div className="text-2xl font-black text-slate-900">
                               {product.sku}{activeVariantForBarcode?.suffix}
                           </div>
                           <div className="text-sm font-medium text-emerald-600 mt-1">
-                              {activeVariantForBarcode?.description || 'Basic'}
+                              {activeVariantForBarcode?.description || 'Βασικό'}
                           </div>
                       </div>
 
@@ -536,7 +536,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       </div>
                       
                       <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-xs animate-pulse">
-                          <Scan size={14}/> Ready to Scan
+                          <Scan size={14}/> Έτοιμο για Σάρωση
                       </div>
                   </div>
 
@@ -547,7 +547,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           
                           <div className="text-center">
                               <div className="text-[10px] font-bold text-slate-400 uppercase">ΠΑΡΑΛΛΑΓΗ</div>
-                              <div className="font-black text-slate-800">{activeVariantForBarcode?.suffix || 'BAS'}</div>
+                              <div className="font-black text-slate-800">{activeVariantForBarcode?.suffix || 'ΒΑΣ'}</div>
                           </div>
 
                           <button onClick={() => cycleVariant('next')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronRight size={20}/></button>
@@ -570,7 +570,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                     className="flex-1 flex flex-col items-center justify-center gap-1 bg-white text-slate-900 p-3 rounded-2xl hover:bg-slate-100 transition-all shadow-lg disabled:opacity-50"
                   >
                       {isSharing ? <Scan size={24} className="animate-spin text-slate-400"/> : <ImageIcon size={24}/>} 
-                      <span className="text-[10px] font-bold">Share Card</span>
+                      <span className="text-[10px] font-bold">Κάρτα</span>
                   </button>
               </div>
           </div>

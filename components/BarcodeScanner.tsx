@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useZxing } from 'react-zxing';
 import { X, Zap, Target, Scan, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
@@ -161,7 +162,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
                         <div className="flex items-center gap-1.5 mt-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                             <span className="text-[9px] text-white/60 uppercase font-black tracking-widest block">
-                                {zoomCapabilities ? 'Optical Zoom Ready' : 'Scanning...'}
+                                {zoomCapabilities ? 'Οπτικό Zoom' : 'Σάρωση...'}
                             </span>
                         </div>
                     </div>
@@ -218,7 +219,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
                     {/* Tips */}
                     <div className="mt-16 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
                         <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                            <Scan size={12} className="text-emerald-400" /> Auto-Focus Active
+                            <Scan size={12} className="text-emerald-400" /> Αυτόματη Εστίαση
                         </span>
                     </div>
                 </div>
@@ -254,7 +255,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
                             <ShieldCheck size={24}/>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Detected</div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Εντοπίστηκε</div>
                             <div className="font-mono font-black text-2xl text-slate-900 tracking-tighter truncate">{lastScan}</div>
                         </div>
                         {continuous && <button onClick={() => setLastScan('')} className="p-2 text-slate-300 hover:text-slate-600"><X size={20}/></button>}
