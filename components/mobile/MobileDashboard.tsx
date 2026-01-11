@@ -1,6 +1,7 @@
+
 import React, { useMemo } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
-import { Wallet, Activity, Factory, Coins, TrendingUp, Plus, ScanBarcode, Zap, ArrowRight, Package, ShoppingCart, Sparkles } from 'lucide-react';
+import { Wallet, Activity, Factory, Coins, TrendingUp, Plus, ScanBarcode, Zap, ArrowRight, Package, ShoppingCart, Sparkles, Users, ScrollText, Settings } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -16,10 +17,10 @@ interface Props {
 const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) => (
     <button 
         onClick={onClick}
-        className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all w-full h-full"
+        className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all w-full h-24"
     >
-        <div className={`p-3 rounded-xl mb-2 ${color}`}>{icon}</div>
-        <span className="text-xs font-bold text-slate-700 text-center leading-tight">{label}</span>
+        <div className={`p-2.5 rounded-xl mb-1.5 ${color}`}>{icon}</div>
+        <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">{label}</span>
     </button>
 );
 
@@ -120,7 +121,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
           />
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions Grid */}
       <div>
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 ml-1">Γρηγορες Ενεργειες</h3>
           <div className="grid grid-cols-4 gap-3">
@@ -137,10 +138,10 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                 onClick={() => onNavigate && onNavigate('inventory')}
               />
               <QuickAction 
-                icon={<Zap size={20}/>} 
-                label="AI Studio" 
-                color="bg-purple-100 text-purple-700" 
-                onClick={() => onNavigate && onNavigate('ai-studio')}
+                icon={<Factory size={20}/>} 
+                label="Παραγωγή" 
+                color="bg-amber-100 text-amber-700" 
+                onClick={() => onNavigate && onNavigate('production')}
               />
               <QuickAction 
                 icon={<Package size={20}/>} 
@@ -148,30 +149,31 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                 color="bg-orange-100 text-orange-700" 
                 onClick={() => onNavigate && onNavigate('registry')}
               />
+              <QuickAction 
+                icon={<Zap size={20}/>} 
+                label="AI Studio" 
+                color="bg-purple-100 text-purple-700" 
+                onClick={() => onNavigate && onNavigate('ai-studio')}
+              />
+              <QuickAction 
+                icon={<Users size={20}/>} 
+                label="Πελάτες" 
+                color="bg-cyan-100 text-cyan-700" 
+                onClick={() => onNavigate && onNavigate('customers')}
+              />
+              <QuickAction 
+                icon={<ScrollText size={20}/>} 
+                label="Κατάλογος" 
+                color="bg-pink-100 text-pink-700" 
+                onClick={() => onNavigate && onNavigate('pricelist')}
+              />
+              <QuickAction 
+                icon={<Settings size={20}/>} 
+                label="Ρυθμίσεις" 
+                color="bg-slate-100 text-slate-700" 
+                onClick={() => onNavigate && onNavigate('settings')}
+              />
           </div>
-      </div>
-
-      {/* AI Insight Banner */}
-      <div 
-        onClick={() => onNavigate && onNavigate('ai-studio')}
-        className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-5 text-white shadow-lg shadow-emerald-200/50 relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
-      >
-         <div className="absolute right-0 top-0 p-4 opacity-10">
-             <TrendingUp size={80} />
-         </div>
-         <div className="relative z-10 flex items-center justify-between">
-            <div>
-                <h3 className="font-bold text-base mb-1 flex items-center gap-2">
-                    <Sparkles size={16} className="text-yellow-300"/> Ilios Intelligence
-                </h3>
-                <p className="text-emerald-100 text-xs max-w-[200px] leading-relaxed">
-                    Δείτε προτάσεις βελτίωσης κερδοφορίας και ανάλυση τάσεων.
-                </p>
-            </div>
-            <div className="bg-white/20 backdrop-blur-md rounded-full p-2">
-                <ArrowRight size={20} />
-            </div>
-         </div>
       </div>
 
       {/* Recent Activity */}

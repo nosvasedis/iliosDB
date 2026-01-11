@@ -1,10 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera } from 'lucide-react';
+import { Product, Warehouse } from '../../types';
+import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, SYSTEM_IDS } from '../../lib/supabase';
 
 interface Props {
   products: Product[];
@@ -49,7 +51,6 @@ const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onCl
                     <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${totalStock > 0 ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                         <Box size={10}/> {totalStock}
                     </div>
-                    {/* Only showing master locations summary for simplicity */}
                     {(product.sample_qty > 0) && (
                         <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 flex items-center gap-1">
                             <MapPin size={10}/> Δειγμ: {product.sample_qty}
@@ -62,37 +63,31 @@ const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onCl
 };
 
 export default function MobileInventory({ products, onProductSelect }: Props) {
+    const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
     const [search, setSearch] = useState('');
     const [showScanner, setShowScanner] = useState(false);
-    const { showToast } = useUI();
+    
+    // Warehouse State
+    const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
+    const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
 
-    // Logic: Calculate total stock for each product (including variants & locations)
-    // Filter out products with 0 total stock.
+    const { showToast, confirm } = useUI();
+    const queryClient = useQueryClient();
+    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+
+    // Inventory List Logic
     const inventoryList = useMemo(() => {
         const lower = search.toLowerCase();
         
         return products
             .map(p => {
-                // Calculate stock across ALL locations and variants
                 let pTotal = 0;
-                
-                // 1. Master/Main Stock (if any)
                 if (p.location_stock) {
                     pTotal += Object.values(p.location_stock).reduce((a, b) => a + b, 0);
                 } else {
                     pTotal += (p.stock_qty || 0) + (p.sample_qty || 0);
                 }
-
-                // 2. Variant Stock (if variants exist and have separate stock)
                 if (p.variants && p.variants.length > 0) {
-                    // Note: Usually location_stock on product includes variants if flattened, 
-                    // but depending on data structure we might need to sum variants explicitly if not using a flat view.
-                    // The `api.getProducts` implementation merges variant stock into location_stock if configured,
-                    // but strictly speaking `p.stock_qty` is master stock.
-                    // Let's sum variants explicitly to be safe for display if location_stock isn't aggregated at product level.
-                    // *However*, in `lib/supabase.ts`, `p.location_stock` is just for the master SKU.
-                    
-                    // Simple Sum:
                     p.variants.forEach(v => {
                         if (v.location_stock) {
                             pTotal += Object.values(v.location_stock).reduce((a, b) => a + b, 0);
@@ -101,16 +96,15 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                         }
                     });
                 }
-
                 return { product: p, totalStock: pTotal };
             })
-            .filter(item => item.totalStock > 0) // HIDE ZERO STOCK ITEMS
+            .filter(item => item.totalStock > 0)
             .filter(item => {
                 if (!search) return true;
                 return item.product.sku.toLowerCase().includes(lower) || 
                        item.product.category.toLowerCase().includes(lower);
             })
-            .slice(0, 50); // Performance limit
+            .slice(0, 50);
     }, [products, search]);
 
     const handleScan = (code: string) => {
@@ -124,52 +118,101 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
         }
     };
 
+    // Warehouse Logic
+    const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
+    const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
+    
+    const handleSaveWarehouse = async () => { 
+        if (!warehouseForm.name) return; 
+        try { 
+            if (warehouseForm.id) { 
+                await api.updateWarehouse(warehouseForm.id, warehouseForm); 
+                showToast("Ο χώρος ενημερώθηκε.", "success"); 
+            } else { 
+                await api.saveWarehouse(warehouseForm); 
+                showToast("Ο χώρος δημιουργήθηκε.", "success"); 
+            } 
+            queryClient.invalidateQueries({ queryKey: ['warehouses'] }); 
+            setIsEditingWarehouse(false); 
+        } catch (err) { 
+            showToast("Σφάλμα αποθήκευσης.", "error"); 
+        } 
+    };
+
+    const handleDeleteWarehouse = async (id: string) => { 
+        if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν διαγράφεται.", "error"); return; } 
+        if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι;', isDestructive: true, confirmText: 'Διαγραφή' })) { 
+            await api.deleteWarehouse(id); 
+            queryClient.invalidateQueries({ queryKey: ['warehouses'] }); 
+        } 
+    };
+
     return (
         <div className="p-4 h-full flex flex-col">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Αποθήκη</h1>
             
-            <div className="flex gap-2 mb-4 shrink-0">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                        type="text" 
-                        placeholder="Αναζήτηση..." 
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                    />
-                </div>
-                <button 
-                    onClick={() => setShowScanner(true)}
-                    className="bg-slate-900 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform"
-                >
-                    <Camera size={20} />
-                </button>
+            {/* Tabs */}
+            <div className="flex p-1 bg-slate-100 rounded-xl mb-4 shrink-0">
+                <button onClick={() => setActiveTab('stock')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Απόθεμα</button>
+                <button onClick={() => setActiveTab('warehouses')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Χώροι</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                {inventoryList.map(item => (
-                    <MobileInventoryItem 
-                        key={item.product.sku} 
-                        product={item.product} 
-                        totalStock={item.totalStock}
-                        onClick={() => onProductSelect(item.product)} 
-                    />
-                ))}
-                {inventoryList.length === 0 && (
-                    <div className="text-center py-10 text-slate-400 text-sm font-medium flex flex-col items-center">
-                        <Box size={32} className="mb-2 opacity-50"/>
-                        Δεν βρέθηκε απόθεμα.<br/>
-                        <span className="text-xs opacity-70 mt-1">Ελέγξτε το Μητρώο για κωδικούς χωρίς στοκ.</span>
+            {activeTab === 'stock' && (
+                <>
+                    <div className="flex gap-2 mb-4 shrink-0">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input type="text" placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"/>
+                        </div>
+                        <button onClick={() => setShowScanner(true)} className="bg-slate-900 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform"><Camera size={20} /></button>
                     </div>
-                )}
-            </div>
 
-            {showScanner && (
-                <BarcodeScanner 
-                    onScan={handleScan} 
-                    onClose={() => setShowScanner(false)} 
-                />
+                    <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
+                        {inventoryList.map(item => (
+                            <MobileInventoryItem key={item.product.sku} product={item.product} totalStock={item.totalStock} onClick={() => onProductSelect(item.product)} />
+                        ))}
+                        {inventoryList.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium flex flex-col items-center"><Box size={32} className="mb-2 opacity-50"/>Δεν βρέθηκε απόθεμα.<br/><span className="text-xs opacity-70 mt-1">Ελέγξτε το Μητρώο για κωδικούς χωρίς στοκ.</span></div>}
+                    </div>
+                </>
+            )}
+
+            {activeTab === 'warehouses' && (
+                <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar space-y-4">
+                    <button onClick={handleCreateWarehouse} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md mb-2"><Plus size={18}/> Νέος Χώρος</button>
+                    {warehouses?.map(w => (
+                        <div key={w.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${w.is_system ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'}`}><Store size={20}/></div>
+                                <div>
+                                    <div className="font-bold text-slate-800">{w.name}</div>
+                                    <div className="text-xs text-slate-500">{w.type}</div>
+                                </div>
+                            </div>
+                            {!w.is_system && (
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleEditWarehouse(w)} className="p-2 text-slate-400 hover:text-blue-500 bg-slate-50 rounded-lg"><Edit2 size={16}/></button>
+                                    <button onClick={() => handleDeleteWarehouse(w.id)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-lg"><Trash2 size={16}/></button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+
+            {isEditingWarehouse && (
+                <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-3xl p-6 animate-in zoom-in-95">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">{warehouseForm.id ? 'Επεξεργασία' : 'Νέος Χώρος'}</h3><button onClick={() => setIsEditingWarehouse(false)}><X size={20}/></button></div>
+                        <div className="space-y-3">
+                            <input value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} placeholder="Όνομα" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none"/>
+                            <select value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})} className="w-full p-3 bg-slate-50 border rounded-xl outline-none"><option value="Store">Κατάστημα</option><option value="Showroom">Δειγματολόγιο</option><option value="Central">Αποθήκη</option><option value="Other">Άλλο</option></select>
+                            <input value={warehouseForm.address} onChange={e => setWarehouseForm({...warehouseForm, address: e.target.value})} placeholder="Διεύθυνση" className="w-full p-3 bg-slate-50 border rounded-xl outline-none"/>
+                            <button onClick={handleSaveWarehouse} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 mt-4"><Save size={18}/> Αποθήκευση</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
