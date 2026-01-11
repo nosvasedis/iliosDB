@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, XCircle, Truck, AlertCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, XCircle, Truck, AlertCircle, Plus, Edit } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 
 const STATUS_ICONS = {
@@ -22,7 +22,7 @@ const STATUS_COLORS = {
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };
 
-const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
+const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void }> = ({ order, onEdit }) => {
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -58,6 +58,14 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
 
             {expanded && (
                 <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-3 animate-in slide-in-from-top-2">
+                    <div className="flex justify-end mb-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onEdit(order); }}
+                            className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                        >
+                            <Edit size={12}/> Επεξεργασία
+                        </button>
+                    </div>
                     {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center text-sm">
                             <div className="flex items-center gap-3">
@@ -84,7 +92,12 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
     );
 };
 
-export default function MobileOrders() {
+interface MobileOrdersProps {
+    onCreate?: () => void;
+    onEdit?: (order: Order) => void;
+}
+
+export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const [filter, setFilter] = useState<OrderStatus | 'ALL'>('ALL');
     const [search, setSearch] = useState('');
@@ -110,11 +123,18 @@ export default function MobileOrders() {
     ];
 
     return (
-        <div className="p-4 space-y-4 pb-24">
-            <h1 className="text-2xl font-black text-slate-900 mb-2">Παραγγελίες</h1>
+        <div className="p-4 space-y-4 pb-24 h-full flex flex-col">
+            <div className="flex justify-between items-center shrink-0">
+                <h1 className="text-2xl font-black text-slate-900">Παραγγελίες</h1>
+                {onCreate && (
+                    <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95">
+                        <Plus size={18}/> Νέα
+                    </button>
+                )}
+            </div>
             
             {/* Search */}
-            <div className="relative">
+            <div className="relative shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                     type="text" 
@@ -126,7 +146,7 @@ export default function MobileOrders() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
@@ -143,9 +163,9 @@ export default function MobileOrders() {
             </div>
 
             {/* List */}
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto pb-20 custom-scrollbar">
                 {filteredOrders.map(order => (
-                    <OrderCard key={order.id} order={order} />
+                    <OrderCard key={order.id} order={order} onEdit={onEdit || (() => {})} />
                 ))}
                 {filteredOrders.length === 0 && (
                     <div className="text-center py-10 text-slate-400 text-sm font-medium">

@@ -4,6 +4,7 @@ import MobileLayout from './components/mobile/MobileLayout';
 import MobileDashboard from './components/mobile/MobileDashboard';
 import MobileMenu from './components/mobile/MobileMenu';
 import MobileOrders from './components/mobile/MobileOrders';
+import MobileOrderBuilder from './components/mobile/MobileOrderBuilder';
 import MobileProduction from './components/mobile/MobileProduction';
 import MobileInventory from './components/mobile/MobileInventory';
 import MobileProductDetails from './components/mobile/MobileProductDetails';
@@ -19,11 +20,12 @@ import MobilePriceList from './components/mobile/MobilePriceList';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { Product } from './types';
+import { Product, Order } from './types';
 
 export default function MobileApp() {
   const [activePage, setActivePage] = useState('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -37,10 +39,21 @@ export default function MobileApp() {
       );
   }
 
+  const handleEditOrder = (order: Order) => {
+      setEditingOrder(order);
+      setActivePage('order-builder');
+  };
+
+  const handleCreateOrder = () => {
+      setEditingOrder(null);
+      setActivePage('order-builder');
+  }
+
   let content;
   switch (activePage) {
     case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
-    case 'orders': content = <MobileOrders />; break;
+    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} />; break;
+    case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
     case 'production': content = <MobileProduction />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
