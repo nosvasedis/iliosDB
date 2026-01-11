@@ -354,17 +354,40 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
     return (
         <div className="max-w-6xl mx-auto space-y-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
                 <div>
                      <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
                         <div className="p-2 bg-slate-800 text-white rounded-xl"><Printer size={24} /></div>
                         Μαζική Εκτύπωση Ετικετών
                     </h1>
-                    <p className="text-slate-500 mt-2 ml-14">Δημιουργήστε ουρά εκτύπωσης χρησιμοποιώντας την έξυπνη είσοδο.</p>
+                    <p className="text-slate-500 mt-1 ml-14">Δημιουργήστε ουρά εκτύπωσης χρησιμοποιώντας την έξυπνη είσοδο.</p>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => setSkusText('')} className="bg-white px-4 py-2 border border-slate-200 rounded-xl text-slate-500 font-bold text-sm hover:bg-red-50 hover:text-red-600 transition-all flex items-center gap-2">
-                        <Trash2 size={16}/> Εκκαθάριση Λίστας
+                
+                <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+                    <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
+                    <button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        disabled={isProcessing} 
+                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-700 px-5 py-3 rounded-xl font-bold hover:bg-amber-100 transition-all border border-amber-200 disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
+                        <span className="whitespace-nowrap">PDF</span>
+                    </button>
+                    
+                    <button 
+                        onClick={() => setShowScanner(true)} 
+                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-blue-50 text-blue-700 px-5 py-3 rounded-xl font-bold hover:bg-blue-100 transition-all border border-blue-200"
+                    >
+                        <Camera size={20} />
+                        <span className="whitespace-nowrap">Scan</span>
+                    </button>
+
+                    <button 
+                        onClick={() => setSkusText('')} 
+                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200"
+                    >
+                        <Trash2 size={20}/>
+                        <span className="whitespace-nowrap">Καθαρισμός</span>
                     </button>
                 </div>
             </div>
@@ -499,19 +522,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 </div>
 
                 <div className="md:col-span-2 space-y-6">
-                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                        <h2 className="font-bold text-slate-800 mb-4 text-center">Μαζική Είσοδος</h2>
-                        <div className="space-y-3">
-                            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
-                            <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="w-full flex items-center justify-center gap-3 bg-amber-50 text-amber-700 p-4 rounded-xl font-bold border-2 border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all disabled:opacity-60">
-                                <FileUp size={20} /> Ανάλυση PDF Παραγγελίας
-                            </button>
-                            <button onClick={() => setShowScanner(true)} disabled={isProcessing} className="w-full flex items-center justify-center gap-3 bg-blue-50 text-blue-700 p-4 rounded-xl font-bold border-2 border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-all disabled:opacity-60">
-                                <Camera size={20} /> Σάρωση Barcode
-                            </button>
-                        </div>
-                     </div>
-
                      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                         <h2 className="font-bold text-slate-800 mb-4 text-center">Ρυθμίσεις Ετικέτας</h2>
                         <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
