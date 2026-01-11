@@ -1,10 +1,14 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { APP_LOGO, APP_ICON_ONLY } from '../constants';
 import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useUI } from './UIProvider';
+import { useIsMobile } from '../hooks/useIsMobile';
+import MobileAuthScreen from './mobile/MobileAuthScreen';
 
 export default function AuthScreen() {
+  const isMobile = useIsMobile();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
@@ -14,6 +18,10 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+
+  if (isMobile) {
+      return <MobileAuthScreen />;
+  }
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();

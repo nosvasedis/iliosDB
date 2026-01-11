@@ -1,11 +1,14 @@
 
 import React, { useState, useRef } from 'react';
-import { ShieldCheck, Server, Key, ArrowRight, Zap, Database, Upload, HardDrive, FileJson, Loader2 } from 'lucide-react';
+import { ShieldCheck, Server, Key, ArrowRight, HardDrive, Upload, Loader2 } from 'lucide-react';
 import { saveConfiguration, api } from '../lib/supabase';
-import { APP_LOGO, APP_ICON_ONLY } from '../constants';
+import { APP_ICON_ONLY } from '../constants';
 import { useUI } from './UIProvider';
+import { useIsMobile } from '../hooks/useIsMobile';
+import MobileSetupScreen from './mobile/MobileSetupScreen';
 
 export default function SetupScreen() {
+    const isMobile = useIsMobile();
     const [url, setUrl] = useState('');
     const [key, setKey] = useState('');
     const [workerKey, setWorkerKey] = useState('2112Aris101!'); 
@@ -13,6 +16,10 @@ export default function SetupScreen() {
     const [isRestoring, setIsRestoring] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
+
+    if (isMobile) {
+        return <MobileSetupScreen />;
+    }
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
