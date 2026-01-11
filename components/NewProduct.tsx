@@ -891,7 +891,25 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <input type="text" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} className="w-full p-3 border border-blue-200 rounded-xl font-mono uppercase bg-white focus:ring-4 focus:ring-blue-500/20 outline-none font-bold text-lg"/>
                                     {detectedSuffix && <div className="mt-2 text-xs bg-white text-blue-700 p-2 rounded flex items-center gap-1 border border-blue-100"><Lightbulb size={12}/> Ανιχνεύθηκε ρίζα <strong>{detectedMasterSku}{bridge}</strong> με φινίρισμα <strong>{platingMasterLabel}</strong>.</div>}
                                 </div>
-                                {productionType === ProductionType.Imported && (<div><label className="block text-sm font-bold text-blue-900 mb-1.5">Κωδικός Προμηθευτή</label><input type="text" value={supplierSku} onChange={(e) => setSupplierSku(e.target.value)} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" placeholder="π.χ. ITEM-123"/></div>)}
+                                {productionType === ProductionType.Imported && (
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-sm font-bold text-blue-900 mb-1.5">Προμηθευτής</label>
+                                            <select 
+                                                value={supplierId} 
+                                                onChange={(e) => setSupplierId(e.target.value)} 
+                                                className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none cursor-pointer"
+                                            >
+                                                <option value="">Επιλογή...</option>
+                                                {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-blue-900 mb-1.5">Κωδικός Προμηθευτή</label>
+                                            <input type="text" value={supplierSku} onChange={(e) => setSupplierSku(e.target.value)} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" placeholder="π.χ. ITEM-123"/>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-2 gap-5"><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Φύλο *</label><select value={gender} onChange={(e) => { setGender(e.target.value as Gender); setIsGenderManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none"><option value="" disabled>Επιλέξτε</option><option value={Gender.Women}>Γυναικείο</option><option value={Gender.Men}>Ανδρικό</option><option value={Gender.Unisex}>Unisex</option></select></div><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Κατηγορία *</label><input type="text" value={category} onChange={(e) => { setCategory(e.target.value); setIsCategoryManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" /></div></div>
                             </div>
                             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">

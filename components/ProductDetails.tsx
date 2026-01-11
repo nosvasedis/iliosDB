@@ -1428,6 +1428,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
                                                 </div>
                                                 <div>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Προμηθευτής</label>
+                                                    <select 
+                                                        value={editedProduct.supplier_id || ''} 
+                                                        onChange={(e) => setEditedProduct({...editedProduct, supplier_id: e.target.value || null})} 
+                                                        className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold outline-none"
+                                                    >
+                                                        <option value="">Επιλογή...</option>
+                                                        {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
                                                     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Κωδικός Προμηθευτή</label>
                                                     <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({...editedProduct, supplier_sku: e.target.value})} placeholder="π.χ. ITEM-123"/>
                                                 </div>
