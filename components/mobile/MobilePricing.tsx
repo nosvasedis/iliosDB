@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Search, DollarSign, TrendingUp } from 'lucide-react';
+import { Search, DollarSign, TrendingUp, Tag } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 
 export default function MobilePricing() {
@@ -12,17 +12,56 @@ export default function MobilePricing() {
     const pricingList = useMemo(() => {
         if (!products) return [];
         const lower = search.toLowerCase();
-        
-        return products
-            .filter(p => !p.is_component) // Exclude components from basic list
-            .filter(p => p.sku.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower))
-            .map(p => {
-                const cost = p.active_price || 0;
-                const price = p.selling_price || 0;
-                const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
-                return { ...p, cost, price, margin };
-            })
-            .slice(0, 50);
+        const flatList: any[] = [];
+
+        products.forEach(p => {
+            if (p.is_component) return;
+
+            const matchesSearch = !search || p.sku.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower);
+            
+            // If the product has variants, we list the variants instead of the master container
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const fullSku = p.sku + v.suffix;
+                    // Check search against full SKU or category or description
+                    if (!search || fullSku.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower) || (v.description && v.description.toLowerCase().includes(lower))) {
+                        const cost = v.active_price || 0;
+                        const price = v.selling_price || 0;
+                        const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
+                        
+                        flatList.push({
+                            sku: fullSku,
+                            category: p.category,
+                            description: v.description || v.suffix,
+                            cost,
+                            price,
+                            margin,
+                            isVariant: true
+                        });
+                    }
+                });
+            } else {
+                // If NO variants, it's a simple product, list the master
+                if (matchesSearch) {
+                    const cost = p.active_price || 0;
+                    const price = p.selling_price || 0;
+                    const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
+
+                    flatList.push({
+                        sku: p.sku,
+                        category: p.category,
+                        description: 'Master',
+                        cost,
+                        price,
+                        margin,
+                        isVariant: false
+                    });
+                }
+            }
+        });
+
+        // Limit for performance
+        return flatList.slice(0, 50);
     }, [products, search]);
 
     return (
@@ -45,8 +84,13 @@ export default function MobilePricing() {
                     <div key={item.sku} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <div className="font-black text-slate-800 text-base">{item.sku}</div>
-                                <div className="text-[10px] text-slate-500">{item.category}</div>
+                                <div className="font-black text-slate-800 text-base flex items-center gap-2">
+                                    {item.sku}
+                                    {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">VAR</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                    <Tag size={10}/> {item.category} • {item.description}
+                                </div>
                             </div>
                             <div className="text-right">
                                 <div className="font-black text-slate-900 text-lg">{formatCurrency(item.price)}</div>

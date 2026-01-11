@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
-import { Search, ImageIcon, Tag, Weight } from 'lucide-react';
+import { Search, ImageIcon, Tag, Weight, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 
 interface Props {
@@ -89,11 +89,21 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                     {filteredProducts.map(p => {
                         const totalStock = (p.stock_qty || 0) + (p.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
+                        const hasVariants = p.variants && p.variants.length > 0;
+                        
+                        // Resolve Display Price:
+                        // If master price is 0, try to find a representative variant price (e.g. Gold 'X' or just the first non-zero)
+                        let displayPrice = p.selling_price;
+                        if ((!displayPrice || displayPrice === 0) && hasVariants) {
+                            const variantWithPrice = p.variants?.find(v => v.selling_price && v.selling_price > 0);
+                            if (variantWithPrice) displayPrice = variantWithPrice.selling_price || 0;
+                        }
+
                         return (
                             <div 
                                 key={p.sku} 
                                 onClick={() => onProductSelect(p)}
-                                className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-transform flex flex-col"
+                                className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-transform flex flex-col relative overflow-hidden"
                             >
                                 <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden mb-2 relative">
                                     {p.image_url ? (
@@ -101,9 +111,16 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
                                     )}
+                                    
                                     {totalStock > 0 && (
                                         <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
                                             {totalStock}
+                                        </div>
+                                    )}
+                                    
+                                    {hasVariants && (
+                                        <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm backdrop-blur-sm">
+                                            <Layers size={10} /> {p.variants?.length}
                                         </div>
                                     )}
                                 </div>
@@ -116,7 +133,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                         <Weight size={10}/> {p.weight_g}g
                                     </div>
                                     <div className="mt-1 font-bold text-slate-900 text-xs bg-slate-50 rounded px-1.5 py-0.5 w-fit">
-                                        {formatCurrency(p.selling_price)}
+                                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                                     </div>
                                 </div>
                             </div>
