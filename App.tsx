@@ -41,6 +41,8 @@ import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
+import { useIsMobile } from './hooks/useIsMobile';
+import MobileApp from './MobileApp';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -183,6 +185,7 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
 );
 
 function AppContent() {
+  const isMobile = useIsMobile();
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -455,6 +458,17 @@ function AppContent() {
   }
   if (!settings || !products || !materials || !molds || !collections) return null;
   
+  // SWITCH RENDERING BASED ON DEVICE TYPE
+  if (isMobile) {
+      return (
+          <>
+            <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
+            <MobileApp />
+          </>
+      );
+  }
+
+  // DESKTOP RENDERING
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
 
   return (
