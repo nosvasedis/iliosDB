@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Supplier, Product } from '../types';
-import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link } from 'lucide-react';
+import { Supplier, Product, ProductionType } from '../types';
+import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -93,12 +93,23 @@ export default function SuppliersPage() {
   }, [products, currentSupplier.id]);
 
   const searchResults = useMemo(() => {
-      if (!products || !productSearchTerm || productSearchTerm.length < 2) return [];
-      const lowerTerm = productSearchTerm.toLowerCase();
-      // Filter out products already assigned to THIS supplier
-      return products
-        .filter(p => p.sku.toLowerCase().includes(lowerTerm) && p.supplier_id !== currentSupplier.id)
-        .slice(0, 10);
+      if (!products) return [];
+      
+      // Filter 1: Must be Imported
+      // Filter 2: Must NOT be already assigned to THIS supplier
+      let candidates = products.filter(p => 
+          p.production_type === ProductionType.Imported && 
+          p.supplier_id !== currentSupplier.id
+      );
+
+      // Filter 3: Search Term (if exists)
+      if (productSearchTerm) {
+          const lowerTerm = productSearchTerm.toLowerCase();
+          candidates = candidates.filter(p => p.sku.toLowerCase().includes(lowerTerm));
+      }
+
+      // Limit results
+      return candidates.slice(0, 50);
   }, [products, productSearchTerm, currentSupplier.id]);
 
   if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
@@ -181,30 +192,40 @@ export default function SuppliersPage() {
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16}/>
                                         <input 
                                             type="text" 
-                                            placeholder="Αναζήτηση προϊόντος για ανάθεση..." 
+                                            placeholder="Αναζήτηση εισαγόμενου είδους..." 
                                             value={productSearchTerm}
                                             onChange={e => setProductSearchTerm(e.target.value)}
                                             className="w-full pl-9 p-3 border border-blue-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-bold text-slate-700 placeholder-slate-400"
                                         />
-                                        {searchResults.length > 0 && (
-                                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 max-h-60 overflow-y-auto">
-                                                {searchResults.map(p => (
-                                                    <button 
-                                                        key={p.sku} 
-                                                        onClick={() => handleAssignProduct(p.sku)}
-                                                        className="w-full text-left p-3 hover:bg-blue-50 flex justify-between items-center group border-b border-slate-50 last:border-0"
-                                                    >
-                                                        <div>
-                                                            <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
-                                                            <div className="text-[10px] text-slate-500">{p.category}</div>
-                                                        </div>
-                                                        <div className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs font-bold bg-blue-100 px-2 py-1 rounded">
-                                                            <Link size={12}/> Ανάθεση
-                                                        </div>
-                                                    </button>
-                                                ))}
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 max-h-60 overflow-y-auto">
+                                            <div className="p-2 text-[10px] font-black text-slate-400 uppercase tracking-wide bg-slate-50 sticky top-0 border-b border-slate-100">
+                                                ΔΙΑΘΕΣΙΜΑ ΠΡΟΣ ΑΝΑΘΕΣΗ (IMPORTED ONLY)
                                             </div>
-                                        )}
+                                            {searchResults.length > 0 ? searchResults.map(p => (
+                                                <button 
+                                                    key={p.sku} 
+                                                    onClick={() => handleAssignProduct(p.sku)}
+                                                    className="w-full text-left p-2 hover:bg-blue-50 flex items-center gap-3 group border-b border-slate-50 last:border-0 transition-colors"
+                                                >
+                                                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                                        {p.image_url ? (
+                                                            <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover"/>
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={14}/></div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
+                                                        <div className="text-[10px] text-slate-500 truncate">{p.category}</div>
+                                                    </div>
+                                                    <div className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs font-bold bg-blue-100 px-2 py-1 rounded">
+                                                        <Link size={12}/> Ανάθεση
+                                                    </div>
+                                                </button>
+                                            )) : (
+                                                <div className="p-4 text-center text-xs text-slate-400 italic">Δεν βρέθηκαν διαθέσιμα εισαγόμενα προϊόντα.</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 
