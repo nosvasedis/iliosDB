@@ -108,6 +108,51 @@ export const generateMarketingCopy = async (
   }
 };
 
+/**
+ * Generates a collection description based on products.
+ */
+export const generateCollectionDescription = async (
+    collectionName: string,
+    products: any[]
+): Promise<string> => {
+    try {
+        const ai = getClient();
+        
+        // Extract context from products
+        const categories = Array.from(new Set(products.map(p => p.category))).join(', ');
+        const genders = Array.from(new Set(products.map(p => p.gender))).join(', ');
+        const materials = Array.from(new Set(products.map(p => p.plating_type))).join(', ');
+        
+        const prompt = `
+            Είσαι ο Chief Editor ενός πολυτελούς περιοδικού μόδας (όπως η Vogue).
+            Γράψε ένα ΣΥΝΤΟΜΟ (30-50 λέξεις), ατμοσφαιρικό και ελκυστικό διαφημιστικό κείμενο (intro) για μια συλλογή κοσμημάτων.
+            
+            Όνομα Συλλογής: "${collectionName}"
+            Περιεχόμενα: ${categories}
+            Στυλ/Υλικά: ${materials}
+            Κοινό: ${genders}
+            
+            Οδηγίες:
+            - Το κείμενο πρέπει να εμπνέει πολυτέλεια, στυλ και συναίσθημα.
+            - Μην κάνεις λίστα. Γράψε μια ρέουσα παράγραφο.
+            - Γράψε στα Ελληνικά.
+            - Απόφυγε κλισέ όπως "η καλύτερη ποιότητα". Εστίασε στην αισθητική.
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                temperature: 0.8 // Higher creativity
+            }
+        });
+
+        return response.text?.trim() || "";
+    } catch (error: any) {
+        throw new Error(`AI Generation failed: ${error.message}`);
+    }
+};
+
 export const generateVirtualModel = async (
     imageBase64: string, 
     gender: 'Men' | 'Women' | 'Unisex',

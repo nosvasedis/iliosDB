@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Collection, Product, ProductVariant, Warehouse } from '../../types';
-import { FolderKanban, ArrowLeft, Search, Layers, ImageIcon, X } from 'lucide-react';
+import { FolderKanban, ArrowLeft, Search, Layers, ImageIcon, X, Sparkles } from 'lucide-react';
 import EmployeeProductDetails from './EmployeeProductDetails';
 import { formatCurrency } from '../../utils/pricingEngine';
 
@@ -108,9 +108,23 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
 
                 <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex-1 flex flex-col overflow-hidden">
                     <div className="flex items-end justify-between mb-8 border-b border-slate-100 pb-4">
-                        <div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">{selectedCollection.name}</h1>
-                            <p className="text-slate-500 font-medium">Παρουσίαση {filteredProducts.length} προϊόντων</p>
+                        <div className="flex-1">
+                            <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2 flex items-center gap-3">
+                                {selectedCollection.name}
+                                <span className="bg-slate-100 text-slate-500 text-sm font-bold px-3 py-1 rounded-full border border-slate-200">{filteredProducts.length} items</span>
+                            </h1>
+                            
+                            {/* AI GENERATED DESCRIPTION DISPLAY */}
+                            {selectedCollection.description && (
+                                <div className="mt-4 max-w-3xl">
+                                    <div className="relative pl-6 py-2">
+                                        <div className="absolute left-0 top-0 text-emerald-200"><Sparkles size={24} /></div>
+                                        <p className="text-xl font-serif italic text-slate-600 leading-relaxed">
+                                            "{selectedCollection.description}"
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="hidden md:block text-slate-300">
                             <FolderKanban size={48} strokeWidth={1} />
@@ -164,6 +178,11 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
                             
                             <div className="relative z-10 mt-auto p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
                                 <h2 className="text-3xl font-black text-white mb-2 leading-tight tracking-tight">{collection.name}</h2>
+                                {collection.description && (
+                                    <p className="text-white/70 text-xs line-clamp-2 font-serif italic mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-75">
+                                        {collection.description}
+                                    </p>
+                                )}
                                 <div className="h-1 w-12 bg-emerald-500 rounded-full mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100" />
                                 <p className="text-white/80 text-sm font-medium flex items-center gap-2">
                                     <span>Δείτε την συλλογή</span> <ArrowLeft className="rotate-180" size={16}/>

@@ -366,6 +366,10 @@ export const api = {
         await safeMutate('collections', 'INSERT', payload);
     },
 
+    updateCollection: async (id: number, updates: Partial<Collection>): Promise<void> => {
+        await safeMutate('collections', 'UPDATE', updates, { match: { id } });
+    },
+
     deleteCollection: async (id: number): Promise<void> => {
         await safeMutate('collections', 'DELETE', null, { match: { id } });
     },

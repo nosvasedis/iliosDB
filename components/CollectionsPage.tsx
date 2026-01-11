@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info } from 'lucide-react';
+import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info, Sparkles, Save } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
+import { generateCollectionDescription } from '../lib/gemini';
 
 interface Props {
     products?: Product[];
@@ -21,9 +22,20 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     
+    // Description State
+    const [collectionDesc, setCollectionDesc] = useState('');
+    const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+    
     // Bulk Add State
     const [bulkSkus, setBulkSkus] = useState('');
     const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+    // Sync local desc state with selected collection
+    React.useEffect(() => {
+        if (selectedCollection) {
+            setCollectionDesc(selectedCollection.description || '');
+        }
+    }, [selectedCollection]);
 
     const handleCreateCollection = async () => {
         if (!newCollectionName.trim()) return;
@@ -76,8 +88,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     };
 
     const expandSkuRange = (token: string): string[] => {
-        // Robust Regex: Matches [PREFIX][NUMBER][SUFFIX] - [PREFIX][NUMBER][SUFFIX]
-        // Example: MN050S-MN063S or DA100-DA120
         const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
         const match = token.match(rangeRegex);
 
@@ -85,7 +95,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         const [, prefix1, num1Str, suffix1, prefix2, num2Str, suffix2] = match;
 
-        // Validation: Prefixes and Suffixes must match to define a logical range
         if (prefix1.toUpperCase() !== prefix2.toUpperCase() || suffix1.toUpperCase() !== suffix2.toUpperCase()) {
             return [token];
         }
@@ -95,7 +104,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         if (start > end) return [token];
         
-        // Safety cap to prevent massive loops (OOM prevention)
         if (end - start > 1000) return [token];
 
         const expanded: string[] = [];
@@ -119,7 +127,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         setIsBulkAdding(true);
         const lines = bulkSkus.split(/[\n, ]+/).filter(x => x.trim().length > 0);
         
-        // Expand ranges
         const expandedSkus: string[] = [];
         lines.forEach(token => {
             const result = expandSkuRange(token.trim().toUpperCase());
@@ -131,7 +138,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         const newAssociations: { product_sku: string, collection_id: number }[] = [];
         
         try {
-            // Use a Set to avoid duplicates if ranges overlap
             const uniqueSkus = Array.from(new Set(expandedSkus));
 
             for (const sku of uniqueSkus) {
@@ -139,7 +145,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                 
                 if (product) {
                     foundCount++;
-                    // Only add if not already in collection
                     if (!product.collections?.includes(selectedCollection.id)) {
                         newAssociations.push({ product_sku: sku, collection_id: selectedCollection.id });
                     }
@@ -209,6 +214,38 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             date: dateStr,
             items: items
         });
+    };
+
+    const handleGenerateDescription = async () => {
+        if (!selectedCollection || !productsInSelectedCollection.length) {
+            showToast("Προσθέστε προϊόντα στη συλλογή πρώτα.", "info");
+            return;
+        }
+        
+        setIsGeneratingDesc(true);
+        try {
+            const text = await generateCollectionDescription(
+                selectedCollection.name,
+                productsInSelectedCollection
+            );
+            setCollectionDesc(text);
+            showToast("Η περιγραφή δημιουργήθηκε!", "success");
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, "error");
+        } finally {
+            setIsGeneratingDesc(false);
+        }
+    };
+
+    const handleSaveDescription = async () => {
+        if (!selectedCollection) return;
+        try {
+            await api.updateCollection(selectedCollection.id, { description: collectionDesc });
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
+            showToast("Η περιγραφή αποθηκεύτηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα αποθήκευσης.", "error");
+        }
     };
 
     const productsInSelectedCollection = useMemo(() => {
@@ -318,6 +355,38 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                             
                             <div className="flex-1 overflow-y-auto p-6 min-h-0 custom-scrollbar">
                                 
+                                {/* AI DESCRIPTION EDITOR */}
+                                <div className="mb-8 bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                                            <Sparkles size={16} className="text-purple-500" /> Marketing & Storytelling
+                                        </h3>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleGenerateDescription} 
+                                                disabled={isGeneratingDesc || productsInSelectedCollection.length === 0}
+                                                className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                                {isGeneratingDesc ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 
+                                                {isGeneratingDesc ? 'Δημιουργία...' : 'Auto Generate'}
+                                            </button>
+                                            <button 
+                                                onClick={handleSaveDescription} 
+                                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                            >
+                                                <Save size={12} /> Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea 
+                                        value={collectionDesc}
+                                        onChange={e => setCollectionDesc(e.target.value)}
+                                        placeholder="Γράψτε ή δημιουργήστε μια περιγραφή για τη συλλογή..."
+                                        className="w-full p-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all h-24 resize-none font-serif leading-relaxed"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1 italic">Αυτό το κείμενο θα εμφανίζεται στην παρουσίαση της συλλογής.</p>
+                                </div>
+
                                 {/* BULK ADD SECTION */}
                                 <div className="mb-8 bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
                                     <h3 className="font-bold text-blue-900 mb-3 text-sm uppercase tracking-wide flex items-center gap-2">
