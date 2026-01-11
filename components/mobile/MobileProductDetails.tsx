@@ -341,7 +341,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                       return (
                                           <div key={idx} className="flex justify-between items-center text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
                                               <div className="flex items-center gap-2"><span className="font-black text-amber-800 font-mono">{m.code}</span><span className="text-xs text-slate-500 font-bold">x{m.quantity}</span></div>
-                                              <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location || '-'}</span>
+                                              <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location ?? ''}</span>
                                           </div>
                                       );
                                   })}
@@ -401,7 +401,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                       </div>
                                       <div className="flex flex-col">
                                           <span className="font-bold text-[#060b00] text-xs leading-none tracking-tight">Ilios Kosmima</span>
-                                          <span className="text-[7px] font-medium text-amber-600 uppercase tracking-widest leading-none mt-0.5">Production</span>
+                                          <span className="text-[7px] font-medium text-amber-600 uppercase tracking-widest leading-none mt-0.5">ΠΑΡΑΓΩΓΗ</span>
                                       </div>
                                   </div>
                                   {displayPrice > 0 && (
@@ -441,23 +441,22 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                   
                                   {/* Specs Grid with Gold Accents */}
                                   <div className="grid grid-cols-2 gap-2">
-                                      <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 flex flex-col justify-center">
+                                      <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">Υλικό / Φινίρισμα</span>
-                                          <span className="font-bold text-slate-700 text-[10px] capitalize truncate">{displayPlating.toLowerCase()}</span>
+                                          <span className="font-bold text-slate-700 text-[9px] leading-tight break-words">{displayPlating.toLowerCase()}</span>
                                       </div>
-                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Βάρος</span>
                                           <span className="font-bold text-slate-700 text-[10px]">{product.weight_g}g</span>
                                       </div>
                                       
                                       {/* Footer / QR Row */}
                                       <div className="col-span-2 mt-1 flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-1.5 pr-3 shadow-sm">
-                                          <div className="w-9 h-9 bg-slate-50 rounded-lg p-0.5 shrink-0 border border-slate-200">
+                                          <div className="w-9 h-9 bg-slate-50 rounded-lg p-0.5 shrink-0 border border-slate-200 flex items-center justify-center">
                                               {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain mix-blend-multiply" />}
                                           </div>
                                           <div className="flex-1 flex flex-col justify-center">
-                                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Scan for details</span>
-                                              <span className="text-[10px] font-bold text-[#060b00] leading-none truncate">{displayLabel}</span>
+                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight break-words">{displayLabel}</span>
                                           </div>
                                       </div>
                                   </div>
@@ -471,7 +470,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                               </div>
                               <div className="text-center">
                                   <div className="text-3xl font-black text-[#060b00] tracking-tighter uppercase">{displaySku}</div>
-                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Scan for details</div>
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Σάρωση για λεπτομέρειες</div>
                               </div>
                           </div>
                       )}
