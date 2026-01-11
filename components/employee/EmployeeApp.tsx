@@ -4,7 +4,7 @@ import EmployeeLayout from './EmployeeLayout';
 import EmployeeDashboard from './EmployeeDashboard';
 import EmployeeOrders from './EmployeeOrders';
 import EmployeeRegistry from './EmployeeRegistry';
-import CustomersPage from '../CustomersPage';
+import EmployeeCustomers from './EmployeeCustomers';
 import EmployeeProduction from './EmployeeProduction';
 import EmployeeCollections from './EmployeeCollections';
 import EmployeeInventory from './EmployeeInventory';
@@ -32,7 +32,7 @@ export default function EmployeeApp({ setPrintItems }: Props) {
       content = <EmployeeRegistry setPrintItems={setPrintItems} />;
       break;
     case 'customers':
-      content = <CustomersPage />;
+      content = <EmployeeCustomers />;
       break;
     case 'collections':
       content = <EmployeeCollections setPrintItems={setPrintItems} />;
