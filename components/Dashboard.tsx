@@ -14,20 +14,20 @@ import {
   BarChart3, 
   Coins, 
   Clock, 
-  CheckCircle,
-  Wallet,
-  Scale,
-  BrainCircuit,
-  Sparkles,
-  ArrowDownRight,
-  Target,
-  Zap,
-  Loader2,
-  FileText,
-  Lightbulb,
-  ShieldCheck,
-  Rocket,
-  Filter
+  CheckCircle, 
+  Wallet, 
+  Scale, 
+  BrainCircuit, 
+  Sparkles, 
+  ArrowDownRight, 
+  Target, 
+  Zap, 
+  Loader2, 
+  FileText, 
+  Lightbulb, 
+  ShieldCheck, 
+  Rocket, 
+  Filter 
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -41,8 +41,8 @@ import {
   Pie, 
   Cell, 
   AreaChart, 
-  Area,
-  Legend
+  Area, 
+  Legend 
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -148,21 +148,20 @@ export default function Dashboard({ products, settings }: Props) {
 
   // --- Aggregate Stats ---
   const stats = useMemo(() => {
-    const sellableProducts = products.filter(p => !p.is_component);
     const totalStockQty = products.reduce((acc, p) => acc + p.stock_qty, 0);
     
     let totalCostValue = 0; 
     let totalPotentialRevenue = 0; 
     let totalSilverWeight = 0;
 
+    // Calculate totals based on master stock records (simplification)
     products.forEach(p => {
         totalCostValue += (p.active_price * p.stock_qty);
         totalSilverWeight += (p.weight_g * p.stock_qty);
         
-        // Handle Potential Revenue (Summing highest of master or variants for commercial accuracy)
+        // Handle Potential Revenue
         if (!p.is_component) {
             if (p.variants && p.variants.length > 0) {
-                // Find highest variant price or use master price
                 const maxVarPrice = Math.max(...p.variants.map(v => v.selling_price || 0));
                 totalPotentialRevenue += (maxVarPrice > 0 ? maxVarPrice : p.selling_price) * p.stock_qty;
             } else {
@@ -171,7 +170,30 @@ export default function Dashboard({ products, settings }: Props) {
         }
     });
 
-    const pricedItems = sellableProducts.filter(p => p.selling_price > 0);
+    // --- MARGIN ANALYSIS: Flatten variants to avoid Container SKUs ---
+    const flattenedSellables = products.flatMap(p => {
+        if (p.is_component) return [];
+        
+        // If variants exist, use them instead of the master "container"
+        if (p.variants && p.variants.length > 0) {
+            return p.variants.map(v => ({
+                sku: `${p.sku}${v.suffix}`,
+                category: p.category,
+                active_price: v.active_price || 0,
+                selling_price: v.selling_price || 0
+            }));
+        }
+        
+        // If no variants, use master
+        return [{
+            sku: p.sku,
+            category: p.category,
+            active_price: p.active_price,
+            selling_price: p.selling_price
+        }];
+    });
+
+    const pricedItems = flattenedSellables.filter(p => p.selling_price > 0);
     const sortedByMargin = [...pricedItems].sort((a, b) => {
         const marginA = (a.selling_price - a.active_price) / a.selling_price;
         const marginB = (b.selling_price - b.active_price) / b.selling_price;

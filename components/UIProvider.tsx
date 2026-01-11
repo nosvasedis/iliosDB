@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface Toast {
   id: string;
@@ -83,11 +83,13 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
               pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border border-white/20 backdrop-blur-md animate-in slide-in-from-bottom-5 fade-in duration-300 min-w-[300px]
               ${toast.type === 'success' ? 'bg-emerald-600 text-white' : ''}
               ${toast.type === 'error' ? 'bg-red-600 text-white' : ''}
+              ${toast.type === 'warning' ? 'bg-amber-500 text-white' : ''}
               ${toast.type === 'info' ? 'bg-slate-800 text-white' : ''}
             `}
           >
             {toast.type === 'success' && <CheckCircle size={20} />}
             {toast.type === 'error' && <AlertOctagon size={20} />}
+            {toast.type === 'warning' && <AlertTriangle size={20} />}
             {toast.type === 'info' && <Info size={20} />}
             <span className="text-sm font-medium">{toast.message}</span>
             <button
