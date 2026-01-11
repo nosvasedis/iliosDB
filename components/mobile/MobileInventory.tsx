@@ -1,12 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product, Warehouse } from '../../types';
-import { Search, Filter, Box, MapPin, ImageIcon, Camera } from 'lucide-react';
+import { Product } from '../../types';
+import { Search, Box, MapPin, ImageIcon, Camera } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, api } from '../../lib/supabase';
-import { useQuery } from '@tanstack/react-query';
-import BarcodeScanner from '../BarcodeScanner';
 import { useUI } from '../UIProvider';
+import BarcodeScanner from '../BarcodeScanner';
 
 interface Props {
   products: Product[];
@@ -16,11 +14,10 @@ interface Props {
 interface MobileInventoryItemProps {
     product: Product;
     onClick: () => void;
+    totalStock: number;
 }
 
-const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onClick }) => {
-    // Basic stock calculation for visual summary
-    const totalStock = (product.stock_qty || 0) + (product.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
+const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onClick, totalStock }) => {
     const variantsCount = product.variants?.length || 0;
 
     return (
@@ -49,13 +46,13 @@ const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onCl
                 <p className="text-xs text-slate-500 font-medium truncate mb-2">{product.category}</p>
                 
                 <div className="flex gap-2">
-                    <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${totalStock > 0 ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                    <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${totalStock > 0 ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                         <Box size={10}/> {totalStock}
                     </div>
                     {/* Only showing master locations summary for simplicity */}
                     {(product.sample_qty > 0) && (
                         <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 flex items-center gap-1">
-                            <MapPin size={10}/> Show: {product.sample_qty}
+                            <MapPin size={10}/> Δειγμ: {product.sample_qty}
                         </div>
                     )}
                 </div>
@@ -69,12 +66,51 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const [showScanner, setShowScanner] = useState(false);
     const { showToast } = useUI();
 
-    // Limit to 50 items for performance on mobile initially
-    const filteredProducts = useMemo(() => {
+    // Logic: Calculate total stock for each product (including variants & locations)
+    // Filter out products with 0 total stock.
+    const inventoryList = useMemo(() => {
         const lower = search.toLowerCase();
+        
         return products
-            .filter(p => p.sku.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower))
-            .slice(0, 50);
+            .map(p => {
+                // Calculate stock across ALL locations and variants
+                let pTotal = 0;
+                
+                // 1. Master/Main Stock (if any)
+                if (p.location_stock) {
+                    pTotal += Object.values(p.location_stock).reduce((a, b) => a + b, 0);
+                } else {
+                    pTotal += (p.stock_qty || 0) + (p.sample_qty || 0);
+                }
+
+                // 2. Variant Stock (if variants exist and have separate stock)
+                if (p.variants && p.variants.length > 0) {
+                    // Note: Usually location_stock on product includes variants if flattened, 
+                    // but depending on data structure we might need to sum variants explicitly if not using a flat view.
+                    // The `api.getProducts` implementation merges variant stock into location_stock if configured,
+                    // but strictly speaking `p.stock_qty` is master stock.
+                    // Let's sum variants explicitly to be safe for display if location_stock isn't aggregated at product level.
+                    // *However*, in `lib/supabase.ts`, `p.location_stock` is just for the master SKU.
+                    
+                    // Simple Sum:
+                    p.variants.forEach(v => {
+                        if (v.location_stock) {
+                            pTotal += Object.values(v.location_stock).reduce((a, b) => a + b, 0);
+                        } else {
+                            pTotal += (v.stock_qty || 0);
+                        }
+                    });
+                }
+
+                return { product: p, totalStock: pTotal };
+            })
+            .filter(item => item.totalStock > 0) // HIDE ZERO STOCK ITEMS
+            .filter(item => {
+                if (!search) return true;
+                return item.product.sku.toLowerCase().includes(lower) || 
+                       item.product.category.toLowerCase().includes(lower);
+            })
+            .slice(0, 50); // Performance limit
     }, [products, search]);
 
     const handleScan = (code: string) => {
@@ -112,17 +148,19 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                {filteredProducts.map(p => (
-                    <MobileInventoryItem key={p.sku} product={p} onClick={() => onProductSelect(p)} />
+                {inventoryList.map(item => (
+                    <MobileInventoryItem 
+                        key={item.product.sku} 
+                        product={item.product} 
+                        totalStock={item.totalStock}
+                        onClick={() => onProductSelect(item.product)} 
+                    />
                 ))}
-                {filteredProducts.length === 0 && (
-                    <div className="text-center py-10 text-slate-400 text-sm font-medium">
-                        Δεν βρέθηκαν προϊόντα.
-                    </div>
-                )}
-                {filteredProducts.length === 50 && (
-                    <div className="text-center py-4 text-xs text-slate-400 italic">
-                        Εμφανίζονται τα πρώτα 50 αποτελέσματα.
+                {inventoryList.length === 0 && (
+                    <div className="text-center py-10 text-slate-400 text-sm font-medium flex flex-col items-center">
+                        <Box size={32} className="mb-2 opacity-50"/>
+                        Δεν βρέθηκε απόθεμα.<br/>
+                        <span className="text-xs opacity-70 mt-1">Ελέγξτε το Μητρώο για κωδικούς χωρίς στοκ.</span>
                     </div>
                 )}
             </div>

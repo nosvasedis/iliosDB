@@ -10,11 +10,11 @@ interface MobileLayoutProps {
 
 export default function MobileLayout({ children, activePage, onNavigate }: MobileLayoutProps) {
   const navItems = [
-    { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Home' },
-    { id: 'orders', icon: <ShoppingCart size={20} />, label: 'Orders' },
-    { id: 'production', icon: <Factory size={20} />, label: 'Prod' },
-    { id: 'inventory', icon: <Package size={20} />, label: 'Stock' },
-    { id: 'menu', icon: <Menu size={20} />, label: 'Menu' },
+    { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Αρχική' },
+    { id: 'orders', icon: <ShoppingCart size={20} />, label: 'Εντολές' },
+    { id: 'production', icon: <Factory size={20} />, label: 'Παραγωγή' },
+    { id: 'inventory', icon: <Package size={20} />, label: 'Αποθήκη' },
+    { id: 'menu', icon: <Menu size={20} />, label: 'Μενού' },
   ];
 
   return (

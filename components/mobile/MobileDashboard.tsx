@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { Product, GlobalSettings, Order, ProductionBatch } from '../../types';
+import { Product, GlobalSettings } from '../../types';
 import { Wallet, Activity, Factory, Coins, TrendingUp } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { api } from '../../lib/supabase';
 interface Props {
   products: Product[];
   settings: GlobalSettings;
+  onNavigate?: (page: string) => void;
 }
 
 const MobileKPICard = ({ title, value, subValue, icon, colorClass }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string }) => (
@@ -24,7 +25,7 @@ const MobileKPICard = ({ title, value, subValue, icon, colorClass }: { title: st
   </div>
 );
 
-export default function MobileDashboard({ products, settings }: Props) {
+export default function MobileDashboard({ products, settings, onNavigate }: Props) {
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
@@ -48,7 +49,7 @@ export default function MobileDashboard({ products, settings }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Dashboard</h1>
+          <h1 className="text-2xl font-black text-slate-900">Ilios ERP</h1>
           <p className="text-xs text-slate-500 font-medium">Επισκόπηση Συστήματος</p>
         </div>
         <div className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center font-bold shadow-lg shadow-slate-200">
@@ -89,15 +90,18 @@ export default function MobileDashboard({ products, settings }: Props) {
         </div>
       </div>
 
-      {/* Quick Actions (Visual Placeholder for now) */}
-      <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+      {/* Quick Actions (AI Banner) */}
+      <div 
+        onClick={() => onNavigate && onNavigate('ai-studio')}
+        className="bg-gradient-to-br from-[#060b00] to-emerald-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
+      >
          <div className="relative z-10">
             <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
-                <TrendingUp size={18} className="text-yellow-400"/> Quick Audit
+                <TrendingUp size={18} className="text-yellow-400"/> Έξυπνος Έλεγχος
             </h3>
-            <p className="text-emerald-100/70 text-xs mb-4">Ελέγξτε την κερδοφορία των προϊόντων σας.</p>
+            <p className="text-emerald-100/70 text-xs mb-4">Ελέγξτε την κερδοφορία και τις τάσεις με το Ilios AI.</p>
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 text-center">
-                <span className="text-xs font-bold text-white">Ilios AI Analysis Available</span>
+                <span className="text-xs font-bold text-white">Άνοιγμα AI Studio</span>
             </div>
          </div>
       </div>

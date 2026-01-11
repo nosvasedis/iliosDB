@@ -12,19 +12,12 @@ import MobileCustomers from './components/mobile/MobileCustomers';
 import MobileRegistry from './components/mobile/MobileRegistry';
 import MobileAiStudio from './components/mobile/MobileAiStudio';
 import MobileSettings from './components/mobile/MobileSettings';
+import MobilePricing from './components/mobile/MobilePricing';
+import MobileBatchPrint from './components/mobile/MobileBatchPrint';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product } from './types';
-
-// Placeholder components for pending features
-const MobilePlaceholder = ({ title }: { title: string }) => (
-    <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400">
-        <Loader2 className="mb-4 animate-spin" size={32}/>
-        <h2 className="text-lg font-bold text-slate-600">{title}</h2>
-        <p className="text-sm">Mobile version coming soon.</p>
-    </div>
-);
 
 export default function MobileApp() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -44,7 +37,7 @@ export default function MobileApp() {
 
   let content;
   switch (activePage) {
-    case 'dashboard': content = <MobileDashboard products={products} settings={settings} />; break;
+    case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
     case 'orders': content = <MobileOrders />; break;
     case 'production': content = <MobileProduction />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
@@ -56,12 +49,10 @@ export default function MobileApp() {
     case 'settings': content = <MobileSettings />; break;
     case 'resources': content = <MobileResources />; break;
     case 'customers': content = <MobileCustomers />; break;
+    case 'pricing': content = <MobilePricing />; break;
+    case 'batch-print': content = <MobileBatchPrint />; break;
     
-    // Remaining placeholders
-    case 'pricing': content = <MobilePlaceholder title="Pricing" />; break;
-    case 'batch-print': content = <MobilePlaceholder title="Print" />; break;
-    
-    default: content = <MobileDashboard products={products} settings={settings} />;
+    default: content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />;
   }
 
   return (

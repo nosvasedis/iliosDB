@@ -44,7 +44,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
             <img src={APP_LOGO} alt="Ilios" className="w-full h-full object-contain"/>
         </div>
         <div>
-            <h2 className="text-xl font-black text-slate-900">{profile?.full_name || 'User'}</h2>
+            <h2 className="text-xl font-black text-slate-900">{profile?.full_name || 'Χρήστης'}</h2>
             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Ilios Kosmima ERP</p>
         </div>
       </div>
