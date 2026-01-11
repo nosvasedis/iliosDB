@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents } from '../../utils/pricingEngine';
@@ -102,11 +102,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const handleAddItem = (variant: ProductVariant | null) => {
         if (!activeMaster) return;
 
-        // Validation: If sizing is required but not selected
-        if (sizeMode && !selectedSize) {
-            showToast(`Επιλέξτε ${sizeMode.type}`, 'error');
-            return;
-        }
+        // Validation for size is now OPTIONAL as requested
+        // if (sizeMode && !selectedSize) { ... } -> Removed
 
         const unitPrice = variant?.selling_price || activeMaster.selling_price || 0;
         
@@ -199,6 +196,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
     }, [customers, customerName]);
 
+    const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
+
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
             {/* HEADER */}
@@ -281,11 +280,20 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                 <button 
                                     key={p.sku} 
                                     onClick={() => handleSelectMaster(p)}
-                                    className="w-full text-left p-3 rounded-xl bg-white border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex items-center justify-between group active:scale-98"
+                                    className="w-full text-left p-2 rounded-xl bg-white border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex items-center justify-between group active:scale-98"
                                 >
-                                    <div>
-                                        <span className="font-black text-slate-800 text-lg">{p.sku}</span>
-                                        <span className="text-xs text-slate-500 ml-2 font-medium">{p.category}</span>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                                            {p.image_url ? (
+                                                <img src={p.image_url} className="w-full h-full object-cover" alt={p.sku} />
+                                            ) : (
+                                                <ImageIcon size={16} className="text-slate-300"/>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <div className="font-black text-slate-800 text-lg leading-none">{p.sku}</div>
+                                            <div className="text-xs text-slate-500 font-medium">{p.category}</div>
+                                        </div>
                                     </div>
                                     <div className="bg-slate-100 group-hover:bg-white p-1 rounded-lg transition-colors">
                                         <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-500"/>
@@ -313,7 +321,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                         {sizeMode && (
                             <div className="mb-6">
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block flex items-center gap-1">
-                                    <Hash size={12}/> Επιλογή {sizeMode.type}
+                                    <Hash size={12}/> Επιλογή {sizeMode.type} <span className="font-normal text-slate-300 lowercase">(προαιρετικό)</span>
                                 </label>
                                 <div className="grid grid-cols-5 gap-2">
                                     {sizeMode.sizes.map(s => (
@@ -345,15 +353,17 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                         {/* Variants / Master Actions */}
                         <div className="grid grid-cols-2 gap-3">
-                            {/* Always show Master option if it has a price or is base */}
-                            <button 
-                                onClick={() => handleAddItem(null)}
-                                disabled={sizeMode !== null && !selectedSize}
-                                className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 disabled:opacity-50 disabled:grayscale"
-                            >
-                                <span className="text-lg font-black text-slate-700">Βασικό</span>
-                                <span className="text-[10px] uppercase font-bold text-slate-400">Master</span>
-                            </button>
+                            {/* Master Option: Only show if NO variants are defined (or logic permits) */}
+                            {/* New requirement: Hide generic Master if specific variants exist to force specific selection */}
+                            {!hasVariants && (
+                                <button 
+                                    onClick={() => handleAddItem(null)}
+                                    className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 disabled:opacity-50 disabled:grayscale"
+                                >
+                                    <span className="text-lg font-black text-slate-700">Βασικό</span>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Master</span>
+                                </button>
+                            )}
 
                             {/* Variants */}
                             {activeMaster.variants?.map(v => {
@@ -364,7 +374,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                     <button 
                                         key={v.suffix}
                                         onClick={() => handleAddItem(v)}
-                                        disabled={sizeMode !== null && !selectedSize}
                                         className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50 disabled:grayscale ${colorClass}`}
                                     >
                                         <span className="text-lg font-black">{v.suffix}</span>
