@@ -123,28 +123,36 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
               const img = new Image();
               // IMPORTANT: Allow Cross-Origin for Canvas Export
               img.crossOrigin = "Anonymous"; 
-              await new Promise((resolve, reject) => {
-                  img.onload = resolve;
-                  img.onerror = () => {
-                      console.warn("Image load failed, skipping draw.");
-                      resolve(null);
-                  };
-                  // Cache buster to bypass browser cache which might not have CORS headers
-                  img.src = `${product.image_url}?t=${new Date().getTime()}`;
-              });
               
-              // Scale to fit top area (square-ish)
-              const imgHeight = 800;
-              const scale = Math.max(width / img.width, imgHeight / img.height);
-              const x = (width / 2) - (img.width / 2) * scale;
-              const y = (imgHeight / 2) - (img.height / 2) * scale;
-              
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(0, 0, width, imgHeight);
-              ctx.clip();
-              ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-              ctx.restore();
+              try {
+                  await new Promise<void>((resolve, reject) => {
+                      img.onload = () => resolve();
+                      img.onerror = () => {
+                          console.warn("Image load failed (likely CORS), skipping draw.");
+                          // Resolve anyway to continue drawing the card without the image
+                          resolve(); 
+                      };
+                      // Cache buster to bypass browser cache which might not have CORS headers
+                      img.src = `${product.image_url}?t=${new Date().getTime()}`;
+                  });
+                  
+                  if (img.complete && img.naturalWidth > 0) {
+                      // Scale to fit top area (square-ish)
+                      const imgHeight = 800;
+                      const scale = Math.max(width / img.width, imgHeight / img.height);
+                      const x = (width / 2) - (img.width / 2) * scale;
+                      const y = (imgHeight / 2) - (img.height / 2) * scale;
+                      
+                      ctx.save();
+                      ctx.beginPath();
+                      ctx.rect(0, 0, width, imgHeight);
+                      ctx.clip();
+                      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                      ctx.restore();
+                  }
+              } catch (imgErr) {
+                  console.warn("Image processing error", imgErr);
+              }
           }
 
           // 4. Draw Info Card Background
@@ -187,31 +195,40 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           ctx.font = 'bold 24px Inter, sans-serif';
           ctx.fillText("ILIOS KOSMIMA ERP", 50, 1300);
 
-          // 8. Convert to File and Share
-          canvas.toBlob(async (blob) => {
-              if (!blob) return;
-              const file = new File([blob], `${skuText}.png`, { type: 'image/png' });
-              
-              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          // 8. Convert to Blob (Promisified for safety)
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          
+          if (!blob) throw new Error("Canvas to Blob failed");
+
+          const file = new File([blob], `${skuText}.png`, { type: 'image/png' });
+          
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
                   await navigator.share({
                       files: [file],
                       title: skuText,
                       text: `Check out ${skuText}`
                   });
-              } else {
-                  // Fallback: Download
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = `${skuText}.png`;
-                  link.click();
-                  showToast("Η εικόνα αποθηκεύτηκε.", "success");
+              } catch (shareErr: any) {
+                  if (shareErr.name === 'AbortError') {
+                      // User cancelled share, do nothing
+                      return;
+                  }
+                  throw shareErr;
               }
-              setIsSharing(false);
-          }, 'image/png');
+          } else {
+              // Fallback: Download
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = `${skuText}.png`;
+              link.click();
+              showToast("Η εικόνα αποθηκεύτηκε.", "success");
+          }
 
-      } catch (err) {
+      } catch (err: any) {
           console.error(err);
-          showToast("Σφάλμα δημιουργίας εικόνας.", "error");
+          showToast(`Σφάλμα: ${err.message}`, "error");
+      } finally {
           setIsSharing(false);
       }
   };
