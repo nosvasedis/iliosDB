@@ -27,7 +27,9 @@ import {
   Lightbulb, 
   ShieldCheck, 
   Rocket, 
-  Filter 
+  Filter,
+  Trophy,
+  Crown
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -170,36 +172,6 @@ export default function Dashboard({ products, settings }: Props) {
         }
     });
 
-    // --- MARGIN ANALYSIS: Flatten variants to avoid Container SKUs ---
-    const flattenedSellables = products.flatMap(p => {
-        if (p.is_component) return [];
-        
-        // If variants exist, use them instead of the master "container"
-        if (p.variants && p.variants.length > 0) {
-            return p.variants.map(v => ({
-                sku: `${p.sku}${v.suffix}`,
-                category: p.category,
-                active_price: v.active_price || 0,
-                selling_price: v.selling_price || 0
-            }));
-        }
-        
-        // If no variants, use master
-        return [{
-            sku: p.sku,
-            category: p.category,
-            active_price: p.active_price,
-            selling_price: p.selling_price
-        }];
-    });
-
-    const pricedItems = flattenedSellables.filter(p => p.selling_price > 0);
-    const sortedByMargin = [...pricedItems].sort((a, b) => {
-        const marginA = (a.selling_price - a.active_price) / a.selling_price;
-        const marginB = (b.selling_price - b.active_price) / b.selling_price;
-        return marginB - marginA;
-    });
-
     const potentialMargin = totalPotentialRevenue - totalCostValue;
     const marginPercent = totalPotentialRevenue > 0 ? (potentialMargin / totalPotentialRevenue) * 100 : 0;
 
@@ -207,6 +179,44 @@ export default function Dashboard({ products, settings }: Props) {
     const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
     
+    // --- TOP SELLERS LOGIC ---
+    const revenueBySku: Record<string, { revenue: number, qty: number, category: string }> = {};
+    orders?.forEach(o => {
+        o.items.forEach(i => {
+            const key = i.sku + (i.variant_suffix || '');
+            if (!revenueBySku[key]) revenueBySku[key] = { revenue: 0, qty: 0, category: i.product_details?.category || 'Unknown' };
+            revenueBySku[key].revenue += (i.price_at_order * i.quantity);
+            revenueBySku[key].qty += i.quantity;
+        });
+    });
+    const topSellers = Object.entries(revenueBySku)
+        .map(([sku, data]) => ({ sku, ...data }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+
+    // --- HIGH VALUE STOCK LOGIC ---
+    const stockValueBySku = products
+        .filter(p => !p.is_component)
+        .flatMap(p => {
+            if (p.variants && p.variants.length > 0) {
+                return p.variants.map(v => ({
+                    sku: p.sku + v.suffix,
+                    category: p.category,
+                    value: (v.active_price || p.active_price) * v.stock_qty,
+                    qty: v.stock_qty
+                }));
+            }
+            return [{
+                sku: p.sku,
+                category: p.category,
+                value: p.active_price * p.stock_qty,
+                qty: p.stock_qty
+            }];
+        })
+        .filter(i => i.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
     return {
         totalStockQty,
         totalCostValue,
@@ -219,8 +229,8 @@ export default function Dashboard({ products, settings }: Props) {
         totalRevenue: completedOrders.reduce((acc, o) => acc + o.total_price, 0),
         activeBatchesCount: activeBatches.length,
         totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
-        bestMargins: sortedByMargin.slice(0, 3),
-        worstMargins: sortedByMargin.slice(-3).reverse()
+        topSellers,
+        topStockValue: stockValueBySku
     };
   }, [products, orders, batches]);
 
@@ -402,47 +412,52 @@ export default function Dashboard({ products, settings }: Props) {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* TOP SELLERS */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <ArrowUpRight size={20} className="text-emerald-500" /> Υψηλότερο Περιθώριο (%)
+                          <Trophy size={20} className="text-amber-500" /> Top Sellers (Revenue)
                       </h3>
                       <div className="space-y-4">
-                          {stats.bestMargins.map(p => {
-                              const m = ((p.selling_price - p.active_price) / p.selling_price * 100).toFixed(0);
-                              return (
-                                  <div key={p.sku} className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                                      <div className="font-bold text-slate-800">{p.sku} <span className="text-xs font-medium text-slate-500 ml-2">{p.category}</span></div>
-                                      <div className="flex items-center gap-3">
-                                          <div className="text-right">
-                                              <div className="text-xs font-bold text-emerald-700">{m}%</div>
-                                              <div className="text-[10px] text-slate-400">Κέρδος: {formatCurrency(p.selling_price - p.active_price)}</div>
-                                          </div>
+                          {stats.topSellers.map((item, index) => (
+                              <div key={item.sku} className="flex items-center justify-between p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
+                                  <div className="flex items-center gap-3">
+                                      <div className={`w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs ${index === 0 ? 'bg-amber-400 text-white' : 'bg-amber-200 text-amber-700'}`}>
+                                          {index + 1}
+                                      </div>
+                                      <div>
+                                          <div className="font-bold text-slate-800">{item.sku}</div>
+                                          <div className="text-[10px] text-slate-500">{item.category}</div>
                                       </div>
                                   </div>
-                              );
-                          })}
+                                  <div className="text-right">
+                                      <div className="font-black text-amber-700">{formatCurrency(item.revenue)}</div>
+                                      <div className="text-[10px] text-slate-400">{item.qty} τμχ</div>
+                                  </div>
+                              </div>
+                          ))}
+                          {stats.topSellers.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν υπάρχουν δεδομένα πωλήσεων.</div>}
                       </div>
                   </div>
                   
+                  {/* HIGH VALUE STOCK */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <ArrowDownRight size={20} className="text-rose-500" /> Χαμηλότερο Περιθώριο (%)
+                          <Crown size={20} className="text-purple-500" /> High Value Inventory
                       </h3>
                       <div className="space-y-4">
-                          {stats.worstMargins.map(p => {
-                              const m = ((p.selling_price - p.active_price) / p.selling_price * 100).toFixed(0);
-                              return (
-                                  <div key={p.sku} className="flex items-center justify-between p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
-                                      <div className="font-bold text-slate-800">{p.sku} <span className="text-xs font-medium text-slate-500 ml-2">{p.category}</span></div>
-                                      <div className="flex items-center gap-3">
-                                          <div className="text-right">
-                                              <div className="text-xs font-bold text-rose-700">{m}%</div>
-                                              <div className="text-[10px] text-slate-400">Κέρδος: {formatCurrency(p.selling_price - p.active_price)}</div>
-                                          </div>
-                                      </div>
+                          {stats.topStockValue.map((item, index) => (
+                              <div key={item.sku} className="flex items-center justify-between p-4 bg-purple-50/50 rounded-2xl border border-purple-100">
+                                  <div>
+                                      <div className="font-bold text-slate-800">{item.sku}</div>
+                                      <div className="text-[10px] text-slate-500">{item.category}</div>
                                   </div>
-                              );
-                          })}
+                                  <div className="text-right">
+                                      <div className="font-black text-purple-700">{formatCurrency(item.value)}</div>
+                                      <div className="text-[10px] text-slate-400 font-bold">{item.qty} τμχ (Stock)</div>
+                                  </div>
+                              </div>
+                          ))}
+                          {stats.topStockValue.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν βρέθηκε απόθεμα.</div>}
                       </div>
                   </div>
               </div>

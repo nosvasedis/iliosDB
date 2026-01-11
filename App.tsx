@@ -194,7 +194,7 @@ function AppContent() {
   const { showToast } = useUI();
   const { signOut, profile } = useAuth();
 
-  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, format?: 'standard' | 'simple' | 'retail'}[]>([]);
+  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
@@ -470,7 +470,7 @@ function AppContent() {
         {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
         {printItems.length > 0 && (
             <div className="print-area">
-            {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, format: item.format || 'standard' }))).map((item, idx) => (
+            {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
                 <BarcodeView 
                     key={`${idx}`} 
                     product={item.product} 
@@ -478,6 +478,7 @@ function AppContent() {
                     width={item.format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm} 
                     height={item.format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm} 
                     format={item.format} 
+                    size={item.size}
                 />
             ))}
             </div>

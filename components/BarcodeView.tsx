@@ -11,9 +11,10 @@ interface Props {
     width: number;
     height: number;
     format?: 'standard' | 'simple' | 'retail';
+    size?: string;
 }
 
-const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard' }) => {
+const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard', size }) => {
     const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
     const baseSku = product?.sku || '';
@@ -220,10 +221,14 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 </span>
             </div>
 
-            {/* PRICE & HALLMARK FOOTER - Border integrated with price */}
+            {/* PRICE & HALLMARK/SIZE FOOTER - Border integrated with price */}
             <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
                  <span className="font-black text-black" style={{ fontSize: `${detailsFontSize}mm` }}>{priceDisplay}</span>
-                 <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
+                 {size ? (
+                     <span className="font-black text-black bg-black text-white px-0.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 0.9}mm`, lineHeight: '1.1' }}>{size}</span>
+                 ) : (
+                     <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
+                 )}
             </div>
         </div>
     );

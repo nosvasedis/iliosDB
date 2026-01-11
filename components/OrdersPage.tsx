@@ -11,7 +11,7 @@ import { getSizingInfo, isSizable } from '../utils/sizing';
 interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
-  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
+  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' }[]) => void;
   materials: Material[];
   onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
@@ -118,7 +118,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
-    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' }[]) => void;
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
@@ -143,6 +143,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
                     product,
                     variant,
                     quantity: item.quantity,
+                    size: item.size_info,
                     format: 'standard'
                 });
             }
@@ -576,6 +577,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     product,
                     variant,
                     quantity: item.quantity,
+                    size: item.size_info,
                     format: 'standard'
                 });
             }
