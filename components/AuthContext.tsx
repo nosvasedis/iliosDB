@@ -40,44 +40,28 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    let mounted = true;
-
     // 1. Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        // Await profile fetch before turning off loading
-        await fetchProfile(session.user.id);
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // 2. Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      
-      if (event === 'SIGNED_IN' && session) {
-          // Explicitly set loading true for sign-in actions to prevent "Profile Error" flash
-          setLoading(true);
-          setSession(session);
-          await fetchProfile(session.user.id);
-          setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-      } else if (session?.user) {
-          // Token refresh, etc. Update session but don't toggle loading to avoid flicker
-          setSession(session);
-          // Optional: background refresh if needed, but getSession handles initial load
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        fetchProfile(session.user.id).then(() => setLoading(false));
+      } else {
+        setProfile(null);
+        setLoading(false);
       }
     });
 
-    return () => {
-        mounted = false;
-        subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
