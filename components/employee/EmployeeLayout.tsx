@@ -10,7 +10,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Factory
+  Factory,
+  FolderKanban,
+  Package
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -87,6 +89,10 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => onNavigate('dashboard')} />
             <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
             <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
+            <div className="my-2 border-t border-white/10 mx-2"></div>
+            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές (Magazine)" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
+            <NavItem icon={<Package size={22} />} label="Διαχείριση Αποθήκης" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => onNavigate('inventory')} />
+            <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<Database size={22} />} label="Προϊόντα & Τιμές" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => onNavigate('registry')} />
             <NavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => onNavigate('customers')} />
             
@@ -128,9 +134,9 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around items-center h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
             <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
-            <MobileNavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} onClick={() => onNavigate('production')} />
+            <MobileNavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} onClick={() => onNavigate('collections')} />
+            <MobileNavItem icon={<Package size={22} />} label="Αποθήκη" isActive={activePage === 'inventory'} onClick={() => onNavigate('inventory')} />
             <MobileNavItem icon={<Database size={22} />} label="Προϊόντα" isActive={activePage === 'registry'} onClick={() => onNavigate('registry')} />
-            <MobileNavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} onClick={() => onNavigate('customers')} />
         </nav>
     </div>
   );

@@ -6,6 +6,8 @@ import EmployeeOrders from './EmployeeOrders';
 import EmployeeRegistry from './EmployeeRegistry';
 import CustomersPage from '../CustomersPage';
 import EmployeeProduction from './EmployeeProduction';
+import EmployeeCollections from './EmployeeCollections';
+import EmployeeInventory from './EmployeeInventory';
 import { Product, ProductVariant } from '../../types';
 
 interface Props {
@@ -31,6 +33,12 @@ export default function EmployeeApp({ setPrintItems }: Props) {
       break;
     case 'customers':
       content = <CustomersPage />;
+      break;
+    case 'collections':
+      content = <EmployeeCollections setPrintItems={setPrintItems} />;
+      break;
+    case 'inventory':
+      content = <EmployeeInventory />;
       break;
     default:
       content = <EmployeeDashboard onNavigate={setActivePage} />;
