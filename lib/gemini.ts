@@ -140,7 +140,7 @@ export const generateCollectionDescription = async (
             - Το κείμενο πρέπει να εμπνέει πολυτέλεια, στυλ και συναίσθημα.
             - Μην κάνεις λίστα (bullet points). Γράψε μια ρέουσα, λογοτεχνική παράγραφο.
             - Γράψε στα Ελληνικά.
-            - Αν ο χρήστης έδωσε οδηγίες (π.χ. "καλοκαιρινό"), προσάρμοσε το ύφος ανάλογα.
+            - Αν ο χρήστης έδωσε οδηγίες (π.χ. "καλοκαιρινό", "minimal"), προσάρμοσε το ύφος ανάλογα.
         `;
 
         const response: GenerateContentResponse = await ai.models.generateContent({
