@@ -121,11 +121,16 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           // 3. Draw Product Image
           if (product.image_url) {
               const img = new Image();
-              img.crossOrigin = "Anonymous";
+              // IMPORTANT: Allow Cross-Origin for Canvas Export
+              img.crossOrigin = "Anonymous"; 
               await new Promise((resolve, reject) => {
                   img.onload = resolve;
-                  img.onerror = resolve; // Continue even if image fails
-                  img.src = product.image_url!;
+                  img.onerror = () => {
+                      console.warn("Image load failed, skipping draw.");
+                      resolve(null);
+                  };
+                  // Cache buster to bypass browser cache which might not have CORS headers
+                  img.src = `${product.image_url}?t=${new Date().getTime()}`;
               });
               
               // Scale to fit top area (square-ish)
