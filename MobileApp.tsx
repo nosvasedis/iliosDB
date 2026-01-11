@@ -7,17 +7,19 @@ import MobileOrders from './components/mobile/MobileOrders';
 import MobileProduction from './components/mobile/MobileProduction';
 import MobileInventory from './components/mobile/MobileInventory';
 import MobileProductDetails from './components/mobile/MobileProductDetails';
+import MobileResources from './components/mobile/MobileResources';
+import MobileCustomers from './components/mobile/MobileCustomers';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product } from './types';
 
-// Placeholder components for phases 4
+// Placeholder components for phases 5
 const MobilePlaceholder = ({ title }: { title: string }) => (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400">
         <Loader2 className="mb-4 animate-spin" size={32}/>
         <h2 className="text-lg font-bold text-slate-600">{title}</h2>
-        <p className="text-sm">Mobile version coming in Phase 4.</p>
+        <p className="text-sm">Mobile version coming soon.</p>
     </div>
 );
 
@@ -45,10 +47,12 @@ export default function MobileApp() {
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
     
-    // Sub-menu items (Phase 4)
+    // Sub-menu items
+    case 'resources': content = <MobileResources />; break;
+    case 'customers': content = <MobileCustomers />; break;
+    
+    // Remaining placeholders
     case 'registry': content = <MobilePlaceholder title="Registry" />; break;
-    case 'customers': content = <MobilePlaceholder title="Customers" />; break;
-    case 'resources': content = <MobilePlaceholder title="Resources" />; break;
     case 'pricing': content = <MobilePlaceholder title="Pricing" />; break;
     case 'batch-print': content = <MobilePlaceholder title="Print" />; break;
     case 'settings': content = <MobilePlaceholder title="Settings" />; break;

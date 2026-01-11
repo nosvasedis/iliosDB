@@ -1,10 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Warehouse } from '../../types';
-import { Search, Filter, Box, MapPin, ImageIcon } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { Search, Filter, Box, MapPin, ImageIcon, Camera } from 'lucide-react';
+import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, api } from '../../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
+import BarcodeScanner from '../BarcodeScanner';
+import { useUI } from '../UIProvider';
 
 interface Props {
   products: Product[];
@@ -64,6 +66,9 @@ const MobileInventoryItem: React.FC<MobileInventoryItemProps> = ({ product, onCl
 
 export default function MobileInventory({ products, onProductSelect }: Props) {
     const [search, setSearch] = useState('');
+    const [showScanner, setShowScanner] = useState(false);
+    const { showToast } = useUI();
+
     // Limit to 50 items for performance on mobile initially
     const filteredProducts = useMemo(() => {
         const lower = search.toLowerCase();
@@ -72,19 +77,38 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             .slice(0, 50);
     }, [products, search]);
 
+    const handleScan = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            onProductSelect(match.product);
+            setShowScanner(false);
+            showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     return (
         <div className="p-4 h-full flex flex-col">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Αποθήκη</h1>
             
-            <div className="relative mb-4 shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Αναζήτηση SKU ή κατηγορίας..." 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                />
+            <div className="flex gap-2 mb-4 shrink-0">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                        type="text" 
+                        placeholder="Αναζήτηση..." 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    />
+                </div>
+                <button 
+                    onClick={() => setShowScanner(true)}
+                    className="bg-slate-900 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform"
+                >
+                    <Camera size={20} />
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
@@ -102,6 +126,13 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                     </div>
                 )}
             </div>
+
+            {showScanner && (
+                <BarcodeScanner 
+                    onScan={handleScan} 
+                    onClose={() => setShowScanner(false)} 
+                />
+            )}
         </div>
     );
 }
