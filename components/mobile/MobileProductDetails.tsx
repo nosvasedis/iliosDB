@@ -1,9 +1,11 @@
 
-import React, { useMemo } from 'react';
+import React, { useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
-import { X, MapPin, Tag, Weight, Coins, Layers, DollarSign, Globe } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Copy, Scan, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { SYSTEM_IDS } from '../../lib/supabase';
+import BarcodeView from '../BarcodeView';
+import { useUI } from '../UIProvider';
 
 interface Props {
   product: Product;
@@ -12,135 +14,260 @@ interface Props {
 }
 
 export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
-  const masterSku = product.sku;
-  
-  // Calculate aggregate stock for this specific product/variant context
-  // Note: For simplicity in mobile, we show the location stock of the *Master* product 
-  // unless a specific variant logic is selected (future enhancement). 
-  // For now, we list all variants and their total stock.
+  const { showToast } = useUI();
+  const [showBarcode, setShowBarcode] = useState(false);
+  const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(null);
+  const [showFullImage, setShowFullImage] = useState(false);
 
   const variants = product.variants || [];
+  
+  const handleShare = async () => {
+      const text = `${product.sku} - ${product.category} (${product.weight_g}g)`;
+      if (navigator.share) {
+          try {
+              await navigator.share({
+                  title: product.sku,
+                  text: text,
+                  url: window.location.href
+              });
+          } catch (err) {
+              console.log('Share cancelled');
+          }
+      } else {
+          navigator.clipboard.writeText(text);
+          showToast('Αντιγράφηκε στο πρόχειρο!', 'success');
+      }
+  };
+
+  const cycleVariant = (direction: 'next' | 'prev') => {
+      if (variants.length === 0) return;
+      const currentIndex = activeVariantForBarcode ? variants.findIndex(v => v.suffix === activeVariantForBarcode.suffix) : -1;
+      let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+      
+      if (newIndex >= variants.length) newIndex = -1; // Loop back to Master
+      if (newIndex < -1) newIndex = variants.length - 1; // Loop to last variant
+      
+      setActiveVariantForBarcode(newIndex === -1 ? null : variants[newIndex]);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300">
+      
       {/* Header / Image Area */}
-      <div className="relative h-72 bg-slate-200 shrink-0">
+      <div className="relative h-80 bg-slate-200 shrink-0 group">
         {product.image_url ? (
-            <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
+            <img 
+                src={product.image_url} 
+                className="w-full h-full object-cover cursor-pointer" 
+                alt={product.sku} 
+                onClick={() => setShowFullImage(true)}
+            />
         ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>
+            <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
+                NO IMAGE
+            </div>
         )}
         
-        {/* Actions Overlay */}
-        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent">
-            <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors">
+        {product.image_url && (
+            <button 
+                onClick={() => setShowFullImage(true)}
+                className="absolute bottom-4 right-4 p-2 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+                <Maximize2 size={16}/>
+            </button>
+        )}
+
+        {/* Top Actions */}
+        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-gradient-to-b from-black/40 to-transparent">
+            <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95">
                 <X size={20} />
             </button>
-            <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs font-bold border border-white/10">
-                {product.category}
+            <div className="flex gap-2">
+                <button onClick={handleShare} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95">
+                    <Share2 size={20} />
+                </button>
+                <button onClick={() => setShowBarcode(true)} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95">
+                    <QrCode size={20} />
+                </button>
             </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900 to-transparent pt-12">
-            <h1 className="text-3xl font-black text-white tracking-tight">{product.sku}</h1>
-            <div className="flex items-center gap-2 text-slate-300 text-sm font-medium mt-1">
-                {product.is_component && <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">STX</span>}
-                {product.production_type === 'Imported' && <span className="bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><Globe size={10}/> IMP</span>}
+        {/* Title Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
+            <div className="flex justify-between items-end">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">
+                            {product.category}
+                        </span>
+                        {product.is_component && <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">STX</span>}
+                    </div>
+                    <h1 className="text-3xl font-black text-white tracking-tight leading-none">{product.sku}</h1>
+                </div>
+                {product.production_type === 'Imported' && (
+                    <div className="text-purple-300 flex flex-col items-end">
+                        <Globe size={16} className="mb-1"/>
+                        <span className="text-[9px] font-black uppercase tracking-widest border border-purple-400/50 rounded px-1.5">Import</span>
+                    </div>
+                )}
             </div>
         </div>
       </div>
 
       {/* Content Scrollable */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50">
           
-          {/* Main Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                  <div className="text-slate-400 text-xs font-bold uppercase mb-1 flex items-center gap-1"><DollarSign size={12}/> Τιμή</div>
-                  <div className="text-xl font-black text-slate-900">
+          {/* Main Stats Cards */}
+          <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1"><DollarSign size={10}/> Τιμή Χονδρικής</div>
+                  <div className="text-xl font-black text-slate-800 tracking-tight">
                       {product.selling_price > 0 ? formatCurrency(product.selling_price) : '-'}
                   </div>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                  <div className="text-slate-400 text-xs font-bold uppercase mb-1 flex items-center gap-1"><Weight size={12}/> Βάρος</div>
-                  <div className="text-xl font-black text-slate-900">{product.weight_g}g</div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1"><Weight size={10}/> Βάρος (g)</div>
+                  <div className="text-xl font-black text-slate-800 tracking-tight">{product.weight_g.toFixed(2)}</div>
               </div>
           </div>
 
-          {/* Stock by Location (Master) */}
-          <div className="space-y-3">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                  <MapPin size={16} className="text-emerald-500"/> Απόθεμα (Master)
-              </h3>
-              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                  <div className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0">
-                      <span className="text-sm font-bold text-slate-600">Κεντρική</span>
-                      <span className="text-base font-black text-slate-900">{product.stock_qty}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0">
-                      <span className="text-sm font-bold text-slate-600">Δειγματολόγιο</span>
-                      <span className="text-base font-black text-slate-900">{product.sample_qty}</span>
-                  </div>
-                  {/* Show other locations if any exist in location_stock */}
-                  {product.location_stock && Object.entries(product.location_stock).map(([whId, qty]) => {
-                      if (whId === SYSTEM_IDS.CENTRAL || whId === SYSTEM_IDS.SHOWROOM) return null;
-                      const whName = warehouses.find(w => w.id === whId)?.name || 'Unknown';
-                      return (
-                        <div key={whId} className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0">
-                            <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{whName}</span>
-                            <span className="text-base font-black text-slate-900">{qty}</span>
-                        </div>
-                      );
-                  })}
-              </div>
-          </div>
-
-          {/* Variants List */}
+          {/* Variants */}
           {variants.length > 0 && (
               <div className="space-y-3">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                      <Layers size={16} className="text-blue-500"/> Παραλλαγές ({variants.length})
-                  </h3>
-                  <div className="space-y-2">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Παραλλαγές</h3>
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                       {variants.map((v, idx) => (
-                          <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center shadow-sm">
-                              <div>
-                                  <div className="font-bold text-slate-800 text-sm"><span className="text-slate-400 font-mono mr-1">{product.sku}</span>{v.suffix}</div>
-                                  <div className="text-[10px] text-slate-500">{v.description || 'No description'}</div>
+                          <div 
+                            key={idx} 
+                            onClick={() => { setActiveVariantForBarcode(v); setShowBarcode(true); }}
+                            className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0 active:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-mono font-bold text-xs text-slate-600 border border-slate-200">
+                                      {v.suffix || 'BAS'}
+                                  </div>
+                                  <div>
+                                      <div className="font-bold text-slate-800 text-sm">{v.description || 'Βασικό'}</div>
+                                      <div className="text-[10px] text-slate-400 font-medium">
+                                          Stock: <span className="text-slate-700 font-bold">{v.stock_qty}</span>
+                                          {v.stock_by_size && Object.keys(v.stock_by_size).length > 0 && ` • Sizes: ${Object.keys(v.stock_by_size).join(',')}`}
+                                      </div>
+                                  </div>
                               </div>
                               <div className="text-right">
-                                  <div className="font-black text-slate-900">{v.stock_qty} <span className="text-[10px] font-normal text-slate-400">τεμ</span></div>
-                                  {v.selling_price && v.selling_price > 0 && (
-                                      <div className="text-[10px] text-emerald-600 font-bold">{formatCurrency(v.selling_price)}</div>
-                                  )}
+                                  {v.selling_price && v.selling_price > 0 ? (
+                                      <div className="text-sm font-black text-emerald-600">{formatCurrency(v.selling_price)}</div>
+                                  ) : <span className="text-xs text-slate-300">-</span>}
                               </div>
                           </div>
                       ))}
                   </div>
               </div>
           )}
-          
-          {/* Tech Specs */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 space-y-2">
-              <div className="flex justify-between">
-                  <span>Επιμετάλλωση:</span>
-                  <span className="font-bold text-slate-800">{product.plating_type}</span>
-              </div>
-              <div className="flex justify-between">
-                  <span>Φύλο:</span>
-                  <span className="font-bold text-slate-800">{product.gender}</span>
-              </div>
-              {product.secondary_weight_g ? (
-                  <div className="flex justify-between">
-                      <span>Β' Βάρος:</span>
-                      <span className="font-bold text-slate-800">{product.secondary_weight_g}g</span>
+
+          {/* Stock Locations */}
+          <div className="space-y-3">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Αποθέματα (Master)</h3>
+              <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+                      <div className="bg-slate-100 p-2 rounded-xl text-slate-500"><MapPin size={16}/></div>
+                      <div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase">Κεντρική</div>
+                          <div className="text-lg font-black text-slate-800">{product.stock_qty}</div>
+                      </div>
                   </div>
-              ) : null}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+                      <div className="bg-purple-50 p-2 rounded-xl text-purple-600"><Scan size={16}/></div>
+                      <div>
+                          <div className="text-[10px] font-bold text-purple-400 uppercase">Δειγμ/γιο</div>
+                          <div className="text-lg font-black text-purple-700">{product.sample_qty}</div>
+                      </div>
+                  </div>
+                  {/* Other Locations */}
+                  {product.location_stock && Object.entries(product.location_stock).map(([whId, qty]) => {
+                      if (whId === SYSTEM_IDS.CENTRAL || whId === SYSTEM_IDS.SHOWROOM) return null;
+                      const whName = warehouses.find(w => w.id === whId)?.name || 'Άλλο';
+                      return (
+                        <div key={whId} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+                            <div className="bg-blue-50 p-2 rounded-xl text-blue-600"><MapPin size={16}/></div>
+                            <div className="min-w-0">
+                                <div className="text-[10px] font-bold text-blue-400 uppercase truncate">{whName}</div>
+                                <div className="text-lg font-black text-blue-700">{qty}</div>
+                            </div>
+                        </div>
+                      );
+                  })}
+              </div>
+          </div>
+
+          <div className="bg-slate-100 p-4 rounded-2xl text-xs text-slate-500 space-y-2 border border-slate-200/60">
+              <div className="flex justify-between"><span>Επιμετάλλωση:</span> <span className="font-bold text-slate-700">{product.plating_type}</span></div>
+              <div className="flex justify-between"><span>Φύλο:</span> <span className="font-bold text-slate-700">{product.gender}</span></div>
+              {product.secondary_weight_g ? <div className="flex justify-between"><span>Β' Βάρος:</span> <span className="font-bold text-slate-700">{product.secondary_weight_g}g</span></div> : null}
           </div>
           
-          {/* Spacer for bottom safe area */}
           <div className="h-12"></div>
       </div>
+
+      {/* FULL SCREEN IMAGE MODAL */}
+      {showFullImage && product.image_url && (
+          <div className="fixed inset-0 z-[120] bg-black flex items-center justify-center p-0 animate-in fade-in duration-200" onClick={() => setShowFullImage(false)}>
+              <img src={product.image_url} className="max-w-full max-h-full object-contain" alt="Full" />
+              <button className="absolute top-4 right-4 text-white p-2 bg-white/20 rounded-full"><X size={24}/></button>
+          </div>
+      )}
+
+      {/* DIGITAL LABEL (QR) MODAL */}
+      {showBarcode && (
+          <div className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
+              <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden relative">
+                  <button onClick={() => setShowBarcode(false)} className="absolute top-4 right-4 p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 z-10"><X size={20}/></button>
+                  
+                  <div className="p-8 pb-4 flex flex-col items-center">
+                      <div className="text-center mb-6">
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Digital Label</h3>
+                          <div className="text-2xl font-black text-slate-900">{product.sku}{activeVariantForBarcode?.suffix}</div>
+                          {activeVariantForBarcode && <div className="text-sm font-medium text-emerald-600 mt-1">{activeVariantForBarcode.description}</div>}
+                      </div>
+
+                      {/* Barcode Render */}
+                      <div className="bg-white p-4 border-2 border-slate-900 rounded-xl w-full flex justify-center">
+                          <BarcodeView 
+                              product={product}
+                              variant={activeVariantForBarcode || undefined}
+                              width={70} // Visual Width (mm equivalent)
+                              height={35}
+                              format="standard"
+                          />
+                      </div>
+                      
+                      <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-xs animate-pulse">
+                          <Scan size={14}/> Ready to Scan
+                      </div>
+                  </div>
+
+                  {/* Variant Switcher */}
+                  {variants.length > 0 && (
+                      <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-between">
+                          <button onClick={() => cycleVariant('prev')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronLeft size={20}/></button>
+                          
+                          <div className="text-center">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase">ΠΑΡΑΛΛΑΓΗ</div>
+                              <div className="font-black text-slate-800">{activeVariantForBarcode ? activeVariantForBarcode.suffix : 'MASTER'}</div>
+                          </div>
+
+                          <button onClick={() => cycleVariant('next')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronRight size={20}/></button>
+                      </div>
+                  )}
+              </div>
+              <div className="mt-6">
+                  <button onClick={() => { handleShare(); setShowBarcode(false); }} className="flex items-center gap-2 text-white/80 font-bold bg-white/10 px-6 py-3 rounded-full hover:bg-white/20 transition-all">
+                      <Share2 size={18}/> Κοινοποίηση Ετικέτας
+                  </button>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }
