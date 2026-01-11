@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Product, Order, OrderStatus } from '../../types';
-import { ShoppingCart, Clock, CheckCircle, Package, Truck, Search, Plus } from 'lucide-react';
+import { ShoppingCart, Clock, CheckCircle, Package, Truck, Search, Plus, XCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -9,6 +9,14 @@ import { formatCurrency } from '../../utils/pricingEngine';
 interface Props {
     onNavigate: (page: string) => void;
 }
+
+const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+};
 
 const StatCard = ({ title, value, icon, color }: { title: string, value: string, icon: React.ReactNode, color: string }) => (
     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
@@ -102,7 +110,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                                         order.status === OrderStatus.Ready ? 'bg-emerald-100 text-emerald-600' : 
                                         'bg-amber-100 text-amber-600'
                                     }`}>
-                                        {order.status}
+                                        {STATUS_TRANSLATIONS[order.status] || order.status}
                                     </span>
                                 </div>
                             </div>

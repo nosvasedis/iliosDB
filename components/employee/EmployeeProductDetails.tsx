@@ -19,6 +19,17 @@ const FINISH_COLORS: Record<string, string> = {
     '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
 };
 
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
+    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
+    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
+    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
+    'MV': 'text-purple-500', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
+
 export default function EmployeeProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
     const variants = product.variants || [];
     
@@ -117,8 +128,9 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {variants.length > 0 ? sortedVariants.map(v => {
-                                    const { finish } = getVariantComponents(v.suffix, product.gender);
+                                    const { finish, stone } = getVariantComponents(v.suffix, product.gender);
                                     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+                                    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
                                     
                                     return (
                                     <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
@@ -127,7 +139,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                                 <span className={`px-2 py-1 rounded-lg font-mono font-black text-sm border ${badgeColor} min-w-[3rem] text-center`}>
                                                     {v.suffix || 'BAS'}
                                                 </span>
-                                                <span className="text-slate-700 font-bold text-sm">{v.description}</span>
+                                                <span className={`font-bold text-sm ${stoneColor}`}>{v.description}</span>
                                             </div>
                                         </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
