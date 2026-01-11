@@ -5,10 +5,12 @@ import { api } from '../../lib/supabase';
 import { Collection, Product } from '../../types';
 import { FolderKanban, Plus, Trash2, Search, X, ChevronRight, Check } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import MobileProductDetails from './MobileProductDetails';
 
 export default function MobileCollections() {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 
@@ -17,6 +19,7 @@ export default function MobileCollections() {
     const [newCollectionName, setNewCollectionName] = useState('');
     const [search, setSearch] = useState('');
     const [showFullDesc, setShowFullDesc] = useState(false);
+    const [viewProduct, setViewProduct] = useState<Product | null>(null);
 
     const handleCreate = async () => {
         if (!newCollectionName.trim()) return;
@@ -127,22 +130,37 @@ export default function MobileCollections() {
                     <div className="space-y-2">
                         <h3 className="text-xs font-bold text-slate-400 uppercase ml-1">Περιεχομενα ({collectionProducts.length})</h3>
                         {collectionProducts.map(p => (
-                            <div key={p.sku} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden">
-                                        {p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
-                                        <div className="text-[10px] text-slate-500">{p.category}</div>
-                                    </div>
+                            <div 
+                                key={p.sku} 
+                                onClick={() => setViewProduct(p)}
+                                className="relative bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 active:scale-[0.98] transition-transform"
+                            >
+                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0">
+                                    {p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}
                                 </div>
-                                <button onClick={() => toggleProduct(p.sku)} className="p-2 text-slate-300 hover:text-red-500"><X size={18}/></button>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
+                                    <div className="text-[10px] text-slate-500">{p.category}</div>
+                                </div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); toggleProduct(p.sku); }} 
+                                    className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 bg-white/80 rounded-full shadow-sm z-10"
+                                >
+                                    <X size={14}/>
+                                </button>
                             </div>
                         ))}
                         {collectionProducts.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">Η συλλογή είναι κενή.</div>}
                     </div>
                 </div>
+
+                {viewProduct && warehouses && (
+                    <MobileProductDetails 
+                        product={viewProduct} 
+                        onClose={() => setViewProduct(null)}
+                        warehouses={warehouses}
+                    />
+                )}
             </div>
         );
     }

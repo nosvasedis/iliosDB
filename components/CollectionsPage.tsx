@@ -7,6 +7,7 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';
+import ProductDetails from './ProductDetails';
 
 interface Props {
     products?: Product[];
@@ -17,6 +18,9 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: collections, isLoading: loadingCollections, isError, error } = useQuery<Collection[]>({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
 
     const [newCollectionName, setNewCollectionName] = useState('');
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
@@ -31,6 +35,9 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     // Bulk Add State
     const [bulkSkus, setBulkSkus] = useState('');
     const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+    // Product View State
+    const [viewProduct, setViewProduct] = useState<Product | null>(null);
 
     // Sync local desc state with selected collection when opening modal or selecting
     useEffect(() => {
@@ -404,22 +411,26 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                     {productsInSelectedCollection.length > 0 ? (
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                             {productsInSelectedCollection.map(p => (
-                                                <div key={p.sku} className="relative group bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:shadow-lg transition-all text-center hover:-translate-y-1">
+                                                <div 
+                                                    key={p.sku} 
+                                                    onClick={() => setViewProduct(p)}
+                                                    className="relative group bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:shadow-lg transition-all text-center hover:-translate-y-1 cursor-pointer"
+                                                >
+                                                    {/* Remove Button - Top Right - Smaller */}
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleProduct(p.sku, selectedCollection.id); }} 
+                                                        className="absolute top-2 right-2 z-10 bg-white/90 text-slate-400 hover:text-red-500 p-1 rounded-full shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
+                                                        title="Αφαίρεση"
+                                                    >
+                                                        <X size={14}/>
+                                                    </button>
+
                                                     <div className="aspect-square bg-slate-50 rounded-xl mb-3 overflow-hidden border border-slate-50 relative">
                                                         {p.image_url ? (
-                                                            <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/>
+                                                            <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">No Image</div>
                                                         )}
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleToggleProduct(p.sku, selectedCollection.id); }} 
-                                                                className="bg-white text-red-500 p-2 rounded-full shadow-lg hover:bg-red-50 transition-colors"
-                                                                title="Αφαίρεση"
-                                                            >
-                                                                <X size={16}/>
-                                                            </button>
-                                                        </div>
                                                     </div>
                                                     <p className="text-xs font-black text-slate-800 truncate">{p.sku}</p>
                                                     <p className="text-[10px] text-slate-500 truncate">{p.category}</p>
@@ -559,6 +570,20 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* PRODUCT DETAILS MODAL */}
+            {viewProduct && settings && materials && molds && (
+                <ProductDetails 
+                    product={viewProduct} 
+                    allProducts={allProducts || []} 
+                    allMaterials={materials} 
+                    onClose={() => setViewProduct(null)} 
+                    setPrintItems={() => {}} 
+                    settings={settings}
+                    collections={collections || []}
+                    allMolds={molds}
+                />
             )}
 
         </div>
