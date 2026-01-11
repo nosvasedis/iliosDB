@@ -14,6 +14,8 @@ import MobileAiStudio from './components/mobile/MobileAiStudio';
 import MobileSettings from './components/mobile/MobileSettings';
 import MobilePricing from './components/mobile/MobilePricing';
 import MobileBatchPrint from './components/mobile/MobileBatchPrint';
+import MobileCollections from './components/mobile/MobileCollections';
+import MobilePriceList from './components/mobile/MobilePriceList';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
@@ -51,6 +53,8 @@ export default function MobileApp() {
     case 'customers': content = <MobileCustomers />; break;
     case 'pricing': content = <MobilePricing />; break;
     case 'batch-print': content = <MobileBatchPrint />; break;
+    case 'collections': content = <MobileCollections />; break;
+    case 'pricelist': content = <MobilePriceList />; break;
     
     default: content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />;
   }

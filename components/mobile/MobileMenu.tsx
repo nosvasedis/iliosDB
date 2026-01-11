@@ -9,7 +9,9 @@ import {
   Layers, 
   DollarSign, 
   ScanBarcode, 
-  Sparkles 
+  Sparkles,
+  FolderKanban,
+  ScrollText
 } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -30,6 +32,8 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   const menuItems = [
     { id: 'ai-studio', label: 'AI Studio', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50' },
     { id: 'registry', label: 'Μητρώο Κωδικών', icon: Database, color: 'text-blue-500', bg: 'bg-blue-50' },
+    { id: 'collections', label: 'Συλλογές', icon: FolderKanban, color: 'text-pink-500', bg: 'bg-pink-50' },
+    { id: 'pricelist', label: 'Τιμοκατάλογος', icon: ScrollText, color: 'text-teal-500', bg: 'bg-teal-50' },
     { id: 'customers', label: 'Πελάτες & Προμ.', icon: Users, color: 'text-orange-500', bg: 'bg-orange-50' },
     { id: 'resources', label: 'Υλικά & Λάστιχα', icon: Layers, color: 'text-indigo-500', bg: 'bg-indigo-50' },
     { id: 'pricing', label: 'Τιμολόγηση', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-50' },
