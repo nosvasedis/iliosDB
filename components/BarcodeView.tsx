@@ -54,16 +54,13 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     useEffect(() => {
         if (finalSku) {
-            // QR codes support Greek characters, but we transliterate to ensure compatibility 
-            // with scanners in "Keyboard Emulation" mode set to US/International layout.
             const valueToEncode = transliterateForBarcode(finalSku);
             
             // Generate QR code with high error correction (Level H)
-            // This ensures it remains scannable even if part of the tiny label is damaged.
             QRCode.toDataURL(valueToEncode, {
                 errorCorrectionLevel: 'H',
                 margin: 0,
-                scale: 10, // High res for sharp print
+                scale: 12, // Even higher scale for crispness
                 color: {
                     dark: '#000000',
                     light: '#ffffff'
@@ -79,10 +76,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [finalSku]);
 
     // FONT CALCULATIONS (in mm)
-    const skuFontSize = Math.min(activeHeight * 0.15, activeWidth * 0.14, 4.2);
-    const detailsFontSize = Math.min(activeHeight * 0.12, activeWidth * 0.12, 3.2);
-    const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.8);
-    const stoneFontSize = Math.min(activeHeight * 0.10, activeWidth * 0.13, 2.4);
+    const skuFontSize = Math.min(activeHeight * 0.15, activeWidth * 0.14, 3.8);
+    const detailsFontSize = Math.min(activeHeight * 0.12, activeWidth * 0.12, 3.0);
+    const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
+    const stoneFontSize = Math.min(activeHeight * 0.10, activeWidth * 0.13, 2.2);
     
     const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
     const codifiedPrice = wholesalePrice > 0 ? codifyPrice(wholesalePrice) : '';
@@ -105,14 +102,14 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     if (format === 'simple') {
         return (
-            <div className="label-container" style={{ ...containerStyle, padding: '1mm 1.5mm' }}>
-                <div className="w-full text-center leading-none mb-1">
+            <div className="label-container" style={{ ...containerStyle, padding: '1mm' }}>
+                <div className="w-full text-center leading-none mb-0.5">
                     <span className="font-black block uppercase" style={{ fontSize: `${skuFontSize}mm` }}>
                         {finalSku}
                     </span>
                 </div>
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
-                    {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block' }} alt="QR" />}
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0">
+                    {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
                 </div>
             </div>
         );
@@ -127,22 +124,15 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 </div>
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable Area Wrapper (~3.7cm total width) */}
                 <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
-                    
-                    {/* Part 1 (Left of content): QR Code - Nice and Small but High Contrast */}
                     <div style={{ width: '30%', minWidth: 0, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1mm' }}>
-                        {qrDataUrl && <img src={qrDataUrl} style={{ height: '7mm', width: '7mm', display: 'block' }} alt="QR" />}
+                        {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block' }} alt="QR" />}
                     </div>
-
-                    {/* Part 2 (Middle of content): SKU Header */}
                     <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
                         <span className="font-black block uppercase leading-none truncate w-full text-center" style={{ fontSize: '2.4mm' }}>
                             {finalSku}
                         </span>
                     </div>
-
-                    {/* Part 3 (Right of content): Codified Price & Stone */}
                     <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
                         <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.6mm' }}>
                             {codifiedPrice}
@@ -153,45 +143,42 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                             </span>
                         )}
                     </div>
-
                 </div>
             </div>
         );
     }
 
-    // Standard Wholesale Format
+    // Standard Wholesale Format (Optimized for 15mm height)
     return (
-        <div className="label-container" style={{ ...containerStyle, padding: '1.2mm 1.5mm' }}>
-            {/* SKU HEADER */}
-            <div className="w-full text-center leading-none mb-1">
-                <span className="font-black block uppercase tracking-tight text-black" style={{ fontSize: `${skuFontSize}mm` }}>
+        <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
+            {/* SKU HEADER - Minimal Margin */}
+            <div className="w-full text-center leading-none">
+                <span className="font-black block uppercase tracking-tighter text-black" style={{ fontSize: `${skuFontSize}mm` }}>
                     {finalSku}
                 </span>
             </div>
 
-            {/* QR CODE CENTER - Square and Compact */}
-            <div className="flex-1 w-full flex items-center justify-center overflow-hidden py-1">
-                {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block' }} alt="QR" />}
+            {/* QR CODE CENTER - Maximize flexible area by using min-h-0 */}
+            <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
+                {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }} alt="QR" />}
             </div>
 
-            {/* BRAND & STONE */}
-            <div className="w-full text-center leading-tight mt-1">
+            {/* BRAND & STONE - Condensed vertical space */}
+            <div className="w-full text-center leading-[1.1] mb-0.5">
                 {stoneName && (
-                    <span className="font-bold text-black block truncate leading-none mb-0.5" style={{ fontSize: `${stoneFontSize}mm` }}>
+                    <span className="font-bold text-black block truncate leading-none" style={{ fontSize: `${stoneFontSize}mm` }}>
                         {stoneName}
                     </span>
                 )}
-                <span className="font-black tracking-[0.15em] text-black block uppercase leading-none" style={{ fontSize: `${brandFontSize}mm` }}>
+                <span className="font-black tracking-[0.1em] text-black block uppercase leading-none" style={{ fontSize: `${brandFontSize}mm`, marginTop: '0.2mm' }}>
                     ILIOS
                 </span>
             </div>
 
-            {/* PRICE & HALLMARK FOOTER */}
-            <div className="w-full flex justify-between items-end border-t border-black pt-1 leading-none mt-1">
+            {/* PRICE & HALLMARK FOOTER - Border integrated with price */}
+            <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
                  <span className="font-black text-black" style={{ fontSize: `${detailsFontSize}mm` }}>{priceDisplay}</span>
-                 <div className="flex items-center">
-                    <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
-                 </div>
+                 <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
             </div>
         </div>
     );
