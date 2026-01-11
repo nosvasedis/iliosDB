@@ -1,18 +1,19 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Product, Warehouse } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save } from 'lucide-react';
+import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save, ArrowDown, ArrowUp, History, Minus, CheckCircle, ScanBarcode } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, SYSTEM_IDS } from '../../lib/supabase';
+import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
 
 interface Props {
   products: Product[];
   onProductSelect: (p: Product) => void;
 }
 
+// ... (Previous subcomponents)
 interface MobileInventoryItemProps {
     product: Product;
     onClick: () => void;
@@ -67,6 +68,14 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const [search, setSearch] = useState('');
     const [showScanner, setShowScanner] = useState(false);
     
+    // Quick Manager State
+    const [showQuickManager, setShowQuickManager] = useState(false);
+    const [qmSku, setQmSku] = useState('');
+    const [qmQty, setQmQty] = useState(1);
+    const [qmWarehouse, setQmWarehouse] = useState(SYSTEM_IDS.CENTRAL);
+    const [qmMode, setQmMode] = useState<'add' | 'remove'>('add');
+    const [qmHistory, setQmHistory] = useState<{sku: string, qty: number, type: 'add'|'remove', time: Date}[]>([]);
+
     // Warehouse State
     const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
     const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
@@ -110,46 +119,102 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
         if (match) {
-            onProductSelect(match.product);
-            setShowScanner(false);
-            showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
+            if (showQuickManager) {
+                // If in Quick Manager, populate the field
+                setQmSku(match.product.sku + (match.variant?.suffix || ''));
+                setShowScanner(false);
+                showToast("Κωδικός αναγνωρίστηκε.", "success");
+            } else {
+                // Otherwise navigate to details
+                onProductSelect(match.product);
+                setShowScanner(false);
+                showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
+            }
         } else {
             showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
         }
     };
 
-    // Warehouse Logic
-    const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
-    const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
-    
-    const handleSaveWarehouse = async () => { 
-        if (!warehouseForm.name) return; 
-        try { 
-            if (warehouseForm.id) { 
-                await api.updateWarehouse(warehouseForm.id, warehouseForm); 
-                showToast("Ο χώρος ενημερώθηκε.", "success"); 
-            } else { 
-                await api.saveWarehouse(warehouseForm); 
-                showToast("Ο χώρος δημιουργήθηκε.", "success"); 
-            } 
-            queryClient.invalidateQueries({ queryKey: ['warehouses'] }); 
-            setIsEditingWarehouse(false); 
-        } catch (err) { 
-            showToast("Σφάλμα αποθήκευσης.", "error"); 
-        } 
+    const executeQuickAction = async () => {
+        if (!qmSku) { showToast("Εισάγετε SKU.", "error"); return; }
+        const match = findProductByScannedCode(qmSku, products);
+        if (!match) { showToast("Ο κωδικός δεν βρέθηκε.", "error"); return; }
+        
+        const { product, variant } = match;
+        const targetSku = product.sku;
+        const targetSuffix = variant?.suffix || null;
+        const qty = qmMode === 'add' ? qmQty : -qmQty;
+        const warehouseName = warehouses?.find(w => w.id === qmWarehouse)?.name || 'Unknown';
+
+        try {
+            // Determine update logic (Central/Showroom vs Custom)
+            const isCentral = qmWarehouse === SYSTEM_IDS.CENTRAL;
+            const isShowroom = qmWarehouse === SYSTEM_IDS.SHOWROOM;
+
+            if (variant) {
+                // Variant Logic
+                if (isCentral) {
+                    await supabase.from('product_variants').update({ stock_qty: Math.max(0, (variant.stock_qty || 0) + qty) }).match({ product_sku: targetSku, suffix: targetSuffix });
+                } else {
+                    // Custom Warehouse or Showroom (variants usually don't have distinct showroom col, mapped to location_stock)
+                    const currentLocStock = variant.location_stock?.[qmWarehouse] || 0;
+                    await supabase.from('product_stock').upsert({
+                        product_sku: targetSku,
+                        variant_suffix: targetSuffix,
+                        warehouse_id: qmWarehouse,
+                        quantity: Math.max(0, currentLocStock + qty)
+                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                }
+            } else {
+                // Master Product Logic
+                if (isCentral) {
+                    await supabase.from('products').update({ stock_qty: Math.max(0, (product.stock_qty || 0) + qty) }).eq('sku', targetSku);
+                } else if (isShowroom) {
+                    await supabase.from('products').update({ sample_qty: Math.max(0, (product.sample_qty || 0) + qty) }).eq('sku', targetSku);
+                } else {
+                    const currentLocStock = product.location_stock?.[qmWarehouse] || 0;
+                    await supabase.from('product_stock').upsert({
+                        product_sku: targetSku,
+                        variant_suffix: null,
+                        warehouse_id: qmWarehouse,
+                        quantity: Math.max(0, currentLocStock + qty)
+                    }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                }
+            }
+
+            await recordStockMovement(targetSku, qty, `Quick Mobile: ${warehouseName}`, targetSuffix || undefined);
+            
+            // UI Updates
+            setQmHistory(prev => [{ sku: qmSku, qty: qmQty, type: qmMode, time: new Date() }, ...prev].slice(0, 5));
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            showToast(`${qmMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${qmQty} τεμ.`, "success");
+            
+            // Reset for next scan
+            setQmSku('');
+            setQmQty(1);
+        } catch (e) {
+            console.error(e);
+            showToast("Σφάλμα ενημέρωσης.", "error");
+        }
     };
 
-    const handleDeleteWarehouse = async (id: string) => { 
-        if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν διαγράφεται.", "error"); return; } 
-        if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι;', isDestructive: true, confirmText: 'Διαγραφή' })) { 
-            await api.deleteWarehouse(id); 
-            queryClient.invalidateQueries({ queryKey: ['warehouses'] }); 
-        } 
-    };
+    // ... (Warehouse CRUD logic remains same)
+    const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
+    const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
+    const handleSaveWarehouse = async () => { if (!warehouseForm.name) return; try { if (warehouseForm.id) { await api.updateWarehouse(warehouseForm.id, warehouseForm); showToast("Ο χώρος ενημερώθηκε.", "success"); } else { await api.saveWarehouse(warehouseForm); showToast("Ο χώρος δημιουργήθηκε.", "success"); } queryClient.invalidateQueries({ queryKey: ['warehouses'] }); setIsEditingWarehouse(false); } catch (err) { showToast("Σφάλμα αποθήκευσης.", "error"); } };
+    const handleDeleteWarehouse = async (id: string) => { if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν διαγράφεται.", "error"); return; } if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι;', isDestructive: true, confirmText: 'Διαγραφή' })) { await api.deleteWarehouse(id); queryClient.invalidateQueries({ queryKey: ['warehouses'] }); } };
 
     return (
         <div className="p-4 h-full flex flex-col">
-            <h1 className="text-2xl font-black text-slate-900 mb-4">Αποθήκη</h1>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-black text-slate-900">Αποθήκη</h1>
+                <button 
+                    onClick={() => setShowQuickManager(true)}
+                    className="bg-[#060b00] text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+                >
+                    <ArrowDown size={16}/> +/- Quick Stock
+                </button>
+            </div>
             
             {/* Tabs */}
             <div className="flex p-1 bg-slate-100 rounded-xl mb-4 shrink-0">
@@ -200,6 +265,86 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             )}
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+
+            {/* QUICK STOCK MANAGER MODAL */}
+            {showQuickManager && (
+                <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-end p-4 animate-in slide-in-from-bottom-10">
+                    <div className="bg-white w-full rounded-3xl p-6 shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                            <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><ScanBarcode className="text-emerald-600"/> Quick Stock</h3>
+                            <button onClick={() => setShowQuickManager(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20}/></button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη</label>
+                                <select 
+                                    value={qmWarehouse} 
+                                    onChange={e => setQmWarehouse(e.target.value)} 
+                                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                                >
+                                    {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <div className="flex-1">
+                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">SKU / Κωδικός</label>
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            value={qmSku} 
+                                            onChange={e => setQmSku(e.target.value.toUpperCase())} 
+                                            className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-lg outline-none uppercase"
+                                            placeholder="SCAN..."
+                                        />
+                                        <button onClick={() => setShowScanner(true)} className="p-3.5 bg-slate-900 text-white rounded-xl shadow-md active:scale-95"><Camera size={24}/></button>
+                                    </div>
+                                </div>
+                                <div className="w-24">
+                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label>
+                                    <input 
+                                        type="number" 
+                                        value={qmQty} 
+                                        onChange={e => setQmQty(parseInt(e.target.value) || 1)} 
+                                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-lg text-center outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button 
+                                    onClick={() => { setQmMode('add'); setTimeout(executeQuickAction, 50); }}
+                                    className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
+                                >
+                                    <Plus size={24}/> Προσθήκη
+                                </button>
+                                <button 
+                                    onClick={() => { setQmMode('remove'); setTimeout(executeQuickAction, 50); }}
+                                    className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-100 active:scale-95 transition-transform"
+                                >
+                                    <Minus size={24}/> Αφαίρεση
+                                </button>
+                            </div>
+                        </div>
+
+                        {qmHistory.length > 0 && (
+                            <div className="pt-4 border-t border-slate-100">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Ιστορικό Συνεδρίας</h4>
+                                <div className="space-y-2">
+                                    {qmHistory.map((h, i) => (
+                                        <div key={i} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg">
+                                            <span className="font-mono font-bold text-slate-700">{h.sku}</span>
+                                            <span className={`font-black flex items-center gap-1 ${h.type === 'add' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {h.type === 'add' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>} {h.qty}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {isEditingWarehouse && (
                 <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
