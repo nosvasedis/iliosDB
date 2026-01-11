@@ -7,6 +7,7 @@ import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase'
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getSizingInfo, isSizable } from '../utils/sizing';
+import { findProductByScannedCode } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -355,33 +356,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   };
 
   const handleScanItem = (code: string) => {
-      let product = products.find(p => p.sku === code);
-      let variant = undefined;
+      // Use utility that handles Greek <-> Latin transliteration
+      const match = findProductByScannedCode(code, products);
 
-      if (product) {
-          if (product.variants && product.variants.length > 0) {
-              showToast(`Το προϊόν έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
-              return;
-          }
-      } else {
-          const potentialProducts = products
-            .filter(p => code.startsWith(p.sku))
-            .sort((a, b) => b.sku.length - a.sku.length);
-          
-          if (potentialProducts.length > 0) {
-              product = potentialProducts[0];
-              const suffix = code.replace(product.sku, '');
-              variant = product.variants?.find(v => v.suffix === suffix);
-              
-              if (!variant && product.variants && product.variants.length > 0) {
-                   showToast(`Η παραλλαγή '${suffix}' δεν βρέθηκε για το ${product.sku}`, 'error');
-                   return;
-              }
-          }
+      if (!match) {
+          showToast(`Ο κωδικός ${code} δεν βρέθηκε`, 'error');
+          return;
       }
 
-      if (!product) {
-          showToast(`Ο κωδικός ${code} δεν βρέθηκε`, 'error');
+      const { product, variant } = match;
+
+      // If product has variants, require a variant match (unless it's a simple product)
+      if (!variant && product.variants && product.variants.length > 0) {
+          showToast(`Το προϊόν ${product.sku} έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
           return;
       }
 
