@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, Collection } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check } from 'lucide-react';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Trash2, Info, Zap } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
+import { useUI } from './UIProvider';
 
 interface Props {
     products: Product[];
@@ -23,14 +24,19 @@ const genderLabels: Record<string, string> = {
 };
 
 export default function PriceListPage({ products, collections, onPrint }: Props) {
+    const { showToast } = useUI();
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [selectedCollectionId, setSelectedCollectionId] = useState<number | 'none'>('none');
     const [searchTerm, setSearchTerm] = useState('');
 
+    // MANUAL OVERRIDES STATE
+    const [manualSkus, setManualSkus] = useState<string[]>([]);
+    const [excludedSkus, setExcludedSkus] = useState<Set<string>>(new Set());
+    const [manualInput, setManualInput] = useState('');
+
     // Extract all unique categories
     const allCategories = useMemo(() => {
-        // Exclude STX/Components from the category list options
         const cats = new Set(products.filter(p => !p.is_component).map(p => p.category).filter(Boolean));
         return Array.from(cats).sort();
     }, [products]);
@@ -62,87 +68,128 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         }
     };
 
+    const handleAddManualSku = () => {
+        if (!manualInput.trim()) return;
+        const upper = manualInput.trim().toUpperCase();
+        
+        // Range expansion support
+        const rangeRegex = /^([A-Z-]+)(\d+)-([A-Z-]+)(\d+)$/i;
+        const match = upper.match(rangeRegex);
+
+        if (match) {
+            const [, prefix1, num1Str, prefix2, num2Str] = match;
+            if (prefix1 === prefix2) {
+                const start = parseInt(num1Str, 10);
+                const end = parseInt(num2Str, 10);
+                if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 500) {
+                    const expanded: string[] = [];
+                    const padding = num1Str.length;
+                    for (let i = start; i <= end; i++) {
+                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}`);
+                    }
+                    setManualSkus(prev => Array.from(new Set([...prev, ...expanded])));
+                    setManualInput('');
+                    showToast(`Προστέθηκαν ${expanded.length} κωδικοί.`, 'success');
+                    return;
+                }
+            }
+        }
+
+        setManualSkus(prev => Array.from(new Set([...prev, upper])));
+        setManualInput('');
+    };
+
+    const toggleExclusion = (sku: string) => {
+        setExcludedSkus(prev => {
+            const next = new Set(prev);
+            if (next.has(sku)) next.delete(sku);
+            else next.add(sku);
+            return next;
+        });
+    };
+
     const filteredItems = useMemo(() => {
-        // Map to store aggregated data: SKU -> { category, variantPrices }
         const productMap = new Map<string, { 
             skuBase: string, 
             category: string, 
-            variantMap: Record<string, number> 
+            variantMap: Record<string, number>,
+            isManual: boolean
         }>();
         
         products.forEach(p => {
-            if (p.is_component) return; // Skip STX/Components for pricelist usually
+            if (p.is_component) return;
             
-            // PRIORITY FILTER: Collection
-            if (selectedCollectionId !== 'none') {
-                if (!p.collections?.includes(selectedCollectionId)) return;
-                // If collection is active, we IGNORE gender/category filters to show everything in collection
-            } else {
-                // STANDARD FILTERS
-                // 1. Filter by Gender
-                if (!selectedGenders.includes(p.gender)) return;
-                // 2. Filter by Category
-                if (!selectedCategories.includes(p.category)) return;
-            }
+            const isManuallyInList = manualSkus.includes(p.sku);
+            const isExcluded = excludedSkus.has(p.sku);
 
-            // 3. Search Filter (always active)
-            if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) return;
+            let shouldInclude = false;
 
-            const variantMap: Record<string, number> = {};
-            let hasValidPrice = false;
-
-            // Collect all variants with prices
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    const price = v.selling_price || p.selling_price || 0;
-                    if (price > 0) {
-                        variantMap[v.suffix] = price;
-                        hasValidPrice = true;
-                    }
-                });
-            } else {
-                // If no variants, check base price
-                const price = p.selling_price || 0;
-                if (price > 0) {
-                    variantMap[''] = price; // Empty suffix for base
-                    hasValidPrice = true;
+            if (isManuallyInList) {
+                shouldInclude = true;
+            } else if (!isExcluded) {
+                if (selectedCollectionId !== 'none') {
+                    shouldInclude = p.collections?.includes(selectedCollectionId) || false;
+                } else {
+                    shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category);
                 }
             }
 
-            if (hasValidPrice) {
-                productMap.set(p.sku, {
-                    skuBase: p.sku,
-                    category: p.category,
-                    variantMap
-                });
+            if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) {
+                shouldInclude = false;
+            }
+
+            if (shouldInclude) {
+                const variantMap: Record<string, number> = {};
+                let hasValidPrice = false;
+
+                if (p.variants && p.variants.length > 0) {
+                    p.variants.forEach(v => {
+                        const price = v.selling_price || p.selling_price || 0;
+                        if (price > 0) {
+                            variantMap[v.suffix] = price;
+                            hasValidPrice = true;
+                        }
+                    });
+                } else {
+                    const price = p.selling_price || 0;
+                    if (price > 0) {
+                        variantMap[''] = price;
+                        hasValidPrice = true;
+                    }
+                }
+
+                if (hasValidPrice) {
+                    productMap.set(p.sku, {
+                        skuBase: p.sku,
+                        category: p.category,
+                        variantMap,
+                        isManual: isManuallyInList
+                    });
+                }
             }
         });
 
-        // Convert map to final array structure
-        const items = Array.from(productMap.values()).map(item => {
-            // Invert variantMap to group by price: { 10: ['P', 'X'], 15: ['D'] }
+        return Array.from(productMap.values()).map(item => {
             const priceToSuffixes: Record<number, string[]> = {};
-            
             Object.entries(item.variantMap).forEach(([suffix, price]) => {
                 if (!priceToSuffixes[price]) priceToSuffixes[price] = [];
                 priceToSuffixes[price].push(suffix);
             });
 
-            // Convert to array of price groups sorted by price
             const priceGroups = Object.entries(priceToSuffixes).map(([priceStr, suffixes]) => ({
                 price: parseFloat(priceStr),
-                suffixes: suffixes.sort() // Sort suffixes alphabetically
+                suffixes: suffixes.sort()
             })).sort((a, b) => a.price - b.price);
 
             return {
                 skuBase: item.skuBase,
                 category: item.category,
+                isManual: item.isManual,
                 priceGroups
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-        return items;
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionId]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionId, manualSkus, excludedSkus]);
 
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
@@ -154,27 +201,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             title = `${collectionName} - ${dateStr}`;
             subtitle = `Συλλογή • ` + subtitle;
         } else {
-            // Standard Logic
-            let genderStr = '';
-            if (selectedGenders.length !== 3) {
-                genderStr = selectedGenders.map(g => genderLabels[g]).join(' & ');
-            }
-
-            let catStr = '';
-            if (selectedCategories.length === allCategories.length) {
-                catStr = 'Πλήρης Κατάλογος';
-            } else if (selectedCategories.length <= 4) {
-                catStr = selectedCategories.join(', ');
-            } else {
-                catStr = 'Επιλεγμένα Είδη';
-            }
-
-            const suffix = genderStr ? ` (${genderStr})` : '';
-            title = `${catStr}${suffix} - ${dateStr}`;
-            
-            if (selectedCategories.length > 4 && selectedCategories.length < allCategories.length) {
-                 subtitle = `Κατηγορίες: ${selectedCategories.length} επιλεγμένες • ` + subtitle;
-            }
+            let catStr = selectedCategories.length === allCategories.length ? 'Πλήρης Κατάλογος' : 'Επιλεγμένα Είδη';
+            title = `${catStr} - ${dateStr}`;
         }
         
         onPrint({
@@ -195,50 +223,82 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         </div>
                         Τιμοκατάλογος
                     </h1>
-                    <p className="text-slate-500 mt-2 ml-14">Δημιουργία και εκτύπωση λίστας τιμών χονδρικής (Συμπτυγμένη).</p>
+                    <p className="text-slate-500 mt-2 ml-14">Διαχειριστείτε τους κωδικούς που θα εμφανίζονται στην εκτύπωση.</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 {/* FILTERS PANEL */}
-                <div className="lg:col-span-4 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-full">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
-                        <div className="flex items-center gap-2 font-bold text-slate-800 text-lg">
-                            <Filter size={20} className="text-indigo-600" /> Φίλτρα
+                <div className="lg:col-span-4 flex flex-col gap-4 min-h-0">
+                    
+                    {/* Manual Override Section */}
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                            <Zap size={16} className="text-amber-500"/> Χειροκίνητη Προσθήκη
+                        </h3>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={manualInput} 
+                                onChange={e => setManualInput(e.target.value)} 
+                                onKeyDown={e => e.key === 'Enter' && handleAddManualSku()}
+                                placeholder="SKU ή Εύρος (π.χ. DA100-DA110)" 
+                                className="flex-1 p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
+                            />
+                            <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors">
+                                <Plus size={20}/>
+                            </button>
                         </div>
+                        
+                        {(manualSkus.length > 0 || excludedSkus.size > 0) && (
+                            <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                                {manualSkus.length > 0 && (
+                                    <button onClick={() => setManualSkus([])} className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-100">
+                                        Καθαρισμός Added ({manualSkus.length}) <X size={10}/>
+                                    </button>
+                                )}
+                                {excludedSkus.size > 0 && (
+                                    <button onClick={() => setExcludedSkus(new Set())} className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-rose-100">
+                                        Καθαρισμός Excluded ({excludedSkus.size}) <X size={10}/>
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    <div className={`flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar transition-opacity duration-300 ${selectedCollectionId !== 'none' ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
-                        
-                        {/* Gender Section */}
-                        <div className="space-y-3">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Φύλο</label>
-                            <div className="flex gap-2">
-                                {genderOptions.map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => toggleGender(opt.value)}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                                    >
-                                        {selectedGenders.includes(opt.value) ? <CheckSquare size={16}/> : <Square size={16}/>}
-                                        {opt.label}
-                                    </button>
-                                ))}
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex-1 flex flex-col overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-white">
+                            <div className="flex items-center gap-2 font-bold text-slate-800 text-lg">
+                                <Filter size={20} className="text-indigo-600" /> Φίλτρα
                             </div>
                         </div>
 
-                        {/* Category Section */}
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Κατηγορίες</label>
-                                <button onClick={toggleAllCategories} className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors">
-                                    {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
-                                </button>
+                        <div className={`flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar transition-opacity duration-300 ${selectedCollectionId !== 'none' ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Φύλο</label>
+                                <div className="flex gap-2">
+                                    {genderOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => toggleGender(opt.value)}
+                                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                        >
+                                            {selectedGenders.includes(opt.value) ? <CheckSquare size={14}/> : <Square size={14}/>}
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            
-                            <div className="space-y-1.5">
-                                {allCategories.length > 0 ? (
-                                    allCategories.map(cat => (
+
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Κατηγορίες</label>
+                                    <button onClick={toggleAllCategories} className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors">
+                                        {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
+                                    </button>
+                                </div>
+                                <div className="space-y-1.5">
+                                    {allCategories.map(cat => (
                                         <button
                                             key={cat}
                                             onClick={() => toggleCategory(cat)}
@@ -249,42 +309,36 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             </div>
                                             {cat}
                                         </button>
-                                    ))
-                                ) : (
-                                    <div className="text-xs text-slate-400 p-2 italic">Δεν βρέθηκαν κατηγορίες.</div>
-                                )}
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Footer Actions */}
-                    <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-5">
-                        {/* Search */}
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                            <input 
-                                type="text" 
-                                placeholder="Αναζήτηση κωδικού..." 
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none shadow-sm"
-                            />
-                        </div>
-
-                        {/* Collection Override - Secondary */}
-                        <div className="pt-2 border-t border-slate-200/60">
-                            <div className="flex items-center gap-2 mb-2 opacity-60 hover:opacity-100 transition-opacity">
-                                <FolderKanban size={14} className="text-slate-500"/>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Προβολή Συλλογής (Override)</span>
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <input 
+                                    type="text" 
+                                    placeholder="Αναζήτηση κωδικού..." 
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                />
                             </div>
-                            <select 
-                                value={selectedCollectionId} 
-                                onChange={(e) => setSelectedCollectionId(e.target.value === 'none' ? 'none' : Number(e.target.value))}
-                                className={`w-full p-2.5 rounded-lg border outline-none font-medium text-xs transition-all cursor-pointer ${selectedCollectionId !== 'none' ? 'bg-indigo-50 border-indigo-300 text-indigo-800 ring-2 ring-indigo-200' : 'bg-white border-slate-200 text-slate-500'}`}
-                            >
-                                <option value="none">-- Καμία --</option>
-                                {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <div>
+                                <div className="flex items-center gap-2 mb-2 opacity-60">
+                                    <FolderKanban size={14} className="text-slate-500"/>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Προβολή Συλλογής (Override)</span>
+                                </div>
+                                <select 
+                                    value={selectedCollectionId} 
+                                    onChange={(e) => setSelectedCollectionId(e.target.value === 'none' ? 'none' : Number(e.target.value))}
+                                    className={`w-full p-2.5 rounded-lg border outline-none font-medium text-xs transition-all cursor-pointer ${selectedCollectionId !== 'none' ? 'bg-indigo-50 border-indigo-300 text-indigo-800 ring-2 ring-indigo-200' : 'bg-white border-slate-200 text-slate-500'}`}
+                                >
+                                    <option value="none">-- Καμία --</option>
+                                    {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -293,7 +347,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-full">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                         <h2 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-                            <Layers size={20} className="text-indigo-500"/> Προεπισκόπηση
+                            <Layers size={20} className="text-indigo-500"/> Προεπισκόπηση Εκτύπωσης
                         </h2>
                         <span className="bg-indigo-100 text-indigo-800 px-4 py-1.5 rounded-full text-xs font-bold">
                             {filteredItems.length} Κωδικοί
@@ -303,38 +357,46 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
                         {filteredItems.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                                {filteredItems.slice(0, 100).map((item, idx) => (
-                                    <div key={idx} className="flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-200 transition-colors">
+                                {filteredItems.map((item, idx) => (
+                                    <div key={idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-200 transition-all">
+                                        {/* Remove Button Overlay */}
+                                        <button 
+                                            onClick={() => toggleExclusion(item.skuBase)}
+                                            className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            title="Αφαίρεση από τη λίστα"
+                                        >
+                                            <X size={14}/>
+                                        </button>
+
                                         <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-50">
-                                            <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
-                                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[100px]">{item.category}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
+                                                {item.isManual && (
+                                                    <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Manual</span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">{item.category}</span>
                                         </div>
                                         <div className="space-y-1.5">
                                             {item.priceGroups.map((pg, pgIdx) => (
                                                 <div key={pgIdx} className="flex justify-between items-center text-xs">
-                                                    <span className="font-bold text-slate-500 truncate max-w-[120px] flex items-center gap-1">
-                                                        {pg.suffixes.includes('') && <span className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-1"></span>}
-                                                        {pg.suffixes.filter(s => s !== '').join(' / ')}
+                                                    <span className="font-bold text-slate-500 truncate max-w-[120px]">
+                                                        {pg.suffixes.filter(s => s !== '').join(' / ') || 'Lustre'}
                                                     </span>
-                                                    <span className="font-mono text-slate-700 font-bold bg-slate-50 px-1.5 py-0.5 rounded">{pg.price.toFixed(2)}€</span>
+                                                    <span className="font-mono text-slate-700 font-bold">{pg.price.toFixed(2)}€</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 ))}
-                                {filteredItems.length > 100 && (
-                                    <div className="col-span-full text-center py-8 text-slate-400 text-sm font-medium bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                        ...και {filteredItems.length - 100} ακόμη κωδικοί
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400">
                                 <div className="bg-slate-50 p-6 rounded-full mb-4">
                                     <Search size={48} className="text-slate-300"/>
                                 </div>
-                                <p className="font-medium text-lg">Δεν βρέθηκαν προϊόντα.</p>
-                                <p className="text-sm opacity-70">Δοκιμάστε να αλλάξετε τα φίλτρα.</p>
+                                <p className="font-medium text-lg">Η λίστα είναι κενή.</p>
+                                <p className="text-sm opacity-70">Χρησιμοποιήστε τα φίλτρα ή την "Χειροκίνητη Προσθήκη".</p>
                             </div>
                         )}
                     </div>
