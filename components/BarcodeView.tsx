@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
@@ -116,31 +117,75 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }
 
     if (format === 'retail') {
+        // Smart Stone Font Sizing & Wrapping
+        const stoneNameLen = stoneName ? stoneName.length : 0;
+        let stoneStyle: React.CSSProperties = {
+            width: '100%',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            lineHeight: '0.9',
+            overflow: 'hidden',
+            marginTop: '0.5mm',
+        };
+
+        // Logic: Short text = Large & Single Line. Long text = Small & Multiline.
+        if (stoneNameLen > 15) {
+             stoneStyle = { 
+                 ...stoneStyle, 
+                 fontSize: '1.8mm', 
+                 display: '-webkit-box', 
+                 WebkitLineClamp: 2, 
+                 WebkitBoxOrient: 'vertical', 
+                 whiteSpace: 'normal', 
+                 wordBreak: 'break-word' 
+             };
+        } else if (stoneNameLen > 8) {
+             stoneStyle = { 
+                 ...stoneStyle, 
+                 fontSize: '2.0mm', 
+                 whiteSpace: 'nowrap', 
+                 textOverflow: 'ellipsis' 
+             };
+        } else {
+             stoneStyle = { 
+                 ...stoneStyle, 
+                 fontSize: '2.2mm', 
+                 whiteSpace: 'nowrap' 
+             };
+        }
+
         return (
             <div className="label-container" style={{ ...containerStyle, flexDirection: 'row', justifyContent: 'flex-start', padding: 0 }}>
-                {/* 3.5cm Useless Tail (Left) */}
+                {/* 3.5cm Tail (Left) */}
                 <div className="print:hidden border-r border-dashed border-slate-300 bg-slate-50 flex items-center justify-center" style={{ width: '35mm', height: '100%', flexShrink: 0 }}>
                     <span className="text-[8px] text-slate-300 font-bold uppercase -rotate-90">Tail</span>
                 </div>
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: '30%', minWidth: 0, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1mm' }}>
-                        {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block' }} alt="QR" />}
+                {/* Printable Area (~3.7cm remaining) */}
+                <div style={{ flex: 1, height: '100%', display: 'flex' }}>
+                    
+                    {/* Left Section (QR + SKU) ~1.85cm */}
+                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingLeft: '1mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
+                         <div style={{ flexShrink: 0, marginRight: '0.5mm' }}>
+                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '6mm', width: '6mm', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
+                         </div>
+                         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+                             <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm', wordBreak: 'break-all' }}>
+                                {finalSku}
+                            </span>
+                         </div>
                     </div>
-                    <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
-                        <span className="font-black block uppercase leading-none truncate w-full text-center" style={{ fontSize: '2.4mm' }}>
-                            {finalSku}
-                        </span>
-                    </div>
-                    <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+
+                    {/* Right Section (Codified Price + Stone) ~1.85cm */}
+                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm' }}>
                         <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.6mm' }}>
                             {codifiedPrice}
                         </span>
                         {stoneName && (
-                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.8mm', marginTop: '0.8mm', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={stoneStyle}>
                                 {stoneName}
-                            </span>
+                            </div>
                         )}
                     </div>
                 </div>
