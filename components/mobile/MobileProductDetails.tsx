@@ -16,10 +16,15 @@ interface Props {
 export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
   const { showToast } = useUI();
   const [showBarcode, setShowBarcode] = useState(false);
-  const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(null);
   const [showFullImage, setShowFullImage] = useState(false);
 
   const variants = product.variants || [];
+  
+  // Logic: If variants exist, start with the first one. If not, start with null (Master).
+  // This effectively hides the "Master Container" view when variants are present.
+  const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(
+      variants.length > 0 ? variants[0] : null
+  );
   
   const handleShare = async () => {
       const text = `${product.sku} - ${product.category} (${product.weight_g}g)`;
@@ -41,13 +46,17 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
 
   const cycleVariant = (direction: 'next' | 'prev') => {
       if (variants.length === 0) return;
-      const currentIndex = activeVariantForBarcode ? variants.findIndex(v => v.suffix === activeVariantForBarcode.suffix) : -1;
+      
+      const currentIndex = activeVariantForBarcode 
+        ? variants.findIndex(v => v.suffix === activeVariantForBarcode.suffix) 
+        : 0; // Default to 0 if we somehow have variants but active is null (shouldn't happen with new init)
+
       let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
       
-      if (newIndex >= variants.length) newIndex = -1; // Loop back to Master
-      if (newIndex < -1) newIndex = variants.length - 1; // Loop to last variant
+      if (newIndex >= variants.length) newIndex = 0;
+      if (newIndex < 0) newIndex = variants.length - 1;
       
-      setActiveVariantForBarcode(newIndex === -1 ? null : variants[newIndex]);
+      setActiveVariantForBarcode(variants[newIndex]);
   };
 
   return (
@@ -226,8 +235,12 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   <div className="p-8 pb-4 flex flex-col items-center">
                       <div className="text-center mb-6">
                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Digital Label</h3>
-                          <div className="text-2xl font-black text-slate-900">{product.sku}{activeVariantForBarcode?.suffix}</div>
-                          {activeVariantForBarcode && <div className="text-sm font-medium text-emerald-600 mt-1">{activeVariantForBarcode.description}</div>}
+                          <div className="text-2xl font-black text-slate-900">
+                              {product.sku}{activeVariantForBarcode?.suffix}
+                          </div>
+                          <div className="text-sm font-medium text-emerald-600 mt-1">
+                              {activeVariantForBarcode?.description || 'Basic'}
+                          </div>
                       </div>
 
                       {/* Barcode Render */}
@@ -246,14 +259,14 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       </div>
                   </div>
 
-                  {/* Variant Switcher */}
+                  {/* Variant Switcher - Show only if > 1 variant, or if exactly 1 but we want to confirm identity */}
                   {variants.length > 0 && (
                       <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-between">
                           <button onClick={() => cycleVariant('prev')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronLeft size={20}/></button>
                           
                           <div className="text-center">
                               <div className="text-[10px] font-bold text-slate-400 uppercase">ΠΑΡΑΛΛΑΓΗ</div>
-                              <div className="font-black text-slate-800">{activeVariantForBarcode ? activeVariantForBarcode.suffix : 'MASTER'}</div>
+                              <div className="font-black text-slate-800">{activeVariantForBarcode?.suffix || 'BAS'}</div>
                           </div>
 
                           <button onClick={() => cycleVariant('next')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronRight size={20}/></button>
