@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -43,24 +42,26 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
 
   useEffect(() => {
     // 1. Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
+        // Await profile fetch before turning off loading
+        await fetchProfile(session.user.id);
       }
+      setLoading(false);
     });
 
     // 2. Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user.id).then(() => setLoading(false));
+        // If we switch sessions, re-fetch profile
+        await fetchProfile(session.user.id);
       } else {
         setProfile(null);
-        setLoading(false);
       }
+      // Ensure loading is off after state change handled
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

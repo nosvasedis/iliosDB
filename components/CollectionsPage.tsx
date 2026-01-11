@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info, Sparkles, Save, Wand2, Quote, PenTool, FileText } from 'lucide-react';
+import { FolderKanban, Plus, Trash2, X, Search, Loader2, Printer, ScanBarcode, PackagePlus, Info, Sparkles, Save, Wand2, Quote, PenTool, FileText } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase } from '../lib/supabase';
+import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';

@@ -16,6 +16,7 @@ export default function MobileCollections() {
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
     const [newCollectionName, setNewCollectionName] = useState('');
     const [search, setSearch] = useState('');
+    const [showFullDesc, setShowFullDesc] = useState(false);
 
     const handleCreate = async () => {
         if (!newCollectionName.trim()) return;
@@ -76,6 +77,22 @@ export default function MobileCollections() {
                 </div>
 
                 <div className="p-4 space-y-4 flex-1 overflow-y-auto pb-24">
+                    
+                    {/* Collection Description Display */}
+                    {selectedCollection.description && (
+                        <div 
+                            onClick={() => setShowFullDesc(!showFullDesc)}
+                            className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm cursor-pointer active:bg-slate-50 transition-colors"
+                        >
+                            <p className={`text-xs text-slate-500 italic leading-relaxed font-serif ${!showFullDesc ? 'line-clamp-2' : ''}`}>
+                                "{selectedCollection.description}"
+                            </p>
+                            {!showFullDesc && selectedCollection.description.length > 80 && (
+                                <p className="text-[10px] text-blue-500 font-bold mt-1 text-right">Διαβάστε περισσότερα</p>
+                            )}
+                        </div>
+                    )}
+
                     {/* Add Product Search */}
                     <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm sticky top-0 z-0">
                         <div className="relative">
@@ -158,7 +175,10 @@ export default function MobileCollections() {
                             <div className="p-3 bg-pink-50 text-pink-500 rounded-xl">
                                 <FolderKanban size={20}/>
                             </div>
-                            <span className="font-black text-slate-800">{c.name}</span>
+                            <div>
+                                <span className="font-black text-slate-800 block">{c.name}</span>
+                                {c.description && <span className="text-[10px] text-slate-400 italic truncate block max-w-[150px]">{c.description}</span>}
+                            </div>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="p-2 text-slate-300 hover:text-red-500">
                             <Trash2 size={18}/>
