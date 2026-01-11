@@ -282,6 +282,8 @@ function AppContent() {
 
         // Determine Filename/Title for "Save as PDF"
         let docTitle = 'Ilios_Print_Job';
+        const dateStr = new Date().toISOString().split('T')[0];
+
         if (priceListPrintData) {
             docTitle = priceListPrintData.title; // Set Title for PDF Filename
         } else if (orderToPrint) {
@@ -289,8 +291,37 @@ function AppContent() {
         } else if (batchToPrint) {
             docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id}`;
         } else if (aggregatedPrintData) {
-            docTitle = `Production_${new Date().toISOString().split('T')[0]}`;
+            if (aggregatedPrintData.orderId) {
+                docTitle = `Production_Order_${aggregatedPrintData.orderId}`;
+            } else {
+                docTitle = `Production_Summary_${dateStr}`;
+            }
+        } else if (preparationPrintData) {
+            docTitle = `Preparation_Sheet_${dateStr}`;
+        } else if (technicianPrintData) {
+            docTitle = `Technician_Sheet_${dateStr}`;
+        } else if (printItems.length > 0) {
+            const format = printItems[0].format || 'standard';
+            const totalQty = printItems.reduce((acc, item) => acc + item.quantity, 0);
+            
+            if (printItems.length === 1) {
+                const item = printItems[0];
+                const sku = item.variant ? item.product.sku + item.variant.suffix : item.product.sku;
+                docTitle = `Label_${sku}_${format}`;
+            } else {
+                const firstSku = printItems[0].product.sku;
+                const allSameProduct = printItems.every(i => i.product.sku === firstSku);
+                
+                if (allSameProduct) {
+                     docTitle = `Labels_${firstSku}_Variants_${format}_${totalQty}qty`;
+                } else {
+                     docTitle = `Labels_Batch_${format}_${totalQty}qty_${dateStr}`;
+                }
+            }
         }
+
+        // Sanitize for filename safety (replace spaces and special chars with underscores)
+        docTitle = docTitle.replace(/[^a-zA-Z0-9\-_]/g, '_').replace(/_+/g, '_');
 
         const cleanup = () => {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
