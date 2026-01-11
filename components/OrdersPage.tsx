@@ -501,6 +501,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         try {
             await api.deleteOrder(order.id);
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast('Η παραγγελία διαγράφηκε.', 'success');
         } catch (err: any) {
             showToast(`Σφάλμα διαγραφής: ${err.message}`, 'error');
@@ -512,6 +513,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         try {
             await api.updateOrderStatus(orderId, status);
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            // IMPORTANT: Invalidate batches to refresh Production view if order is Delivered
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            
             const message = status === OrderStatus.Delivered ? 'Η παραγγελία σημειώθηκε ως παραδομένη.' : `Η κατάσταση άλλαξε σε ${STATUS_TRANSLATIONS[status]}.`;
             showToast(message, 'success');
         } catch (err: any) {

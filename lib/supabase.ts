@@ -466,10 +466,25 @@ export const api = {
     deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
     saveOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'INSERT', o); },
     updateOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); },
-    deleteOrder: async (id: string): Promise<void> => { await safeMutate('orders', 'DELETE', null, { match: { id } }); },
+    
+    deleteOrder: async (id: string): Promise<void> => { 
+        // Interconnected: Delete batches first
+        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
+        await safeMutate('orders', 'DELETE', null, { match: { id } }); 
+    },
+    
     updateBatchStage: async (id: string, stage: ProductionStage): Promise<void> => { await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } }); },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
-    updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); },
+    
+    updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { 
+        await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); 
+        
+        // Super-Interconnected Logic:
+        // If an order is finalized (Delivered/Cancelled), remove its tracks from active production.
+        if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {
+            await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
+        }
+    },
 
     setProductCollections: async (sku: string, collectionIds: number[]): Promise<void> => {
         await safeMutate('product_collections', 'DELETE', null, { match: { product_sku: sku } });
