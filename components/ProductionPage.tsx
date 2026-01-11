@@ -1,9 +1,9 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -35,13 +35,13 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
 };
 
 const STAGE_COLORS = {
-    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-500', border: 'border-indigo-200' },
-    slate: { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
-    orange: { bg: 'bg-orange-50', text: 'text-orange-500', border: 'border-orange-200' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-500', border: 'border-purple-200' },
-    blue: { bg: 'bg-blue-50', text: 'text-blue-500', border: 'border-blue-200' },
-    yellow: { bg: 'bg-yellow-50', text: 'text-yellow-500', border: 'border-yellow-200' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
+    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200', ring: 'ring-indigo-100', header: 'bg-indigo-100/50' },
+    slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', ring: 'ring-slate-100', header: 'bg-slate-100/50' },
+    orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', ring: 'ring-orange-100', header: 'bg-orange-100/50' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200', ring: 'ring-purple-100', header: 'bg-purple-100/50' },
+    blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', ring: 'ring-blue-100', header: 'bg-blue-100/50' },
+    yellow: { bg: 'bg-yellow-50', text: 'text-yellow-600', border: 'border-yellow-200', ring: 'ring-yellow-100', header: 'bg-yellow-100/50' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', ring: 'ring-emerald-100', header: 'bg-emerald-100/50' },
 };
 
 interface BatchCardProps {
@@ -49,116 +49,132 @@ interface BatchCardProps {
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
     onPrint: (batch: ProductionBatch) => void;
     onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
+    onNextStage?: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly }) => {
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
+    const isReady = batch.current_stage === ProductionStage.Ready;
     
     return (
     <div 
-        draggable 
+        draggable={!isReady}
         onDragStart={(e) => onDragStart(e, batch.id)}
-        className={`bg-white p-4 rounded-2xl shadow-sm border hover:shadow-lg transition-all relative flex flex-col cursor-grab active:cursor-grabbing group
-                    ${batch.isDelayed ? 'border-red-300 ring-1 ring-red-100' : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-100')}`}
+        className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation
+                    ${batch.isDelayed 
+                        ? 'border-red-300 ring-2 ring-red-100 shadow-red-100' 
+                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-slate-300 hover:shadow-md')}
+        `}
     >
-        <div className="absolute top-3 right-3 flex items-center gap-2">
-            {batch.isDelayed && (
-                <div className="text-red-500 flex items-center gap-1 text-[10px] font-bold bg-red-50 px-2 py-1 rounded-full border border-red-100">
-                    <Clock size={12} /> +{batch.diffHours}h
-                </div>
-            )}
+        {/* Header Badges */}
+        <div className="flex justify-between items-start mb-3">
+            <div className="flex flex-wrap gap-2">
+                {batch.isDelayed && (
+                    <div className="animate-pulse bg-red-50 text-red-600 border border-red-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                        <AlertTriangle size={10} className="fill-current" />
+                        <span>+{batch.diffHours}h Καθυστέρηση</span>
+                    </div>
+                )}
+                {isRefurbish && (
+                    <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                        <RefreshCcw size={10}/> Repair
+                    </div>
+                )}
+            </div>
+            
             <button
-                onClick={() => onPrint(batch)}
-                className="p-1.5 bg-white/50 backdrop-blur-sm text-slate-400 rounded-full border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100 hover:text-slate-700"
-                title="Εκτύπωση Εντολής Παραγωγής"
+                onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Εκτύπωση Εντολής"
             >
-                <Printer size={14} />
+                <Printer size={16} />
             </button>
         </div>
         
-        {isRefurbish && (
-            <div className="absolute -top-2 left-3 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                <RefreshCcw size={10}/> Φρεσκάρισμα
-            </div>
-        )}
-        
-        <div className="flex gap-4 items-start mb-3">
-            <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+        {/* Content */}
+        <div className="flex gap-3 items-center mb-3">
+            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative">
                 {batch.product_image ? (
                     <img src={batch.product_image} className="w-full h-full object-cover" alt="prod"/>
                 ) : (
                     <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                        <ImageIcon size={20} className="text-slate-300"/>
+                        <ImageIcon size={18} className="text-slate-300"/>
+                    </div>
+                )}
+                {batch.quantity > 1 && (
+                    <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg">
+                        x{batch.quantity}
                     </div>
                 )}
             </div>
-            <div className="min-w-0">
-                <div className="font-black text-slate-800 text-lg leading-tight truncate">{batch.sku}</div>
-                {batch.variant_suffix && <div className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded w-fit mt-1 border border-amber-100">{batch.variant_suffix}</div>}
-                <div className="text-sm font-bold text-slate-500 mt-1">{batch.quantity} τεμ.</div>
+            <div className="min-w-0 flex-1">
+                <div className="font-black text-slate-800 text-base leading-none truncate mb-1">{batch.sku}</div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {batch.variant_suffix && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.variant_suffix}</span>}
+                    {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.size_info}</span>}
+                </div>
             </div>
         </div>
 
-        {isAwaiting && onMoveDirectly && (
-            <button 
-                onClick={(e) => { e.stopPropagation(); onMoveDirectly(batch, ProductionStage.Labeling); }}
-                className="mb-3 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm"
-            >
-                <Truck size={14}/> Άφιξη & Πακετάρισμα
-            </button>
-        )}
-
-        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-end">
+        {/* Action Footer */}
+        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
             {batch.order_id ? (
-                <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">{batch.order_id}</div>
+                <div className="text-[10px] font-mono font-medium text-slate-400">#{batch.order_id}</div>
             ) : <div/>}
+
+            {!isReady && onNextStage && (
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onNextStage(batch); }}
+                    className="flex items-center gap-1 bg-slate-100 hover:bg-emerald-500 hover:text-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                >
+                    {isAwaiting ? 'Παραλαβή' : 'Επόμενο'} <MoveRight size={12}/>
+                </button>
+            )}
         </div>
     </div>
     );
 };
 
-const OrderGroupCard: React.FC<{ 
-    orderId: string, 
-    batches: ProductionBatch[], 
-    onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void, 
-    onPrint: (batch: ProductionBatch) => void,
-    onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
-}> = ({ orderId, batches, onDragStart, onPrint, onMoveDirectly }) => {
-    const [expanded, setExpanded] = useState(false);
-    const totalQty = batches.reduce((acc, b) => acc + b.quantity, 0);
-    const hasRefurbish = batches.some(b => b.type === 'Φρεσκάρισμα');
-
+const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
+    const total = batches.length;
+    const delayed = batches.filter(b => b.isDelayed).length;
+    const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
+    const inProgress = total - ready;
+    
+    const healthScore = total > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
+    
     return (
-        <div className={`bg-white rounded-2xl shadow-sm border transition-all ${expanded ? 'ring-2 ring-slate-200' : 'border-slate-200 hover:shadow-md'}`}>
-            <div 
-                className="p-4 cursor-pointer flex justify-between items-center"
-                onClick={() => setExpanded(!expanded)}
-            >
-                <div>
-                    <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-slate-600 text-xs">#{orderId}</span>
-                        {hasRefurbish && <span className="w-2 h-2 rounded-full bg-blue-500" title="Περιέχει Φρεσκάρισμα"></span>}
-                    </div>
-                    <div className="font-black text-slate-800 text-sm mt-1">{totalQty} τεμ. <span className="text-slate-400 font-normal">({batches.length} παρτίδες)</span></div>
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
+            <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
+                    {healthScore.toFixed(0)}%
                 </div>
-                <div className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
-                    <ChevronDown size={16} className="text-slate-400"/>
+                <div>
+                    <h3 className="font-bold text-slate-800">Υγεία Παραγωγής</h3>
+                    <p className="text-xs text-slate-500">Βάσει χρονικών ορίων</p>
                 </div>
             </div>
-            
-            {expanded && (
-                <div className="p-3 pt-0 space-y-3 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-                    {batches.map(batch => (
-                        <div key={batch.id} className="scale-95 origin-top">
-                            <BatchCard batch={batch} onDragStart={onDragStart} onPrint={onPrint} onMoveDirectly={onMoveDirectly} />
-                        </div>
-                    ))}
+
+            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px]">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12}/> Ενεργά</div>
+                    <div className="text-2xl font-black text-slate-800">{inProgress}</div>
                 </div>
-            )}
+                <div className={`px-5 py-3 rounded-2xl border min-w-[120px] ${delayed > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                    <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                        <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''}/> Καθυστέρηση
+                    </div>
+                    <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
+                </div>
+                <div className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px]">
+                    <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Έτοιμα</div>
+                    <div className="text-2xl font-black text-emerald-700">{ready}</div>
+                </div>
+            </div>
         </div>
     );
-};
+}
 
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number) => void, isProcessing: boolean }) => {
     const { batch, targetStage } = state;
@@ -186,12 +202,12 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                 <div className="p-8 space-y-6">
                     <div className="flex items-center justify-around text-center">
                         <div className="flex flex-col items-center gap-2">
-                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color].bg} ${STAGE_COLORS[sourceStageInfo.color].text}`}>{sourceStageInfo.icon}</div>
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].text}`}>{sourceStageInfo.icon}</div>
                             <span className="text-xs font-bold">{sourceStageInfo.label}</span>
                         </div>
                         <ArrowRight size={24} className="text-slate-300 mx-4 shrink-0"/>
                         <div className="flex flex-col items-center gap-2">
-                            <div className={`p-3 rounded-xl ${STAGE_COLORS[targetStageInfo.color].bg} ${STAGE_COLORS[targetStageInfo.color].text}`}>{targetStageInfo.icon}</div>
+                            <div className={`p-3 rounded-xl ${STAGE_COLORS[targetStageInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[targetStageInfo.color as keyof typeof STAGE_COLORS].text}`}>{targetStageInfo.icon}</div>
                             <span className="text-xs font-bold">{targetStageInfo.label}</span>
                         </div>
                     </div>
@@ -236,8 +252,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
-  const [groupByOrder, setGroupByOrder] = useState(false);
   const [isProcessingSplit, setIsProcessingSplit] = useState(false);
+  
+  // Mobile Accordion State
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(STAGES[1].id); // Default to Waxing or first active
 
   const [splitModalState, setSplitModalState] = useState<{
       batch: ProductionBatch;
@@ -274,11 +292,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       setDropTarget(null);
   };
 
-  const handleDrop = async (targetStage: ProductionStage) => {
-    if (!draggedBatchId) return;
-
-    const batch = enhancedBatches.find(b => b.id === draggedBatchId);
-    if (!batch || batch.current_stage === targetStage) return;
+  const attemptMove = (batch: ProductionBatch, targetStage: ProductionStage) => {
+    if (batch.current_stage === targetStage) return;
 
     if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
         showToast(`Το ${batch.sku} δεν έχει πέτρες. Προχωρήστε στο επόμενο στάδιο.`, 'info');
@@ -286,6 +301,21 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }
 
     if (batch.current_stage === ProductionStage.AwaitingDelivery) {
+        handleImportReceive(batch, targetStage);
+        return; 
+    }
+    
+    setSplitModalState({ batch, targetStage });
+  };
+
+  const handleDrop = async (targetStage: ProductionStage) => {
+    if (!draggedBatchId) return;
+    const batch = enhancedBatches.find(b => b.id === draggedBatchId);
+    if (!batch) return;
+    attemptMove(batch, targetStage);
+  };
+
+  const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage) => {
         const targetStageInfo = STAGES.find(s => s.id === targetStage);
         const confirmed = await confirm({
             title: 'Παραλαβή Εισαγόμενου',
@@ -306,10 +336,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 setIsProcessingSplit(false);
             }
         }
-        return; 
-    }
-    
-    setSplitModalState({ batch, targetStage });
   };
 
   const handleConfirmSplit = async (quantityToMove: number) => {
@@ -350,134 +376,147 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }
   };
 
-  const handleDirectMove = async (batch: ProductionBatch, target: ProductionStage) => {
-      const targetStageInfo = STAGES.find(s => s.id === target);
-      const confirmed = await confirm({
-          title: 'Άμεση Μετακίνηση',
-          message: `Θέλετε να μετακινήσετε όλη την παρτίδα ${batch.sku}${batch.variant_suffix || ''} απευθείας στο στάδιο "${targetStageInfo?.label}";`,
-          confirmText: 'Μετακίνηση'
-      });
+  // Determines next logical stage for "Quick Move" button
+  const getNextStage = (currentStage: ProductionStage, batch: ProductionBatch): ProductionStage | null => {
+      const currentIndex = STAGES.findIndex(s => s.id === currentStage);
+      if (currentIndex === -1 || currentIndex === STAGES.length - 1) return null;
       
-      if (confirmed) {
-          setIsProcessingSplit(true);
-          try {
-              await api.updateBatchStage(batch.id, target);
-              queryClient.invalidateQueries({ queryKey: ['batches'] });
-              queryClient.invalidateQueries({ queryKey: ['orders'] });
-              showToast('Η παρτίδα μετακινήθηκε.', 'success');
-          } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, 'error'); } 
-          finally { setIsProcessingSplit(false); }
+      let nextIndex = currentIndex + 1;
+      
+      // Special logic for Imported Products: Awaiting -> Labeling
+      if (batch.product_details?.production_type === ProductionType.Imported && currentStage === ProductionStage.AwaitingDelivery) {
+          return ProductionStage.Labeling;
       }
+
+      // Skip Setting if not required
+      if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) {
+          nextIndex++;
+      }
+      
+      return STAGES[nextIndex].id;
   };
 
-  const getGroupedBatches = (stageBatches: ProductionBatch[]) => {
-      const groups: Record<string, ProductionBatch[]> = {};
-      const orphans: ProductionBatch[] = [];
-
-      stageBatches.forEach(b => {
-          if (b.order_id) {
-              if (!groups[b.order_id]) groups[b.order_id] = [];
-              groups[b.order_id].push(b);
-          } else {
-              orphans.push(b);
-          }
-      });
-
-      return { groups, orphans };
+  const handleQuickNext = (batch: ProductionBatch) => {
+      const nextStage = getNextStage(batch.current_stage, batch);
+      if (nextStage) attemptMove(batch, nextStage);
   };
 
   if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
 
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col space-y-6">
-        <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
+        <ProductionHealthBar batches={enhancedBatches} />
+
+        <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
-                <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
                     <div className="p-2 bg-[#060b00] text-white rounded-xl">
                         <Factory size={24} />
                     </div>
                     Ροή Παραγωγής
                 </h1>
-                <p className="text-slate-500 mt-1 ml-14">Drag & drop τις παρτίδες για να αλλάξετε το στάδιό τους.</p>
+                <p className="text-slate-500 mt-1 ml-14">Διαχείριση εντολών σε πραγματικό χρόνο.</p>
             </div>
             
-            <div className="flex items-center gap-3 flex-wrap">
-                <button
-                    onClick={() => setGroupByOrder(!groupByOrder)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${groupByOrder ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                >
-                    <Layers size={16} /> {groupByOrder ? 'Ομαδοποιημένη' : 'Αναλυτική'} Προβολή
-                </button>
-
+            <div className="flex items-center gap-2 flex-wrap">
                 <button 
                     onClick={() => onPrintPreparation(enhancedBatches)}
                     disabled={enhancedBatches.length === 0}
-                    className="flex items-center gap-2 bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-xs"
                 >
-                    <BookOpen size={16} /> Προετοιμασία
+                    <BookOpen size={14} /> Προετοιμασία
                 </button>
                  <button 
                     onClick={() => onPrintTechnician(enhancedBatches)}
                     disabled={enhancedBatches.length === 0}
-                    className="flex items-center gap-2 bg-purple-50 text-purple-700 px-5 py-2.5 rounded-xl hover:bg-purple-100 font-bold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-100 font-bold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-xs"
                 >
-                    <Hammer size={16} /> Τεχνίτης
+                    <Hammer size={14} /> Τεχνίτης
                 </button>
                 <button 
                     onClick={() => onPrintAggregated(enhancedBatches)}
                     disabled={enhancedBatches.length === 0}
-                    className="flex items-center gap-2 bg-slate-100 text-slate-700 px-5 py-2.5 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-xs"
                 >
-                    <FileText size={16} /> Συγκεντρωτική
+                    <FileText size={14} /> Συγκεντρωτική
                 </button>
             </div>
         </div>
 
-        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-            <div className="flex gap-6 h-full min-w-max">
+        {/* RESPONSIVE LAYOUT CONTAINER */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
+            {/* 
+                Desktop: Horizontal Flex (Kanban)
+                Mobile: Vertical Flex (Stack/Accordion)
+            */}
+            <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
                     const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);
                     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                     const isTarget = dropTarget === stage.id;
+                    const isExpanded = expandedStageId === stage.id;
                     
-                    const { groups, orphans } = getGroupedBatches(stageBatches);
-
                     return (
                         <div 
                             key={stage.id}
                             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(stage.id); }}
                             onDragLeave={() => setDropTarget(null)}
                             onDrop={() => handleDrop(stage.id)}
-                            className={`w-80 h-full flex flex-col rounded-3xl border transition-all duration-300 ${isTarget ? 'bg-emerald-50 border-emerald-300 shadow-2xl' : `${colors.bg} border-slate-200`}`}
+                            className={`
+                                flex flex-col rounded-3xl border transition-all duration-300
+                                lg:w-80 lg:h-full
+                                w-full
+                                ${isTarget ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.02]' : `${colors.bg} border-slate-200`}
+                            `}
                         >
-                            <div className={`p-5 rounded-t-3xl border-b ${colors.border} flex justify-between items-center shrink-0`}>
+                            {/* Stage Header */}
+                            <div 
+                                className={`
+                                    p-4 rounded-t-3xl lg:rounded-t-3xl border-b ${colors.border} flex justify-between items-center shrink-0 cursor-pointer lg:cursor-default transition-colors ${colors.header}
+                                    ${!isExpanded ? 'rounded-b-3xl lg:rounded-b-none border-b-0 lg:border-b' : ''}
+                                `}
+                                onClick={() => setExpandedStageId(isExpanded ? null : stage.id)}
+                            >
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-1.5 rounded-md ${colors.bg}`}>{stage.icon}</div>
-                                    <h3 className={`font-bold ${colors.text}`}>{stage.label}</h3>
+                                    <div className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color}-600`}>{stage.icon}</div>
+                                    <h3 className={`font-bold ${colors.text} text-sm`}>{stage.label}</h3>
                                 </div>
-                                <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${colors.text} ${colors.bg}`}>{stageBatches.length}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
+                                    {/* Mobile Accordion Icon */}
+                                    <div className="lg:hidden text-slate-400">
+                                        {isExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+                                    </div>
+                                </div>
                             </div>
                             
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                {groupByOrder ? (
-                                    <>
-                                        {Object.entries(groups).map(([orderId, batches]) => (
-                                            <OrderGroupCard key={orderId} orderId={orderId} batches={batches} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
-                                        ))}
-                                        {orphans.map(batch => (
-                                            <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
-                                        ))}
-                                    </>
-                                ) : (
-                                    stageBatches.map(batch => (
-                                        <BatchCard key={batch.id} batch={batch} onDragStart={handleDragStart} onPrint={onPrintBatch} onMoveDirectly={handleDirectMove} />
-                                    ))
+                            {/* Stage Body - Responsive Visibility */}
+                            <div className={`
+                                flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar
+                                ${!isExpanded ? 'hidden lg:block' : 'block'}
+                                min-h-[100px] lg:min-h-0
+                            `}>
+                                {/* Progress Bar Concept for Header */}
+                                {stageBatches.length > 0 && (
+                                    <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mb-2 opacity-50 lg:hidden">
+                                        <div className={`h-full bg-${stage.color}-500`} style={{ width: '100%' }}></div>
+                                    </div>
                                 )}
+
+                                {stageBatches.map(batch => (
+                                    <BatchCard 
+                                        key={batch.id} 
+                                        batch={batch} 
+                                        onDragStart={handleDragStart} 
+                                        onPrint={onPrintBatch} 
+                                        onNextStage={handleQuickNext}
+                                    />
+                                ))}
                                 
                                 {stageBatches.length === 0 && (
-                                    <div className="h-full flex flex-col items-center justify-center text-slate-300 p-4">
-                                        <Package size={32} className="mb-2"/>
-                                        <p className="text-xs font-medium text-center">Κανένα στοιχείο</p>
+                                    <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
+                                        <Package size={24} className="mb-2"/>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Empty Stage</p>
                                     </div>
                                 )}
                             </div>
@@ -486,6 +525,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 })}
             </div>
         </div>
+        
         {splitModalState && (
             <SplitBatchModal 
                 state={splitModalState}
