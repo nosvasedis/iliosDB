@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
 import { X, ImageIcon, Tag, Package, ChevronLeft, Printer, ShoppingBag } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 
 interface Props {
     product: Product;
@@ -10,6 +10,14 @@ interface Props {
     warehouses: Warehouse[];
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
+
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'bg-amber-100 text-amber-700 border-amber-200',
+    'P': 'bg-slate-100 text-slate-600 border-slate-200',
+    'D': 'bg-orange-100 text-orange-700 border-orange-200',
+    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+};
 
 export default function EmployeeProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
     const variants = product.variants || [];
@@ -101,18 +109,27 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                 <tr>
-                                    <th className="p-4">Παραλλαγή</th>
-                                    <th className="p-4 hidden sm:table-cell">Περιγραφή</th>
+                                    <th className="p-4">Παραλλαγή / Περιγραφή</th>
                                     <th className="p-4 text-center hidden sm:table-cell">Stock</th>
                                     <th className="p-4 text-right">Τιμή</th>
                                     <th className="p-4 text-center w-32">Εκτύπωση</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {variants.length > 0 ? sortedVariants.map(v => (
+                                {variants.length > 0 ? sortedVariants.map(v => {
+                                    const { finish } = getVariantComponents(v.suffix, product.gender);
+                                    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+                                    
+                                    return (
                                     <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-4 font-mono font-bold text-slate-700">{v.suffix || 'BAS'}</td>
-                                        <td className="p-4 text-slate-600 font-medium hidden sm:table-cell">{v.description}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className={`px-2 py-1 rounded-lg font-mono font-black text-sm border ${badgeColor} min-w-[3rem] text-center`}>
+                                                    {v.suffix || 'BAS'}
+                                                </span>
+                                                <span className="text-slate-700 font-bold text-sm">{v.description}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
                                             {v.stock_qty > 0 ? (
                                                 <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{v.stock_qty}</span>
@@ -132,10 +149,14 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                             </div>
                                         </td>
                                     </tr>
-                                )) : (
+                                )}) : (
                                     <tr>
-                                        <td className="p-4 font-mono font-bold text-slate-700">MASTER</td>
-                                        <td className="p-4 text-slate-600 hidden sm:table-cell">Βασικό Προϊόν</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded-lg font-mono font-black text-sm">MASTER</span>
+                                                <span className="text-slate-700 font-bold text-sm">Βασικό Προϊόν</span>
+                                            </div>
+                                        </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
                                             {product.stock_qty > 0 ? (
                                                 <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{product.stock_qty}</span>

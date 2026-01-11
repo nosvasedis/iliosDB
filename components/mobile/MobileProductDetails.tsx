@@ -30,6 +30,14 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
 };
 
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'bg-amber-100 text-amber-700 border-amber-200',
+    'P': 'bg-slate-100 text-slate-600 border-slate-200',
+    'D': 'bg-orange-100 text-orange-700 border-orange-200',
+    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+};
+
 // Proxy helper to fetch images through Cloudflare and return Base64 for Canvas stability
 const toBase64 = async (url: string): Promise<string | null> => {
     try {
@@ -154,6 +162,12 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       };
   }, [product, activeVariant]);
 
+  const activeBadgeColor = useMemo(() => {
+      const suffix = activeVariant?.suffix || '';
+      const { finish } = getVariantComponents(suffix, product.gender);
+      return FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+  }, [activeVariant, product.gender]);
+
   const handleShare = async () => {
       if (!cardRef.current && shareTab === 'card') return;
       setIsGenerating(true);
@@ -199,6 +213,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
   };
 
+  // ... (Adjust/Transfer Handlers remain the same)
   const handleAdjustStock = async () => {
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
@@ -296,11 +311,18 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   {variants.length > 0 ? (
                       <div className="flex items-center gap-3 w-full">
                           <button onClick={prevVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronLeft size={20}/></button>
-                          <div className="flex-1 text-center">
-                              <div className="text-[10px] font-bold text-slate-400 uppercase">ΠΑΡΑΛΛΑΓΗ</div>
-                              <div className="font-black text-slate-800 text-xl">{activeVariant?.suffix || 'ΒΑΣ'}</div>
-                              <div className="text-xs text-emerald-600 font-medium truncate">{activeVariant?.description || 'Βασικό'}</div>
+                          
+                          {/* UPDATED: Prominent Suffix & Description */}
+                          <div className="flex-1 flex flex-col items-center justify-center">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Παραλλαγή</div>
+                              <div className={`px-4 py-1.5 rounded-xl font-black text-xl border shadow-sm mb-2 ${activeBadgeColor}`}>
+                                  {activeVariant?.suffix || 'ΒΑΣ'}
+                              </div>
+                              <div className="text-sm text-slate-800 font-bold text-center leading-tight">
+                                  {activeVariant?.description || 'Βασικό'}
+                              </div>
                           </div>
+                          
                           <button onClick={nextVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronRight size={20}/></button>
                       </div>
                   ) : (

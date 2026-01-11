@@ -44,14 +44,14 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
 const MobileNavItem = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
+    className={`flex flex-col items-center justify-center h-full space-y-1 min-w-[72px] px-1 ${
       isActive ? 'text-emerald-600' : 'text-slate-400'
     }`}
   >
     <div className={`p-1 rounded-xl transition-all duration-300 ${isActive ? 'bg-emerald-50 scale-110' : ''}`}>
       {icon}
     </div>
-    <span className="text-[10px] font-bold">{label}</span>
+    <span className="text-[9px] font-bold truncate w-full text-center">{label}</span>
   </button>
 );
 
@@ -114,7 +114,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         <header className="md:hidden fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 border-b border-slate-200 h-16">
             <div className="flex items-center gap-3">
                 <img src={APP_ICON_ONLY} alt="Logo" className="w-8 h-8 object-contain" />
-                <span className="font-black text-slate-800 text-lg">Ilios Store</span>
+                <span className="font-black text-slate-800 text-lg tracking-tight">ILIOS KOSMIMA</span>
             </div>
             <button onClick={handleLogout} className="text-slate-400 hover:text-red-500">
                 <LogOut size={20} />
@@ -131,12 +131,16 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         </main>
 
         {/* MOBILE BOTTOM NAV */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around items-center h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
-            <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
-            <MobileNavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} onClick={() => onNavigate('collections')} />
-            <MobileNavItem icon={<Package size={22} />} label="Αποθήκη" isActive={activePage === 'inventory'} onClick={() => onNavigate('inventory')} />
-            <MobileNavItem icon={<Database size={22} />} label="Προϊόντα" isActive={activePage === 'registry'} onClick={() => onNavigate('registry')} />
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] overflow-x-auto scrollbar-hide">
+            <div className="flex items-center h-full px-2 w-max mx-auto">
+                <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
+                <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
+                <MobileNavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} onClick={() => onNavigate('production')} />
+                <MobileNavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} onClick={() => onNavigate('collections')} />
+                <MobileNavItem icon={<Package size={22} />} label="Αποθήκη" isActive={activePage === 'inventory'} onClick={() => onNavigate('inventory')} />
+                <MobileNavItem icon={<Database size={22} />} label="Προϊόντα" isActive={activePage === 'registry'} onClick={() => onNavigate('registry')} />
+                <MobileNavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} onClick={() => onNavigate('customers')} />
+            </div>
         </nav>
     </div>
   );
