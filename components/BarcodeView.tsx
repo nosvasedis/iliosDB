@@ -1,6 +1,5 @@
-
-import React, { useEffect, useRef, useMemo } from 'react';
-import JsBarcode from 'jsbarcode';
+import React, { useEffect, useState, useMemo } from 'react';
+import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode, codifyPrice } from '../utils/pricingEngine';
@@ -14,7 +13,7 @@ interface Props {
 }
 
 const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard' }) => {
-    const svgRef = useRef<SVGSVGElement>(null);
+    const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
     const baseSku = product?.sku || '';
     const suffix = variant?.suffix || '';
@@ -54,36 +53,30 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [product, variant, suffix]);
 
     useEffect(() => {
-        if (svgRef.current && finalSku) {
-            try {
-                // SIMPLIFICATION STRATEGY:
-                // For 'retail', we encode only the BASE SKU (e.g. DA100) instead of the full variant (DA100X).
-                // This reduces the number of bars significantly, making the barcode less dense and readable
-                // by phones in the tiny 1.8cm space provided.
-                const valueToEncode = format === 'retail' ? baseSku : finalSku;
-                const encodedSku = transliterateForBarcode(valueToEncode);
-                
-                // Optimization: 
-                // Retail: Use narrower bars (1.3) to ensure it fits in 18mm width without overflowing or scaling down too much.
-                const barWidth = format === 'retail' ? 1.3 : (activeWidth < 45 ? 1.6 : 1.9);
-                const barHeight = format === 'retail' ? 25 : 100;
-                
-                JsBarcode(svgRef.current, encodedSku, {
-                    format: 'CODE128',
-                    displayValue: false, 
-                    height: barHeight, 
-                    width: barWidth, 
-                    margin: 0,
-                    background: 'transparent',
-                    valid: (valid) => {
-                        if (!valid) console.warn("Invalid SKU for barcode:", encodedSku);
-                    }
-                });
-            } catch (e) {
-                console.error("JsBarcode error:", e);
-            }
+        if (finalSku) {
+            // QR codes support Greek characters, but we transliterate to ensure compatibility 
+            // with scanners in "Keyboard Emulation" mode set to US/International layout.
+            const valueToEncode = transliterateForBarcode(finalSku);
+            
+            // Generate QR code with high error correction (Level H)
+            // This ensures it remains scannable even if part of the tiny label is damaged.
+            QRCode.toDataURL(valueToEncode, {
+                errorCorrectionLevel: 'H',
+                margin: 0,
+                scale: 10, // High res for sharp print
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            })
+            .then(url => {
+                setQrDataUrl(url);
+            })
+            .catch(err => {
+                console.error("QR Code generation failed:", err);
+            });
         }
-    }, [finalSku, baseSku, format, activeWidth, activeHeight]);
+    }, [finalSku]);
 
     // FONT CALCULATIONS (in mm)
     const skuFontSize = Math.min(activeHeight * 0.15, activeWidth * 0.14, 4.2);
@@ -112,14 +105,14 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     if (format === 'simple') {
         return (
-            <div className="label-container" style={{ ...containerStyle, padding: '0.8mm 1.2mm' }}>
+            <div className="label-container" style={{ ...containerStyle, padding: '1mm 1.5mm' }}>
                 <div className="w-full text-center leading-none mb-1">
                     <span className="font-black block uppercase" style={{ fontSize: `${skuFontSize}mm` }}>
                         {finalSku}
                     </span>
                 </div>
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden px-1">
-                    <svg ref={svgRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
+                    {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block' }} alt="QR" />}
                 </div>
             </div>
         );
@@ -134,27 +127,28 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 </div>
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable Area Wrapper (Remaining ~3.7cm split into 2) */}
-                <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex' }}>
+                {/* Printable Area Wrapper (~3.7cm total width) */}
+                <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
                     
-                    {/* Part 1 (Left of content): SKU & Barcode */}
-                    <div style={{ width: '50%', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
-                        <span className="font-black block uppercase leading-none truncate w-full text-center" style={{ fontSize: '2.2mm' }}>
-                            {finalSku}
-                        </span>
-                        {/* Smaller container for the barcode to ensure it fits */}
-                        <div style={{ width: '100%', height: '4mm', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginTop: '0.5mm' }}>
-                             <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
-                        </div>
+                    {/* Part 1 (Left of content): QR Code - Nice and Small but High Contrast */}
+                    <div style={{ width: '30%', minWidth: 0, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1mm' }}>
+                        {qrDataUrl && <img src={qrDataUrl} style={{ height: '7mm', width: '7mm', display: 'block' }} alt="QR" />}
                     </div>
 
-                    {/* Part 2 (Right of content): Codified Price & Stone */}
-                    <div style={{ width: '50%', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
-                        <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.4mm' }}>
+                    {/* Part 2 (Middle of content): SKU Header */}
+                    <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black block uppercase leading-none truncate w-full text-center" style={{ fontSize: '2.4mm' }}>
+                            {finalSku}
+                        </span>
+                    </div>
+
+                    {/* Part 3 (Right of content): Codified Price & Stone */}
+                    <div style={{ width: '35%', minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 0.5mm', overflow: 'hidden' }}>
+                        <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.6mm' }}>
                             {codifiedPrice}
                         </span>
                         {stoneName && (
-                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.6mm', marginTop: '0.5mm', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span className="font-bold block text-center leading-none" style={{ fontSize: '1.8mm', marginTop: '0.8mm', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {stoneName}
                             </span>
                         )}
@@ -167,7 +161,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
 
     // Standard Wholesale Format
     return (
-        <div className="label-container" style={{ ...containerStyle, padding: '0.8mm 1.2mm' }}>
+        <div className="label-container" style={{ ...containerStyle, padding: '1.2mm 1.5mm' }}>
             {/* SKU HEADER */}
             <div className="w-full text-center leading-none mb-1">
                 <span className="font-black block uppercase tracking-tight text-black" style={{ fontSize: `${skuFontSize}mm` }}>
@@ -175,9 +169,9 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 </span>
             </div>
 
-            {/* BARCODE CENTER */}
-            <div className="flex-1 w-full flex items-center justify-center overflow-hidden px-2">
-                <svg ref={svgRef} style={{ maxWidth: '100%', height: '100%', display: 'block' }} />
+            {/* QR CODE CENTER - Square and Compact */}
+            <div className="flex-1 w-full flex items-center justify-center overflow-hidden py-1">
+                {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block' }} alt="QR" />}
             </div>
 
             {/* BRAND & STONE */}
