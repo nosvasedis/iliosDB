@@ -1,13 +1,15 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download } from 'lucide-react';
+import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
+import html2canvas from 'html2canvas';
+import { APP_LOGO } from '../../constants';
 
 interface Props {
   product: Product;
@@ -31,9 +33,10 @@ const PLATING_LABELS: Record<string, string> = {
 export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
   const { showToast } = useUI();
   const queryClient = useQueryClient();
-  const [showBarcode, setShowBarcode] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareTab, setShareTab] = useState<'card' | 'qr'>('card');
   const [showFullImage, setShowFullImage] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'stock'>('info'); // NEW: Tabs state
+  const [activeTab, setActiveTab] = useState<'info' | 'stock'>('info'); 
   
   // Data fetching for technical details
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -43,7 +46,11 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   // Modal States
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number } | null>(null);
-  const [showTechDetails, setShowTechDetails] = useState(false);
+  
+  // Share Card Ref
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
   const variants = product.variants || [];
   
@@ -70,6 +77,15 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       if (activeVariant) setActiveVariantForBarcode(activeVariant);
   }, [activeVariant]);
 
+  // Generate QR code for the current SKU
+  useEffect(() => {
+      const sku = `${product.sku}${activeVariant?.suffix || ''}`;
+      const safeSku = transliterateForBarcode(sku);
+      QRCode.toDataURL(safeSku, { margin: 1, width: 200, color: { dark: '#000000', light: '#ffffff' } })
+          .then(url => setQrDataUrl(url))
+          .catch(err => console.error(err));
+  }, [product.sku, activeVariant]);
+
   const nextVariant = (e?: React.MouseEvent) => {
       e?.stopPropagation();
       if (variants.length > 0) setVariantIndex((prev) => (prev + 1) % variants.length);
@@ -82,10 +98,14 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);
-  const displayLabel = activeVariant ? (activeVariant.description || activeVariant.suffix) : 'Βασικό';
+  const displayLabel = activeVariant ? (activeVariant.description || activeVariant.suffix) : product.category;
   const displaySku = `${product.sku}${activeVariant?.suffix || ''}`;
 
   const displayPlating = useMemo(() => {
+      if (activeVariant) {
+          const { finish } = getVariantComponents(activeVariant.suffix, product.gender);
+          return finish.name || PLATING_LABELS[product.plating_type];
+      }
       if (variants.length > 0) {
           const suffixPlatings = new Set<string>();
           variants.forEach(v => {
@@ -98,7 +118,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           if (suffixPlatings.size > 0) return Array.from(suffixPlatings).join(', ');
       }
       return PLATING_LABELS[product.plating_type] || product.plating_type;
-  }, [product, variants]);
+  }, [product, variants, activeVariant]);
 
   // --- Dynamic Tech Data based on Variant ---
   const activeTechData = useMemo(() => {
@@ -116,7 +136,54 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       };
   }, [product, activeVariant]);
 
-  // --- MANAGEMENT ACTIONS ---
+  // --- ACTIONS ---
+
+  const handleShare = async () => {
+      if (!cardRef.current && shareTab === 'card') return;
+      setIsGenerating(true);
+
+      try {
+          let blob: Blob | null = null;
+
+          if (shareTab === 'card' && cardRef.current) {
+              const canvas = await html2canvas(cardRef.current, {
+                  scale: 3, // High resolution
+                  useCORS: true, // For images from R2
+                  backgroundColor: '#ffffff'
+              });
+              blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+          } else if (shareTab === 'qr' && qrDataUrl) {
+              const res = await fetch(qrDataUrl);
+              blob = await res.blob();
+          }
+
+          if (!blob) throw new Error("Could not generate image.");
+
+          const file = new File([blob], `share-${displaySku}.jpg`, { type: 'image/jpeg' });
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                  files: [file],
+                  title: displaySku,
+                  text: `${displaySku} - ${displayLabel} (${formatCurrency(displayPrice)})`
+              });
+          } else {
+              // Fallback to download
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `ilios-${displaySku}.jpg`;
+              link.click();
+              URL.revokeObjectURL(url);
+              showToast("Η εικόνα αποθηκεύτηκε.", "success");
+          }
+      } catch (err: any) {
+          console.error(err);
+          showToast("Σφάλμα κατά την κοινοποίηση.", "error");
+      } finally {
+          setIsGenerating(false);
+      }
+  };
 
   const handleAdjustStock = async () => {
       if (!adjustModal) return;
@@ -289,6 +356,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 className="w-full h-full object-cover cursor-pointer" 
                 alt={product.sku} 
                 onClick={() => setShowFullImage(true)}
+                crossOrigin="anonymous" // IMPORTANT for HTML2Canvas
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
@@ -301,7 +369,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 <X size={20} />
             </button>
             <div className="flex gap-2">
-                <button onClick={() => setShowBarcode(true)} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95">
+                <button onClick={() => { setShowShareModal(true); setShareTab('card'); }} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95">
                     <QrCode size={20} />
                 </button>
             </div>
@@ -501,6 +569,104 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           </div>
       )}
 
+      {/* SHARE / QR MODAL */}
+      {showShareModal && (
+          <div className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-slate-100 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative">
+                  <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
+                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                          <button 
+                            onClick={() => setShareTab('card')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${shareTab === 'card' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                          >
+                              Product Card
+                          </button>
+                          <button 
+                            onClick={() => setShareTab('qr')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${shareTab === 'qr' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                          >
+                              QR Only
+                          </button>
+                      </div>
+                      <button onClick={() => setShowShareModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                  </div>
+
+                  <div className="p-6 flex flex-col items-center justify-center bg-slate-50 min-h-[320px]">
+                      {shareTab === 'card' ? (
+                          /* PRODUCT CARD PREVIEW (RENDERED) */
+                          <div 
+                            ref={cardRef}
+                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-full aspect-[4/5] flex flex-col border border-slate-200"
+                          >
+                              <div className="flex-1 relative bg-slate-100 overflow-hidden">
+                                  {product.image_url ? (
+                                      <img src={product.image_url} className="w-full h-full object-cover" crossOrigin="anonymous"/>
+                                  ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={48}/></div>
+                                  )}
+                                  <div className="absolute top-3 left-3 bg-black/80 text-white text-[10px] font-black px-2 py-1 rounded">
+                                      {APP_LOGO ? 'ILIOS' : 'ILIOS KOSMIMA'}
+                                  </div>
+                              </div>
+                              <div className="p-4 flex flex-col gap-2 relative">
+                                  <div className="flex justify-between items-start">
+                                      <div>
+                                          <h3 className="text-xl font-black text-slate-900 leading-none">{displaySku}</h3>
+                                          <p className="text-xs text-slate-500 font-bold mt-1 uppercase">{displayLabel}</p>
+                                      </div>
+                                      {displayPrice > 0 && (
+                                          <div className="bg-emerald-500 text-white px-2 py-1 rounded-lg font-black text-sm shadow-sm">
+                                              {formatCurrency(displayPrice)}
+                                          </div>
+                                      )}
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 mt-1">
+                                      <div className="bg-slate-50 p-1.5 rounded border border-slate-100 text-center">
+                                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Βάρος</span>
+                                          <span className="text-xs font-bold text-slate-700">{product.weight_g}g</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-1.5 rounded border border-slate-100 text-center">
+                                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Επιμετάλλωση</span>
+                                          <span className="text-xs font-bold text-slate-700 truncate">{displayPlating}</span>
+                                      </div>
+                                  </div>
+
+                                  {/* QR Code Embedded in Card */}
+                                  <div className="absolute bottom-4 right-4 w-12 h-12 bg-white p-1 rounded-lg border border-slate-100 shadow-sm">
+                                      {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain" />}
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          /* QR ONLY VIEW */
+                          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md">
+                              {qrDataUrl && <img src={qrDataUrl} className="w-48 h-48 object-contain" />}
+                              <div className="text-center mt-4 font-mono font-black text-slate-800 text-lg">{displaySku}</div>
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="p-4 bg-white border-t border-slate-200">
+                      <button 
+                        onClick={handleShare}
+                        disabled={isGenerating}
+                        className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                      >
+                          {isGenerating ? (
+                              <span className="animate-pulse">Δημιουργία...</span>
+                          ) : (
+                              <>
+                                  <Share2 size={18}/>
+                                  {navigator.share ? 'Κοινοποίηση' : 'Λήψη Εικόνας'}
+                              </>
+                          )}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Modals (Transfer/Adjust) remain the same... */}
       {transferModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
@@ -528,18 +694,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                   {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Υπόλοιπο (Set)</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
                   {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
                   <button onClick={handleAdjustStock} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}><Save size={20}/> Αποθήκευση</button>
-              </div>
-          </div>
-      )}
-
-      {showBarcode && (
-          <div className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
-              <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden relative">
-                  <button onClick={() => setShowBarcode(false)} className="absolute top-4 right-4 p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 z-10"><X size={20}/></button>
-                  <div className="p-8 pb-4 flex flex-col items-center">
-                      <div className="text-center mb-6"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ψηφιακή Ετικέτα</h3><div className="text-2xl font-black text-slate-900">{displaySku}</div></div>
-                      <div className="bg-white p-4 border-2 border-slate-900 rounded-xl w-full flex justify-center"><BarcodeView product={product} variant={activeVariantForBarcode || undefined} width={70} height={35} format="standard"/></div>
-                  </div>
               </div>
           </div>
       )}
