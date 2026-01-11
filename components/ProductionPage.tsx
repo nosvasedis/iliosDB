@@ -516,7 +516,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                 {stageBatches.length === 0 && (
                                     <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
                                         <Package size={24} className="mb-2"/>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Empty Stage</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
                                     </div>
                                 )}
                             </div>
