@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useZxing } from 'react-zxing';
-import { X, Camera, Zap } from 'lucide-react';
+import { X, Camera, Zap, Target } from 'lucide-react';
 
 interface Props {
     onScan: (result: string) => void;
@@ -13,131 +13,156 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
     const [lastScan, setLastScan] = useState<string>('');
     const [scanCount, setScanCount] = useState(0);
     
+    // We explicitly define the hints for the ZXing engine to be "aggressive"
+    // Hint 1: TRY_HARDER (deep analysis of low contrast images)
+    // Hint 2: POSSIBLE_FORMATS [CODE_128] (removes overhead of other formats)
+    const hints = useMemo(() => {
+        const map = new Map();
+        map.set(1, true); // TRY_HARDER = true
+        map.set(2, [1]);  // POSSIBLE_FORMATS = [BarcodeFormat.CODE_128]
+        return map;
+    }, []);
+
     const { ref } = useZxing({
         onDecodeResult(result) {
             const text = result.getText();
-            // High-speed recovery (600ms) for rapid sequential scanning
-            if (text !== lastScan || (Date.now() - scanCount > 600)) {
+            
+            // Debounce to prevent multiple triggers for the same barcode
+            const now = Date.now();
+            if (text !== lastScan || (now - scanCount > 800)) {
                 setLastScan(text);
-                setScanCount(Date.now());
+                setScanCount(now);
                 
-                // 1. Haptic Feedback (Vibration)
+                // Haptic Feedback
                 if ('vibrate' in navigator) navigator.vibrate(40);
                 
-                // 2. Audio Feedback (Professional Scanner Beep)
+                // Professional Audio Feedback
                 try {
                     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-                    const oscillator = audioCtx.createOscillator();
-                    const gainNode = audioCtx.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioCtx.destination);
-                    
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(1500, audioCtx.currentTime); // High sharp pitch
-                    
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1); // Sharp decay
-                    
-                    oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.12);
-                } catch (e) {
-                    console.debug("Audio feedback blocked by browser policies");
-                }
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } catch (e) {}
                 
                 onScan(text);
                 if (!continuous) onClose();
             }
         },
-        // OPTIMIZED CONSTRAINTS
+        paused: false,
+        // Aggressive video constraints for high-detail captures
         constraints: {
             video: {
                 facingMode: 'environment',
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                aspectRatio: { ideal: 1.777 },
-                // @ts-ignore - Some browsers support advanced constraints for focus
-                advanced: [{ focusMode: 'continuous', whiteBalanceMode: 'continuous' }]
+                // Forcing high resolution ensures the sensor can see individual barcode lines
+                width: { min: 1280, ideal: 1920 },
+                height: { min: 720, ideal: 1080 },
+                aspectRatio: { ideal: 1.7777777778 },
+                // @ts-ignore
+                advanced: [
+                    { focusMode: 'continuous' },
+                    { whiteBalanceMode: 'continuous' },
+                    { exposureMode: 'continuous' }
+                ]
             }
         },
+        // Apply the optimized hints
+        // @ts-ignore - react-zxing accepts hints in its options but types are sometimes strict
         options: {
-            // Speed Tip: Restricting to CODE_128 (Format 1) makes decoding significantly faster
-            hints: new Map<number, any>([
-                [2, [1]], // 1 = CODE_128
-                [1, true] // Try Harder for low-res thermal prints
-            ])
+            hints: hints
         }
     });
 
     return (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300">
-            {/* HEADER */}
-            <div className="p-6 flex justify-between items-center text-white bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-10">
+            {/* ENHANCED HEADER */}
+            <div className="p-6 flex justify-between items-center text-white bg-gradient-to-b from-black/90 to-transparent absolute top-0 left-0 right-0 z-50">
                 <div className="flex items-center gap-3">
-                    <div className="bg-emerald-500/20 p-2 rounded-full border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                        <Camera className="text-emerald-400 animate-pulse" size={24} />
+                    <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                        <Target className="text-emerald-400 animate-pulse" size={24} />
                     </div>
                     <div>
-                        <span className="font-bold text-lg block leading-none tracking-tight">Ilios Vision</span>
-                        <span className="text-[10px] text-white/50 uppercase font-black tracking-widest mt-1 block">ΕΞΥΠΝΗ ΣΑΡΩΣΗ v2.5</span>
+                        <span className="font-black text-lg block leading-none tracking-tight">Ilios Ultra-Scan</span>
+                        <span className="text-[9px] text-white/40 uppercase font-black tracking-widest mt-1.5 block">High-Frequency 1D Engine • v3.0</span>
                     </div>
                 </div>
                 <button 
                     onClick={onClose} 
-                    className="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-colors backdrop-blur-sm border border-white/5"
+                    className="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all border border-white/5"
                 >
                     <X size={24} />
                 </button>
             </div>
 
-            {/* VIEWPORT */}
+            {/* VIEWPORT WITH PRECISION UI */}
             <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-black">
-                <video ref={ref} className="w-full h-full object-cover opacity-90" />
+                <video ref={ref} className="w-full h-full object-cover opacity-90 scale-[1.02]" />
                 
-                {/* FOCUS UI */}
+                {/* SCANNING OVERLAY */}
                 <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                    <div className="w-72 h-44 border border-white/10 rounded-[2.5rem] relative">
-                        {/* Animated Laser Line */}
-                        <div className="absolute top-1/2 left-6 right-6 h-0.5 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,1)] animate-pulse"></div>
+                    {/* Narrow viewfinder optimized for long narrow labels */}
+                    <div className="w-80 h-32 border-2 border-white/10 rounded-3xl relative overflow-hidden">
+                        {/* The "Precision Laser" - moving scan line helps users stay aligned */}
+                        <div className="absolute inset-x-0 h-0.5 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.8)] animate-[scan_2s_ease-in-out_infinite]"></div>
                         
-                        {/* Corner Accents */}
-                        <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-3xl"></div>
-                        <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-3xl"></div>
-                        <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-3xl"></div>
-                        <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-3xl"></div>
+                        {/* Static focus line */}
+                        <div className="absolute top-1/2 left-4 right-4 h-px bg-white/20"></div>
+
+                        {/* Corner Brackets */}
+                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-2xl"></div>
+                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-2xl"></div>
+                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-2xl"></div>
+                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-2xl"></div>
                     </div>
                     
-                    <div className="mt-10 bg-emerald-500/10 px-6 py-3 rounded-2xl text-emerald-400 text-xs font-black uppercase tracking-[0.2em] backdrop-blur-xl border border-emerald-500/20 shadow-2xl animate-bounce">
-                        ΕΥΘΥΓΡΑΜΜΙΣΤΕ ΤΟ BARCODE
+                    <div className="mt-8 px-6 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20 backdrop-blur-md">
+                        <span className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">
+                            Ευθυγραμμιστε το Barcode στο πλαισιο
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* STATUS BAR (FOR CONTINUOUS MODE) */}
-            {lastScan && continuous && (
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-8 py-5 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex items-center gap-4 animate-in slide-in-from-bottom-10 border border-slate-100 min-w-[300px]">
-                    <div className="bg-emerald-500 p-2.5 rounded-full shadow-lg shadow-emerald-200">
-                        <Zap size={22} className="text-white fill-current"/>
+            {/* QUICK FEEDBACK DRAWER */}
+            {lastScan && (
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-white rounded-3xl p-5 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-10 border border-emerald-100 ring-4 ring-emerald-500/10">
+                    <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                        <Zap className="text-white fill-current" size={24}/>
                     </div>
-                    <div>
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">ΕΠΙΤΥΧΗΣ ΣΑΡΩΣΗ</div>
-                        <div className="font-mono font-black text-2xl tracking-tighter text-emerald-700">{lastScan}</div>
+                    <div className="min-w-0">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Τελευταία Σάρωση</div>
+                        <div className="font-mono font-black text-2xl text-slate-800 tracking-tighter truncate">{lastScan}</div>
                     </div>
-                    <button 
-                        onClick={() => setLastScan('')} 
-                        className="ml-auto p-2 text-slate-300 hover:text-slate-600 transition-colors"
-                    >
-                        <X size={20}/>
-                    </button>
+                    {continuous && (
+                        <button 
+                            onClick={() => setLastScan('')} 
+                            className="ml-auto p-2 text-slate-300 hover:text-slate-600"
+                        >
+                            <X size={20}/>
+                        </button>
+                    )}
                 </div>
             )}
             
-            {/* BOTTOM HELP */}
-            <div className="p-10 text-center bg-gradient-to-t from-black/80 to-transparent absolute bottom-0 left-0 right-0">
-                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
-                    ΚΡΑΤΗΣΤΕ ΤΟ ΚΟΝΤΑ ΣΤΟ ΦΩΣ ΓΙΑ ΚΑΛΥΤΕΡΑ ΑΠΟΤΕΛΕΣΜΑΤΑ
+            {/* DISTANCE ADVICE */}
+            <div className="p-10 text-center bg-gradient-to-t from-black/90 to-transparent absolute bottom-0 left-0 right-0">
+                <p className="text-white/30 text-[9px] font-bold uppercase tracking-widest max-w-xs mx-auto">
+                    Αν ο εκτυπωτής βγάζει "κολλημένες" γραμμές, δοκιμάστε να απομακρύνετε ελαφρώς τη συσκευή.
                 </p>
             </div>
+
+            <style>{`
+                @keyframes scan {
+                    0%, 100% { top: 10%; opacity: 0.5; }
+                    50% { top: 90%; opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }
