@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info, Sparkles, Save } from 'lucide-react';
+import { FolderKanban, Plus, Trash2, X, Search, Loader2, ArrowRight, Printer, Copy, AlertCircle, ScanBarcode, PackagePlus, Info, Sparkles, Save, Wand2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -24,6 +24,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     
     // Description State
     const [collectionDesc, setCollectionDesc] = useState('');
+    const [aiGuidance, setAiGuidance] = useState('');
     const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
     
     // Bulk Add State
@@ -34,6 +35,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     React.useEffect(() => {
         if (selectedCollection) {
             setCollectionDesc(selectedCollection.description || '');
+            setAiGuidance('');
         }
     }, [selectedCollection]);
 
@@ -226,7 +228,8 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         try {
             const text = await generateCollectionDescription(
                 selectedCollection.name,
-                productsInSelectedCollection
+                productsInSelectedCollection,
+                aiGuidance // Pass user instructions
             );
             setCollectionDesc(text);
             showToast("Η περιγραφή δημιουργήθηκε!", "success");
@@ -357,31 +360,43 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                 
                                 {/* AI DESCRIPTION EDITOR */}
                                 <div className="mb-8 bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner">
-                                    <div className="flex justify-between items-center mb-3">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
                                         <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
                                             <Sparkles size={16} className="text-purple-500" /> Marketing & Storytelling
                                         </h3>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 w-full sm:w-auto">
                                             <button 
                                                 onClick={handleGenerateDescription} 
                                                 disabled={isGeneratingDesc || productsInSelectedCollection.length === 0}
-                                                className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                                className="flex-1 sm:flex-none bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                                             >
-                                                {isGeneratingDesc ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 
-                                                {isGeneratingDesc ? 'Δημιουργία...' : 'Auto Generate'}
+                                                {isGeneratingDesc ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />} 
+                                                {isGeneratingDesc ? 'Δημιουργία...' : 'Generate with AI'}
                                             </button>
                                             <button 
                                                 onClick={handleSaveDescription} 
-                                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                                className="flex-1 sm:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
                                             >
                                                 <Save size={12} /> Save
                                             </button>
                                         </div>
                                     </div>
+                                    
+                                    {/* AI Guidance Input */}
+                                    <div className="mb-3">
+                                        <input 
+                                            type="text" 
+                                            value={aiGuidance}
+                                            onChange={e => setAiGuidance(e.target.value)}
+                                            placeholder="Οδηγίες για το AI (π.χ. 'Καλοκαιρινή διάθεση', 'Έμφαση στις πέτρες', 'Minimal')..."
+                                            className="w-full p-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-700 placeholder:text-slate-400 font-medium"
+                                        />
+                                    </div>
+
                                     <textarea 
                                         value={collectionDesc}
                                         onChange={e => setCollectionDesc(e.target.value)}
-                                        placeholder="Γράψτε ή δημιουργήστε μια περιγραφή για τη συλλογή..."
+                                        placeholder="Η περιγραφή θα εμφανιστεί εδώ..."
                                         className="w-full p-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all h-24 resize-none font-serif leading-relaxed"
                                     />
                                     <p className="text-[10px] text-slate-400 mt-1 italic">Αυτό το κείμενο θα εμφανίζεται στην παρουσίαση της συλλογής.</p>

@@ -113,7 +113,8 @@ export const generateMarketingCopy = async (
  */
 export const generateCollectionDescription = async (
     collectionName: string,
-    products: any[]
+    products: any[],
+    userGuidance?: string
 ): Promise<string> => {
     try {
         const ai = getClient();
@@ -124,26 +125,29 @@ export const generateCollectionDescription = async (
         const materials = Array.from(new Set(products.map(p => p.plating_type))).join(', ');
         
         const prompt = `
-            Είσαι ο Chief Editor ενός πολυτελούς περιοδικού μόδας (όπως η Vogue).
+            Είσαι ο Chief Editor ενός πολυτελούς περιοδικού μόδας (όπως η Vogue ή το Elle).
             Γράψε ένα ΣΥΝΤΟΜΟ (30-50 λέξεις), ατμοσφαιρικό και ελκυστικό διαφημιστικό κείμενο (intro) για μια συλλογή κοσμημάτων.
             
-            Όνομα Συλλογής: "${collectionName}"
-            Περιεχόμενα: ${categories}
-            Στυλ/Υλικά: ${materials}
-            Κοινό: ${genders}
+            ΔΕΔΟΜΕΝΑ ΣΥΛΛΟΓΗΣ:
+            - Όνομα: "${collectionName}"
+            - Είδη: ${categories}
+            - Υλικά/Φινίρισμα: ${materials}
+            - Κοινό: ${genders}
             
-            Οδηγίες:
+            ${userGuidance ? `ΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΧΡΗΣΤΗ (Σημαντικό): "${userGuidance}"` : ''}
+            
+            ΟΔΗΓΙΕΣ ΥΦΟΥΣ:
             - Το κείμενο πρέπει να εμπνέει πολυτέλεια, στυλ και συναίσθημα.
-            - Μην κάνεις λίστα. Γράψε μια ρέουσα παράγραφο.
+            - Μην κάνεις λίστα (bullet points). Γράψε μια ρέουσα, λογοτεχνική παράγραφο.
             - Γράψε στα Ελληνικά.
-            - Απόφυγε κλισέ όπως "η καλύτερη ποιότητα". Εστίασε στην αισθητική.
+            - Αν ο χρήστης έδωσε οδηγίες (π.χ. "καλοκαιρινό"), προσάρμοσε το ύφος ανάλογα.
         `;
 
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
-                temperature: 0.8 // Higher creativity
+                temperature: 0.85 // High creativity for storytelling
             }
         });
 
