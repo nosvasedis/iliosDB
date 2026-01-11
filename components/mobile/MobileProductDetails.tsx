@@ -9,7 +9,7 @@ import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
-import { APP_LOGO } from '../../constants';
+import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 
 interface Props {
   product: Product;
@@ -36,7 +36,6 @@ const toBase64 = async (url: string): Promise<string | null> => {
         let fetchUrl = url;
         
         // If it's an R2 URL, replace the domain with the Worker domain
-        // This ensures we hit the worker code that applies CORS headers
         if (url.includes('r2.dev')) {
             const filename = url.split('/').pop();
             if (filename) {
@@ -47,14 +46,8 @@ const toBase64 = async (url: string): Promise<string | null> => {
         const response = await fetch(fetchUrl, { 
             method: 'GET',
             mode: 'cors',
-            cache: 'no-cache', // Bypass browser cache to ensure we get fresh headers
-            headers: {
-                // If the worker requires auth for GET, add it here. 
-                // Based on your worker code, GET is protected if it's not the silver route? 
-                // Actually, the worker allows public GET if it's just fetching an object.
-                // But let's add the header just in case if your logic changes.
-                // 'Authorization': AUTH_KEY_SECRET 
-            }
+            cache: 'no-cache', 
+            headers: {}
         });
 
         if (!response.ok) throw new Error('Network response was not ok');
@@ -93,6 +86,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [cardImageBase64, setCardImageBase64] = useState<string | null>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const variants = product.variants || [];
   
@@ -120,13 +114,20 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           .catch(err => console.error(err));
   }, [product.sku, activeVariant]);
 
-  // Pre-load image as base64 when share modal opens
+  // Pre-load images as base64 when share modal opens
   useEffect(() => {
-      if (showShareModal && product.image_url) {
-          setCardImageBase64(null); // Reset to show loading state if needed
-          toBase64(product.image_url).then(base64 => {
-              if (base64) setCardImageBase64(base64);
-          });
+      if (showShareModal) {
+          if (product.image_url) {
+              setCardImageBase64(null); 
+              toBase64(product.image_url).then(base64 => {
+                  if (base64) setCardImageBase64(base64);
+              });
+          }
+          if (APP_ICON_ONLY) {
+              toBase64(APP_ICON_ONLY).then(base64 => {
+                  if (base64) setLogoBase64(base64);
+              });
+          }
       }
   }, [showShareModal, product.image_url]);
 
@@ -149,7 +150,6 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       if (activeVariant) {
           return getVariantComponents(activeVariant.suffix, product.gender);
       }
-      // Fallback for master
       return getVariantComponents('', product.gender);
   }, [activeVariant, product.gender]);
 
@@ -190,9 +190,9 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
               await new Promise(r => setTimeout(r, 250)); 
               
               const canvas = await html2canvas(cardRef.current, {
-                  scale: 3, // High resolution for Retina displays
+                  scale: 3, 
                   useCORS: true, 
-                  backgroundColor: '#ffffff', // Force white background
+                  backgroundColor: '#ffffff',
                   logging: false,
                   allowTaint: true
               });
@@ -230,7 +230,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       }
   };
 
-  // ... (Stock logic handlers remain identical)
+  // ... (Stock logic remains the same)
   const handleAdjustStock = async () => {
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
@@ -646,24 +646,33 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                               {/* Background Image / Placeholder */}
                               <div className="absolute inset-0 z-0 bg-white">
                                   {cardImageBase64 ? (
-                                      <img src={cardImageBase64} className="w-full h-full object-cover" alt="Product" />
+                                      <img 
+                                        src={cardImageBase64} 
+                                        className="w-full h-full object-contain p-8" 
+                                        alt="Product" 
+                                      />
                                   ) : (
                                       <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
                                           {product.image_url ? (
-                                              <img src={product.image_url} className="w-full h-full object-cover" crossOrigin="anonymous" alt="Fallback" />
+                                              /* Fallback to URL with crossOrigin if Base64 fails */
+                                              <img src={product.image_url} className="w-full h-full object-contain p-8" crossOrigin="anonymous" alt="Fallback" />
                                           ) : (
                                               <ImageIcon size={48}/>
                                           )}
                                       </div>
                                   )}
                                   {/* Gradient Overlays */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40 opacity-80"></div>
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none"></div>
                               </div>
 
                               {/* Branding - Top */}
                               <div className="relative z-10 p-5 pt-6 w-full flex justify-between items-start">
-                                  <div className="bg-white/10 backdrop-blur-md text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border border-white/20 shadow-sm">
-                                      {APP_LOGO ? 'ILIOS KOSMIMA' : 'ILIOS'}
+                                  <div className="bg-white/10 backdrop-blur-md text-white p-2 rounded-xl border border-white/20 shadow-sm">
+                                      {logoBase64 ? (
+                                          <img src={logoBase64} className="w-8 h-8 object-contain drop-shadow-md"/>
+                                      ) : (
+                                          <span className="font-black text-xs">ILIOS</span>
+                                      )}
                                   </div>
                               </div>
 
@@ -674,20 +683,21 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                                           <div className="flex items-center gap-2 mb-2">
                                               <span className="text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded font-bold uppercase border border-white/10 tracking-wide">{product.category}</span>
                                           </div>
-                                          <h3 className="text-4xl font-black leading-none tracking-tighter shadow-black drop-shadow-md truncate">{displaySku}</h3>
+                                          {/* SKU Handling with Word Break for Long SKUs */}
+                                          <h3 className="text-3xl font-black leading-none tracking-tighter shadow-black drop-shadow-md break-all">{displaySku}</h3>
                                           <p className="text-sm font-bold opacity-90 mt-1 uppercase tracking-wide truncate">{displayLabel}</p>
                                           
                                           {/* Variant Specs */}
-                                          <div className="mt-4 flex items-center gap-3 text-xs font-bold text-white/90">
-                                              <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                          <div className="mt-4 flex items-center gap-2 text-xs font-bold text-white/90 flex-wrap">
+                                              <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
                                                   <Palette size={12}/> {displayPlating}
                                               </div>
                                               {displayStone && (
-                                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
                                                       <Gem size={12}/> {displayStone}
                                                   </div>
                                               )}
-                                               <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm">
+                                               <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
                                                   <Weight size={12}/> {product.weight_g}g
                                               </div>
                                           </div>

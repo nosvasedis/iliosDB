@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
-import { Product } from '../../types';
-import { Search, ImageIcon, Tag, Weight, Layers, Camera } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Product, ProductVariant } from '../../types';
+import { Search, ImageIcon, Tag, Weight, Layers, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
@@ -29,6 +29,104 @@ const CategoryChip: React.FC<CategoryChipProps> = ({ label, isActive, onClick })
         {label}
     </button>
 );
+
+const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+    const [variantIndex, setVariantIndex] = useState(0);
+    
+    // Sort variants to ensure consistent order (Standard priority logic)
+    const variants = useMemo(() => {
+        if (!product.variants || product.variants.length === 0) return [];
+        return [...product.variants].sort((a, b) => {
+            const priority = (s: string) => {
+                if (s === '') return 0;
+                if (s === 'P') return 1;
+                if (s === 'D') return 2;
+                if (s === 'X') return 3;
+                if (s === 'H') return 4;
+                return 5;
+            };
+            return priority(a.suffix) - priority(b.suffix);
+        });
+    }, [product.variants]);
+
+    const hasVariants = variants.length > 0;
+    const currentVariant = hasVariants ? variants[variantIndex] : null;
+
+    // Display Props based on current variant or master
+    const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
+    const displayPrice = currentVariant ? (currentVariant.selling_price || 0) : (product.selling_price || 0);
+    const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
+    
+    const totalStock = (product.stock_qty || 0) + (product.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
+
+    const nextVariant = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (hasVariants) setVariantIndex((prev) => (prev + 1) % variants.length);
+    };
+
+    const prevVariant = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (hasVariants) setVariantIndex((prev) => (prev - 1 + variants.length) % variants.length);
+    };
+
+    return (
+        <div 
+            onClick={onClick}
+            className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-transform flex flex-col relative overflow-hidden"
+        >
+            <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden mb-2 relative group">
+                {product.image_url ? (
+                    <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
+                )}
+                
+                {totalStock > 0 && (
+                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                        {totalStock}
+                    </div>
+                )}
+                
+                {hasVariants && (
+                    <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm backdrop-blur-sm">
+                        <Layers size={10} /> {variants.length}
+                    </div>
+                )}
+            </div>
+            
+            <div className="mt-auto">
+                <div className="flex justify-between items-center">
+                    <div className="font-black text-slate-800 text-sm truncate">{displaySku}</div>
+                    
+                    {/* Mini Controls for Variants */}
+                    {hasVariants && variants.length > 1 && (
+                        <div className="flex bg-slate-100 rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
+                            <button onClick={prevVariant} className="p-1 hover:bg-white rounded shadow-sm transition-all text-slate-500">
+                                <ChevronLeft size={12}/>
+                            </button>
+                            <button onClick={nextVariant} className="p-1 hover:bg-white rounded shadow-sm transition-all text-slate-500">
+                                <ChevronRight size={12}/>
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="text-[10px] text-slate-400 font-medium truncate flex items-center gap-1">
+                    <Tag size={10}/> {displayLabel}
+                </div>
+                
+                <div className="mt-1 flex justify-between items-end">
+                    <div className="font-bold text-slate-900 text-xs bg-slate-50 rounded px-1.5 py-0.5 w-fit">
+                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
+                    </div>
+                    <div className="text-[9px] text-slate-400 flex items-center gap-0.5">
+                        <Weight size={8}/> {product.weight_g}g
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function MobileRegistry({ products, onProductSelect }: Props) {
     const [search, setSearch] = useState('');
@@ -110,58 +208,13 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             {/* Grid */}
             <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar">
                 <div className="grid grid-cols-2 gap-3">
-                    {filteredProducts.map(p => {
-                        const totalStock = (p.stock_qty || 0) + (p.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
-                        const hasVariants = p.variants && p.variants.length > 0;
-                        
-                        // Resolve Display Price:
-                        // If master price is 0, try to find a representative variant price (e.g. Gold 'X' or just the first non-zero)
-                        let displayPrice = p.selling_price;
-                        if ((!displayPrice || displayPrice === 0) && hasVariants) {
-                            const variantWithPrice = p.variants?.find(v => v.selling_price && v.selling_price > 0);
-                            if (variantWithPrice) displayPrice = variantWithPrice.selling_price || 0;
-                        }
-
-                        return (
-                            <div 
-                                key={p.sku} 
-                                onClick={() => onProductSelect(p)}
-                                className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-transform flex flex-col relative overflow-hidden"
-                            >
-                                <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden mb-2 relative">
-                                    {p.image_url ? (
-                                        <img src={p.image_url} className="w-full h-full object-cover" alt={p.sku} />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
-                                    )}
-                                    
-                                    {totalStock > 0 && (
-                                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                                            {totalStock}
-                                        </div>
-                                    )}
-                                    
-                                    {hasVariants && (
-                                        <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm backdrop-blur-sm">
-                                            <Layers size={10} /> {p.variants?.length}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-auto">
-                                    <div className="font-black text-slate-800 text-sm truncate">{p.sku}</div>
-                                    <div className="text-[10px] text-slate-400 font-medium truncate flex items-center gap-1">
-                                        <Tag size={10}/> {p.category}
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 font-medium truncate flex items-center gap-1 mt-0.5">
-                                        <Weight size={10}/> {p.weight_g}g
-                                    </div>
-                                    <div className="mt-1 font-bold text-slate-900 text-xs bg-slate-50 rounded px-1.5 py-0.5 w-fit">
-                                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    {filteredProducts.map(p => (
+                        <RegistryCard 
+                            key={p.sku} 
+                            product={p} 
+                            onClick={() => onProductSelect(p)} 
+                        />
+                    ))}
                 </div>
                 {filteredProducts.length === 0 && (
                     <div className="text-center py-10 text-slate-400 text-sm font-medium">
