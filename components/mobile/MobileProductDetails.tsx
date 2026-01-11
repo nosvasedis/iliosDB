@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2 } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
@@ -30,6 +30,26 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
 };
 
+// Helper to convert URL to Base64 to bypass CORS in html2canvas
+const toBase64 = async (url: string): Promise<string | null> => {
+    try {
+        // If it's an R2 URL, we might need to go through the worker or fetch normally
+        // Attempt standard fetch first
+        const response = await fetch(url, { mode: 'cors' });
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        // Fallback: Just return null, the canvas will show placeholder
+        console.warn("Base64 conversion failed", e);
+        return null;
+    }
+};
+
 export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
   const { showToast } = useUI();
   const queryClient = useQueryClient();
@@ -47,17 +67,14 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number } | null>(null);
   
-  // Share Card Ref
+  // Share Card Refs & State
   const cardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [cardImageBase64, setCardImageBase64] = useState<string | null>(null);
 
   const variants = product.variants || [];
   
-  const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(
-      variants.length > 0 ? variants[0] : null
-  );
-
   const [variantIndex, setVariantIndex] = useState(0);
 
   const activeVariant = useMemo(() => {
@@ -73,18 +90,23 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       return sorted[variantIndex];
   }, [variants, variantIndex]);
 
-  useEffect(() => {
-      if (activeVariant) setActiveVariantForBarcode(activeVariant);
-  }, [activeVariant]);
-
   // Generate QR code for the current SKU
   useEffect(() => {
       const sku = `${product.sku}${activeVariant?.suffix || ''}`;
       const safeSku = transliterateForBarcode(sku);
-      QRCode.toDataURL(safeSku, { margin: 1, width: 200, color: { dark: '#000000', light: '#ffffff' } })
+      QRCode.toDataURL(safeSku, { margin: 1, width: 200, color: { dark: '#060b00', light: '#ffffff' } })
           .then(url => setQrDataUrl(url))
           .catch(err => console.error(err));
   }, [product.sku, activeVariant]);
+
+  // Pre-load image as base64 when share modal opens
+  useEffect(() => {
+      if (showShareModal && product.image_url && !cardImageBase64) {
+          toBase64(product.image_url).then(base64 => {
+              if (base64) setCardImageBase64(base64);
+          });
+      }
+  }, [showShareModal, product.image_url]);
 
   const nextVariant = (e?: React.MouseEvent) => {
       e?.stopPropagation();
@@ -146,10 +168,14 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           let blob: Blob | null = null;
 
           if (shareTab === 'card' && cardRef.current) {
+              // Wait for image to render if base64 logic is pending
+              await new Promise(r => setTimeout(r, 100)); 
+              
               const canvas = await html2canvas(cardRef.current, {
                   scale: 3, // High resolution
-                  useCORS: true, // For images from R2
-                  backgroundColor: '#ffffff'
+                  useCORS: true, 
+                  backgroundColor: '#ffffff',
+                  logging: false
               });
               blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
           } else if (shareTab === 'qr' && qrDataUrl) {
@@ -159,7 +185,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
 
           if (!blob) throw new Error("Could not generate image.");
 
-          const file = new File([blob], `share-${displaySku}.jpg`, { type: 'image/jpeg' });
+          const file = new File([blob], `ilios-${displaySku}.jpg`, { type: 'image/jpeg' });
 
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({
@@ -356,7 +382,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                 className="w-full h-full object-cover cursor-pointer" 
                 alt={product.sku} 
                 onClick={() => setShowFullImage(true)}
-                crossOrigin="anonymous" // IMPORTANT for HTML2Canvas
+                // Removed crossOrigin here to allow normal loading. 
+                // Proxy logic handles share card generation separately.
             />
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100">
@@ -579,13 +606,13 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                             onClick={() => setShareTab('card')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${shareTab === 'card' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
                           >
-                              Product Card
+                              Κάρτα
                           </button>
                           <button 
                             onClick={() => setShareTab('qr')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${shareTab === 'qr' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
                           >
-                              QR Only
+                              QR
                           </button>
                       </div>
                       <button onClick={() => setShowShareModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={20}/></button>
@@ -596,45 +623,52 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                           /* PRODUCT CARD PREVIEW (RENDERED) */
                           <div 
                             ref={cardRef}
-                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-full aspect-[4/5] flex flex-col border border-slate-200"
+                            className="bg-white rounded-2xl shadow-lg overflow-hidden w-[280px] aspect-[4/5] flex flex-col border border-slate-200 relative"
                           >
-                              <div className="flex-1 relative bg-slate-100 overflow-hidden">
-                                  {product.image_url ? (
-                                      <img src={product.image_url} className="w-full h-full object-cover" crossOrigin="anonymous"/>
+                              {/* Background Image / Placeholder using Base64 state */}
+                              <div className="absolute inset-0 z-0">
+                                  {cardImageBase64 ? (
+                                      <img src={cardImageBase64} className="w-full h-full object-cover" alt="Product Background" />
                                   ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={48}/></div>
+                                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
+                                          <ImageIcon size={48}/>
+                                      </div>
                                   )}
-                                  <div className="absolute top-3 left-3 bg-black/80 text-white text-[10px] font-black px-2 py-1 rounded">
-                                      {APP_LOGO ? 'ILIOS' : 'ILIOS KOSMIMA'}
+                                  {/* Gradient Overlay for Text Readability */}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+                              </div>
+
+                              {/* Branding */}
+                              <div className="relative z-10 p-4 pt-5">
+                                  <div className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black px-2 py-1 rounded w-fit uppercase tracking-widest border border-white/20">
+                                      {APP_LOGO ? 'ILIOS KOSMIMA' : 'ILIOS'}
                                   </div>
                               </div>
-                              <div className="p-4 flex flex-col gap-2 relative">
-                                  <div className="flex justify-between items-start">
+
+                              {/* Footer Details */}
+                              <div className="mt-auto relative z-10 p-5 pt-0 text-white">
+                                  <div className="flex justify-between items-end mb-3">
                                       <div>
-                                          <h3 className="text-xl font-black text-slate-900 leading-none">{displaySku}</h3>
-                                          <p className="text-xs text-slate-500 font-bold mt-1 uppercase">{displayLabel}</p>
+                                          <h3 className="text-3xl font-black leading-none tracking-tight shadow-black drop-shadow-sm">{displaySku}</h3>
+                                          <p className="text-xs font-bold opacity-80 uppercase tracking-wide mt-1">{displayLabel}</p>
                                       </div>
+                                      
+                                      {/* QR Code Embedded */}
+                                      <div className="w-12 h-12 bg-white p-1 rounded-lg shadow-lg shrink-0">
+                                          {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain" />}
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="flex gap-2">
                                       {displayPrice > 0 && (
-                                          <div className="bg-emerald-500 text-white px-2 py-1 rounded-lg font-black text-sm shadow-sm">
+                                          <div className="bg-emerald-500/90 backdrop-blur-md text-white px-3 py-1.5 rounded-lg font-black text-sm shadow-sm flex items-center gap-1">
+                                              <span className="text-[10px] font-normal opacity-80">Τιμή</span>
                                               {formatCurrency(displayPrice)}
                                           </div>
                                       )}
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-2 gap-2 mt-1">
-                                      <div className="bg-slate-50 p-1.5 rounded border border-slate-100 text-center">
-                                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Βάρος</span>
-                                          <span className="text-xs font-bold text-slate-700">{product.weight_g}g</span>
+                                      <div className="bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 border border-white/10">
+                                          <Weight size={10}/> {product.weight_g}g
                                       </div>
-                                      <div className="bg-slate-50 p-1.5 rounded border border-slate-100 text-center">
-                                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Επιμετάλλωση</span>
-                                          <span className="text-xs font-bold text-slate-700 truncate">{displayPlating}</span>
-                                      </div>
-                                  </div>
-
-                                  {/* QR Code Embedded in Card */}
-                                  <div className="absolute bottom-4 right-4 w-12 h-12 bg-white p-1 rounded-lg border border-slate-100 shadow-sm">
-                                      {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain" />}
                                   </div>
                               </div>
                           </div>
@@ -654,11 +688,11 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                         className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform"
                       >
                           {isGenerating ? (
-                              <span className="animate-pulse">Δημιουργία...</span>
+                              <><Loader2 size={18} className="animate-spin"/> Δημιουργία...</>
                           ) : (
                               <>
                                   <Share2 size={18}/>
-                                  {navigator.share ? 'Κοινοποίηση' : 'Λήψη Εικόνας'}
+                                  {navigator.share ? 'Κοινοποίηση' : 'Λήψη'}
                               </>
                           )}
                       </button>
