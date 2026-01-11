@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { Product, ProductVariant, Warehouse } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Copy, Scan, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Product, ProductVariant, Warehouse, Gender, PlatingType } from '../../types';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { SYSTEM_IDS } from '../../lib/supabase';
 import BarcodeView from '../BarcodeView';
@@ -13,6 +13,19 @@ interface Props {
   warehouses: Warehouse[];
 }
 
+const GENDER_LABELS: Record<string, string> = {
+    [Gender.Men]: 'Ανδρικό',
+    [Gender.Women]: 'Γυναικείο',
+    [Gender.Unisex]: 'Unisex'
+};
+
+const PLATING_LABELS: Record<string, string> = {
+    [PlatingType.None]: 'Λουστρέ',
+    [PlatingType.GoldPlated]: 'Επίχρυσο',
+    [PlatingType.TwoTone]: 'Δίχρωμο',
+    [PlatingType.Platinum]: 'Επιπλατινωμένο'
+};
+
 export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
   const { showToast } = useUI();
   const [showBarcode, setShowBarcode] = useState(false);
@@ -21,11 +34,41 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
   const variants = product.variants || [];
   
   // Logic: If variants exist, start with the first one. If not, start with null (Master).
-  // This effectively hides the "Master Container" view when variants are present.
   const [activeVariantForBarcode, setActiveVariantForBarcode] = useState<ProductVariant | null>(
       variants.length > 0 ? variants[0] : null
   );
   
+  // Display Logic Helpers
+  const displayGender = GENDER_LABELS[product.gender] || product.gender;
+  
+  const displayPlating = useMemo(() => {
+      if (variants.length > 0) {
+          const suffixPlatings = new Set<string>();
+          variants.forEach(v => {
+             if (v.suffix.includes('X')) suffixPlatings.add('Επίχρυσο');
+             else if (v.suffix.includes('H')) suffixPlatings.add('Επιπλατινωμένο');
+             else if (v.suffix.includes('D')) suffixPlatings.add('Δίχρωμο');
+             else if (v.suffix === '' || v.suffix.includes('P')) suffixPlatings.add('Λουστρέ');
+          });
+          if (suffixPlatings.size > 0) return Array.from(suffixPlatings).join(', ');
+      }
+      return PLATING_LABELS[product.plating_type] || product.plating_type;
+  }, [product, variants]);
+
+  const displayPrice = useMemo(() => {
+      if (product.selling_price && product.selling_price > 0) return formatCurrency(product.selling_price);
+      if (variants.length > 0) {
+          const prices = variants.map(v => v.selling_price || 0).filter(p => p > 0);
+          if (prices.length > 0) {
+              const min = Math.min(...prices);
+              const max = Math.max(...prices);
+              if (min === max) return formatCurrency(min);
+              return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+          }
+      }
+      return '-';
+  }, [product, variants]);
+
   const handleShare = async () => {
       const text = `${product.sku} - ${product.category} (${product.weight_g}g)`;
       if (navigator.share) {
@@ -49,7 +92,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
       
       const currentIndex = activeVariantForBarcode 
         ? variants.findIndex(v => v.suffix === activeVariantForBarcode.suffix) 
-        : 0; // Default to 0 if we somehow have variants but active is null (shouldn't happen with new init)
+        : 0;
 
       let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
       
@@ -130,8 +173,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
                   <div className="text-slate-400 text-[10px] font-black uppercase mb-1 flex items-center gap-1"><DollarSign size={10}/> Τιμή Χονδρικής</div>
-                  <div className="text-xl font-black text-slate-800 tracking-tight">
-                      {product.selling_price > 0 ? formatCurrency(product.selling_price) : '-'}
+                  <div className="text-xl font-black text-slate-800 tracking-tight truncate w-full">
+                      {displayPrice}
                   </div>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
@@ -143,7 +186,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           {/* Variants */}
           {variants.length > 0 && (
               <div className="space-y-3">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Παραλλαγές</h3>
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2">Παραλλαγές ({variants.length})</h3>
                   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                       {variants.map((v, idx) => (
                           <div 
@@ -210,8 +253,8 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
           </div>
 
           <div className="bg-slate-100 p-4 rounded-2xl text-xs text-slate-500 space-y-2 border border-slate-200/60">
-              <div className="flex justify-between"><span>Επιμετάλλωση:</span> <span className="font-bold text-slate-700">{product.plating_type}</span></div>
-              <div className="flex justify-between"><span>Φύλο:</span> <span className="font-bold text-slate-700">{product.gender}</span></div>
+              <div className="flex justify-between"><span>Επιμετάλλωση:</span> <span className="font-bold text-slate-700">{displayPlating}</span></div>
+              <div className="flex justify-between"><span>Φύλο:</span> <span className="font-bold text-slate-700">{displayGender}</span></div>
               {product.secondary_weight_g ? <div className="flex justify-between"><span>Β' Βάρος:</span> <span className="font-bold text-slate-700">{product.secondary_weight_g}g</span></div> : null}
           </div>
           
@@ -259,7 +302,7 @@ export default function MobileProductDetails({ product, onClose, warehouses }: P
                       </div>
                   </div>
 
-                  {/* Variant Switcher - Show only if > 1 variant, or if exactly 1 but we want to confirm identity */}
+                  {/* Variant Switcher */}
                   {variants.length > 0 && (
                       <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-between">
                           <button onClick={() => cycleVariant('prev')} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 active:bg-slate-100"><ChevronLeft size={20}/></button>
