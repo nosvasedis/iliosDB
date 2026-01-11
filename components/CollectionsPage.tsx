@@ -48,13 +48,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         if (yes) {
             try {
-                // Remove product associations first via API (using null array deletes all)
-                // Actually, our API helper setProductCollections replaces for a SKU.
-                // But for deleting a collection, we should ideally clean up.
-                // However, safeMutate logic is by table.
-                // Let's just delete the collection for now, associations might linger in cloud but it's fine for simple use.
-                // For a proper cleanup, we'd need a deleteProductCollectionsByCollectionId endpoint.
-                
                 await api.deleteCollection(id);
                 queryClient.invalidateQueries({ queryKey: ['collections'] });
                 if (selectedCollection?.id === id) {
@@ -83,36 +76,38 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     };
 
     const expandSkuRange = (token: string): string[] => {
-        // Regex to capture PREFIX and NUMBER from formats like "RN300" or "STX-500"
-        // Range Pattern: START - END (e.g., RN300-RN325)
-        const rangeRegex = /^([A-Z-]+)(\d+)-([A-Z-]+)(\d+)$/i;
+        // Robust Regex: Matches [PREFIX][NUMBER][SUFFIX] - [PREFIX][NUMBER][SUFFIX]
+        // Example: MN050S-MN063S or DA100-DA120
+        const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
         const match = token.match(rangeRegex);
 
         if (!match) return [token];
 
-        const [, prefix1, num1Str, prefix2, num2Str] = match;
+        const [, prefix1, num1Str, suffix1, prefix2, num2Str, suffix2] = match;
 
-        // Ensure prefixes match (case-insensitive check, but use original case for reconstruction if needed)
-        if (prefix1.toUpperCase() !== prefix2.toUpperCase()) return [token];
+        // Validation: Prefixes and Suffixes must match to define a logical range
+        if (prefix1.toUpperCase() !== prefix2.toUpperCase() || suffix1.toUpperCase() !== suffix2.toUpperCase()) {
+            return [token];
+        }
 
         const start = parseInt(num1Str, 10);
         const end = parseInt(num2Str, 10);
 
         if (start > end) return [token];
         
-        // Safety cap to prevent massive loops
+        // Safety cap to prevent massive loops (OOM prevention)
         if (end - start > 1000) return [token];
 
         const expanded: string[] = [];
         const paddingLength = num1Str.length;
-        const shouldPad = num1Str.startsWith('0') && num1Str.length > 1;
+        const shouldPad = num1Str.startsWith('0') || num1Str.length > 1;
 
         for (let i = start; i <= end; i++) {
             let numPart = i.toString();
             if (shouldPad) {
                 numPart = numPart.padStart(paddingLength, '0');
             }
-            expanded.push(`${prefix1}${numPart}`);
+            expanded.push(`${prefix1.toUpperCase()}${numPart}${suffix1.toUpperCase()}`);
         }
 
         return expanded;
@@ -154,7 +149,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             }
             
             if (newAssociations.length > 0) {
-                // Use the new batch API instead of looping
                 await api.addProductsToCollection(newAssociations);
                 await queryClient.invalidateQueries({ queryKey: ['products'] });
                 setBulkSkus('');
@@ -180,7 +174,6 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         const dateStr = new Date().toLocaleDateString('el-GR');
         
-        // Helper logic recycled from PriceListPage to structure data for the print view
         const items = productsInSelectedCollection.map(p => {
             const variantMap: Record<string, number> = {};
             if (p.variants && p.variants.length > 0) {
@@ -335,12 +328,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             <textarea 
                                                 value={bulkSkus}
                                                 onChange={e => setBulkSkus(e.target.value)}
-                                                placeholder={`Επικολλήστε κωδικούς εδώ (π.χ. από Excel)...\nDA100\nXR2020\nSTX-505\nRN300-RN325`}
+                                                placeholder={`Επικολλήστε κωδικούς εδώ (π.χ. από Excel)...\nDA100\nXR2020\nSTX-505\nMN050S-MN063S`}
                                                 className="w-full p-3 text-sm font-mono border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all h-24 resize-none"
                                             />
                                             <div className="flex items-center gap-2 mt-1.5 text-[10px] text-blue-500 font-medium">
                                                 <Info size={12}/>
-                                                <p>Υποστηρίζει εύρος (π.χ. <strong>RN300-RN325</strong>).</p>
+                                                <p>Υποστηρίζει εύρος (π.χ. <strong>MN050S-MN063S</strong>).</p>
                                             </div>
                                         </div>
                                         <button 

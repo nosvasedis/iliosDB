@@ -72,20 +72,22 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         if (!manualInput.trim()) return;
         const upper = manualInput.trim().toUpperCase();
         
-        // Range expansion support
-        const rangeRegex = /^([A-Z-]+)(\d+)-([A-Z-]+)(\d+)$/i;
+        // Robust Range expansion support: [PREFIX][NUMBER][SUFFIX] - [PREFIX][NUMBER][SUFFIX]
+        const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
         const match = upper.match(rangeRegex);
 
         if (match) {
-            const [, prefix1, num1Str, prefix2, num2Str] = match;
-            if (prefix1 === prefix2) {
+            const [, prefix1, num1Str, suffix1, prefix2, num2Str, suffix2] = match;
+            
+            // Validation: Prefixes and Suffixes must match
+            if (prefix1 === prefix2 && suffix1 === suffix2) {
                 const start = parseInt(num1Str, 10);
                 const end = parseInt(num2Str, 10);
                 if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 500) {
                     const expanded: string[] = [];
                     const padding = num1Str.length;
                     for (let i = start; i <= end; i++) {
-                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}`);
+                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`);
                     }
                     setManualSkus(prev => Array.from(new Set([...prev, ...expanded])));
                     setManualInput('');
@@ -242,7 +244,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                 value={manualInput} 
                                 onChange={e => setManualInput(e.target.value)} 
                                 onKeyDown={e => e.key === 'Enter' && handleAddManualSku()}
-                                placeholder="SKU ή Εύρος (π.χ. DA100-DA110)" 
+                                placeholder="SKU ή Εύρος (π.χ. MN050S-MN063S)" 
                                 className="flex-1 p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
                             />
                             <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors">
