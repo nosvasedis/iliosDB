@@ -8,7 +8,7 @@ import BarcodeScanner from './BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -81,7 +81,12 @@ const ProductCard: React.FC<{
         displaySku = `${product.sku}${currentVariant.suffix}`;
         displayLabel = currentVariant.description || currentVariant.suffix;
         if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
-        if (currentVariant.active_price) displayCost = currentVariant.active_price;
+        
+        // DYNAMIC COST CALCULATION FIX:
+        // Instead of using stored `currentVariant.active_price` (which might be stale),
+        // we calculate it on the fly using the current global settings (silver price).
+        const variantEst = estimateVariantCost(product, currentVariant.suffix, settings, materials, allProducts);
+        displayCost = variantEst.total;
     }
 
     const profit = displayPrice - displayCost;
