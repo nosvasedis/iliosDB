@@ -23,6 +23,17 @@ const FINISH_COLORS: Record<string, string> = {
     '': 'bg-emerald-50 text-emerald-700 border-emerald-200' // Lustre default
 };
 
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
+    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
+    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
+    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
+    'MV': 'text-purple-500', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
+
 export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
     const { showToast } = useUI();
     const queryClient = useQueryClient();
@@ -367,16 +378,21 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                             {/* Variants */}
                             {activeMaster.variants?.map(v => {
-                                const { finish } = getVariantComponents(v.suffix, activeMaster.gender);
-                                const colorClass = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
+                                const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
+                                const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
+                                const stoneColorClass = stone.code ? (STONE_TEXT_COLORS[stone.code] || 'text-emerald-600') : '';
                                 
                                 return (
                                     <button 
                                         key={v.suffix}
                                         onClick={() => handleAddItem(v)}
-                                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50 disabled:grayscale ${colorClass}`}
+                                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50 disabled:grayscale ${finishColor}`}
                                     >
-                                        <span className="text-lg font-black">{v.suffix}</span>
+                                        <span className="text-lg font-black flex items-center gap-0.5">
+                                            {finish.code}
+                                            {stone.code && <span className={stoneColorClass}>{stone.code}</span>}
+                                            {!finish.code && !stone.code && v.suffix}
+                                        </span>
                                         <span className="text-[10px] uppercase font-bold opacity-80 truncate w-full text-center">{v.description || 'Var'}</span>
                                     </button>
                                 );
