@@ -1,35 +1,37 @@
-import React, { useEffect, useRef } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { Order, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { ImageIcon, Phone, Mail, MapPin } from 'lucide-react';
-import { getSizingInfo } from '../utils/sizing';
+import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface Props {
     order: Order;
 }
 
-const BarcodeSVG: React.FC<{ sku: string }> = ({ sku }) => {
-    const svgRef = useRef<SVGSVGElement>(null);
+const QRCodeImage: React.FC<{ sku: string }> = ({ sku }) => {
+    const [qrUrl, setQrUrl] = useState('');
+    
     useEffect(() => {
-        if (svgRef.current && sku) {
-            try {
-                JsBarcode(svgRef.current, sku, {
-                    format: 'CODE128',
-                    displayValue: false,
-                    height: 30,
-                    width: 1.2,
-                    margin: 0,
-                    background: 'transparent'
-                });
-            } catch (e) {
-                console.error("Barcode generation failed for SKU:", sku, e);
-            }
+        if (sku) {
+            const safeSku = transliterateForBarcode(sku);
+            QRCode.toDataURL(safeSku, {
+                margin: 0,
+                width: 64,
+                errorCorrectionLevel: 'M',
+                color: {
+                    dark: '#000000',
+                    light: '#00000000'
+                }
+            }).then(setQrUrl).catch(e => console.error(e));
         }
     }, [sku]);
-    return <svg ref={svgRef} />;
+
+    if (!qrUrl) return null;
+    return <img src={qrUrl} className="h-8 w-8 object-contain" alt="QR" />;
 };
 
 
@@ -136,8 +138,8 @@ export default function OrderInvoiceView({ order }: Props) {
                                             {item.size_info && <span className="text-xs font-normal text-slate-600 bg-slate-100 px-1.5 rounded">({item.size_info})</span>}
                                         </div>
                                         <div className="text-slate-700 text-xs mt-0.5">{description}</div>
-                                        <div className="h-8 flex items-center mt-1">
-                                            <BarcodeSVG sku={fullSku} />
+                                        <div className="mt-1">
+                                            <QRCodeImage sku={fullSku} />
                                         </div>
                                     </td>
                                     <td className="py-3 px-2 text-center align-middle font-bold text-slate-800 text-base">{item.quantity}</td>
@@ -177,3 +179,4 @@ export default function OrderInvoiceView({ order }: Props) {
         </div>
     );
 }
+    
