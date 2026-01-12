@@ -71,14 +71,15 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
     const hasVariants = sortedVariants.length > 0;
     
     // LOGIC: Show Master only if NO variants. Else cycle through variants.
-    // If we have variants, we NEVER show the raw master data unless a variant represents it (e.g. empty suffix).
-    // The previous implementation used `currentVariant` or fallback. Here we strictly use the variant if available.
-    
     const currentVariant = hasVariants ? sortedVariants[viewIndex % sortedVariants.length] : null;
 
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
-    const displayPrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
+    
+    // RETAIL PRICE LOGIC: Wholesale * 2.5
+    const wholesalePrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
+    const displayRetailPrice = wholesalePrice * 2.5;
+    
     const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 
     const nextView = (e: React.MouseEvent) => {
@@ -115,7 +116,7 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
                         <div className="text-[10px] text-slate-500 font-bold truncate">{displayLabel}</div>
                     </div>
                     <div className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-sm shrink-0">
-                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
+                        {displayRetailPrice > 0 ? formatCurrency(displayRetailPrice) : '-'}
                     </div>
                 </div>
                 

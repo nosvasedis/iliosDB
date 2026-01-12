@@ -59,6 +59,10 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
         }]);
     };
 
+    // Retail Price Calculation
+    const wholesalePrice = product.selling_price || 0;
+    const retailPrice = wholesalePrice * 2.5;
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 bg-white md:bg-transparent">
             <div className="hidden md:block absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
@@ -113,7 +117,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Tag size={18} className="text-blue-500"/> Τιμοκατάλογος & Ετικέτες
+                                <Tag size={18} className="text-blue-500"/> Τιμές & Ετικέτες
                             </h3>
                         </div>
                         
@@ -122,7 +126,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                 <tr>
                                     <th className="p-4">Παραλλαγή / Περιγραφή</th>
                                     <th className="p-4 text-center hidden sm:table-cell">Stock</th>
-                                    <th className="p-4 text-right">Τιμή</th>
+                                    <th className="p-4 text-right">Τιμή Λιανικής</th>
                                     <th className="p-4 text-center w-32">Εκτύπωση</th>
                                 </tr>
                             </thead>
@@ -131,6 +135,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                     const { finish, stone } = getVariantComponents(v.suffix, product.gender);
                                     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
                                     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+                                    const variantRetail = (v.selling_price || product.selling_price || 0) * 2.5;
                                     
                                     return (
                                     <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
@@ -148,7 +153,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
-                                            {formatCurrency(v.selling_price || product.selling_price || 0)}
+                                            {formatCurrency(variantRetail)}
                                         </td>
                                         <td className="p-4 text-center">
                                             <div className="flex justify-center gap-1">
@@ -175,7 +180,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
-                                            {formatCurrency(product.selling_price)}
+                                            {formatCurrency(retailPrice)}
                                         </td>
                                         <td className="p-4 text-center">
                                             <div className="flex justify-center gap-1">

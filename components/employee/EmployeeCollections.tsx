@@ -13,9 +13,14 @@ interface Props {
 
 const ProductGridCard: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
     const hasVariants = product.variants && product.variants.length > 0;
-    const price = hasVariants 
+    
+    // Get lowest wholesale price from variants or master
+    const wholesalePrice = hasVariants 
         ? Math.min(...product.variants!.map(v => v.selling_price || 0).filter(p => p > 0)) 
         : product.selling_price;
+        
+    // Calculate Retail Price (Wholesale * 2.5)
+    const retailPrice = wholesalePrice * 2.5;
 
     return (
         <div 
@@ -45,8 +50,8 @@ const ProductGridCard: React.FC<{ product: Product, onClick: () => void }> = ({ 
                 )}
             </div>
             <div className="p-3 flex justify-between items-center bg-white">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Τιμή</span>
-                <span className="text-emerald-700 font-black">{price > 0 ? formatCurrency(price) : '-'}</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Λιανική</span>
+                <span className="text-emerald-700 font-black">{retailPrice > 0 ? formatCurrency(retailPrice) : '-'}</span>
             </div>
         </div>
     );
