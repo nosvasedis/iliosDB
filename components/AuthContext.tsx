@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  signIn: () => Promise<void>; // Triggers the UI flow, actual auth is in AuthScreen
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -41,18 +41,29 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Listen for auth changes (Handles initial session AND updates)
-    // This replaces the separate getSession() call to prevent race conditions
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       
       if (session?.user) {
-        // If we have a user, fetch their profile BEFORE setting loading to false
-        fetchProfile(session.user.id).then(() => {
-            setLoading(false);
+        // If profile is already loaded for this user, don't trigger loading state again
+        // unless it's a different user (unlikely in this context but good for safety)
+        setProfile((prevProfile) => {
+            if (prevProfile?.id === session.user.id) {
+                // Profile matches session, just ensure loading is false
+                setLoading(false);
+                return prevProfile;
+            } else {
+                // New user or no profile yet: Force loading TRUE and fetch
+                setLoading(true);
+                fetchProfile(session.user.id).finally(() => {
+                    setLoading(false);
+                });
+                return null; // Temporarily clear profile while fetching new one
+            }
         });
       } else {
-        // No user, clear profile and stop loading immediately
+        // No user
         setProfile(null);
         setLoading(false);
       }
@@ -76,7 +87,7 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   const signIn = async () => {
-    // Placeholder if needed for redirects
+    // Placeholder
   };
 
   return (
