@@ -1,12 +1,33 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, Warehouse } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera, Store, Plus, Trash2, Edit2, X, Save, ArrowDown, ArrowUp, History, Minus, CheckCircle, ScanBarcode, ChevronRight } from 'lucide-react';
-import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
+import { Product, Warehouse, ProductVariant } from '../../types';
+import { Search, Box, MapPin, ImageIcon, Camera, Plus, Minus, ScanBarcode, ArrowDown, ArrowUp, History, X, ChevronRight, Hash } from 'lucide-react';
+import { formatCurrency, findProductByScannedCode, getVariantComponents } from '../../utils/pricingEngine';
+import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
+
+// Visual Helpers
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
+};
+const BUTTON_COLORS: Record<string, string> = {
+    'X': 'bg-amber-50 border-amber-200 text-amber-700', 
+    'P': 'bg-slate-50 border-slate-200 text-slate-600', 
+    'D': 'bg-orange-50 border-orange-200 text-orange-700', 
+    'H': 'bg-cyan-50 border-cyan-200 text-cyan-700', 
+    '': 'bg-emerald-50 border-emerald-200 text-emerald-700'
+};
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500', 'TG': 'text-orange-700', 'IA': 'text-red-800', 
+    'BSU': 'text-slate-800', 'GSU': 'text-emerald-800', 'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600', 'MAX': 'text-blue-700',
+    'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
+    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500', 'RZ': 'text-pink-500',
+    'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
 
 interface Props {
   products: Product[];
@@ -69,14 +90,16 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     
     // Quick Manager State
     const [showQuickManager, setShowQuickManager] = useState(false);
-    const [qmSku, setQmSku] = useState('');
+    const [qmSkuInput, setQmSkuInput] = useState('');
     const [qmQty, setQmQty] = useState(1);
     const [qmWarehouse, setQmWarehouse] = useState(SYSTEM_IDS.CENTRAL);
-    const [qmMode, setQmMode] = useState<'add' | 'remove'>('add');
     const [qmHistory, setQmHistory] = useState<{sku: string, qty: number, type: 'add'|'remove', time: Date}[]>([]);
     
     const [suggestions, setSuggestions] = useState<Product[]>([]);
-
+    const [activeMaster, setActiveMaster] = useState<Product | null>(null);
+    const [activeVariant, setActiveVariant] = useState<ProductVariant | null>(null);
+    const [qmSize, setQmSize] = useState('');
+    
     // Warehouse State
     const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
     const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
@@ -85,35 +108,32 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const queryClient = useQueryClient();
     const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
 
-    // Smart SKU Suggestions Logic
+    // 1. Smart Search
     useEffect(() => {
-        const term = qmSku.trim().toUpperCase();
+        const term = qmSkuInput.trim().toUpperCase();
         if (term.length < 2) {
             setSuggestions([]);
             return;
         }
         
-        // Extract numeric part if any (e.g. "100" from "DA100")
         const numericMatch = term.match(/\d+/);
         const numberTerm = numericMatch ? numericMatch[0] : null;
 
         const results = products.filter(p => {
             if (p.is_component) return false;
-            // 1. Starts with input
             if (p.sku.startsWith(term)) return true;
-            // 2. Contains numeric part (e.g. typing "100" finds "DA100")
             if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
             return false;
         }).sort((a, b) => {
             if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
             return a.sku.localeCompare(b.sku);
-        }).slice(0, 5); // Limit to top 5
+        }).slice(0, 5);
 
         setSuggestions(results);
-    }, [qmSku, products]);
+    }, [qmSkuInput, products]);
 
-    // Inventory List Logic
     const inventoryList = useMemo(() => {
+        if (!products) return [];
         const lower = search.toLowerCase();
         
         return products
@@ -135,9 +155,8 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                 }
                 return { product: p, totalStock: pTotal };
             })
-            .filter(item => item.totalStock > 0)
             .filter(item => {
-                if (!search) return true;
+                if (!search) return item.totalStock > 0;
                 return item.product.sku.toLowerCase().includes(lower) || 
                        item.product.category.toLowerCase().includes(lower);
             })
@@ -148,12 +167,24 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
         const match = findProductByScannedCode(code, products);
         if (match) {
             if (showQuickManager) {
-                // If in Quick Manager, populate the field
-                setQmSku(match.product.sku + (match.variant?.suffix || ''));
+                setActiveMaster(match.product);
+                // If scanned a variant specific code, verify sizing then set active variant
+                if (match.variant) {
+                    setActiveVariant(match.variant);
+                    setQmSkuInput(match.product.sku + match.variant.suffix);
+                } else if (match.product.variants && match.product.variants.length > 0) {
+                    // Scanned master but has variants -> Reset variant to force choice
+                    setActiveVariant(null);
+                    setQmSkuInput(match.product.sku);
+                } else {
+                    // Simple product
+                    setActiveVariant(null);
+                    setQmSkuInput(match.product.sku);
+                }
+                setQmSize('');
                 setShowScanner(false);
                 showToast("Κωδικός αναγνωρίστηκε.", "success");
             } else {
-                // Otherwise navigate to details
                 onProductSelect(match.product);
                 setShowScanner(false);
                 showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
@@ -164,66 +195,113 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     };
 
     const selectSuggestion = (p: Product) => {
-        setQmSku(p.sku);
+        setActiveMaster(p);
+        setActiveVariant(null);
+        setQmSkuInput(p.sku);
+        setQmSize('');
         setSuggestions([]);
     };
 
-    const executeQuickAction = async () => {
-        if (!qmSku) { showToast("Εισάγετε SKU.", "error"); return; }
-        const match = findProductByScannedCode(qmSku, products);
-        if (!match) { showToast("Ο κωδικός δεν βρέθηκε.", "error"); return; }
+    const handleVariantSelect = (v: ProductVariant | null) => {
+        setActiveVariant(v);
+        setQmSkuInput(activeMaster ? activeMaster.sku + (v?.suffix || '') : '');
+    };
+
+    const executeQuickAction = async (mode: 'add' | 'remove') => {
+        if (!activeMaster) { showToast("Επιλέξτε προϊόν.", "error"); return; }
         
-        const { product, variant } = match;
-        const targetSku = product.sku;
-        const targetSuffix = variant?.suffix || null;
-        const qty = qmMode === 'add' ? qmQty : -qmQty;
+        // Strict Validation: If variants exist, one MUST be selected
+        if (activeMaster.variants && activeMaster.variants.length > 0 && !activeVariant) {
+            showToast("Το προϊόν έχει παραλλαγές. Επιλέξτε μία.", "error");
+            return;
+        }
+
+        // Strict Validation: Sizing
+        const sizing = getSizingInfo(activeMaster);
+        if (sizing && !qmSize) {
+            showToast(`Παρακαλώ επιλέξτε ${sizing.type}.`, "error");
+            return;
+        }
+
+        // Logic
+        const targetSku = activeMaster.sku;
+        const targetSuffix = activeVariant?.suffix || null;
+        // Fix: Use negative delta for removal
+        const delta = mode === 'add' ? qmQty : -qmQty;
         const warehouseName = warehouses?.find(w => w.id === qmWarehouse)?.name || 'Unknown';
 
         try {
-            // Determine update logic (Central/Showroom vs Custom)
             const isCentral = qmWarehouse === SYSTEM_IDS.CENTRAL;
             const isShowroom = qmWarehouse === SYSTEM_IDS.SHOWROOM;
 
-            if (variant) {
-                // Variant Logic
+            if (activeVariant) {
+                // IT IS A VARIANT
                 if (isCentral) {
-                    await supabase.from('product_variants').update({ stock_qty: Math.max(0, (variant.stock_qty || 0) + qty) }).match({ product_sku: targetSku, suffix: targetSuffix });
+                    // Logic for variant size breakdown in central
+                    const currentMap = activeVariant.stock_by_size || {};
+                    const newMap = { ...currentMap };
+                    if (qmSize) {
+                        newMap[qmSize] = (newMap[qmSize] || 0) + delta;
+                        if (newMap[qmSize] < 0) newMap[qmSize] = 0;
+                    }
+                    const newTotal = Math.max(0, (activeVariant.stock_qty || 0) + delta);
+                    
+                    await supabase.from('product_variants')
+                        .update({ stock_qty: newTotal, stock_by_size: newMap })
+                        .match({ product_sku: targetSku, suffix: targetSuffix });
                 } else {
-                    // Custom Warehouse or Showroom (variants usually don't have distinct showroom col, mapped to location_stock)
-                    const currentLocStock = variant.location_stock?.[qmWarehouse] || 0;
+                    // Warehouse Stock
+                    const currentLocStock = activeVariant.location_stock?.[qmWarehouse] || 0;
                     await supabase.from('product_stock').upsert({
                         product_sku: targetSku,
                         variant_suffix: targetSuffix,
                         warehouse_id: qmWarehouse,
-                        quantity: Math.max(0, currentLocStock + qty)
+                        quantity: Math.max(0, currentLocStock + delta),
+                        size_info: qmSize || null
                     }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
                 }
             } else {
-                // Master Product Logic
+                // IT IS A SIMPLE PRODUCT (No variants)
                 if (isCentral) {
-                    await supabase.from('products').update({ stock_qty: Math.max(0, (product.stock_qty || 0) + qty) }).eq('sku', targetSku);
+                    const currentMap = activeMaster.stock_by_size || {};
+                    const newMap = { ...currentMap };
+                    if (qmSize) {
+                        newMap[qmSize] = (newMap[qmSize] || 0) + delta;
+                        if (newMap[qmSize] < 0) newMap[qmSize] = 0;
+                    }
+                    await supabase.from('products')
+                        .update({ 
+                            stock_qty: Math.max(0, (activeMaster.stock_qty || 0) + delta),
+                            stock_by_size: newMap 
+                        })
+                        .eq('sku', targetSku);
                 } else if (isShowroom) {
-                    await supabase.from('products').update({ sample_qty: Math.max(0, (product.sample_qty || 0) + qty) }).eq('sku', targetSku);
+                    // Showroom is stored on product table for master
+                    await supabase.from('products').update({ sample_qty: Math.max(0, (activeMaster.sample_qty || 0) + delta) }).eq('sku', targetSku);
                 } else {
-                    const currentLocStock = product.location_stock?.[qmWarehouse] || 0;
+                    const currentLocStock = activeMaster.location_stock?.[qmWarehouse] || 0;
                     await supabase.from('product_stock').upsert({
                         product_sku: targetSku,
                         variant_suffix: null,
                         warehouse_id: qmWarehouse,
-                        quantity: Math.max(0, currentLocStock + qty)
+                        quantity: Math.max(0, currentLocStock + delta),
+                        size_info: qmSize || null
                     }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
                 }
             }
 
-            await recordStockMovement(targetSku, qty, `Quick Mobile: ${warehouseName}`, targetSuffix || undefined);
+            await recordStockMovement(targetSku, delta, `Mobile ${mode}: ${warehouseName}`, targetSuffix || undefined);
             
             // UI Updates
-            setQmHistory(prev => [{ sku: qmSku, qty: qmQty, type: qmMode, time: new Date() }, ...prev].slice(0, 5));
+            setQmHistory(prev => [{ sku: `${targetSku}${targetSuffix||''}`, qty: qmQty, type: mode, time: new Date() }, ...prev].slice(0, 5));
             queryClient.invalidateQueries({ queryKey: ['products'] });
-            showToast(`${qmMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${qmQty} τεμ.`, "success");
+            showToast(`${mode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${qmQty} τεμ.`, "success");
             
-            // Reset for next scan
-            setQmSku('');
+            // Reset but keep context if desired? Let's reset.
+            setQmSkuInput('');
+            setActiveMaster(null);
+            setActiveVariant(null);
+            setQmSize('');
             setQmQty(1);
         } catch (e) {
             console.error(e);
@@ -231,71 +309,71 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
         }
     };
 
-    // ... (Warehouse CRUD logic remains same)
+    // Helper Component for Visualizer
+    const SkuVisualizer = () => {
+        if (!activeMaster) {
+            return (
+                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                    <span className="text-slate-800 font-bold">{qmSkuInput}</span>
+                </div>
+            );
+        }
+        
+        const suffixStr = activeVariant ? activeVariant.suffix : qmSkuInput.replace(activeMaster.sku, '');
+        const { finish, stone } = getVariantComponents(suffixStr, activeMaster.gender);
+        
+        return (
+            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                <span className="text-slate-900 font-black">{activeMaster.sku}</span>
+                <span className={`font-black ${FINISH_COLORS[finish.code]?.split(' ')[1] || 'text-slate-400'}`}>{finish.code}</span>
+                <span className={`font-black ${STONE_TEXT_COLORS[stone.code] || 'text-emerald-500'}`}>{stone.code}</span>
+            </div>
+        );
+    };
+
+    // ... Warehouse handlers ...
     const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
     const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
     const handleSaveWarehouse = async () => { if (!warehouseForm.name) return; try { if (warehouseForm.id) { await api.updateWarehouse(warehouseForm.id, warehouseForm); showToast("Ο χώρος ενημερώθηκε.", "success"); } else { await api.saveWarehouse(warehouseForm); showToast("Ο χώρος δημιουργήθηκε.", "success"); } queryClient.invalidateQueries({ queryKey: ['warehouses'] }); setIsEditingWarehouse(false); } catch (err) { showToast("Σφάλμα αποθήκευσης.", "error"); } };
     const handleDeleteWarehouse = async (id: string) => { if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν διαγράφεται.", "error"); return; } if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι;', isDestructive: true, confirmText: 'Διαγραφή' })) { await api.deleteWarehouse(id); queryClient.invalidateQueries({ queryKey: ['warehouses'] }); } };
 
+    if (!products) return <div className="p-12 text-center">Loading...</div>;
+
+    const sizingInfo = activeMaster ? getSizingInfo(activeMaster) : null;
+
     return (
-        <div className="p-4 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-black text-slate-900">Αποθήκη</h1>
+        <div className="space-y-6 h-full flex flex-col">
+            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Box className="text-emerald-600"/> Διαχείριση Αποθήκης
+                </h1>
                 <button 
-                    onClick={() => setShowQuickManager(true)}
-                    className="bg-[#060b00] text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+                    onClick={() => { setShowQuickManager(true); setActiveMaster(null); setActiveVariant(null); setQmSkuInput(''); }}
+                    className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
                 >
-                    <ArrowDown size={16}/> +/- Ταχεία Κίνηση
+                    <ScanBarcode size={18}/> Ταχεία Κίνηση
                 </button>
             </div>
-            
-            {/* Tabs */}
-            <div className="flex p-1 bg-slate-100 rounded-xl mb-4 shrink-0">
-                <button onClick={() => setActiveTab('stock')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Απόθεμα</button>
-                <button onClick={() => setActiveTab('warehouses')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Χώροι</button>
-            </div>
 
-            {activeTab === 'stock' && (
-                <>
-                    <div className="flex gap-2 mb-4 shrink-0">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input type="text" placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"/>
-                        </div>
-                        <button onClick={() => setShowScanner(true)} className="bg-slate-900 text-white p-3 rounded-xl shadow-md active:scale-95 transition-transform"><Camera size={20} /></button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                        {inventoryList.map(item => (
-                            <MobileInventoryItem key={item.product.sku} product={item.product} totalStock={item.totalStock} onClick={() => onProductSelect(item.product)} />
-                        ))}
-                        {inventoryList.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium flex flex-col items-center"><Box size={32} className="mb-2 opacity-50"/>Δεν βρέθηκε απόθεμα.<br/><span className="text-xs opacity-70 mt-1">Ελέγξτε το Μητρώο για κωδικούς χωρίς στοκ.</span></div>}
-                    </div>
-                </>
-            )}
-
-            {activeTab === 'warehouses' && (
-                <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar space-y-4">
-                    <button onClick={handleCreateWarehouse} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md mb-2"><Plus size={18}/> Νέος Χώρος</button>
-                    {warehouses?.map(w => (
-                        <div key={w.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${w.is_system ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'}`}><Store size={20}/></div>
-                                <div>
-                                    <div className="font-bold text-slate-800">{w.name}</div>
-                                    <div className="text-xs text-slate-500">{w.type}</div>
-                                </div>
-                            </div>
-                            {!w.is_system && (
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleEditWarehouse(w)} className="p-2 text-slate-400 hover:text-blue-500 bg-slate-50 rounded-lg"><Edit2 size={16}/></button>
-                                    <button onClick={() => handleDeleteWarehouse(w.id)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-lg"><Trash2 size={16}/></button>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+            <div className="bg-white rounded-3xl border border-slate-100 flex flex-col flex-1 overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-slate-100 flex items-center gap-4">
+                    <Search className="text-slate-400" size={20}/>
+                    <input 
+                        className="flex-1 outline-none font-medium text-slate-700"
+                        placeholder="Αναζήτηση Αποθέματος..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                    <button onClick={() => setShowScanner(true)} className="p-2 bg-slate-100 rounded-lg text-slate-600 hover:bg-slate-200"><Camera size={20}/></button>
                 </div>
-            )}
+                
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2 bg-slate-50/50">
+                    {inventoryList.map(({ product, totalStock }) => (
+                        <MobileInventoryItem key={product.sku} product={product} totalStock={totalStock} onClick={() => onProductSelect(product)} />
+                    ))}
+                    {inventoryList.length === 0 && <div className="p-10 text-center text-slate-400 italic">Δεν βρέθηκαν προϊόντα.</div>}
+                </div>
+            </div>
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
 
@@ -314,71 +392,143 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                                 <select 
                                     value={qmWarehouse} 
                                     onChange={e => setQmWarehouse(e.target.value)} 
-                                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                                 >
                                     {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                 </select>
                             </div>
 
-                            <div className="flex gap-3 items-start">
-                                <div className="flex-1 relative">
+                            {!activeMaster ? (
+                                <div className="relative">
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">SKU / Κωδικός</label>
                                     <div className="flex items-center gap-2">
-                                        <input 
-                                            value={qmSku} 
-                                            onChange={e => setQmSku(e.target.value.toUpperCase())} 
-                                            className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-lg outline-none uppercase"
-                                            placeholder="SCAN..."
-                                        />
-                                        <button onClick={() => setShowScanner(true)} className="p-3.5 bg-slate-900 text-white rounded-xl shadow-md active:scale-95"><Camera size={24}/></button>
+                                        <div className="relative flex-1">
+                                            <input 
+                                                value={qmSkuInput} 
+                                                onChange={e => setQmSkuInput(e.target.value.toUpperCase())} 
+                                                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-lg outline-none uppercase focus:ring-2 focus:ring-emerald-500"
+                                                placeholder="SCAN..."
+                                                autoFocus
+                                            />
+                                            {suggestions.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 max-h-48 overflow-y-auto">
+                                                    {suggestions.map(p => (
+                                                        <button 
+                                                            key={p.sku} 
+                                                            onClick={() => selectSuggestion(p)}
+                                                            className="w-full text-left p-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 bg-slate-100 rounded overflow-hidden">
+                                                                    {p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}
+                                                                </div>
+                                                                <div>
+                                                                    <span className="font-bold text-slate-800 block leading-none">{p.sku}</span>
+                                                                    <span className="text-[10px] text-slate-500">{p.category}</span>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronRight size={16} className="text-slate-300"/>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={() => setShowScanner(true)} className="p-3.5 bg-slate-900 text-white rounded-xl shadow-md active:scale-95 hover:bg-black"><Camera size={24}/></button>
                                     </div>
-                                    
-                                    {/* Smart Suggestions Dropdown */}
-                                    {suggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 max-h-48 overflow-y-auto">
-                                            {suggestions.map(p => (
-                                                <button 
-                                                    key={p.sku} 
-                                                    onClick={() => selectSuggestion(p)}
-                                                    className="w-full text-left p-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between"
-                                                >
-                                                    <span className="font-bold text-slate-800">{p.sku}</span>
-                                                    <span className="text-xs text-slate-500">{p.category}</span>
-                                                </button>
-                                            ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4 animate-in fade-in">
+                                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-white rounded-xl overflow-hidden shadow-sm">
+                                                {activeMaster.image_url ? <img src={activeMaster.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-3 text-slate-300"/>}
+                                            </div>
+                                            <div>
+                                                <div className="font-black text-lg text-slate-900 leading-none">{activeMaster.sku}</div>
+                                                <div className="text-xs text-slate-500 font-bold">{activeMaster.category}</div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => { setActiveMaster(null); setActiveVariant(null); setQmSkuInput(''); }} className="p-2 bg-white rounded-full shadow-sm text-slate-400"><X size={16}/></button>
+                                    </div>
+
+                                    {/* Variant Selector */}
+                                    {activeMaster.variants && activeMaster.variants.length > 0 && (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1 mb-2 block">Επιλογή Παραλλαγής</label>
+                                            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                {activeMaster.variants.map(v => {
+                                                    const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
+                                                    const isActive = activeVariant?.suffix === v.suffix;
+                                                    const btnColor = BUTTON_COLORS[finish.code] || 'bg-white border-slate-200 text-slate-600';
+                                                    
+                                                    return (
+                                                        <button
+                                                            key={v.suffix}
+                                                            onClick={() => handleVariantSelect(v)}
+                                                            className={`
+                                                                px-3 py-2 rounded-xl text-xs font-black border transition-all flex items-center gap-1
+                                                                ${isActive ? 'ring-2 ring-slate-900 scale-105 shadow-md' : 'opacity-80 hover:opacity-100'}
+                                                                ${btnColor}
+                                                            `}
+                                                        >
+                                                            {finish.code || 'BAS'}
+                                                            {stone.code && <span className={STONE_TEXT_COLORS[stone.code] || 'text-slate-800'}>{stone.code}</span>}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     )}
-                                </div>
-                                <div className="w-24">
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label>
-                                    <input 
-                                        type="number" 
-                                        value={qmQty} 
-                                        onChange={e => setQmQty(parseInt(e.target.value) || 1)} 
-                                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-lg text-center outline-none"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="flex gap-3 pt-2">
-                                <button 
-                                    onClick={() => { setQmMode('add'); setTimeout(executeQuickAction, 50); }}
-                                    className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
-                                >
-                                    <Plus size={24}/> Προσθήκη
-                                </button>
-                                <button 
-                                    onClick={() => { setQmMode('remove'); setTimeout(executeQuickAction, 50); }}
-                                    className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-100 active:scale-95 transition-transform"
-                                >
-                                    <Minus size={24}/> Αφαίρεση
-                                </button>
-                            </div>
+                                    {/* Size Selector */}
+                                    {sizingInfo && (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1 mb-2 block flex items-center gap-1"><Hash size={10}/> Επιλογή {sizingInfo.type}</label>
+                                            <div className="grid grid-cols-5 gap-2">
+                                                {sizingInfo.sizes.map(s => (
+                                                    <button 
+                                                        key={s} 
+                                                        onClick={() => setQmSize(s)}
+                                                        className={`py-2 rounded-lg text-sm font-bold border ${qmSize === s ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}
+                                                    >
+                                                        {s}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Quantity & Actions */}
+                                    <div className="grid grid-cols-4 gap-3 pt-2">
+                                        <div className="col-span-4 flex items-center justify-between mb-2">
+                                            <label className="text-xs font-bold text-slate-400 uppercase">Ποσότητα</label>
+                                            <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-1 border border-slate-200">
+                                                <button onClick={() => setQmQty(Math.max(1, qmQty - 1))} className="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-slate-700 font-bold">-</button>
+                                                <span className="w-8 text-center font-black">{qmQty}</span>
+                                                <button onClick={() => setQmQty(qmQty + 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-slate-700 font-bold">+</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={() => executeQuickAction('add')}
+                                            className="col-span-2 bg-emerald-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
+                                        >
+                                            <Plus size={20}/> Προσθήκη
+                                        </button>
+                                        <button 
+                                            onClick={() => executeQuickAction('remove')}
+                                            className="col-span-2 bg-rose-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-100 active:scale-95 transition-transform"
+                                        >
+                                            <Minus size={20}/> Αφαίρεση
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {qmHistory.length > 0 && (
                             <div className="pt-4 border-t border-slate-100">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Ιστορικό Συνεδρίας</h4>
+                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Ιστορικό</h4>
                                 <div className="space-y-2">
                                     {qmHistory.map((h, i) => (
                                         <div key={i} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg">
