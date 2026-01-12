@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, PlatingType, MaterialType } from '../../types';
-import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera, ChevronLeft, ChevronRight, X, SlidersHorizontal } from 'lucide-react';
+import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera, X, SlidersHorizontal } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -40,18 +40,6 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
     }, [product.variants]);
 
     const hasVariants = variants.length > 0;
-    
-    // Cycle through variants
-    const nextVariant = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
-    };
-
-    const prevVariant = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev - 1 + variants.length) % variants.length);
-    };
-
     const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
 
     // Display Props
@@ -60,10 +48,21 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
     const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 
+    // Handlers for tap zones
+    const handleNext = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
+    };
+
+    const handlePrev = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (hasVariants) setViewIndex(prev => (prev - 1 + variants.length) % variants.length);
+    };
+
     return (
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full relative group active:scale-[0.98] transition-transform">
-            {/* Image Section */}
-            <div className="relative aspect-[4/5] bg-slate-50 overflow-hidden">
+        <div className="bg-white rounded-lg overflow-hidden shadow-sm border border-slate-200 flex flex-col h-full relative group active:scale-[0.98] transition-transform">
+            {/* Image Section - Square for Density */}
+            <div className="relative aspect-square bg-slate-50 overflow-hidden">
                 {product.image_url ? (
                     <img 
                         src={product.image_url} 
@@ -72,72 +71,46 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={28} />
+                        <ImageIcon size={20} />
                     </div>
                 )}
 
-                {/* Stock Status Badge (Top Left) */}
-                <div className="absolute top-2 left-2">
-                    {stockQty > 0 ? (
-                        <span className="bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
-                            {stockQty} τμχ
-                        </span>
-                    ) : (
-                        <span className="bg-white/90 backdrop-blur-md text-red-500 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
-                            Εκτός
-                        </span>
-                    )}
+                {/* Invisible Touch Zones for Cycling */}
+                {hasVariants && (
+                    <>
+                        <div className="absolute inset-y-0 left-0 w-1/2 z-10" onClick={handlePrev}></div>
+                        <div className="absolute inset-y-0 right-0 w-1/2 z-10" onClick={handleNext}></div>
+                    </>
+                )}
+
+                {/* Stock Status Badge (Mini) */}
+                <div className="absolute top-1 left-1 pointer-events-none z-20">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-md ${stockQty > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
+                        {stockQty > 0 ? stockQty : '0'}
+                    </span>
                 </div>
 
-                {/* Variant Counter Badge (Top Right) */}
-                {hasVariants && (
-                    <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                        <Layers size={10} /> {viewIndex + 1}/{variants.length}
-                    </div>
-                )}
-
-                {/* Navigation Controls (Visible on Image Tap/Hover) */}
+                {/* Variant Counter (Mini) */}
                 {hasVariants && variants.length > 1 && (
-                    <>
-                        <button 
-                            onClick={prevVariant} 
-                            className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 bg-white/80 rounded-full text-slate-700 shadow-sm opacity-50 hover:opacity-100 transition-opacity"
-                        >
-                            <ChevronLeft size={16}/>
-                        </button>
-                        <button 
-                            onClick={nextVariant} 
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 bg-white/80 rounded-full text-slate-700 shadow-sm opacity-50 hover:opacity-100 transition-opacity"
-                        >
-                            <ChevronRight size={16}/>
-                        </button>
-                    </>
+                    <div className="absolute top-1 right-1 pointer-events-none z-20">
+                        <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                            {viewIndex % variants.length + 1}/{variants.length}
+                        </span>
+                    </div>
                 )}
             </div>
 
-            {/* Content Section */}
-            <div className="p-3 flex flex-col flex-1 gap-1">
-                <div className="flex justify-between items-start">
-                    <h3 className="font-black text-[#060b00] text-sm leading-tight truncate pr-1">{displaySku}</h3>
-                    <div className="font-bold text-amber-600 text-sm whitespace-nowrap">
-                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                    </div>
-                </div>
+            {/* Content Section - Ultra Compact */}
+            <div className="p-1.5 flex flex-col gap-0.5">
+                <h3 className="font-black text-slate-800 text-[11px] leading-tight truncate">{displaySku}</h3>
                 
-                <p className="text-[11px] text-slate-500 font-medium truncate">
-                    {displayLabel}
-                </p>
-
-                {/* Footer Badges */}
-                <div className="mt-auto pt-2 flex items-center gap-1.5 overflow-hidden">
-                    <span className="text-[9px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 uppercase font-bold tracking-wider truncate">
-                        {product.category}
+                <div className="flex justify-between items-end">
+                    <span className="text-[9px] text-slate-400 truncate max-w-[50%] leading-tight">
+                        {displayLabel}
                     </span>
-                    {product.weight_g > 0 && (
-                        <span className="text-[9px] text-slate-400 font-medium ml-auto shrink-0">
-                            {product.weight_g}g
-                        </span>
-                    )}
+                    <span className="font-bold text-[#060b00] text-xs leading-none">
+                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
+                    </span>
                 </div>
             </div>
         </div>
@@ -156,10 +129,7 @@ export default function SellerCatalog({ products }: Props) {
 
     // Extract categories
     const categories = useMemo(() => {
-        const cats = new Set(products.map(p => {
-            // Simplify category names for chips (e.g., "Ring Men" -> "Ring") if needed, or keep full
-            return p.category;
-        }));
+        const cats = new Set(products.map(p => p.category));
         return ['All', ...Array.from(cats).sort()];
     }, [products]);
 
@@ -197,73 +167,64 @@ export default function SellerCatalog({ products }: Props) {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
-            {/* Header Area */}
-            <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm px-4 pt-4 pb-2 space-y-3">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-xl font-black text-[#060b00]">Κατάλογος</h1>
-                    <div className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
-                        {filteredProducts.length} Είδη
-                    </div>
-                </div>
-
-                {/* Search Bar */}
+            {/* Compact Sticky Header */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xl border-b border-slate-200 shadow-sm px-3 pt-3 pb-2 space-y-2">
+                {/* Search Row */}
                 <div className="flex gap-2">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                         <input 
                             type="text" 
                             placeholder="Αναζήτηση..." 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 font-medium text-sm text-slate-900 placeholder:text-slate-400"
+                            className="w-full pl-8 p-2 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 rounded-lg outline-none font-bold text-xs text-slate-900 transition-all placeholder:font-medium"
                         />
                         {search && (
-                            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-200 rounded-full p-0.5">
-                                <X size={14} className="text-slate-500" />
+                            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-200 rounded-full p-0.5">
+                                <X size={12} className="text-slate-500" />
                             </button>
                         )}
                     </div>
-                    <button onClick={() => setShowScanner(true)} className="bg-slate-100 text-slate-600 p-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition-colors">
-                        <Camera size={20}/>
+                    <button onClick={() => setShowScanner(true)} className="bg-slate-100 text-slate-600 p-2 rounded-lg border border-transparent hover:bg-slate-200 transition-colors">
+                        <Camera size={18}/>
                     </button>
                     <button 
                         onClick={() => setShowFilters(!showFilters)} 
-                        className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                        className={`p-2 rounded-lg border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-transparent'}`}
                     >
-                        <SlidersHorizontal size={20}/>
+                        <SlidersHorizontal size={18}/>
                     </button>
                 </div>
 
-                {/* Expandable Filters */}
+                {/* Filters Row */}
                 {showFilters && (
-                    <div className="pt-1 pb-2 animate-in slide-in-from-top-2 fade-in">
-                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
-                            {genderFilters.map(g => (
-                                <button
-                                    key={g.value}
-                                    onClick={() => setFilterGender(g.value as any)}
-                                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                                        filterGender === g.value 
-                                            ? 'bg-white text-[#060b00] shadow-sm' 
-                                            : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    {g.label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar animate-in slide-in-from-top-2">
+                        {genderFilters.map(g => (
+                            <button
+                                key={g.value}
+                                onClick={() => setFilterGender(g.value as any)}
+                                className={`px-3 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap transition-all border ${
+                                    filterGender === g.value 
+                                        ? 'bg-[#060b00] text-white border-[#060b00]' 
+                                        : 'bg-white text-slate-500 border-slate-200'
+                                }`}
+                            >
+                                {g.label}
+                            </button>
+                        ))}
                     </div>
                 )}
 
-                {/* Category Chips (Horizontal Scroll) */}
-                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+                {/* Category Chips */}
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 scrollbar-hide">
                     {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                            className={`px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border ${
                                 selectedCategory === cat 
-                                    ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' 
+                                    ? 'bg-slate-800 text-white border-slate-800 shadow-sm' 
                                     : 'bg-white text-slate-500 border-slate-200'
                             }`}
                         >
@@ -273,9 +234,9 @@ export default function SellerCatalog({ products }: Props) {
                 </div>
             </div>
 
-            {/* Product Grid */}
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20">
+            {/* Dense Product Grid */}
+            <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 pb-20">
                     {filteredProducts.map(p => (
                         <CatalogueCard key={p.sku} product={p} />
                     ))}
@@ -283,9 +244,8 @@ export default function SellerCatalog({ products }: Props) {
 
                 {filteredProducts.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <Search size={48} className="mb-4 opacity-20"/>
-                        <p className="font-bold text-sm">Δεν βρέθηκαν προϊόντα.</p>
-                        <p className="text-xs opacity-70">Δοκιμάστε διαφορετικά φίλτρα.</p>
+                        <Search size={40} className="mb-2 opacity-20"/>
+                        <p className="font-bold text-xs">Δεν βρέθηκαν προϊόντα.</p>
                     </div>
                 )}
             </div>
