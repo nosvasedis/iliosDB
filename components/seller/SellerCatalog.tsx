@@ -1,10 +1,11 @@
-
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, PlatingType, MaterialType } from '../../types';
-import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera } from 'lucide-react';
+import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
+import BarcodeScanner from '../BarcodeScanner';
+import { useUI } from '../UIProvider';
 
 interface Props {
     products: Product[];
@@ -128,6 +129,7 @@ const SellerProductCard: React.FC<{ product: Product }> = ({ product }) => {
 
 export default function SellerCatalog({ products }: Props) {
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { showToast } = useUI();
 
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -138,6 +140,7 @@ export default function SellerCatalog({ products }: Props) {
         plating: 'all',
     });
     const [showFilters, setShowFilters] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     // Extract categories
     const categories = useMemo(() => {
@@ -198,6 +201,18 @@ export default function SellerCatalog({ products }: Props) {
         });
     }, [products, search, selectedCategory, filterGender, subFilters, materials]);
 
+    const handleScan = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            const targetSku = match.product.sku + (match.variant?.suffix || '');
+            setSearch(targetSku);
+            setShowScanner(false);
+            showToast(`Βρέθηκε: ${targetSku}`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     return (
         <div className="p-4 h-full flex flex-col">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Κατάλογος</h1>
@@ -215,6 +230,9 @@ export default function SellerCatalog({ products }: Props) {
                             className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
                         />
                     </div>
+                    <button onClick={() => setShowScanner(true)} className="p-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors shadow-sm">
+                        <Camera size={20}/>
+                    </button>
                     <button onClick={() => setShowFilters(!showFilters)} className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
                         <Filter size={20}/>
                     </button>
@@ -273,6 +291,8 @@ export default function SellerCatalog({ products }: Props) {
                     <div className="text-center py-10 text-slate-400 text-sm">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
+
+            {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
     );
 }

@@ -1,13 +1,13 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
-import { formatCurrency, analyzeSku, getVariantComponents } from '../../utils/pricingEngine';
+import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
+import BarcodeScanner from '../BarcodeScanner';
 
 interface Props {
     onBack: () => void;
@@ -57,6 +57,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος', sizes: string[] } | null>(null);
     const [selectedSize, setSelectedSize] = useState('');
     const [qty, setQty] = useState(1);
+    const [showScanner, setShowScanner] = useState(false);
     
     // Suggestion List Ref for scrolling
     const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -161,6 +162,52 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         
         // Refocus input for speed
         setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
+    const handleScan = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            const { product, variant } = match;
+            
+            const isSpecific = !!variant;
+            const isSimple = !product.variants || product.variants.length === 0;
+
+            if (isSpecific || isSimple) {
+                const unitPrice = variant?.selling_price || product.selling_price || 0;
+                const newItem: OrderItem = {
+                    sku: product.sku,
+                    variant_suffix: variant?.suffix,
+                    quantity: 1, // Default to 1 on scan
+                    price_at_order: unitPrice,
+                    product_details: product
+                };
+
+                setItems(prev => {
+                    const existingIdx = prev.findIndex(i => 
+                        i.sku === newItem.sku && 
+                        i.variant_suffix === newItem.variant_suffix && 
+                        !i.size_info
+                    );
+        
+                    if (existingIdx >= 0) {
+                        const updated = [...prev];
+                        updated[existingIdx].quantity += 1;
+                        return updated;
+                    }
+                    return [newItem, ...prev];
+                });
+                
+                showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
+                setShowScanner(false);
+            } else {
+                // Master with variants -> Open selector
+                handleSelectMaster(product);
+                setShowScanner(false);
+                showToast(`Επιλέξτε παραλλαγή για ${product.sku}`, 'info');
+            }
+        } else {
+            showToast(`Μη έγκυρος κωδικός: ${code}`, 'error');
+        }
     };
 
     const handleSaveOrder = async () => {
@@ -297,6 +344,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                 autoFocus
                             />
                             {input && <button onClick={() => setInput('')}><X size={18} className="text-slate-400"/></button>}
+                            <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800"><Camera size={20}/></button>
                         </div>
 
                         {/* Suggestions */}
@@ -473,6 +521,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     </div>
                 </div>
             </div>
+            {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
     );
 }
