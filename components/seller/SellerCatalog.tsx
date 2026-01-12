@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, PlatingType, MaterialType } from '../../types';
-import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera, ChevronLeft, ChevronRight, X, SlidersHorizontal } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -12,43 +12,13 @@ interface Props {
     products: Product[];
 }
 
-const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNode }[] = [
-    { label: 'Όλα', value: 'All', icon: <Layers size={12} /> },
-    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={12} /> },
-    { label: 'Γυναικεία', value: Gender.Women, icon: <User size={12} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={12} /> },
+// --- CONSTANTS & CONFIG ---
+const genderFilters = [
+    { label: 'Όλα', value: 'All' },
+    { label: 'Γυναικεία', value: Gender.Women },
+    { label: 'Ανδρικά', value: Gender.Men },
+    { label: 'Unisex', value: Gender.Unisex },
 ];
-
-const platingFilters = [
-    { label: 'Όλα', value: 'all' },
-    { label: 'Λουστρέ / Πατίνα', value: 'lustre' },
-    { label: 'Επίχρυσο', value: 'gold' },
-    { label: 'Επιπλατινωμένο', value: 'platinum' }
-];
-
-const stoneFilters = [
-    { label: 'Όλα', value: 'all' },
-    { label: 'Με Πέτρες', value: 'with' },
-    { label: 'Χωρίς Πέτρες', value: 'without' }
-];
-
-const SubFilterButton: React.FC<{
-    label: string;
-    value: string;
-    activeValue: string;
-    onClick: (value: string) => void;
-}> = ({ label, value, activeValue, onClick }) => (
-    <button
-        onClick={() => onClick(value)}
-        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all border
-            ${activeValue === value
-                ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
-                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
-        `}
-    >
-        {label}
-    </button>
-);
 
 const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
     const [viewIndex, setViewIndex] = useState(0);
@@ -71,6 +41,7 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
 
     const hasVariants = variants.length > 0;
     
+    // Cycle through variants
     const nextVariant = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
@@ -83,75 +54,90 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
 
     const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
 
-    // Display Props based on current variant or master
+    // Display Props
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayPrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
-    
     const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 
     return (
-        <div className="group bg-white rounded-lg overflow-hidden shadow-sm border border-slate-200 flex flex-col h-full relative hover:border-amber-300 transition-colors">
-            {/* Image Container - Square Aspect Ratio for density */}
-            <div className="aspect-square bg-slate-50 relative overflow-hidden">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full relative group active:scale-[0.98] transition-transform">
+            {/* Image Section */}
+            <div className="relative aspect-[4/5] bg-slate-50 overflow-hidden">
                 {product.image_url ? (
                     <img 
                         src={product.image_url} 
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500 ease-out" 
+                        className="w-full h-full object-cover" 
                         alt={displaySku} 
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={24} />
+                        <ImageIcon size={28} />
                     </div>
                 )}
-                
-                {/* Stock Badge */}
-                <div className="absolute top-1 left-1">
+
+                {/* Stock Status Badge (Top Left) */}
+                <div className="absolute top-2 left-2">
                     {stockQty > 0 ? (
-                        <span className="bg-white/90 backdrop-blur-md text-[#060b00] text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-slate-100">
-                            {stockQty}
+                        <span className="bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
+                            {stockQty} τμχ
                         </span>
                     ) : (
-                        <span className="bg-red-500/90 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                            0
+                        <span className="bg-white/90 backdrop-blur-md text-red-500 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
+                            Εκτός
                         </span>
                     )}
                 </div>
 
+                {/* Variant Counter Badge (Top Right) */}
                 {hasVariants && (
-                    <div className="absolute top-1 right-1 bg-slate-900/80 backdrop-blur-sm text-white text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm">
-                        <Layers size={8}/> {viewIndex + 1}/{variants.length}
+                    <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                        <Layers size={10} /> {viewIndex + 1}/{variants.length}
                     </div>
                 )}
 
-                {/* Variant Controls Overlay */}
+                {/* Navigation Controls (Visible on Image Tap/Hover) */}
                 {hasVariants && variants.length > 1 && (
-                    <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={prevVariant} className="p-1 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
-                            <ChevronLeft size={12}/>
+                    <>
+                        <button 
+                            onClick={prevVariant} 
+                            className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 bg-white/80 rounded-full text-slate-700 shadow-sm opacity-50 hover:opacity-100 transition-opacity"
+                        >
+                            <ChevronLeft size={16}/>
                         </button>
-                        <button onClick={nextVariant} className="p-1 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
-                            <ChevronRight size={12}/>
+                        <button 
+                            onClick={nextVariant} 
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 bg-white/80 rounded-full text-slate-700 shadow-sm opacity-50 hover:opacity-100 transition-opacity"
+                        >
+                            <ChevronRight size={16}/>
                         </button>
-                    </div>
+                    </>
                 )}
             </div>
-            
-            {/* Info Area - Compact */}
-            <div className="p-2 flex flex-col flex-1 bg-white relative z-10">
-                <div className="mb-1">
-                    <h3 className="font-bold text-slate-900 text-[11px] leading-tight truncate">{displaySku}</h3>
-                    <p className="text-[9px] text-slate-500 font-medium truncate opacity-80">{displayLabel}</p>
-                </div>
 
-                <div className="mt-auto flex justify-between items-end border-t border-slate-50 pt-1.5">
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wide bg-slate-50 px-1 rounded truncate max-w-[50px]">
-                        {product.category}
-                    </span>
-                    <div className="font-mono font-bold text-[#060b00] text-xs leading-none">
+            {/* Content Section */}
+            <div className="p-3 flex flex-col flex-1 gap-1">
+                <div className="flex justify-between items-start">
+                    <h3 className="font-black text-[#060b00] text-sm leading-tight truncate pr-1">{displaySku}</h3>
+                    <div className="font-bold text-amber-600 text-sm whitespace-nowrap">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </div>
+                </div>
+                
+                <p className="text-[11px] text-slate-500 font-medium truncate">
+                    {displayLabel}
+                </p>
+
+                {/* Footer Badges */}
+                <div className="mt-auto pt-2 flex items-center gap-1.5 overflow-hidden">
+                    <span className="text-[9px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 uppercase font-bold tracking-wider truncate">
+                        {product.category}
+                    </span>
+                    {product.weight_g > 0 && (
+                        <span className="text-[9px] text-slate-400 font-medium ml-auto shrink-0">
+                            {product.weight_g}g
+                        </span>
+                    )}
                 </div>
             </div>
         </div>
@@ -165,17 +151,13 @@ export default function SellerCatalog({ products }: Props) {
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
-    
-    const [subFilters, setSubFilters] = useState({
-        stone: 'all',
-        plating: 'all',
-    });
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
 
     // Extract categories
     const categories = useMemo(() => {
         const cats = new Set(products.map(p => {
+            // Simplify category names for chips (e.g., "Ring Men" -> "Ring") if needed, or keep full
             return p.category;
         }));
         return ['All', ...Array.from(cats).sort()];
@@ -184,55 +166,22 @@ export default function SellerCatalog({ products }: Props) {
     const filteredProducts = useMemo(() => {
         if (!materials) return [];
 
-        const productHasStones = (p: Product): boolean => {
-            return p.recipe.some(item => {
-                if (item.type !== 'raw') return false;
-                const mat = materials?.find(m => m.id === item.id);
-                return mat?.type === MaterialType.Stone;
-            });
-        };
-
-        const getProductPlatingTypes = (p: Product): Set<string> => {
-            const types = new Set<string>();
-            const { finish: masterFinish } = getVariantComponents(p.sku, p.gender);
-            if (p.plating_type === PlatingType.GoldPlated) types.add('X');
-            if (p.plating_type === PlatingType.Platinum) types.add('H');
-            if (p.plating_type === PlatingType.None) types.add(masterFinish.code || '');
-
-            (p.variants || []).forEach(v => {
-                const { finish } = getVariantComponents(v.suffix, p.gender);
-                types.add(finish.code);
-            });
-            return types;
-        };
-
         const result = products.filter(p => {
             if (p.is_component) return false;
             
-            const matchesSearch = p.sku.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase());
+            const matchesSearch = p.sku.toLowerCase().includes(search.toLowerCase()) || 
+                                  p.category.toLowerCase().includes(search.toLowerCase());
             const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
             const matchesGender = filterGender === 'All' || p.gender === filterGender;
             
-            if (!matchesSearch || !matchesCat || !matchesGender) return false;
-
-            if (subFilters.stone === 'with' && !productHasStones(p)) return false;
-            if (subFilters.stone === 'without' && productHasStones(p)) return false;
-
-            if (subFilters.plating !== 'all') {
-                const platingTypes = getProductPlatingTypes(p);
-                if (subFilters.plating === 'lustre' && !platingTypes.has('') && !platingTypes.has('P')) return false;
-                if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
-                if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
-            }
-
-            return true;
+            return matchesSearch && matchesCat && matchesGender;
         });
 
         // Alphabetical Ascending (Natural Sort)
         return result.sort((a, b) => {
             return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
         });
-    }, [products, search, selectedCategory, filterGender, subFilters, materials]);
+    }, [products, search, selectedCategory, filterGender, materials]);
 
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
@@ -247,66 +196,74 @@ export default function SellerCatalog({ products }: Props) {
     };
 
     return (
-        <div className="p-3 h-full flex flex-col bg-slate-50">
-            <h1 className="text-xl font-black text-slate-900 mb-3 ml-1">Κατάλογος</h1>
+        <div className="flex flex-col h-full bg-slate-50 relative">
+            {/* Header Area */}
+            <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm px-4 pt-4 pb-2 space-y-3">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-xl font-black text-[#060b00]">Κατάλογος</h1>
+                    <div className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                        {filteredProducts.length} Είδη
+                    </div>
+                </div>
 
-            {/* Controls */}
-            <div className="space-y-3 shrink-0 mb-3">
-                <div className="flex items-center gap-2">
+                {/* Search Bar */}
+                <div className="flex gap-2">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input 
                             type="text" 
                             placeholder="Αναζήτηση..." 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 shadow-sm font-medium text-sm"
+                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 font-medium text-sm text-slate-900 placeholder:text-slate-400"
                         />
+                        {search && (
+                            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-200 rounded-full p-0.5">
+                                <X size={14} className="text-slate-500" />
+                            </button>
+                        )}
                     </div>
-                    <button onClick={() => setShowScanner(true)} className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#060b00] hover:border-slate-300 transition-colors shadow-sm">
-                        <Camera size={18}/>
+                    <button onClick={() => setShowScanner(true)} className="bg-slate-100 text-slate-600 p-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition-colors">
+                        <Camera size={20}/>
                     </button>
-                    <button onClick={() => setShowFilters(!showFilters)} className={`p-2.5 rounded-xl border transition-colors shadow-sm ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Filter size={18}/>
+                    <button 
+                        onClick={() => setShowFilters(!showFilters)} 
+                        className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                    >
+                        <SlidersHorizontal size={20}/>
                     </button>
                 </div>
 
-                {/* Expanded Filters */}
+                {/* Expandable Filters */}
                 {showFilters && (
-                    <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-2 relative">
-                        <button onClick={() => setShowFilters(false)} className="absolute top-2 right-2 text-slate-300 hover:text-slate-500"><X size={14}/></button>
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Φύλο</label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {genderFilters.map(f => (
-                                    <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={filterGender} onClick={(v) => setFilterGender(v as any)}/>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Gem size={10}/> Πέτρες</label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Palette size={10}/> Φινίρισμα</label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
-                            </div>
+                    <div className="pt-1 pb-2 animate-in slide-in-from-top-2 fade-in">
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
+                            {genderFilters.map(g => (
+                                <button
+                                    key={g.value}
+                                    onClick={() => setFilterGender(g.value as any)}
+                                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                                        filterGender === g.value 
+                                            ? 'bg-white text-[#060b00] shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    {g.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 )}
-                
-                {/* Category Horizontal Scroll */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+
+                {/* Category Chips (Horizontal Scroll) */}
+                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
                     {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border ${
+                            className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
                                 selectedCategory === cat 
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                                    ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' 
                                     : 'bg-white text-slate-500 border-slate-200'
                             }`}
                         >
@@ -316,15 +273,20 @@ export default function SellerCatalog({ products }: Props) {
                 </div>
             </div>
 
-            {/* Product List Grid - 3 Columns for magazine style */}
-            <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar pr-1">
-                <div className="grid grid-cols-3 gap-2">
+            {/* Product Grid */}
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20">
                     {filteredProducts.map(p => (
                         <CatalogueCard key={p.sku} product={p} />
                     ))}
                 </div>
+
                 {filteredProducts.length === 0 && (
-                    <div className="text-center py-20 text-slate-400 text-xs italic">Δεν βρέθηκαν προϊόντα.</div>
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                        <Search size={48} className="mb-4 opacity-20"/>
+                        <p className="font-bold text-sm">Δεν βρέθηκαν προϊόντα.</p>
+                        <p className="text-xs opacity-70">Δοκιμάστε διαφορετικά φίλτρα.</p>
+                    </div>
                 )}
             </div>
 
