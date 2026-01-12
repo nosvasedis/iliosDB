@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
-import { transliterateForBarcode, codifyPrice } from '../utils/pricingEngine';
+import { transliterateForBarcode, codifyPrice, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     product: Product;
@@ -129,32 +129,19 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
             marginTop: '0.5mm',
         };
 
-        // Logic: Short text = Large & Single Line. Long text = Small & Multiline.
         if (stoneNameLen > 15) {
-             stoneStyle = { 
-                 ...stoneStyle, 
-                 fontSize: '1.8mm', 
-                 display: '-webkit-box', 
-                 WebkitLineClamp: 2, 
-                 WebkitBoxOrient: 'vertical', 
-                 whiteSpace: 'normal', 
-                 wordBreak: 'break-word' 
-             };
+             stoneStyle = { ...stoneStyle, fontSize: '1.8mm', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal', wordBreak: 'break-word' };
         } else if (stoneNameLen > 8) {
-             stoneStyle = { 
-                 ...stoneStyle, 
-                 fontSize: '2.0mm', 
-                 whiteSpace: 'nowrap', 
-                 textOverflow: 'ellipsis' 
-             };
+             stoneStyle = { ...stoneStyle, fontSize: '2.0mm', whiteSpace: 'nowrap', textOverflow: 'ellipsis' };
         } else {
-             stoneStyle = { 
-                 ...stoneStyle, 
-                 fontSize: '2.2mm', 
-                 whiteSpace: 'nowrap' 
-             };
+             stoneStyle = { ...stoneStyle, fontSize: '2.2mm', whiteSpace: 'nowrap' };
         }
 
+        // Split Sku Logic for Layout: Master on Top, Suffix on Bottom
+        const skuMaster = product.sku;
+        // Use logic to isolate visual suffix components
+        const suffixStr = variant?.suffix || '';
+        
         return (
             <div className="label-container" style={{ ...containerStyle, flexDirection: 'row', justifyContent: 'flex-start', padding: 0 }}>
                 {/* 3.5cm Tail (Left) */}
@@ -166,19 +153,25 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 {/* Printable Area (~3.7cm remaining) */}
                 <div style={{ flex: 1, height: '100%', display: 'flex' }}>
                     
-                    {/* Left Section (QR + SKU) ~1.85cm */}
-                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingLeft: '1mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
-                         <div style={{ flexShrink: 0, marginRight: '0.5mm' }}>
-                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '6mm', width: '6mm', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
+                    {/* Left Section (QR + SKU) */}
+                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
+                         <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
+                            {/* Stretched QR Height slightly by 1mm extra logic if needed, fitting to container */}
+                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
                          </div>
-                         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-                             <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm', wordBreak: 'break-all' }}>
-                                {finalSku}
+                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
+                             <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm' }}>
+                                {skuMaster}
                             </span>
+                            {suffixStr && (
+                                <span className="font-black block uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.0mm' }}>
+                                    {suffixStr}
+                                </span>
+                            )}
                          </div>
                     </div>
 
-                    {/* Right Section (Codified Price + Stone) ~1.85cm */}
+                    {/* Right Section (Codified Price + Stone) */}
                     <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm' }}>
                         <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.6mm' }}>
                             {codifiedPrice}
@@ -188,28 +181,28 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                                 {stoneName}
                             </div>
                         )}
+                        {size && (
+                            <div className="mt-[0.5mm] bg-black text-white px-1 rounded-[1px] text-[1.8mm] font-bold leading-none">
+                                {size}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
         );
     }
 
-    // Standard Wholesale Format (Optimized for 15mm height)
+    // Standard Wholesale Format
     return (
         <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
-            {/* SKU HEADER - Minimal Margin */}
             <div className="w-full text-center leading-none">
                 <span className="font-black block uppercase tracking-tighter text-black" style={{ fontSize: `${skuFontSize}mm` }}>
                     {finalSku}
                 </span>
             </div>
-
-            {/* QR CODE CENTER - Maximize flexible area by using min-h-0 */}
             <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
                 {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }} alt="QR" />}
             </div>
-
-            {/* BRAND & STONE - Condensed vertical space */}
             <div className="w-full text-center leading-[1.1] mb-0.5">
                 {stoneName && (
                     <span className="font-bold text-black block truncate leading-none" style={{ fontSize: `${stoneFontSize}mm` }}>
@@ -220,8 +213,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     ILIOS
                 </span>
             </div>
-
-            {/* PRICE & HALLMARK/SIZE FOOTER - Border integrated with price */}
             <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
                  <span className="font-black text-black" style={{ fontSize: `${detailsFontSize}mm` }}>{priceDisplay}</span>
                  {size ? (

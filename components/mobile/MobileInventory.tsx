@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, Warehouse, ProductVariant } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera, Plus, Minus, ScanBarcode, ArrowDown, ArrowUp, History, X, ChevronRight, Hash } from 'lucide-react';
+import { Search, Box, MapPin, ImageIcon, Camera, Plus, Minus, ScanBarcode, ArrowDown, ArrowUp, History, X, ChevronRight, Hash, Save } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
@@ -9,7 +9,7 @@ import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
 
-// Visual Helpers
+// Visual Helpers (Shared)
 const FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
 };
@@ -121,7 +121,9 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
 
         const results = products.filter(p => {
             if (p.is_component) return false;
+            // Exact or Prefix Match
             if (p.sku.startsWith(term)) return true;
+            // Loose numeric match
             if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
             return false;
         }).sort((a, b) => {
@@ -226,7 +228,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
         // Logic
         const targetSku = activeMaster.sku;
         const targetSuffix = activeVariant?.suffix || null;
-        // Fix: Use negative delta for removal
+        // Correctly calculate delta
         const delta = mode === 'add' ? qmQty : -qmQty;
         const warehouseName = warehouses?.find(w => w.id === qmWarehouse)?.name || 'Unknown';
 
@@ -244,6 +246,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                         newMap[qmSize] = (newMap[qmSize] || 0) + delta;
                         if (newMap[qmSize] < 0) newMap[qmSize] = 0;
                     }
+                    // Recalculate total stock from size map OR just update total + delta for consistency with simple removal
                     const newTotal = Math.max(0, (activeVariant.stock_qty || 0) + delta);
                     
                     await supabase.from('product_variants')
@@ -290,14 +293,14 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                 }
             }
 
-            await recordStockMovement(targetSku, delta, `Mobile ${mode}: ${warehouseName}`, targetSuffix || undefined);
+            await recordStockMovement(targetSku, delta, `Clerk Quick ${mode}: ${warehouseName}`, targetSuffix || undefined);
             
             // UI Updates
             setQmHistory(prev => [{ sku: `${targetSku}${targetSuffix||''}`, qty: qmQty, type: mode, time: new Date() }, ...prev].slice(0, 5));
             queryClient.invalidateQueries({ queryKey: ['products'] });
             showToast(`${mode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${qmQty} τεμ.`, "success");
             
-            // Reset but keep context if desired? Let's reset.
+            // Reset logic
             setQmSkuInput('');
             setActiveMaster(null);
             setActiveVariant(null);
@@ -369,7 +372,28 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2 bg-slate-50/50">
                     {inventoryList.map(({ product, totalStock }) => (
-                        <MobileInventoryItem key={product.sku} product={product} totalStock={totalStock} onClick={() => onProductSelect(product)} />
+                        <div key={product.sku} className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 shadow-sm">
+                            <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
+                                {product.image_url ? (
+                                    <img src={product.image_url} className="w-full h-full object-cover" />
+                                ) : <ImageIcon size={20} className="text-slate-300"/>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="font-black text-slate-800 text-sm truncate">{product.sku}</h3>
+                                    <span className="font-mono font-bold text-xs text-slate-600">{formatCurrency(product.selling_price)}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium truncate mb-1">{product.category}</p>
+                                <div className="flex items-center gap-2">
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold border ${totalStock > 0 ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                                        Total: {totalStock}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium">
+                                        {product.variants?.length ? `+${product.variants.length} var` : 'Single'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ))}
                     {inventoryList.length === 0 && <div className="p-10 text-center text-slate-400 italic">Δεν βρέθηκαν προϊόντα.</div>}
                 </div>
@@ -377,13 +401,12 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
 
-            {/* QUICK STOCK MANAGER MODAL */}
             {showQuickManager && (
-                <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-end p-4 animate-in slide-in-from-bottom-10">
-                    <div className="bg-white w-full rounded-3xl p-6 shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-center items-center p-4 animate-in zoom-in-95">
+                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 relative">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                             <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><ScanBarcode className="text-emerald-600"/> Ταχεία Διαχείριση</h3>
-                            <button onClick={() => setShowQuickManager(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20}/></button>
+                            <button onClick={() => setShowQuickManager(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button>
                         </div>
 
                         <div className="space-y-4">
@@ -511,13 +534,13 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                                         
                                         <button 
                                             onClick={() => executeQuickAction('add')}
-                                            className="col-span-2 bg-emerald-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
+                                            className="col-span-2 bg-emerald-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-transform hover:bg-emerald-600"
                                         >
                                             <Plus size={20}/> Προσθήκη
                                         </button>
                                         <button 
                                             onClick={() => executeQuickAction('remove')}
-                                            className="col-span-2 bg-rose-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-100 active:scale-95 transition-transform"
+                                            className="col-span-2 bg-rose-500 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-100 active:scale-95 transition-transform hover:bg-rose-600"
                                         >
                                             <Minus size={20}/> Αφαίρεση
                                         </button>
@@ -528,8 +551,8 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
 
                         {qmHistory.length > 0 && (
                             <div className="pt-4 border-t border-slate-100">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Ιστορικό</h4>
-                                <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><History size={12}/> Ιστορικό Συνεδρίας</h4>
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
                                     {qmHistory.map((h, i) => (
                                         <div key={i} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg">
                                             <span className="font-mono font-bold text-slate-700">{h.sku}</span>
