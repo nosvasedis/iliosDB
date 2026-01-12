@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -40,22 +41,18 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // 1. Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // 2. Listen for changes
+    // Listen for auth changes (Handles initial session AND updates)
+    // This replaces the separate getSession() call to prevent race conditions
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      
       if (session?.user) {
-        fetchProfile(session.user.id).then(() => setLoading(false));
+        // If we have a user, fetch their profile BEFORE setting loading to false
+        fetchProfile(session.user.id).then(() => {
+            setLoading(false);
+        });
       } else {
+        // No user, clear profile and stop loading immediately
         setProfile(null);
         setLoading(false);
       }
@@ -72,7 +69,9 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
 
   const refreshProfile = async () => {
     if (session?.user) {
+      setLoading(true); 
       await fetchProfile(session.user.id);
+      setLoading(false);
     }
   };
 

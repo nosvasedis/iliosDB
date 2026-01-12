@@ -146,7 +146,7 @@ const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingIte
 };
 
 function AuthGuard({ children }: { children?: React.ReactNode }) {
-    const { session, loading, profile, signOut } = useAuth();
+    const { session, loading, profile, signOut, refreshProfile } = useAuth();
 
     if (isLocalMode) return <>{children}</>;
 
@@ -170,11 +170,16 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
                     </div>
                     <h2 className="text-xl font-bold text-slate-800 mb-2">Σφάλμα Προφίλ</h2>
                     <p className="text-slate-500 mb-6 text-sm">
-                        Δεν βρέθηκαν πληροφορίες προφίλ για το λογαριασμό σας. Παρακαλώ επικοινωνήστε με τον διαχειριστή.
+                        Δεν βρέθηκαν πληροφορίες προφίλ για το λογαριασμό σας. Παρακαλώ προσπαθήστε ξανά ή επικοινωνήστε με τον διαχειριστή.
                     </p>
-                    <button onClick={signOut} className="bg-white border border-slate-200 text-slate-700 px-6 py-2 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm">
-                        Αποσύνδεση
-                    </button>
+                    <div className="flex gap-2 justify-center">
+                        <button onClick={refreshProfile} className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-red-700 transition-colors text-sm shadow-md">
+                            Ανανέωση
+                        </button>
+                        <button onClick={signOut} className="bg-white border border-slate-200 text-slate-700 px-6 py-2 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm">
+                            Αποσύνδεση
+                        </button>
+                    </div>
                 </div>
             </div>
         );
