@@ -13,10 +13,10 @@ interface Props {
 }
 
 const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNode }[] = [
-    { label: 'Όλα', value: 'All', icon: <Layers size={14} /> },
-    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={14} /> },
-    { label: 'Γυναικεία', value: Gender.Women, icon: <User size={14} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={14} /> },
+    { label: 'Όλα', value: 'All', icon: <Layers size={12} /> },
+    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={12} /> },
+    { label: 'Γυναικεία', value: Gender.Women, icon: <User size={12} /> },
+    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={12} /> },
 ];
 
 const platingFilters = [
@@ -40,9 +40,9 @@ const SubFilterButton: React.FC<{
 }> = ({ label, value, activeValue, onClick }) => (
     <button
         onClick={() => onClick(value)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
+        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all border
             ${activeValue === value
-                ? 'bg-[#060b00] text-white border-[#060b00] shadow-md'
+                ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
                 : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
         `}
     >
@@ -85,83 +85,73 @@ const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
 
     // Display Props based on current variant or master
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
-    // For Catalogue: Show Retail Price (Wholesale * 2.5) or Wholesale based on user role? 
-    // Assuming Seller App shows Wholesale.
     const displayPrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
     
     const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 
     return (
-        <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-slate-100 flex flex-col h-full relative">
-            {/* Image Container */}
-            <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden">
+        <div className="group bg-white rounded-lg overflow-hidden shadow-sm border border-slate-200 flex flex-col h-full relative hover:border-amber-300 transition-colors">
+            {/* Image Container - Square Aspect Ratio for density */}
+            <div className="aspect-square bg-slate-50 relative overflow-hidden">
                 {product.image_url ? (
                     <img 
                         src={product.image_url} 
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out" 
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500 ease-out" 
                         alt={displaySku} 
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={32} />
+                        <ImageIcon size={24} />
                     </div>
                 )}
                 
-                {/* Overlay Gradient for Text readability if needed, or badging */}
-                <div className="absolute top-0 left-0 p-2">
+                {/* Stock Badge */}
+                <div className="absolute top-1 left-1">
                     {stockQty > 0 ? (
-                        <span className="bg-emerald-500/90 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-sm">
+                        <span className="bg-white/90 backdrop-blur-md text-[#060b00] text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-slate-100">
                             {stockQty}
                         </span>
                     ) : (
-                        <span className="bg-red-500/90 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-sm">
-                            Out
+                        <span className="bg-red-500/90 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                            0
                         </span>
                     )}
                 </div>
 
                 {hasVariants && (
-                    <div className="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md flex items-center gap-1 shadow-sm">
-                        <Layers size={10}/> {viewIndex + 1}/{variants.length}
+                    <div className="absolute top-1 right-1 bg-slate-900/80 backdrop-blur-sm text-white text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm">
+                        <Layers size={8}/> {viewIndex + 1}/{variants.length}
                     </div>
                 )}
 
                 {/* Variant Controls Overlay */}
                 {hasVariants && variants.length > 1 && (
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <button onClick={prevVariant} className="pointer-events-auto p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
-                            <ChevronLeft size={16}/>
+                    <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={prevVariant} className="p-1 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
+                            <ChevronLeft size={12}/>
                         </button>
-                        <button onClick={nextVariant} className="pointer-events-auto p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
-                            <ChevronRight size={16}/>
+                        <button onClick={nextVariant} className="p-1 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
+                            <ChevronRight size={12}/>
                         </button>
                     </div>
                 )}
             </div>
             
-            {/* Info Area */}
-            <div className="p-3 flex flex-col flex-1 bg-white relative z-10">
-                <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-black text-slate-800 text-sm leading-tight truncate pr-2">{displaySku}</h3>
-                    <div className="font-mono font-bold text-[#060b00] text-sm leading-none">
+            {/* Info Area - Compact */}
+            <div className="p-2 flex flex-col flex-1 bg-white relative z-10">
+                <div className="mb-1">
+                    <h3 className="font-bold text-slate-900 text-[11px] leading-tight truncate">{displaySku}</h3>
+                    <p className="text-[9px] text-slate-500 font-medium truncate opacity-80">{displayLabel}</p>
+                </div>
+
+                <div className="mt-auto flex justify-between items-end border-t border-slate-50 pt-1.5">
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wide bg-slate-50 px-1 rounded truncate max-w-[50px]">
+                        {product.category}
+                    </span>
+                    <div className="font-mono font-bold text-[#060b00] text-xs leading-none">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </div>
-                </div>
-                
-                <p className="text-[10px] text-slate-500 font-medium line-clamp-1 mb-2">
-                    {displayLabel}
-                </p>
-
-                <div className="mt-auto pt-2 border-t border-slate-50 flex items-center gap-2">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 px-1.5 py-0.5 rounded">
-                        {product.category.split(' ')[0]}
-                    </span>
-                    {product.weight_g > 0 && (
-                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-auto">
-                            {product.weight_g}g
-                        </span>
-                    )}
                 </div>
             </div>
         </div>
@@ -186,8 +176,6 @@ export default function SellerCatalog({ products }: Props) {
     // Extract categories
     const categories = useMemo(() => {
         const cats = new Set(products.map(p => {
-            // Group logic: First word usually works for categories like "Ring Men", "Ring Women" -> "Ring"
-            // Or just use full category if simple
             return p.category;
         }));
         return ['All', ...Array.from(cats).sort()];
@@ -259,51 +247,51 @@ export default function SellerCatalog({ products }: Props) {
     };
 
     return (
-        <div className="p-4 h-full flex flex-col bg-slate-50">
-            <h1 className="text-2xl font-black text-slate-900 mb-4">Κατάλογος</h1>
+        <div className="p-3 h-full flex flex-col bg-slate-50">
+            <h1 className="text-xl font-black text-slate-900 mb-3 ml-1">Κατάλογος</h1>
 
             {/* Controls */}
-            <div className="space-y-4 shrink-0 mb-4">
+            <div className="space-y-3 shrink-0 mb-3">
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
                             type="text" 
-                            placeholder="Αναζήτηση κωδικού..." 
+                            placeholder="Αναζήτηση..." 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 shadow-sm font-medium text-sm"
+                            className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 shadow-sm font-medium text-sm"
                         />
                     </div>
-                    <button onClick={() => setShowScanner(true)} className="p-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#060b00] hover:border-slate-300 transition-colors shadow-sm">
-                        <Camera size={20}/>
+                    <button onClick={() => setShowScanner(true)} className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#060b00] hover:border-slate-300 transition-colors shadow-sm">
+                        <Camera size={18}/>
                     </button>
-                    <button onClick={() => setShowFilters(!showFilters)} className={`p-3 rounded-xl border transition-colors shadow-sm ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Filter size={20}/>
+                    <button onClick={() => setShowFilters(!showFilters)} className={`p-2.5 rounded-xl border transition-colors shadow-sm ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                        <Filter size={18}/>
                     </button>
                 </div>
 
                 {/* Expanded Filters */}
                 {showFilters && (
-                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 relative">
-                        <button onClick={() => setShowFilters(false)} className="absolute top-2 right-2 text-slate-300 hover:text-slate-500"><X size={16}/></button>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Φύλο</label>
-                            <div className="flex flex-wrap gap-2">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-2 relative">
+                        <button onClick={() => setShowFilters(false)} className="absolute top-2 right-2 text-slate-300 hover:text-slate-500"><X size={14}/></button>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Φύλο</label>
+                            <div className="flex flex-wrap gap-1.5">
                                 {genderFilters.map(f => (
                                     <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={filterGender} onClick={(v) => setFilterGender(v as any)}/>
                                 ))}
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Gem size={10}/> Πέτρες</label>
-                            <div className="flex flex-wrap gap-2">
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Gem size={10}/> Πέτρες</label>
+                            <div className="flex flex-wrap gap-1.5">
                                 {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Palette size={10}/> Φινίρισμα</label>
-                            <div className="flex flex-wrap gap-2">
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Palette size={10}/> Φινίρισμα</label>
+                            <div className="flex flex-wrap gap-1.5">
                                 {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
                             </div>
                         </div>
@@ -311,14 +299,14 @@ export default function SellerCatalog({ products }: Props) {
                 )}
                 
                 {/* Category Horizontal Scroll */}
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
                     {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border ${
                                 selectedCategory === cat 
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
                                     : 'bg-white text-slate-500 border-slate-200'
                             }`}
                         >
@@ -328,15 +316,15 @@ export default function SellerCatalog({ products }: Props) {
                 </div>
             </div>
 
-            {/* Product List */}
+            {/* Product List Grid - 3 Columns for magazine style */}
             <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar pr-1">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-2">
                     {filteredProducts.map(p => (
                         <CatalogueCard key={p.sku} product={p} />
                     ))}
                 </div>
                 {filteredProducts.length === 0 && (
-                    <div className="text-center py-20 text-slate-400 text-sm italic">Δεν βρέθηκαν προϊόντα.</div>
+                    <div className="text-center py-20 text-slate-400 text-xs italic">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
 
