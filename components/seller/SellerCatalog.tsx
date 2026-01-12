@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, PlatingType, MaterialType } from '../../types';
-import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera } from 'lucide-react';
+import { Search, Filter, ImageIcon, Layers, Tag, User, Users, Gem, Palette, Camera, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -12,10 +13,10 @@ interface Props {
 }
 
 const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNode }[] = [
-    { label: 'Όλα', value: 'All', icon: <Layers size={16} /> },
-    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={16} /> },
-    { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16} /> },
+    { label: 'Όλα', value: 'All', icon: <Layers size={14} /> },
+    { label: 'Ανδρικά', value: Gender.Men, icon: <User size={14} /> },
+    { label: 'Γυναικεία', value: Gender.Women, icon: <User size={14} /> },
+    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={14} /> },
 ];
 
 const platingFilters = [
@@ -49,7 +50,7 @@ const SubFilterButton: React.FC<{
     </button>
 );
 
-const SellerProductCard: React.FC<{ product: Product }> = ({ product }) => {
+const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
     const [viewIndex, setViewIndex] = useState(0);
 
     // Sort variants to ensure consistent order (Standard priority logic)
@@ -70,55 +71,95 @@ const SellerProductCard: React.FC<{ product: Product }> = ({ product }) => {
 
     const hasVariants = variants.length > 0;
     
-    // Cycle through variants on click
-    const cycleVariant = () => {
+    const nextVariant = (e: React.MouseEvent) => {
+        e.stopPropagation();
         if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
+    };
+
+    const prevVariant = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (hasVariants) setViewIndex(prev => (prev - 1 + variants.length) % variants.length);
     };
 
     const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
 
     // Display Props based on current variant or master
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
+    // For Catalogue: Show Retail Price (Wholesale * 2.5) or Wholesale based on user role? 
+    // Assuming Seller App shows Wholesale.
     const displayPrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
     
-    const stockQty = currentVariant 
-        ? currentVariant.stock_qty 
-        : product.stock_qty;
-
-    // Calculate total stock for badge
-    const totalStock = (product.stock_qty || 0) + variants.reduce((sum, v) => sum + (v.stock_qty || 0), 0);
+    const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 
     return (
-        <div 
-            onClick={cycleVariant}
-            className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-transform cursor-pointer"
-        >
-            <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative">
+        <div className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-slate-100 flex flex-col h-full relative">
+            {/* Image Container */}
+            <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden">
                 {product.image_url ? (
-                    <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} />
-                ) : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}
+                    <img 
+                        src={product.image_url} 
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out" 
+                        alt={displaySku} 
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <ImageIcon size={32} />
+                    </div>
+                )}
                 
+                {/* Overlay Gradient for Text readability if needed, or badging */}
+                <div className="absolute top-0 left-0 p-2">
+                    {stockQty > 0 ? (
+                        <span className="bg-emerald-500/90 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-sm">
+                            {stockQty}
+                        </span>
+                    ) : (
+                        <span className="bg-red-500/90 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-sm">
+                            Out
+                        </span>
+                    )}
+                </div>
+
                 {hasVariants && (
-                    <div className="absolute bottom-0 right-0 bg-slate-900/80 text-white text-[9px] px-1.5 py-0.5 rounded-tl-lg font-bold">
-                        Var: {viewIndex + 1}/{variants.length}
+                    <div className="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-md flex items-center gap-1 shadow-sm">
+                        <Layers size={10}/> {viewIndex + 1}/{variants.length}
+                    </div>
+                )}
+
+                {/* Variant Controls Overlay */}
+                {hasVariants && variants.length > 1 && (
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <button onClick={prevVariant} className="pointer-events-auto p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
+                            <ChevronLeft size={16}/>
+                        </button>
+                        <button onClick={nextVariant} className="pointer-events-auto p-1.5 bg-white/80 backdrop-blur-md rounded-full shadow-md text-slate-700 hover:bg-white transition-colors">
+                            <ChevronRight size={16}/>
+                        </button>
                     </div>
                 )}
             </div>
             
-            <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                    <div className="font-black text-slate-800 text-base">{displaySku}</div>
-                    <div className="font-mono font-bold text-blue-600 text-sm">{formatCurrency(displayPrice)}</div>
+            {/* Info Area */}
+            <div className="p-3 flex flex-col flex-1 bg-white relative z-10">
+                <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-black text-slate-800 text-sm leading-tight truncate pr-2">{displaySku}</h3>
+                    <div className="font-mono font-bold text-[#060b00] text-sm leading-none">
+                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
+                    </div>
                 </div>
-                <div className="text-xs text-slate-500 font-medium mb-1 truncate">{displayLabel}</div>
-                <div className="flex gap-2">
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${stockQty > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                        {stockQty > 0 ? `Stock: ${stockQty}` : 'Out of Stock'}
+                
+                <p className="text-[10px] text-slate-500 font-medium line-clamp-1 mb-2">
+                    {displayLabel}
+                </p>
+
+                <div className="mt-auto pt-2 border-t border-slate-50 flex items-center gap-2">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 px-1.5 py-0.5 rounded">
+                        {product.category.split(' ')[0]}
                     </span>
-                    {hasVariants && (
-                        <span className="text-[10px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-100 font-bold">
-                            Total: {totalStock}
+                    {product.weight_g > 0 && (
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-auto">
+                            {product.weight_g}g
                         </span>
                     )}
                 </div>
@@ -144,7 +185,11 @@ export default function SellerCatalog({ products }: Props) {
 
     // Extract categories
     const categories = useMemo(() => {
-        const cats = new Set(products.map(p => p.category));
+        const cats = new Set(products.map(p => {
+            // Group logic: First word usually works for categories like "Ring Men", "Ring Women" -> "Ring"
+            // Or just use full category if simple
+            return p.category;
+        }));
         return ['All', ...Array.from(cats).sort()];
     }, [products]);
 
@@ -214,7 +259,7 @@ export default function SellerCatalog({ products }: Props) {
     };
 
     return (
-        <div className="p-4 h-full flex flex-col">
+        <div className="p-4 h-full flex flex-col bg-slate-50">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Κατάλογος</h1>
 
             {/* Controls */}
@@ -227,22 +272,23 @@ export default function SellerCatalog({ products }: Props) {
                             placeholder="Αναζήτηση κωδικού..." 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                            className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#060b00]/20 shadow-sm font-medium text-sm"
                         />
                     </div>
-                    <button onClick={() => setShowScanner(true)} className="p-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors shadow-sm">
+                    <button onClick={() => setShowScanner(true)} className="p-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-[#060b00] hover:border-slate-300 transition-colors shadow-sm">
                         <Camera size={20}/>
                     </button>
-                    <button onClick={() => setShowFilters(!showFilters)} className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                    <button onClick={() => setShowFilters(!showFilters)} className={`p-3 rounded-xl border transition-colors shadow-sm ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
                         <Filter size={20}/>
                     </button>
                 </div>
 
                 {/* Expanded Filters */}
                 {showFilters && (
-                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 relative">
+                        <button onClick={() => setShowFilters(false)} className="absolute top-2 right-2 text-slate-300 hover:text-slate-500"><X size={16}/></button>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Φύλο</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Φύλο</label>
                             <div className="flex flex-wrap gap-2">
                                 {genderFilters.map(f => (
                                     <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={filterGender} onClick={(v) => setFilterGender(v as any)}/>
@@ -250,13 +296,13 @@ export default function SellerCatalog({ products }: Props) {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Gem size={12}/> Πέτρες</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Gem size={10}/> Πέτρες</label>
                             <div className="flex flex-wrap gap-2">
                                 {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Palette size={12}/> Φινίρισμα</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Palette size={10}/> Φινίρισμα</label>
                             <div className="flex flex-wrap gap-2">
                                 {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
                             </div>
@@ -276,19 +322,21 @@ export default function SellerCatalog({ products }: Props) {
                                     : 'bg-white text-slate-500 border-slate-200'
                             }`}
                         >
-                            {cat}
+                            {cat === 'All' ? 'Όλα' : cat}
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Product List */}
-            <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                {filteredProducts.map(p => (
-                    <SellerProductCard key={p.sku} product={p} />
-                ))}
+            <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar pr-1">
+                <div className="grid grid-cols-2 gap-4">
+                    {filteredProducts.map(p => (
+                        <CatalogueCard key={p.sku} product={p} />
+                    ))}
+                </div>
                 {filteredProducts.length === 0 && (
-                    <div className="text-center py-10 text-slate-400 text-sm">Δεν βρέθηκαν προϊόντα.</div>
+                    <div className="text-center py-20 text-slate-400 text-sm italic">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
 
