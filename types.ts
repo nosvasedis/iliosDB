@@ -196,6 +196,7 @@ export interface Order {
   customer_id?: string; 
   customer_name: string; 
   customer_phone?: string;
+  seller_id?: string; // NEW: Track which seller created this order
   created_at: string;
   status: OrderStatus;
   items: OrderItem[];
@@ -263,7 +264,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   is_approved: boolean;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'seller'; // Added seller
 }
 
 declare global {

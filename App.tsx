@@ -45,6 +45,7 @@ import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
 import EmployeeApp from './components/employee/EmployeeApp';
+import SellerApp from './components/seller/SellerApp'; // Import Seller App
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -449,14 +450,17 @@ function AppContent() {
                 style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }} 
                 title="Print Bridge"
             ></iframe>
-            {/* Mobile clerk doesn't get the floating indicator usually, but let's be consistent if requested */}
-            {/* For now keeping Desktop indicator only for Desktop Admin/Clerk */}
             <EmployeeApp setPrintItems={setPrintItems} />
           </>
       );
   }
 
-  // 2. Admin Logic
+  // 2. Seller ('seller') -> Seller App (NEW)
+  if (profile?.role === 'seller') {
+      return <SellerApp />;
+  }
+
+  // 3. Admin Logic
   if (profile?.role === 'admin') {
       if (isMobile) {
           return (

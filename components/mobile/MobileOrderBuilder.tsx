@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
+import { useAuth } from '../AuthContext';
 
 interface Props {
     onBack: () => void;
@@ -36,8 +37,11 @@ const STONE_TEXT_COLORS: Record<string, string> = {
 
 export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
     const { showToast } = useUI();
+    const { profile } = useAuth();
     const queryClient = useQueryClient();
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
+
+    const isSeller = profile?.role === 'seller';
 
     // --- ORDER STATE ---
     const [customerName, setCustomerName] = useState(initialOrder?.customer_name || '');
@@ -172,6 +176,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_id: customerId || undefined,
+                seller_id: isSeller ? profile?.id : undefined, // Track seller
                 items: items,
                 total_price: total,
                 status: initialOrder?.status || OrderStatus.Pending,
@@ -198,6 +203,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
     const handleRemoveItem = (index: number) => {
         setItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const getStockIndicator = (variant: ProductVariant | null, product: Product) => {
+        const stock = variant 
+            ? (variant.location_stock?.[SYSTEM_IDS.CENTRAL] || variant.stock_qty || 0)
+            : (product.location_stock?.[SYSTEM_IDS.CENTRAL] || product.stock_qty || 0);
+        
+        if (stock > 0) return { color: 'bg-emerald-500', text: 'In Stock', count: stock };
+        return { color: 'bg-red-500', text: 'Out of Stock', count: 0 };
     };
 
     // --- CUSTOMER SEARCH ---
@@ -287,7 +301,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                         {/* Suggestions */}
                         <div className="mt-2 space-y-2">
-                            {suggestions.map(p => (
+                            {suggestions.map(p => {
+                                const stock = p.variants && p.variants.length > 0 
+                                    ? p.variants.reduce((a,b) => a + (b.stock_qty || 0), 0)
+                                    : (p.stock_qty || 0);
+                                
+                                return (
                                 <button 
                                     key={p.sku} 
                                     onClick={() => handleSelectMaster(p)}
@@ -306,11 +325,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                             <div className="text-xs text-slate-500 font-medium">{p.category}</div>
                                         </div>
                                     </div>
-                                    <div className="bg-slate-100 group-hover:bg-white p-1 rounded-lg transition-colors">
-                                        <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-500"/>
+                                    <div className="flex items-center gap-2">
+                                        {isSeller && (
+                                            <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                {stock > 0 ? `Stock: ${stock}` : 'Out'}
+                                            </div>
+                                        )}
+                                        <div className="bg-slate-100 group-hover:bg-white p-1 rounded-lg transition-colors">
+                                            <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-500"/>
+                                        </div>
                                     </div>
                                 </button>
-                            ))}
+                            )})}
                         </div>
                     </div>
                 )}
@@ -372,6 +398,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                     className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 disabled:opacity-50 disabled:grayscale"
                                 >
                                     <span className="text-lg font-black text-slate-700">Βασικό</span>
+                                    {isSeller && (
+                                        <div className={`mt-1 h-2 w-2 rounded-full ${getStockIndicator(null, activeMaster).color}`}></div>
+                                    )}
                                     <span className="text-[10px] uppercase font-bold text-slate-400">Master</span>
                                 </button>
                             )}
@@ -381,6 +410,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                 const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
                                 const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
                                 const stoneColorClass = stone.code ? (STONE_TEXT_COLORS[stone.code] || 'text-emerald-600') : '';
+                                const stock = getStockIndicator(v, activeMaster);
                                 
                                 return (
                                     <button 
@@ -393,6 +423,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                             {stone.code && <span className={stoneColorClass}>{stone.code}</span>}
                                             {!finish.code && !stone.code && v.suffix}
                                         </span>
+                                        {isSeller && (
+                                            <div className={`mt-1 flex items-center gap-1`}>
+                                                <div className={`h-2 w-2 rounded-full ${stock.color}`}></div>
+                                                <span className="text-[8px] font-bold opacity-60">{stock.count}</span>
+                                            </div>
+                                        )}
                                         <span className="text-[10px] uppercase font-bold opacity-80 truncate w-full text-center">{v.description || 'Var'}</span>
                                     </button>
                                 );
