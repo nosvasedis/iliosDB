@@ -23,7 +23,13 @@ import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product, Order } from './types';
 
-export default function MobileApp() {
+interface MobileAppProps {
+    isOnline?: boolean;
+    isSyncing?: boolean;
+    pendingItemsCount?: number;
+}
+
+export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
   const [activePage, setActivePage] = useState('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -156,8 +162,14 @@ export default function MobileApp() {
             title="Print Bridge"
         ></iframe>
 
-        <MobileLayout activePage={activePage} onNavigate={setActivePage}>
-        {content}
+        <MobileLayout 
+            activePage={activePage} 
+            onNavigate={setActivePage}
+            isOnline={isOnline}
+            isSyncing={isSyncing}
+            pendingCount={pendingItemsCount}
+        >
+            {content}
         </MobileLayout>
         
         {/* Overlay for Product Details */}

@@ -96,7 +96,7 @@ export interface AggregatedData {
 // Visual Sync Indicator Component
 const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingItems: any[], isOnline: boolean, isSyncing: boolean }) => {
     const pendingCount = pendingItems.length;
-    if (pendingCount === 0 && !isSyncing) return null;
+    if (pendingCount === 0 && !isSyncing && isOnline) return null;
 
     const translateMethod = (method: string) => {
         switch(method) {
@@ -449,7 +449,8 @@ function AppContent() {
                 style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }} 
                 title="Print Bridge"
             ></iframe>
-            <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
+            {/* Mobile clerk doesn't get the floating indicator usually, but let's be consistent if requested */}
+            {/* For now keeping Desktop indicator only for Desktop Admin/Clerk */}
             <EmployeeApp setPrintItems={setPrintItems} />
           </>
       );
@@ -459,10 +460,11 @@ function AppContent() {
   if (profile?.role === 'admin') {
       if (isMobile) {
           return (
-              <>
-                <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
-                <MobileApp />
-              </>
+              <MobileApp 
+                isOnline={isOnline} 
+                isSyncing={isSyncing} 
+                pendingItemsCount={pendingItems.length}
+              />
           );
       }
       
