@@ -5,7 +5,7 @@ import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { findProductByScannedCode, getVariantComponents, expandSkuRange } from '../../utils/pricingEngine';
+import { findProductByScannedCode, getVariantComponents, expandSkuRange, splitSkuComponents } from '../../utils/pricingEngine';
 import BarcodeView from '../BarcodeView';
 import { Product, ProductVariant } from '../../types';
 
@@ -18,11 +18,11 @@ interface QueueItem {
 
 // Visual Helpers for Variants
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-700 border-amber-200',
-    'P': 'bg-slate-100 text-slate-600 border-slate-200',
-    'D': 'bg-orange-100 text-orange-700 border-orange-200',
-    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    '': 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500',  
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400',   
+    '': 'text-slate-400'    
 };
 
 const STONE_TEXT_COLORS: Record<string, string> = {
@@ -59,6 +59,11 @@ export default function MobileBatchPrint() {
         if (!products) return;
         const term = input.trim().toUpperCase();
         if (term.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+
+        if (term.includes('-')) {
             setSuggestions([]);
             return;
         }
@@ -115,33 +120,56 @@ export default function MobileBatchPrint() {
     };
 
     const executeSmartAdd = () => {
-        // Updated to support ranges or manual entry
         const term = input.trim().toUpperCase();
         if (!activeMaster && !term) return;
         
         if (activeMaster) {
-            // Should not happen if button disabled correctly, but safe guard
             handleAddItem(null);
             return;
         }
 
-        // Try Range Expansion
+        // Updated to support ranges or manual entry with intelligent expansion
         const expandedSkus = expandSkuRange(term);
         let addedCount = 0;
+        let notFoundCount = 0;
 
-        // Process each SKU from expansion
         const newItems: QueueItem[] = [];
 
         expandedSkus.forEach(rawSku => {
+            let matchFound = false;
             const match = findProductByScannedCode(rawSku, products || []);
+            
             if (match) {
-                newItems.push({
-                    skuString: match.product.sku + (match.variant?.suffix || ''),
-                    product: match.product,
-                    variant: match.variant,
-                    qty: qty
-                });
+                // CASE A: Specific Variant or Simple Product
+                if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
+                    newItems.push({
+                        skuString: match.product.sku + (match.variant?.suffix || ''),
+                        product: match.product,
+                        variant: match.variant,
+                        qty: qty
+                    });
+                    matchFound = true;
+                } 
+                // CASE B: Master SKU without specific variant suffix -> Add ALL variants
+                else {
+                    if (match.product.variants && match.product.variants.length > 0) {
+                        match.product.variants.forEach(v => {
+                            newItems.push({
+                                skuString: match.product.sku + v.suffix,
+                                product: match.product,
+                                variant: v,
+                                qty: qty
+                            });
+                        });
+                        matchFound = true;
+                    }
+                }
+            }
+
+            if (matchFound) {
                 addedCount++;
+            } else {
+                notFoundCount++;
             }
         });
 
@@ -158,7 +186,7 @@ export default function MobileBatchPrint() {
                 });
                 return updated;
             });
-            showToast(`Προστέθηκαν ${addedCount} κωδικοί.`, 'success');
+            showToast(`Προστέθηκαν ${addedCount} κωδικοί (Expanded).`, 'success');
             setInput('');
             setQty(1);
         } else {
@@ -202,6 +230,74 @@ export default function MobileBatchPrint() {
     };
 
     const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
+
+    // --- VISUALIZERS ---
+    const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+        let masterStr = text;
+        let suffixStr = '';
+
+        if (masterContext) {
+            const masterLen = masterContext.sku.length;
+            if (text.startsWith(masterContext.sku)) {
+                masterStr = text.slice(0, masterLen);
+                suffixStr = text.slice(masterLen);
+            }
+        } else {
+            // Fallback heuristics for coloring if no context found (e.g. range end part)
+            const split = splitSkuComponents(text);
+            masterStr = split.master;
+            suffixStr = split.suffix;
+        }
+
+        const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
+        const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+        const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
+
+        const renderSuffixChars = () => {
+            return suffixStr.split('').map((char, i) => {
+                let colorClass = 'text-slate-400';
+                if (finish.code && i < finish.code.length) colorClass = fColor;
+                else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
+                return <span key={i} className={colorClass}>{char}</span>
+            });
+        };
+
+        return (
+            <span>
+                <span className="text-slate-900 font-black">{masterStr}</span>
+                <span className="font-black">{renderSuffixChars()}</span>
+            </span>
+        );
+    }
+
+    const SkuVisualizer = () => {
+        // Range Detection
+        if (input.includes('-')) {
+            const parts = input.split('-');
+            const start = parts[0];
+            const end = parts.slice(1).join('-'); // Handle rest
+
+            // Try to resolve masters for both parts for better coloring
+            const startMatch = findProductByScannedCode(start, products || []);
+            // End part might be incomplete while typing, try fuzzy
+            const endMatch = findProductByScannedCode(end, products || []) || { product: products?.find(p => end.startsWith(p.sku)) || null };
+
+            return (
+                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                    <SkuPartVisualizer text={start} masterContext={startMatch?.product || null} />
+                    <span className="text-amber-500 font-bold mx-1">-</span>
+                    <SkuPartVisualizer text={end} masterContext={endMatch?.product || null} />
+                </div>
+            );
+        }
+
+        // Standard Single Mode
+        return (
+            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                <SkuPartVisualizer text={input} masterContext={activeMaster} />
+            </div>
+        );
+    };
 
     // If in preview mode, render the print view
     if (viewMode === 'preview' && settings) {
@@ -255,23 +351,27 @@ export default function MobileBatchPrint() {
             {!activeMaster ? (
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
                     <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
-                    <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
-                        <Search size={20} className="text-slate-400 ml-1"/>
-                        <input 
-                            ref={inputRef}
-                            type="text" 
-                            value={input}
-                            onChange={e => setInput(e.target.value.toUpperCase())}
-                            onKeyDown={e => e.key === 'Enter' && executeSmartAdd()}
-                            placeholder="π.χ. DA100 ή 1005..."
-                            className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-slate-900 uppercase placeholder-slate-300"
-                            autoFocus
-                        />
-                        {input && <button onClick={() => setInput('')}><X size={18} className="text-slate-400"/></button>}
+                    <div className="relative">
+                        <SkuVisualizer />
+                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+                            <Search size={20} className="text-slate-400 ml-1"/>
+                            <input 
+                                ref={inputRef}
+                                type="text" 
+                                value={input}
+                                onChange={e => setInput(e.target.value.toUpperCase())}
+                                onKeyDown={e => e.key === 'Enter' && executeSmartAdd()}
+                                placeholder="π.χ. DA100 ή 1005..."
+                                className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-transparent uppercase placeholder-slate-300 relative z-10"
+                                autoFocus
+                            />
+                            {input && <button onClick={() => setInput('')} className="z-10"><X size={18} className="text-slate-400"/></button>}
+                            <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800 z-10"><Camera size={20}/></button>
+                        </div>
                     </div>
 
                     {/* Suggestions */}
-                    {suggestions.length > 0 && (
+                    {suggestions.length > 0 && !input.includes('-') && (
                         <div className="mt-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar pt-2">
                             {suggestions.map(p => (
                                 <button 
@@ -351,14 +451,14 @@ export default function MobileBatchPrint() {
 
                         {activeMaster.variants?.map(v => {
                             const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
-                            const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
+                            const finishColor = FINISH_COLORS[finish.code]?.replace('bg-', 'border-') || 'border-slate-200';
                             const stoneColorClass = stone.code ? (STONE_TEXT_COLORS[stone.code] || 'text-emerald-600') : '';
                             
                             return (
                                 <button 
                                     key={v.suffix}
                                     onClick={() => handleAddItem(v)}
-                                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm ${finishColor}`}
+                                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm bg-white ${finishColor}`}
                                 >
                                     <span className="text-lg font-black flex items-center gap-0.5">
                                         {finish.code}

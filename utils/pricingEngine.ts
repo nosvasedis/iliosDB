@@ -401,6 +401,19 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
 };
 
 /**
+ * Helper to split a full SKU into master and suffix parts for visualization
+ */
+export const splitSkuComponents = (fullSku: string): { master: string, suffix: string } => {
+    // Basic heuristic: First 2 letters + numbers is master (e.g. DA100, RN2020)
+    // Everything else is suffix
+    const match = fullSku.match(/^([A-Z]{2,3}\d+)(.*)$/);
+    if (match) {
+        return { master: match[1], suffix: match[2] };
+    }
+    return { master: fullSku, suffix: '' };
+};
+
+/**
  * ESTIMATE VARIANT COST
  */
 export const estimateVariantCost = (
@@ -648,7 +661,14 @@ export const analyzeSuffix = (suffix: string, gender?: Gender, plating?: Plating
  * @returns An array of SKUs. If the token is not a valid range, returns [token].
  */
 export const expandSkuRange = (token: string): string[] => {
-    const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
+    // Regex matches: [PREFIX][NUMBER][SUFFIX] - [PREFIX][NUMBER][SUFFIX]
+    // Group 1: Prefix 1
+    // Group 2: Number 1
+    // Group 3: Suffix 1 (Optional)
+    // Group 4: Prefix 2
+    // Group 5: Number 2
+    // Group 6: Suffix 2 (Optional)
+    const rangeRegex = /^([A-Z-]+)(\d+)([A-Z0-9]*)-([A-Z-]+)(\d+)([A-Z0-9]*)$/i;
     const match = token.match(rangeRegex);
 
     if (!match) return [token];
@@ -676,8 +696,6 @@ export const expandSkuRange = (token: string): string[] => {
         if (shouldPad) {
             numPart = numPart.padStart(paddingLength, '0');
         } else if (numPart.length < paddingLength && num1Str.length === num2Str.length) {
-             // If original input was consistently padded (e.g. 050-060), maintain it even if not starting with 0 explicitly at 'start' (edge case)
-             // But simpler logic: Pad if length differs from target length and original seemed padded
              numPart = numPart.padStart(paddingLength, '0');
         }
         expanded.push(`${prefix1.toUpperCase()}${numPart}${suffix1.toUpperCase()}`);

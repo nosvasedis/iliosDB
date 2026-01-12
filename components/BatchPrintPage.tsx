@@ -6,7 +6,7 @@ import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
-import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange } from '../utils/pricingEngine';
+import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
 import BarcodeView from './BarcodeView';
 
 // Set workerSrc for pdf.js.
@@ -56,8 +56,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
     const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
-    const [typedSuffixPart, setTypedSuffixPart] = useState('');
-
+    
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handlePrint = () => {
@@ -81,32 +80,33 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             if (isNaN(quantity) || quantity <= 0) continue;
 
             // SMART RANGE EXPANSION
+            // NOTE: This handles both single SKUs and ranges like RN160-RN162
             const expandedSkus = expandSkuRange(rawToken);
 
             for (const rawSku of expandedSkus) {
-                let found = false;
-                for (const p of allProducts) {
-                    if (p.variants) {
-                        for (const v of p.variants) {
-                            if (`${p.sku}${v.suffix}` === rawSku) {
-                                itemsToPrint.push({ product: p, variant: v, quantity, format: labelFormat });
-                                found = true;
-                                break;
-                            }
+                let matchFound = false;
+
+                // 1. Try finding exact Match (Master or Specific Variant)
+                const match = findProductByScannedCode(rawSku, allProducts);
+                
+                if (match) {
+                    // CASE A: Specific Variant or Simple Product
+                    if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
+                        itemsToPrint.push({ product: match.product, variant: match.variant, quantity, format: labelFormat });
+                        matchFound = true;
+                    } 
+                    // CASE B: Master SKU without specific variant suffix -> Add ALL variants
+                    else {
+                        if (match.product.variants && match.product.variants.length > 0) {
+                            match.product.variants.forEach(v => {
+                                itemsToPrint.push({ product: match.product, variant: v, quantity, format: labelFormat });
+                            });
+                            matchFound = true;
                         }
                     }
-                    if (found) break;
                 }
 
-                if (!found) {
-                    const product = allProducts.find(p => p.sku === rawSku);
-                    if (product) {
-                        itemsToPrint.push({ product, quantity, format: labelFormat });
-                        found = true;
-                    }
-                }
-
-                if (!found) {
+                if (!matchFound) {
                     notFound.push(rawSku);
                 }
             }
@@ -134,7 +134,15 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             setCandidateProducts([]);
             setActiveMasterProduct(null);
             setFilteredVariants([]);
-            setTypedSuffixPart('');
+            return;
+        }
+
+        // Logic split: Range vs Single
+        if (val.includes('-')) {
+            // Range mode: clear specific candidates, visualizer handles the range display
+            setCandidateProducts([]);
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
             return;
         }
 
@@ -159,11 +167,9 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }
 
         // 2. Set Visual Candidates (Top 6 matches for what is typed so far)
-        // If we found a specific master context, prioritize showing that master + siblings
-        // Otherwise show anything starting with the input
         let candidates: Product[] = [];
         if (bestMaster) {
-            candidates = [bestMaster]; // Always show the context first
+            candidates = [bestMaster]; 
         } else {
             candidates = allProducts.filter(p => p.sku.startsWith(val)).slice(0, 6);
         }
@@ -172,11 +178,8 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         // 3. Set Variants & Suffix Logic
         if (bestMaster) {
             setActiveMasterProduct(bestMaster);
-            setTypedSuffixPart(suffixPart);
             
             if (bestMaster.variants) {
-                // Filter variants that START with the typed suffix part
-                // e.g. Master: DA100, SuffixPart: "X" -> Matches "X", "XKR", "XP" etc.
                 const validVariants = bestMaster.variants
                     .filter(v => v.suffix.startsWith(suffixPart))
                     .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
@@ -188,7 +191,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         } else {
             setActiveMasterProduct(null);
             setFilteredVariants([]);
-            setTypedSuffixPart('');
         }
     };
 
@@ -197,7 +199,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         setScanInput(product.sku);
         setActiveMasterProduct(product);
         setCandidateProducts([product]);
-        setTypedSuffixPart('');
         // Show all variants
         if (product.variants) {
             setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
@@ -211,88 +212,120 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         if (activeMasterProduct) {
             const fullCode = activeMasterProduct.sku + suffix;
             setScanInput(fullCode);
-            // Don't clear master, keep context but maybe narrow variants? 
-            // For now, assume selection means "I want this one"
-            setTypedSuffixPart(suffix);
             setFilteredVariants([]); // Clear suggestions to indicate selection made
             inputRef.current?.focus();
         }
     };
 
     const executeSmartAdd = () => {
-        if (!activeMasterProduct && !scanInput) return;
+        if (!scanInput) return;
         
-        // If we have a master and a suffix picked (or typed fully)
-        let finalCode = scanInput;
-        
-        // Validate
-        const match = findProductByScannedCode(finalCode, allProducts);
-        
-        if (!match) {
-            // Check if it's a valid master with NO variants
-            const exactMaster = allProducts.find(p => p.sku === finalCode);
-            if (exactMaster && (!exactMaster.variants || exactMaster.variants.length === 0)) {
-                // Valid simple product
-            } else if (match) {
-                // Valid variant or master
+        // Use the unified range expansion logic
+        const expandedSkus = expandSkuRange(scanInput);
+        let addedCount = 0;
+        let notFoundCount = 0;
+
+        // Validation pass
+        const validEntries: string[] = [];
+
+        for (const rawSku of expandedSkus) {
+            const match = findProductByScannedCode(rawSku, allProducts);
+            if (match) {
+                validEntries.push(rawSku);
+                addedCount++;
             } else {
-                showToast("Ο κωδικός δεν βρέθηκε ή είναι ατελής.", "error");
-                return;
+                notFoundCount++;
             }
         }
 
-        const currentLines = skusText.split('\n').filter(l => l.trim());
-        const newLine = `${finalCode} ${scanQty}`;
-        setSkusText([...currentLines, newLine].join('\n'));
+        if (addedCount > 0) {
+            const currentLines = skusText.split('\n').filter(l => l.trim());
+            
+            // Format each valid entry. If quantity > 1, append it.
+            const newLines = validEntries.map(sku => `${sku} ${scanQty}`);
+            setSkusText([...currentLines, ...newLines].join('\n'));
 
-        // Reset
-        setScanInput('');
-        setScanQty(1);
-        setCandidateProducts([]);
-        setActiveMasterProduct(null);
-        setFilteredVariants([]);
-        inputRef.current?.focus();
-        showToast(`Προστέθηκε: ${finalCode}`, 'success');
+            // Reset
+            setScanInput('');
+            setScanQty(1);
+            setCandidateProducts([]);
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+            inputRef.current?.focus();
+            showToast(`Προστέθηκαν ${addedCount} κωδικοί!`, 'success');
+        } else {
+            showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", "error");
+        }
+        
+        if (notFoundCount > 0) {
+            showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
+        }
     };
 
     // --- VISUALIZERS ---
-    const SkuVisualizer = () => {
-        // FIX: Always return a visualizer so the text is not invisible when no product matches
-        if (!activeMasterProduct) {
-            return (
-                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                    <span className="text-slate-800 font-bold">{scanInput}</span>
-                </div>
-            );
-        }
-        
-        // Master part is colored black/standard
-        // Suffix part is colored based on stone/metal
-        
-        const masterLen = activeMasterProduct.sku.length;
-        const masterStr = scanInput.slice(0, masterLen);
-        const suffixStr = scanInput.slice(masterLen);
+    const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+        let masterStr = text;
+        let suffixStr = '';
 
-        const { finish, stone } = getVariantComponents(suffixStr, activeMasterProduct.gender);
+        if (masterContext) {
+            const masterLen = masterContext.sku.length;
+            if (text.startsWith(masterContext.sku)) {
+                masterStr = text.slice(0, masterLen);
+                suffixStr = text.slice(masterLen);
+            }
+        } else {
+            // Fallback heuristics for coloring if no context found (e.g. range end part)
+            const split = splitSkuComponents(text);
+            masterStr = split.master;
+            suffixStr = split.suffix;
+        }
+
+        const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
         const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
 
         const renderSuffixChars = () => {
             return suffixStr.split('').map((char, i) => {
                 let colorClass = 'text-slate-400';
-                
-                // Heuristic coloring for visual feedback while typing
                 if (finish.code && i < finish.code.length) colorClass = fColor;
                 else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
-                
                 return <span key={i} className={colorClass}>{char}</span>
             });
         };
 
         return (
-            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+            <span>
                 <span className="text-slate-900 font-black">{masterStr}</span>
-                <span className="font-black flex">{renderSuffixChars()}</span>
+                <span className="font-black">{renderSuffixChars()}</span>
+            </span>
+        );
+    }
+
+    const SkuVisualizer = () => {
+        // Range Detection
+        if (scanInput.includes('-')) {
+            const parts = scanInput.split('-');
+            const start = parts[0];
+            const end = parts.slice(1).join('-'); // Handle rest
+
+            // Try to resolve masters for both parts for better coloring
+            const startMatch = findProductByScannedCode(start, allProducts);
+            // End part might be incomplete while typing, try fuzzy
+            const endMatch = findProductByScannedCode(end, allProducts) || { product: allProducts.find(p => end.startsWith(p.sku)) || null };
+
+            return (
+                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                    <SkuPartVisualizer text={start} masterContext={startMatch?.product || null} />
+                    <span className="text-amber-500 font-bold mx-1">-</span>
+                    <SkuPartVisualizer text={end} masterContext={endMatch?.product || null} />
+                </div>
+            );
+        }
+
+        // Standard Single Mode
+        return (
+            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+                <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct} />
             </div>
         );
     };
@@ -420,9 +453,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                     value={scanInput}
                                     onChange={handleSmartInput}
                                     onKeyDown={e => {
-                                        if(e.key === 'ArrowRight' && filteredVariants.length > 0) { 
-                                            // Maybe autocomplete the first variant? For now simple arrow movement.
-                                        }
                                         if(e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); }
                                     }}
                                     placeholder="Πληκτρολογήστε..."
@@ -432,7 +462,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         </div>
 
                         {/* VISUAL CANDIDATES STRIP */}
-                        {candidateProducts.length > 0 && (
+                        {candidateProducts.length > 0 && !scanInput.includes('-') && (
                             <div className="animate-in slide-in-from-top-2 fade-in">
                                 <label className="text-[9px] text-slate-400 font-bold uppercase mb-1.5 ml-1 block tracking-widest flex items-center gap-1">
                                     <Search size={10}/> {activeMasterProduct ? 'ΕΠΙΛΕΓΜΕΝΟ ΠΡΟΪΟΝ' : 'ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ'}
@@ -465,7 +495,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         )}
 
                         {/* VARIANT SUGGESTIONS GRID */}
-                        {filteredVariants.length > 0 && (
+                        {filteredVariants.length > 0 && !scanInput.includes('-') && (
                             <div className="animate-in slide-in-from-top-2 fade-in bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
                                 <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest flex items-center gap-1">
                                     <Lightbulb size={10} className="text-amber-500"/> ΔΙΑΘΕΣΙΜΕΣ ΠΑΡΑΛΛΑΓΕΣ
@@ -501,7 +531,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         </div>
                         <button 
                             onClick={executeSmartAdd}
-                            disabled={!activeMasterProduct && !scanInput}
+                            disabled={!scanInput}
                             className="flex-1 h-[54px] bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:translate-y-0"
                         >
                             <Plus size={28}/>
