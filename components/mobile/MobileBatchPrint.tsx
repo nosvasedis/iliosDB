@@ -5,7 +5,7 @@ import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { findProductByScannedCode, getVariantComponents } from '../../utils/pricingEngine';
+import { findProductByScannedCode, getVariantComponents, expandSkuRange } from '../../utils/pricingEngine';
 import BarcodeView from '../BarcodeView';
 import { Product, ProductVariant } from '../../types';
 
@@ -92,9 +92,6 @@ export default function MobileBatchPrint() {
         if (!activeMaster) return;
         const skuString = activeMaster.sku + (variant?.suffix || '');
         
-        // Check if already in queue to increment qty instead of duplicating?
-        // Batch print usually lists them out or sums them. Let's just add to list for now to keep it simple.
-        // Actually, let's consolidate if same SKU.
         setQueue(prev => {
             const existingIdx = prev.findIndex(i => i.skuString === skuString);
             if (existingIdx >= 0) {
@@ -112,11 +109,61 @@ export default function MobileBatchPrint() {
 
         showToast(`Προστέθηκε: ${skuString} (x${qty})`, 'success');
         
-        // Reset state but keep keyboard ready?
-        // Maybe clear master to allow next search
         setActiveMaster(null);
         setQty(1);
         if (inputRef.current) inputRef.current.focus();
+    };
+
+    const executeSmartAdd = () => {
+        // Updated to support ranges or manual entry
+        const term = input.trim().toUpperCase();
+        if (!activeMaster && !term) return;
+        
+        if (activeMaster) {
+            // Should not happen if button disabled correctly, but safe guard
+            handleAddItem(null);
+            return;
+        }
+
+        // Try Range Expansion
+        const expandedSkus = expandSkuRange(term);
+        let addedCount = 0;
+
+        // Process each SKU from expansion
+        const newItems: QueueItem[] = [];
+
+        expandedSkus.forEach(rawSku => {
+            const match = findProductByScannedCode(rawSku, products || []);
+            if (match) {
+                newItems.push({
+                    skuString: match.product.sku + (match.variant?.suffix || ''),
+                    product: match.product,
+                    variant: match.variant,
+                    qty: qty
+                });
+                addedCount++;
+            }
+        });
+
+        if (addedCount > 0) {
+            setQueue(prev => {
+                const updated = [...prev];
+                newItems.forEach(item => {
+                    const existingIdx = updated.findIndex(i => i.skuString === item.skuString);
+                    if (existingIdx >= 0) {
+                        updated[existingIdx].qty += item.qty;
+                    } else {
+                        updated.unshift(item);
+                    }
+                });
+                return updated;
+            });
+            showToast(`Προστέθηκαν ${addedCount} κωδικοί.`, 'success');
+            setInput('');
+            setQty(1);
+        } else {
+            showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", "error");
+        }
     };
 
     const handleScan = (code: string) => {
@@ -215,12 +262,12 @@ export default function MobileBatchPrint() {
                             type="text" 
                             value={input}
                             onChange={e => setInput(e.target.value.toUpperCase())}
+                            onKeyDown={e => e.key === 'Enter' && executeSmartAdd()}
                             placeholder="π.χ. DA100 ή 1005..."
                             className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-slate-900 uppercase placeholder-slate-300"
+                            autoFocus
                         />
-                        <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-700 rounded-lg shadow-sm active:scale-95">
-                            <Camera size={20}/>
-                        </button>
+                        {input && <button onClick={() => setInput('')}><X size={18} className="text-slate-400"/></button>}
                     </div>
 
                     {/* Suggestions */}
@@ -250,6 +297,21 @@ export default function MobileBatchPrint() {
                                     </div>
                                 </button>
                             ))}
+                        </div>
+                    )}
+                    
+                    {/* Add Button if manual input present */}
+                    {input.length >= 3 && suggestions.length === 0 && (
+                        <div className="mt-3 flex gap-2">
+                             <div className="w-20 shrink-0">
+                                <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-slate-50 text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
+                            </div>
+                            <button 
+                                onClick={executeSmartAdd}
+                                className="flex-1 bg-slate-900 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <Plus size={20}/> Προσθήκη
+                            </button>
                         </div>
                     )}
                 </div>

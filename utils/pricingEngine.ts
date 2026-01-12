@@ -639,3 +639,49 @@ export const analyzeSuffix = (suffix: string, gender?: Gender, plating?: Plating
 
     return null;
 };
+
+/**
+ * Expands a SKU range token into an array of individual SKUs.
+ * Handles patterns like "DA050-DA063", "DA050X-DA063X", or "DA050S-DA063S".
+ * 
+ * @param token - The string token potentially containing a range (e.g., "DA050-DA060").
+ * @returns An array of SKUs. If the token is not a valid range, returns [token].
+ */
+export const expandSkuRange = (token: string): string[] => {
+    const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
+    const match = token.match(rangeRegex);
+
+    if (!match) return [token];
+
+    const [, prefix1, num1Str, suffix1, prefix2, num2Str, suffix2] = match;
+
+    // Prefixes and suffixes must match for a valid range (e.g. DA...X to DA...X)
+    if (prefix1.toUpperCase() !== prefix2.toUpperCase() || suffix1.toUpperCase() !== suffix2.toUpperCase()) {
+        return [token];
+    }
+
+    const start = parseInt(num1Str, 10);
+    const end = parseInt(num2Str, 10);
+
+    if (isNaN(start) || isNaN(end) || start > end) return [token]; // Invalid math
+    if (end - start > 500) return [token]; // Safety limit
+
+    const expanded: string[] = [];
+    const paddingLength = num1Str.length;
+    // Heuristic: If start number starts with '0' and has >1 digit, preserve padding length.
+    const shouldPad = num1Str.startsWith('0') && num1Str.length > 1;
+
+    for (let i = start; i <= end; i++) {
+        let numPart = i.toString();
+        if (shouldPad) {
+            numPart = numPart.padStart(paddingLength, '0');
+        } else if (numPart.length < paddingLength && num1Str.length === num2Str.length) {
+             // If original input was consistently padded (e.g. 050-060), maintain it even if not starting with 0 explicitly at 'start' (edge case)
+             // But simpler logic: Pad if length differs from target length and original seemed padded
+             numPart = numPart.padStart(paddingLength, '0');
+        }
+        expanded.push(`${prefix1.toUpperCase()}${numPart}${suffix1.toUpperCase()}`);
+    }
+
+    return expanded;
+};

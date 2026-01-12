@@ -6,7 +6,8 @@ import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
-import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode } from '../utils/pricingEngine';
+import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange } from '../utils/pricingEngine';
+import BarcodeView from './BarcodeView';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -35,7 +36,7 @@ const STONE_CATEGORIES: Record<string, string> = {
     'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
     'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
     'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-400',
-    'MV': 'text-purple-400', 'RZ': 'text-pink-400', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
 export default function BatchPrintPage({ allProducts, setPrintItems, skusText, setSkusText }: Props) {
@@ -73,36 +74,41 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             const parts = cleanLine.split(/\s+/);
             if (parts.length === 0) continue;
 
-            const rawSku = parts[0].toUpperCase();
+            const rawToken = parts[0].toUpperCase();
             const quantityStr = parts.length > 1 ? parts[1] : '1';
             const quantity = parseInt(quantityStr.replace(/[^0-9]/g, ''), 10);
             
             if (isNaN(quantity) || quantity <= 0) continue;
 
-            let found = false;
-            for (const p of allProducts) {
-                if (p.variants) {
-                    for (const v of p.variants) {
-                        if (`${p.sku}${v.suffix}` === rawSku) {
-                            itemsToPrint.push({ product: p, variant: v, quantity, format: labelFormat });
-                            found = true;
-                            break;
+            // SMART RANGE EXPANSION
+            const expandedSkus = expandSkuRange(rawToken);
+
+            for (const rawSku of expandedSkus) {
+                let found = false;
+                for (const p of allProducts) {
+                    if (p.variants) {
+                        for (const v of p.variants) {
+                            if (`${p.sku}${v.suffix}` === rawSku) {
+                                itemsToPrint.push({ product: p, variant: v, quantity, format: labelFormat });
+                                found = true;
+                                break;
+                            }
                         }
                     }
+                    if (found) break;
                 }
-                if (found) break;
-            }
 
-            if (!found) {
-                const product = allProducts.find(p => p.sku === rawSku);
-                if (product) {
-                    itemsToPrint.push({ product, quantity, format: labelFormat });
-                    found = true;
+                if (!found) {
+                    const product = allProducts.find(p => p.sku === rawSku);
+                    if (product) {
+                        itemsToPrint.push({ product, quantity, format: labelFormat });
+                        found = true;
+                    }
                 }
-            }
 
-            if (!found) {
-                notFound.push(rawSku);
+                if (!found) {
+                    notFound.push(rawSku);
+                }
             }
         }
         
@@ -405,7 +411,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     <div className="md:col-span-8 relative overflow-visible space-y-4">
                         
                         <div>
-                            <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
+                            <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU / Εύρος (π.χ. DA050-DA063)</label>
                             <div className="relative">
                                 <SkuVisualizer />
                                 <input 
@@ -474,7 +480,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                             <button 
                                                 key={s.suffix} 
                                                 onClick={() => selectSuffix(s.suffix)}
-                                                className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-300 flex items-center gap-1 group active:scale-95"
+                                                className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1 group active:scale-95"
                                                 title={s.desc}
                                             >
                                                 <span className={fColor}>{finish.code || 'LUSTRE'}</span>
@@ -516,7 +522,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             onChange={(e) => setSkusText(e.target.value)}
                             rows={12}
                             className="w-full p-4 border border-slate-200 rounded-xl font-mono text-sm bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder-slate-400 flex-1 custom-scrollbar"
-                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\n\nXR2020PKR 5\nDA1005X 10\nSTX-505 20`}
+                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nΥποστηρίζονται εύρη:\nDA050-DA063 2\nXR2020 5`}
                         />
                     </div>
                 </div>
