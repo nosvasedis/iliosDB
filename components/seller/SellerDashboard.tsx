@@ -59,7 +59,7 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
                 </div>
                 <button 
                     onClick={onCreateOrder}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+                    className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform hover:bg-slate-900"
                 >
                     <Plus size={18}/> Νέα Εντολή
                 </button>
@@ -85,14 +85,14 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
                     title="Ολοκληρωμενες" 
                     value={stats.completedCount.toString()} 
                     icon={<CheckCircle size={24}/>} 
-                    color="text-blue-600"
+                    color="text-[#060b00]"
                 />
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-slate-800 text-lg">Πρόσφατες Εντολές</h3>
-                    <button onClick={() => onNavigate('orders')} className="text-blue-600 text-xs font-bold">Προβολή Όλων</button>
+                    <button onClick={() => onNavigate('orders')} className="text-amber-600 text-xs font-bold">Προβολή Όλων</button>
                 </div>
                 <div className="space-y-3">
                     {stats.recent.map(order => (

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -23,7 +24,7 @@ const STATUS_COLORS = {
     [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-600 border-blue-200',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-    [OrderStatus.Delivered]: 'bg-slate-900 text-white border-slate-900',
+    [OrderStatus.Delivered]: 'bg-[#060b00] text-white border-[#060b00]',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };
 
@@ -68,7 +69,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
                     {canEdit && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-                            className="w-full mt-3 bg-white border border-blue-200 text-blue-600 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm"
+                            className="w-full mt-3 bg-white border border-slate-200 text-slate-700 hover:text-[#060b00] hover:border-[#060b00] py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
                         >
                             <Edit size={14}/> Επεξεργασία
                         </button>
@@ -91,13 +92,13 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         o.id.includes(search)
     );
 
-    if (isLoading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-blue-600"/></div>;
+    if (isLoading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-emerald-600"/></div>;
 
     return (
         <div className="p-4 space-y-4 h-full flex flex-col">
             <div className="flex justify-between items-center shrink-0">
                 <h1 className="text-2xl font-black text-slate-900">Οι Εντολές μου</h1>
-                <button onClick={onCreate} className="bg-blue-600 text-white p-2 rounded-xl shadow-md active:scale-95">
+                <button onClick={onCreate} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md active:scale-95 hover:bg-slate-900 transition-colors">
                     <Plus size={24}/>
                 </button>
             </div>
@@ -109,7 +110,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
                     placeholder="Αναζήτηση..." 
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm font-medium"
                 />
             </div>
 
