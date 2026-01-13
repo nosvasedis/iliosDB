@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock } from 'lucide-react';
@@ -34,10 +33,10 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400',
     'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-400',
+    'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500',
     'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
     'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
-    'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-400',
+    'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-500',
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
@@ -552,14 +551,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     >
                         <Camera size={20} />
                     </button>
-
-                    <button 
-                        onClick={() => setSkusText('')} 
-                        title="Καθαρισμός"
-                        className="p-3 rounded-xl font-bold bg-slate-50 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200"
-                    >
-                        <Trash2 size={20}/>
-                    </button>
                 </div>
             </div>
 
@@ -676,8 +667,27 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 <div className="md:col-span-3 space-y-6">
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-full flex flex-col">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="font-bold text-slate-800">Ουρά Εκτύπωσης</h2>
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{skusText.split('\n').filter(l => l.trim()).length} ΓΡΑΜΜΕΣ</span>
+                            <div className="flex items-center gap-3">
+                                <h2 className="font-bold text-slate-800">Ουρά Εκτύπωσης</h2>
+                                <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 uppercase tracking-widest">{skusText.split('\n').filter(l => l.trim()).length} ΓΡΑΜΜΕΣ</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={handlePrint}
+                                    disabled={isProcessing || !skusText.trim()}
+                                    className="bg-slate-900 text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                >
+                                    {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+                                    Εκτύπωση
+                                </button>
+                                <button 
+                                    onClick={() => setSkusText('')} 
+                                    title="Καθαρισμός"
+                                    className="p-1.5 rounded-xl font-bold bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
+                            </div>
                         </div>
                         <textarea
                             value={skusText}
@@ -784,17 +794,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 </div>
             )}
                 </div>
-            </div>
-
-            <div className="flex justify-center mt-4 pb-20">
-                <button 
-                    onClick={handlePrint}
-                    disabled={isProcessing || !skusText.trim()}
-                    className="w-full max-w-lg bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 hover:-translate-y-0.5 active:scale-95"
-                >
-                    {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-                    {isProcessing ? 'Επεξεργασία...' : 'Εκτύπωση Ετικετών'}
-                </button>
             </div>
             {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} continuous={true} />}
         </div>
