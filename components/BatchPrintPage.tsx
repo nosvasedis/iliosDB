@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -41,12 +41,13 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
-interface CommitLog {
+interface ActionLog {
     id: string;
+    type: 'PRINT' | 'COMMIT';
     timestamp: Date;
-    itemCount: number;
-    warehouseName: string;
-    totalQty: number;
+    summary: string;
+    details: { sku: string; variant?: string; qty: number }[];
+    target?: string;
 }
 
 export default function BatchPrintPage({ allProducts, setPrintItems, skusText, setSkusText }: Props) {
@@ -61,10 +62,10 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast, confirm } = useUI();
 
-    // Stock Commit State
+    // Smart Log State
     const [isCommitting, setIsCommitting] = useState(false);
     const [targetWarehouse, setTargetWarehouse] = useState(SYSTEM_IDS.SHOWROOM); // Default to Showroom
-    const [commitHistory, setCommitHistory] = useState<CommitLog[]>([]);
+    const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
 
     // Smart Entry State
     const [scanInput, setScanInput] = useState('');
@@ -140,6 +141,17 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             if (printPayload.length > 0) {
                 setPrintItems(printPayload);
                 showToast(`Στάλθηκαν ${printPayload.reduce((a,b)=>a+b.quantity,0)} ετικέτες για εκτύπωση (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
+                
+                // Add to Log
+                const logDetails = printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
+                setActionLogs(prev => [{
+                    id: Date.now().toString(),
+                    type: 'PRINT',
+                    timestamp: new Date(),
+                    summary: `${logDetails.reduce((a,b)=>a+b.qty,0)} Ετικέτες`,
+                    details: logDetails
+                }, ...prev]);
+
             } else {
                 showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", 'error');
             }
@@ -222,12 +234,15 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             
-            setCommitHistory(prev => [{
+            // Add to Log
+            const logDetails = items.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
+            setActionLogs(prev => [{
                 id: Date.now().toString(),
+                type: 'COMMIT',
                 timestamp: new Date(),
-                itemCount: items.length,
-                totalQty: items.reduce((acc, i) => acc + i.quantity, 0),
-                warehouseName
+                summary: `Εισαγωγή (${logDetails.reduce((a,b)=>a+b.qty,0)} τμχ)`,
+                target: warehouseName,
+                details: logDetails
             }, ...prev]);
 
             showToast(`Επιτυχής προσθήκη ${successCount} ειδών στο ${warehouseName}!`, "success");
@@ -693,18 +708,36 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         </button>
                      </div>
 
-                     {/* Commit History */}
-                     {commitHistory.length > 0 && (
-                         <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 animate-in fade-in">
-                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1"><History size={12}/> Πρόσφατες Καταχωρήσεις</h3>
-                             <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                                 {commitHistory.map(log => (
-                                     <div key={log.id} className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 flex justify-between items-center">
-                                         <div>
-                                             <span className="font-bold text-slate-700 block">{log.itemCount} είδη ({log.totalQty} τμχ)</span>
-                                             <span className="text-[9px] text-slate-400">{log.warehouseName}</span>
+                     {/* Action Log History */}
+                     {actionLogs.length > 0 && (
+                         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 animate-in fade-in h-fit max-h-[500px] flex flex-col">
+                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                 <History size={14}/> Ιστορικό Ενεργειών
+                             </h3>
+                             <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
+                                 {actionLogs.map(log => (
+                                     <div key={log.id} className="relative pl-4 border-l-2 border-slate-100 pb-1">
+                                         {/* Timeline Dot */}
+                                         <div className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-500'}`}></div>
+                                         
+                                         <div className="flex justify-between items-start mb-1">
+                                             <span className={`text-xs font-black uppercase ${log.type === 'PRINT' ? 'text-slate-600' : 'text-emerald-600'}`}>
+                                                 {log.type === 'PRINT' ? 'ΕΚΤΥΠΩΣΗ' : 'ΚΑΤΑΧΩΡΗΣΗ'}
+                                             </span>
+                                             <span className="text-[9px] font-mono text-slate-400">{log.timestamp.toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit'})}</span>
                                          </div>
-                                         <span className="text-[9px] font-mono text-slate-400">{log.timestamp.toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                         
+                                         <div className="text-xs font-bold text-slate-700 mb-1">
+                                             {log.summary} {log.target && <span className="text-slate-400 font-normal">στο {log.target}</span>}
+                                         </div>
+
+                                         <div className="flex flex-wrap gap-1">
+                                             {log.details.map((d, i) => (
+                                                 <span key={i} className="text-[10px] px-1.5 py-0.5 bg-slate-50 border border-slate-100 rounded text-slate-600 font-medium">
+                                                     {d.sku}{d.variant} <span className="text-slate-400">x{d.qty}</span>
+                                                 </span>
+                                             ))}
+                                         </div>
                                      </div>
                                  ))}
                              </div>
