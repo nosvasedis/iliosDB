@@ -525,40 +525,40 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     <p className="text-slate-500 mt-1 ml-14">Δημιουργήστε ουρά εκτύπωσης χρησιμοποιώντας την έξυπνη είσοδο.</p>
                 </div>
                 
-                <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+                <div className="flex gap-2">
                     <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
                     
                     <button 
                         onClick={() => setShowHistoryModal(true)} 
-                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all border border-slate-200"
+                        title="Ιστορικό"
+                        className="p-3 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all border border-slate-200"
                     >
                         <History size={20} />
-                        <span className="whitespace-nowrap">Ιστορικό</span>
                     </button>
 
                     <button 
                         onClick={() => fileInputRef.current?.click()} 
-                        disabled={isProcessing} 
-                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-700 px-5 py-3 rounded-xl font-bold hover:bg-amber-100 transition-all border border-amber-200 disabled:opacity-50"
+                        disabled={isProcessing}
+                        title="Εισαγωγή PDF" 
+                        className="p-3 rounded-xl font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all border border-amber-200 disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
-                        <span className="whitespace-nowrap">PDF</span>
                     </button>
                     
                     <button 
                         onClick={() => setShowScanner(true)} 
-                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-blue-50 text-blue-700 px-5 py-3 rounded-xl font-bold hover:bg-blue-100 transition-all border border-blue-200"
+                        title="Σάρωση"
+                        className="p-3 rounded-xl font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200"
                     >
                         <Camera size={20} />
-                        <span className="whitespace-nowrap">Scan</span>
                     </button>
 
                     <button 
                         onClick={() => setSkusText('')} 
-                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200"
+                        title="Καθαρισμός"
+                        className="p-3 rounded-xl font-bold bg-slate-50 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200"
                     >
                         <Trash2 size={20}/>
-                        <span className="whitespace-nowrap">Καθαρισμός</span>
                     </button>
                 </div>
             </div>
@@ -737,22 +737,8 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             {isCommitting ? 'Καταχώρηση...' : 'Καταχώρηση στο Απόθεμα'}
                         </button>
                      </div>
-                </div>
-            </div>
 
-            <div className="flex justify-center mt-4 pb-20">
-                <button 
-                    onClick={handlePrint}
-                    disabled={isProcessing || !skusText.trim()}
-                    className="w-full max-w-lg bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 hover:-translate-y-0.5 active:scale-95"
-                >
-                    {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-                    {isProcessing ? 'Επεξεργασία...' : 'Εκτύπωση Ετικετών'}
-                </button>
-            </div>
-            {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} continuous={true} />}
-
-            {/* History Modal */}
+                     {/* History Modal */}
             {showHistoryModal && (
                 <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 h-[80vh] flex flex-col animate-in zoom-in-95">
@@ -797,6 +783,20 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     </div>
                 </div>
             )}
+                </div>
+            </div>
+
+            <div className="flex justify-center mt-4 pb-20">
+                <button 
+                    onClick={handlePrint}
+                    disabled={isProcessing || !skusText.trim()}
+                    className="w-full max-w-lg bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 hover:-translate-y-0.5 active:scale-95"
+                >
+                    {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+                    {isProcessing ? 'Επεξεργασία...' : 'Εκτύπωση Ετικετών'}
+                </button>
+            </div>
+            {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} continuous={true} />}
         </div>
     );
 }
