@@ -548,9 +548,17 @@ export const parseSku = (sku: string) => {
     if (numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
     return { gender: Gender.Men, category: 'Βραχιόλι' };
   }
+
+  // NEW: BR Logic
+  if (prefix === 'BR' && !isNaN(numPart)) {
+      if ((numPart >= 1 && numPart <= 36) || (numPart >= 750 && numPart <= 763)) {
+          return { gender: Gender.Women, category: 'Βραχιόλι με Πέτρες' };
+      }
+      return { gender: Gender.Women, category: 'Βραχιόλι' };
+  }
   
-  const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
-  if (maps[prefix]) return { gender: ['DA','SK','MN','BR'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
+  const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν' };
+  if (maps[prefix]) return { gender: ['DA','SK','MN'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
   return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
 };
 
