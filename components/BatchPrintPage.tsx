@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock } from 'lucide-react';
@@ -563,10 +564,10 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                     <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start overflow-visible">
-                    <div className="md:col-span-8 relative overflow-visible space-y-4">
-                        
-                        <div>
+                <div className="flex flex-col gap-6">
+                    {/* INPUT ROW */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end overflow-visible">
+                        <div className="md:col-span-7 relative overflow-visible">
                             <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU / Εύρος (π.χ. DA050-DA063)</label>
                             <div className="relative">
                                 <SkuVisualizer />
@@ -584,6 +585,30 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             </div>
                         </div>
 
+                        <div className="md:col-span-2">
+                            <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                value={scanQty} 
+                                onChange={e => setScanQty(parseInt(e.target.value)||1)} 
+                                className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                            />
+                        </div>
+
+                        <div className="md:col-span-3">
+                            <button 
+                                onClick={executeSmartAdd}
+                                disabled={!scanInput}
+                                className="w-full h-[58px] bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:translate-y-0"
+                            >
+                                <Plus size={28}/>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* FEEDBACK & SUGGESTIONS AREA */}
+                    <div className="space-y-4">
                         {/* VISUAL CANDIDATES STRIP */}
                         {candidateProducts.length > 0 && !scanInput.includes('-') && (
                             <div className="animate-in slide-in-from-top-2 fade-in">
@@ -646,20 +671,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             </div>
                         )}
                     </div>
-
-                    <div className="md:col-span-4 flex gap-3 items-start h-full pt-6">
-                        <div className="w-24 shrink-0">
-                            <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
-                            <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
-                        </div>
-                        <button 
-                            onClick={executeSmartAdd}
-                            disabled={!scanInput}
-                            className="flex-1 h-[54px] bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:translate-y-0"
-                        >
-                            <Plus size={28}/>
-                        </button>
-                    </div>
                 </div>
             </div>
             
@@ -705,13 +716,13 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
                             <button 
                                 onClick={() => setLabelFormat('standard')}
-                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Tag size={14}/> Χονδρική
                             </button>
                             <button 
                                 onClick={() => setLabelFormat('retail')}
-                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <ShoppingBag size={14}/> Λιανική
                             </button>
