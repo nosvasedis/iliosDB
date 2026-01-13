@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -327,6 +327,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [isSaving, setIsSaving] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
 
+  // Rename SKU State
+  const [isEditingSku, setIsEditingSku] = useState(false);
+  const [tempSku, setTempSku] = useState(product.sku);
+  const [isRenaming, setIsRenaming] = useState(false);
+
   const [editedProduct, setEditedProduct] = useState<Product>(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
     return { 
@@ -414,6 +419,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             ...initialLabor,
         }
     });
+    setTempSku(product.sku); // Reset SKU field
     setViewIndex(0);
   }, [product]);
 
@@ -1087,6 +1093,57 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }
   }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
 
+  const handleRenameSku = async () => {
+      if (!tempSku || tempSku === product.sku) {
+          setIsEditingSku(false);
+          return;
+      }
+      
+      const newSku = tempSku.trim().toUpperCase();
+      if (newSku.length < 3) {
+          showToast("SKU must be at least 3 characters", "error");
+          return;
+      }
+
+      // Check existence
+      if (allProducts.some(p => p.sku === newSku)) {
+          showToast(`SKU ${newSku} already exists.`, "error");
+          return;
+      }
+
+      const confirmed = await confirm({
+          title: 'Μετονομασία SKU',
+          message: `Είστε σίγουροι ότι θέλετε να αλλάξετε το SKU από ${product.sku} σε ${newSku}; Αυτό θα ενημερώσει όλες τις σχετικές εγγραφές (Stock, Orders, Variants).`,
+          confirmText: 'Μετονομασία',
+          isDestructive: true
+      });
+
+      if (!confirmed) {
+          setTempSku(product.sku);
+          setIsEditingSku(false);
+          return;
+      }
+
+      setIsRenaming(true);
+      try {
+          await api.renameProduct(product.sku, newSku);
+          
+          // Update local state to reflect change immediately without full reload if possible, 
+          // but react-query invalidation will handle it best.
+          setEditedProduct(prev => ({ ...prev, sku: newSku }));
+          
+          await queryClient.invalidateQueries({ queryKey: ['products'] });
+          showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
+      } catch (e: any) {
+          console.error(e);
+          showToast(`Σφάλμα: ${e.message || 'Αποτυχία μετονομασίας'}`, "error");
+          setTempSku(product.sku); // Revert
+      } finally {
+          setIsRenaming(false);
+          setIsEditingSku(false);
+      }
+  };
+
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
         {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
@@ -1096,8 +1153,38 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
                {/* ... (Existing header code) ... */}
                <div>
-                   <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                       <span>{displayedSku}</span>
+                   <div className="flex items-center gap-3">
+                       {isEditingSku ? (
+                           <div className="flex items-center gap-2">
+                               <input 
+                                   value={tempSku}
+                                   onChange={e => setTempSku(e.target.value.toUpperCase())}
+                                   className="text-2xl font-black text-slate-900 tracking-tight border-b-2 border-emerald-500 outline-none w-48 uppercase"
+                                   autoFocus
+                                   onKeyDown={e => e.key === 'Enter' && handleRenameSku()}
+                               />
+                               <button onClick={handleRenameSku} disabled={isRenaming} className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200">
+                                   {isRenaming ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>}
+                               </button>
+                               <button onClick={() => { setIsEditingSku(false); setTempSku(product.sku); }} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200">
+                                   <X size={18}/>
+                                </button>
+                           </div>
+                       ) : (
+                           <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3 group">
+                               <span>{displayedSku}</span>
+                               {viewMode === 'registry' && (
+                                   <button 
+                                       onClick={() => setIsEditingSku(true)} 
+                                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                                       title="Μετονομασία SKU"
+                                   >
+                                       <Edit size={16}/>
+                                   </button>
+                               )}
+                           </h2>
+                       )}
+                       
                        {showPager && (
                             <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
                                 <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
@@ -1113,7 +1200,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         )}
                        {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
                        {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Εισαγόμενο</span>}
-                   </h2>
+                   </div>
                    <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
                        <span>{editedProduct.category}</span>
                        <span>•</span>

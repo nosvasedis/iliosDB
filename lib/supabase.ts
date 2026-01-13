@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -446,6 +445,31 @@ export const api = {
         const sanitized = sanitizeProductData(productData);
         return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' }); 
     },
+    
+    // NEW: Rename Product SKU
+    renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
+        if (isLocalMode) {
+            // Local Mode Rename (Manual Cascade)
+            // 1. Products
+            await offlineDb.saveTable('products', (await offlineDb.getTable('products'))?.map((p: any) => p.sku === oldSku ? { ...p, sku: newSku } : p) || []);
+            // 2. Variants
+            await offlineDb.saveTable('product_variants', (await offlineDb.getTable('product_variants'))?.map((v: any) => v.product_sku === oldSku ? { ...v, product_sku: newSku } : v) || []);
+            // 3. Recipes (as parent)
+            await offlineDb.saveTable('recipes', (await offlineDb.getTable('recipes'))?.map((r: any) => r.parent_sku === oldSku ? { ...r, parent_sku: newSku } : r) || []);
+            // 4. Molds
+            await offlineDb.saveTable('product_molds', (await offlineDb.getTable('product_molds'))?.map((m: any) => m.product_sku === oldSku ? { ...m, product_sku: newSku } : m) || []);
+            // 5. Collections
+            await offlineDb.saveTable('product_collections', (await offlineDb.getTable('product_collections'))?.map((c: any) => c.product_sku === oldSku ? { ...c, product_sku: newSku } : c) || []);
+            // 6. Stock
+            await offlineDb.saveTable('product_stock', (await offlineDb.getTable('product_stock'))?.map((s: any) => s.product_sku === oldSku ? { ...s, product_sku: newSku } : s) || []);
+            return;
+        }
+
+        // Cloud Mode: Call RPC
+        const { error } = await supabase.rpc('rename_sku', { old_sku: oldSku, new_sku: newSku });
+        if (error) throw error;
+    },
+
     saveProductVariant: async (variantData: any) => { 
         // Cleanup variant to prevent extra keys
         const { location_stock, stock_by_size, ...cleanVariant } = variantData;

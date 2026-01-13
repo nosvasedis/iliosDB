@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, clearConfiguration } from '../lib/supabase';
 import { APP_LOGO, APP_ICON_ONLY } from '../constants';
-import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, AlertCircle, Settings } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { useIsMobile } from '../hooks/useIsMobile';
 import MobileAuthScreen from './mobile/MobileAuthScreen';
@@ -12,7 +12,7 @@ export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
 
   // Form State
   const [email, setEmail] = useState('');
@@ -56,6 +56,18 @@ export default function AuthScreen() {
     }
   };
 
+  const handleResetConfig = async () => {
+      const yes = await confirm({
+          title: 'Επαναφορά Ρυθμίσεων',
+          message: 'Θέλετε να διαγράψετε τα αποθηκευμένα API Keys και να επιστρέψετε στην αρχική ρύθμιση;',
+          isDestructive: true,
+          confirmText: 'Επαναφορά'
+      });
+      if (yes) {
+          clearConfiguration();
+      }
+  };
+
   return (
     <div className="min-h-screen bg-[#060b00] flex items-center justify-center p-4 relative overflow-hidden">
        {/* Background Effects */}
@@ -66,6 +78,15 @@ export default function AuthScreen() {
 
        <div className="bg-white/95 backdrop-blur-md w-full max-w-md rounded-3xl shadow-2xl p-8 z-10 border border-white/20 relative">
           
+          {/* Config Reset Button (Top Right) */}
+          <button 
+            onClick={handleResetConfig}
+            className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors p-2"
+            title="Reset Configuration"
+          >
+              <Settings size={18} />
+          </button>
+
           <div className="flex flex-col items-center mb-8">
              <div className="w-20 h-20 bg-[#060b00] rounded-2xl flex items-center justify-center shadow-lg mb-4 relative overflow-hidden border border-slate-700">
                  {!logoError ? (

@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, clearConfiguration } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
-import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowRight, ShieldCheck, Settings } from 'lucide-react';
 import { useUI } from '../UIProvider';
 
 export default function MobileAuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
 
   // Form State
   const [email, setEmail] = useState('');
@@ -42,8 +42,29 @@ export default function MobileAuthScreen() {
     }
   };
 
+  const handleResetConfig = async () => {
+    const yes = await confirm({
+        title: 'Επαναφορά',
+        message: 'Επαναφορά ρυθμίσεων σύνδεσης;',
+        isDestructive: true,
+        confirmText: 'Ναι'
+    });
+    if (yes) {
+        clearConfiguration();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#060b00] flex flex-col justify-between p-6">
+    <div className="min-h-screen bg-[#060b00] flex flex-col justify-between p-6 relative">
+       {/* Reset Config Button */}
+       <button 
+           onClick={handleResetConfig} 
+           className="absolute top-6 right-6 text-white/30 hover:text-white transition-colors"
+           title="Settings"
+       >
+           <Settings size={20} />
+       </button>
+
        <div className="flex-1 flex flex-col justify-center">
           <div className="flex flex-col items-center mb-10">
              <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center shadow-2xl mb-6 border border-white/10 p-4">
