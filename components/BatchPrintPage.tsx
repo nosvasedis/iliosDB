@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -44,7 +44,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
 interface ActionLog {
     id: string;
     type: 'PRINT' | 'COMMIT';
-    timestamp: Date;
+    timestamp: string; // Store as string for JSON serialization
     summary: string;
     details: { sku: string; variant?: string; qty: number }[];
     target?: string;
@@ -58,14 +58,35 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     const [foundItemsCount, setFoundItemsCount] = useState(0);
     const [notFoundItems, setNotFoundItems] = useState<string[]>([]);
     const [showScanner, setShowScanner] = useState(false);
-    const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>('standard');
+    
+    // Persistent Settings
+    const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>(() => {
+        return (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
+    });
+    const [targetWarehouse, setTargetWarehouse] = useState(() => {
+        return localStorage.getItem('batch_print_target_warehouse') || SYSTEM_IDS.SHOWROOM;
+    });
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast, confirm } = useUI();
 
-    // Smart Log State
+    // Stock Commit State
     const [isCommitting, setIsCommitting] = useState(false);
-    const [targetWarehouse, setTargetWarehouse] = useState(SYSTEM_IDS.SHOWROOM); // Default to Showroom
-    const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
+    
+    // Persistent History
+    const [actionLogs, setActionLogs] = useState<ActionLog[]>(() => {
+        const saved = localStorage.getItem('batch_print_logs');
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) { return []; }
+        }
+        return [];
+    });
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+    // Persist changes
+    useEffect(() => { localStorage.setItem('batch_print_format', labelFormat); }, [labelFormat]);
+    useEffect(() => { localStorage.setItem('batch_print_target_warehouse', targetWarehouse); }, [targetWarehouse]);
+    useEffect(() => { localStorage.setItem('batch_print_logs', JSON.stringify(actionLogs)); }, [actionLogs]);
 
     // Smart Entry State
     const [scanInput, setScanInput] = useState('');
@@ -147,10 +168,10 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 setActionLogs(prev => [{
                     id: Date.now().toString(),
                     type: 'PRINT',
-                    timestamp: new Date(),
+                    timestamp: new Date().toISOString(),
                     summary: `${logDetails.reduce((a,b)=>a+b.qty,0)} Ετικέτες`,
                     details: logDetails
-                }, ...prev]);
+                }, ...prev].slice(0, 50)); // Keep last 50
 
             } else {
                 showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", 'error');
@@ -239,11 +260,11 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             setActionLogs(prev => [{
                 id: Date.now().toString(),
                 type: 'COMMIT',
-                timestamp: new Date(),
+                timestamp: new Date().toISOString(),
                 summary: `Εισαγωγή (${logDetails.reduce((a,b)=>a+b.qty,0)} τμχ)`,
                 target: warehouseName,
                 details: logDetails
-            }, ...prev]);
+            }, ...prev].slice(0, 50));
 
             showToast(`Επιτυχής προσθήκη ${successCount} ειδών στο ${warehouseName}!`, "success");
 
@@ -506,6 +527,15 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 
                 <div className="flex flex-wrap gap-2 w-full xl:w-auto">
                     <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
+                    
+                    <button 
+                        onClick={() => setShowHistoryModal(true)} 
+                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all border border-slate-200"
+                    >
+                        <History size={20} />
+                        <span className="whitespace-nowrap">Ιστορικό</span>
+                    </button>
+
                     <button 
                         onClick={() => fileInputRef.current?.click()} 
                         disabled={isProcessing} 
@@ -707,42 +737,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             {isCommitting ? 'Καταχώρηση...' : 'Καταχώρηση στο Απόθεμα'}
                         </button>
                      </div>
-
-                     {/* Action Log History */}
-                     {actionLogs.length > 0 && (
-                         <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 animate-in fade-in h-fit max-h-[500px] flex flex-col">
-                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                 <History size={14}/> Ιστορικό Ενεργειών
-                             </h3>
-                             <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
-                                 {actionLogs.map(log => (
-                                     <div key={log.id} className="relative pl-4 border-l-2 border-slate-100 pb-1">
-                                         {/* Timeline Dot */}
-                                         <div className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-500'}`}></div>
-                                         
-                                         <div className="flex justify-between items-start mb-1">
-                                             <span className={`text-xs font-black uppercase ${log.type === 'PRINT' ? 'text-slate-600' : 'text-emerald-600'}`}>
-                                                 {log.type === 'PRINT' ? 'ΕΚΤΥΠΩΣΗ' : 'ΚΑΤΑΧΩΡΗΣΗ'}
-                                             </span>
-                                             <span className="text-[9px] font-mono text-slate-400">{log.timestamp.toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit'})}</span>
-                                         </div>
-                                         
-                                         <div className="text-xs font-bold text-slate-700 mb-1">
-                                             {log.summary} {log.target && <span className="text-slate-400 font-normal">στο {log.target}</span>}
-                                         </div>
-
-                                         <div className="flex flex-wrap gap-1">
-                                             {log.details.map((d, i) => (
-                                                 <span key={i} className="text-[10px] px-1.5 py-0.5 bg-slate-50 border border-slate-100 rounded text-slate-600 font-medium">
-                                                     {d.sku}{d.variant} <span className="text-slate-400">x{d.qty}</span>
-                                                 </span>
-                                             ))}
-                                         </div>
-                                     </div>
-                                 ))}
-                             </div>
-                         </div>
-                     )}
                 </div>
             </div>
 
@@ -757,6 +751,52 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 </button>
             </div>
             {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} continuous={true} />}
+
+            {/* History Modal */}
+            {showHistoryModal && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 h-[80vh] flex flex-col animate-in zoom-in-95">
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><History size={20} className="text-blue-500"/> Ιστορικό Ενεργειών</h3>
+                             <div className="flex items-center gap-2">
+                                <button onClick={() => { localStorage.removeItem('batch_print_logs'); setActionLogs([]); }} className="text-xs text-red-500 hover:text-red-700 font-bold px-3 py-1.5 bg-red-50 rounded-lg">Καθαρισμός</button>
+                                <button onClick={() => setShowHistoryModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-400"/></button>
+                             </div>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1">
+                            {actionLogs.length > 0 ? actionLogs.map(log => (
+                                <div key={log.id} className="relative pl-4 border-l-2 border-slate-200 pb-2">
+                                    <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-500'}`}></div>
+                                    
+                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className={`text-[10px] font-black uppercase tracking-wider ${log.type === 'PRINT' ? 'text-slate-500' : 'text-emerald-600'}`}>
+                                                {log.type === 'PRINT' ? 'ΕΚΤΥΠΩΣΗ' : 'ΚΑΤΑΧΩΡΗΣΗ'}
+                                            </span>
+                                            <span className="text-[9px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'})}</span>
+                                        </div>
+                                        
+                                        <div className="font-bold text-slate-800 text-sm mb-2">
+                                            {log.summary} {log.target && <span className="text-slate-500 font-normal">στο {log.target}</span>}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-1">
+                                            {log.details.map((d, i) => (
+                                                <span key={i} className="text-[9px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-bold font-mono">
+                                                    {d.sku}{d.variant} <span className="text-slate-400 font-medium">x{d.qty}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-center py-20 text-slate-400 italic">Το ιστορικό είναι άδειο.</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
