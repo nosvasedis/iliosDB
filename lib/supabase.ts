@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -450,24 +451,113 @@ export const api = {
     renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
         if (isLocalMode) {
             // Local Mode Rename (Manual Cascade)
-            // 1. Products
             await offlineDb.saveTable('products', (await offlineDb.getTable('products'))?.map((p: any) => p.sku === oldSku ? { ...p, sku: newSku } : p) || []);
-            // 2. Variants
             await offlineDb.saveTable('product_variants', (await offlineDb.getTable('product_variants'))?.map((v: any) => v.product_sku === oldSku ? { ...v, product_sku: newSku } : v) || []);
-            // 3. Recipes (as parent)
             await offlineDb.saveTable('recipes', (await offlineDb.getTable('recipes'))?.map((r: any) => r.parent_sku === oldSku ? { ...r, parent_sku: newSku } : r) || []);
-            // 4. Molds
+            await offlineDb.saveTable('recipes', (await offlineDb.getTable('recipes'))?.map((r: any) => r.component_sku === oldSku ? { ...r, component_sku: newSku } : r) || []);
             await offlineDb.saveTable('product_molds', (await offlineDb.getTable('product_molds'))?.map((m: any) => m.product_sku === oldSku ? { ...m, product_sku: newSku } : m) || []);
-            // 5. Collections
             await offlineDb.saveTable('product_collections', (await offlineDb.getTable('product_collections'))?.map((c: any) => c.product_sku === oldSku ? { ...c, product_sku: newSku } : c) || []);
-            // 6. Stock
             await offlineDb.saveTable('product_stock', (await offlineDb.getTable('product_stock'))?.map((s: any) => s.product_sku === oldSku ? { ...s, product_sku: newSku } : s) || []);
             return;
         }
 
-        // Cloud Mode: Call RPC
-        const { error } = await supabase.rpc('rename_sku', { old_sku: oldSku, new_sku: newSku });
-        if (error) throw error;
+        // Cloud Mode: Manual "Clone & Delete" Strategy to bypass strict FK constraints (RPC 409 Conflict)
+        const { data: product } = await supabase.from('products').select('*').eq('sku', oldSku).single();
+        if (!product) throw new Error('Original product not found');
+
+        // Parallel fetch for dependents
+        const [
+            { data: variants },
+            { data: parentRecipes },
+            { data: componentRecipes },
+            { data: molds },
+            { data: collections },
+            { data: stock },
+            { data: batches },
+            { data: movements }
+        ] = await Promise.all([
+            supabase.from('product_variants').select('*').eq('product_sku', oldSku),
+            supabase.from('recipes').select('*').eq('parent_sku', oldSku),
+            supabase.from('recipes').select('*').eq('component_sku', oldSku),
+            supabase.from('product_molds').select('*').eq('product_sku', oldSku),
+            supabase.from('product_collections').select('*').eq('product_sku', oldSku),
+            supabase.from('product_stock').select('*').eq('product_sku', oldSku),
+            supabase.from('production_batches').select('*').eq('sku', oldSku),
+            supabase.from('stock_movements').select('*').eq('product_sku', oldSku)
+        ]);
+
+        // 2. Create New Product
+        // Strip ID if it exists (products usually use SKU as PK but might have ID column)
+        const { id, ...productData } = product; 
+        const newProductPayload = { ...productData, sku: newSku };
+
+        const { error: createError } = await supabase.from('products').insert(newProductPayload);
+        if (createError) throw createError;
+
+        try {
+            // 3. Clone Dependents
+            if (variants && variants.length > 0) {
+                const payload = variants.map(v => { const { id, ...r } = v; return { ...r, product_sku: newSku }; });
+                const { error } = await supabase.from('product_variants').insert(payload);
+                if (error) throw error;
+            }
+
+            if (parentRecipes && parentRecipes.length > 0) {
+                const payload = parentRecipes.map(r => { const { id, ...rest } = r; return { ...rest, parent_sku: newSku }; });
+                const { error } = await supabase.from('recipes').insert(payload);
+                if (error) throw error;
+            }
+
+            if (molds && molds.length > 0) {
+                const payload = molds.map(m => { const { id, ...rest } = m; return { ...rest, product_sku: newSku }; });
+                const { error } = await supabase.from('product_molds').insert(payload);
+                if (error) throw error;
+            }
+
+            if (collections && collections.length > 0) {
+                const payload = collections.map(c => { const { id, ...rest } = c; return { ...rest, product_sku: newSku }; });
+                const { error } = await supabase.from('product_collections').insert(payload);
+                if (error) throw error;
+            }
+
+            if (stock && stock.length > 0) {
+                const payload = stock.map(s => { const { id, ...rest } = s; return { ...rest, product_sku: newSku }; });
+                const { error } = await supabase.from('product_stock').insert(payload);
+                if (error) throw error;
+            }
+
+            // 4. Update External References (Update instead of insert for loose references)
+            if (componentRecipes && componentRecipes.length > 0) {
+                const { error } = await supabase.from('recipes').update({ component_sku: newSku }).eq('component_sku', oldSku);
+                if (error) throw error;
+            }
+
+            if (batches && batches.length > 0) {
+                const { error } = await supabase.from('production_batches').update({ sku: newSku }).eq('sku', oldSku);
+                if (error) throw error;
+            }
+
+            if (movements && movements.length > 0) {
+                const { error } = await supabase.from('stock_movements').update({ product_sku: newSku }).eq('product_sku', oldSku);
+                if (error) throw error; 
+            }
+
+            // 5. Delete Old Data (Dependents first to avoid constraint violation if RESTRICT)
+            await supabase.from('product_variants').delete().eq('product_sku', oldSku);
+            await supabase.from('recipes').delete().eq('parent_sku', oldSku);
+            await supabase.from('product_molds').delete().eq('product_sku', oldSku);
+            await supabase.from('product_collections').delete().eq('product_sku', oldSku);
+            await supabase.from('product_stock').delete().eq('product_sku', oldSku);
+            
+            const { error: deleteError } = await supabase.from('products').delete().eq('sku', oldSku);
+            if (deleteError) throw deleteError;
+
+        } catch (err) {
+            console.error("Rename failed mid-operation, attempting cleanup", err);
+            // Attempt to clean up new product if we failed (Rollback attempt)
+            await supabase.from('products').delete().eq('sku', newSku);
+            throw err;
+        }
     },
 
     saveProductVariant: async (variantData: any) => { 
