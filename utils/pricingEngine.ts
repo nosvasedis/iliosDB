@@ -1,4 +1,3 @@
-
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -534,7 +533,13 @@ export const parseSku = (sku: string) => {
   const triPrefix = sku.substring(0, 3).toUpperCase();
   const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
   if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
+  
   if (prefix === 'XR' && !isNaN(numPart)) {
+    // Specific high-priority ranges for stone bracelets as requested
+    if ((numPart >= 1 && numPart <= 35) || (numPart >= 750 && numPart <= 763)) {
+        return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
+    }
+    
     if (numPart <= 100) return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
     if (numPart <= 199) return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
     if (numPart <= 700) return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
@@ -543,6 +548,7 @@ export const parseSku = (sku: string) => {
     if (numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
     return { gender: Gender.Men, category: 'Βραχιόλι' };
   }
+  
   const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
   if (maps[prefix]) return { gender: ['DA','SK','MN','BR'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
   return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
