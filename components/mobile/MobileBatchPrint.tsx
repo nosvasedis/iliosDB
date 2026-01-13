@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -33,7 +32,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
     'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
     'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
-    'MV': 'text-purple-500', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
 export default function MobileBatchPrint() {
@@ -128,7 +127,6 @@ export default function MobileBatchPrint() {
             return;
         }
 
-        // Updated to support ranges or manual entry with intelligent expansion
         const expandedSkus = expandSkuRange(term);
         let addedCount = 0;
         let notFoundCount = 0;
@@ -140,7 +138,7 @@ export default function MobileBatchPrint() {
             const match = findProductByScannedCode(rawSku, products || []);
             
             if (match) {
-                // CASE A: Specific Variant or Simple Product
+                // CASE A: Exact Match for a variant or a simple product with no variants
                 if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
                     newItems.push({
                         skuString: match.product.sku + (match.variant?.suffix || ''),
@@ -150,10 +148,25 @@ export default function MobileBatchPrint() {
                     });
                     matchFound = true;
                 } 
-                // CASE B: Master SKU without specific variant suffix -> Add ALL variants
+                // CASE B: Master SKU entered exactly (no variant suffix matched) -> Expansion logic
                 else {
-                    if (match.product.variants && match.product.variants.length > 0) {
-                        match.product.variants.forEach(v => {
+                    const variants = match.product.variants || [];
+                    const baseVariant = variants.find(v => v.suffix === "");
+
+                    if (baseVariant) {
+                        // If the product has a "Master/Lustre" variant (empty suffix),
+                        // assume typing the SKU alone refers specifically to that variant.
+                        newItems.push({
+                            skuString: match.product.sku,
+                            product: match.product,
+                            variant: baseVariant,
+                            qty: qty
+                        });
+                        matchFound = true;
+                    } 
+                    else if (variants.length > 0) {
+                        // Otherwise, intelligently add ALL available variants
+                        variants.forEach(v => {
                             newItems.push({
                                 skuString: match.product.sku + v.suffix,
                                 product: match.product,
@@ -186,7 +199,7 @@ export default function MobileBatchPrint() {
                 });
                 return updated;
             });
-            showToast(`Προστέθηκαν ${addedCount} κωδικοί (Expanded).`, 'success');
+            showToast(`Προστέθηκαν ${addedCount} κωδικοί.`, 'success');
             setInput('');
             setQty(1);
         } else {
@@ -243,7 +256,6 @@ export default function MobileBatchPrint() {
                 suffixStr = text.slice(masterLen);
             }
         } else {
-            // Fallback heuristics for coloring if no context found (e.g. range end part)
             const split = splitSkuComponents(text);
             masterStr = split.master;
             suffixStr = split.suffix;
@@ -271,15 +283,11 @@ export default function MobileBatchPrint() {
     }
 
     const SkuVisualizer = () => {
-        // Range Detection
         if (input.includes('-')) {
             const parts = input.split('-');
             const start = parts[0];
-            const end = parts.slice(1).join('-'); // Handle rest
-
-            // Try to resolve masters for both parts for better coloring
+            const end = parts.slice(1).join('-');
             const startMatch = findProductByScannedCode(start, products || []);
-            // End part might be incomplete while typing, try fuzzy
             const endMatch = findProductByScannedCode(end, products || []) || { product: products?.find(p => end.startsWith(p.sku)) || null };
 
             return (
@@ -291,7 +299,6 @@ export default function MobileBatchPrint() {
             );
         }
 
-        // Standard Single Mode
         return (
             <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
                 <SkuPartVisualizer text={input} masterContext={activeMaster} />
@@ -299,11 +306,9 @@ export default function MobileBatchPrint() {
         );
     };
 
-    // If in preview mode, render the print view
     if (viewMode === 'preview' && settings) {
         return (
             <div className="bg-white min-h-screen relative">
-                {/* Controls - Hidden during print */}
                 <div className="print:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 p-4 z-50 flex justify-between items-center shadow-sm">
                     <button onClick={() => setViewMode('list')} className="flex items-center gap-2 text-slate-600 font-bold">
                         <ArrowLeft size={20}/> Πίσω
@@ -313,7 +318,6 @@ export default function MobileBatchPrint() {
                     </button>
                 </div>
 
-                {/* Printable Area */}
                 <div className="pt-20 pb-10 px-4 print:p-0 print:m-0">
                     <div className="print-area flex flex-wrap content-start">
                         {queue.flatMap(item => Array(item.qty).fill(item)).map((item, idx) => (
@@ -342,12 +346,10 @@ export default function MobileBatchPrint() {
         );
     }
 
-    // Default List View
     return (
         <div className="p-4 h-full flex flex-col">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Εκτυπώσεις</h1>
             
-            {/* MANUAL ENTRY / SCANNER HYBRID UI */}
             {!activeMaster ? (
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
                     <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
@@ -370,7 +372,6 @@ export default function MobileBatchPrint() {
                         </div>
                     </div>
 
-                    {/* Suggestions */}
                     {suggestions.length > 0 && !input.includes('-') && (
                         <div className="mt-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar pt-2">
                             {suggestions.map(p => (
@@ -400,7 +401,6 @@ export default function MobileBatchPrint() {
                         </div>
                     )}
                     
-                    {/* Add Button if manual input present */}
                     {input.length >= 3 && suggestions.length === 0 && (
                         <div className="mt-3 flex gap-2">
                              <div className="w-20 shrink-0">
@@ -416,7 +416,6 @@ export default function MobileBatchPrint() {
                     )}
                 </div>
             ) : (
-                // VARIANT SELECTION UI
                 <div className="bg-white p-5 rounded-3xl shadow-lg border border-emerald-100 mb-6 animate-in zoom-in-95 duration-200 relative">
                     <div className="flex justify-between items-start mb-4">
                         <div>
@@ -428,7 +427,6 @@ export default function MobileBatchPrint() {
                         </button>
                     </div>
 
-                    {/* Quantity Stepper */}
                     <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl mb-6 border border-slate-100">
                         <span className="text-xs font-bold text-slate-500 uppercase ml-1">Ποσότητα</span>
                         <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-sm">

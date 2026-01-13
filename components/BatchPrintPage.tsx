@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock } from 'lucide-react';
@@ -122,13 +121,30 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 const match = findProductByScannedCode(rawSku, allProducts);
                 
                 if (match) {
+                    // CASE 1: Exact match for a variant or simple product with no variants
                     if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
                         items.push({ product: match.product, variant: match.variant, quantity, rawSku });
                         matchFound = true;
                     } 
+                    // CASE 2: Master SKU entered exactly (no variant suffix matched)
                     else {
-                        if (match.product.variants && match.product.variants.length > 0) {
-                            match.product.variants.forEach(v => {
+                        const variants = match.product.variants || [];
+                        const baseVariant = variants.find(v => v.suffix === "");
+
+                        if (baseVariant) {
+                            // If the product has a "Master/Lustre" variant (empty suffix),
+                            // we assume typing the SKU alone specifically targets this variant.
+                            items.push({ 
+                                product: match.product, 
+                                variant: baseVariant, 
+                                quantity, 
+                                rawSku: match.product.sku 
+                            });
+                            matchFound = true;
+                        } 
+                        else if (variants.length > 0) {
+                            // "Intelligent" expansion: if no empty-suffix variant exists, add ALL available variants
+                            variants.forEach(v => {
                                 items.push({ product: match.product, variant: v, quantity, rawSku: match.product.sku + v.suffix });
                             });
                             matchFound = true;
@@ -774,7 +790,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1">
                             {actionLogs.length > 0 ? actionLogs.map(log => (
                                 <div key={log.id} className="relative pl-4 border-l-2 border-slate-200 pb-2">
-                                    <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-500'}`}></div>
+                                    <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-50'}`}></div>
                                     
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                         <div className="flex justify-between items-start mb-1">
