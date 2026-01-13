@@ -295,11 +295,25 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
   const enrichedBatches = useMemo(() => {
-      return batches?.map(b => ({
-          ...b,
-          product_details: products.find(p => p.sku === b.sku)
-      })) || [];
-  }, [batches, products]);
+      const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+
+      return batches?.map(b => {
+          const prod = products.find(p => p.sku === b.sku);
+          const suffix = b.variant_suffix || '';
+          const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                             prod?.recipe.some(r => {
+                                 if (r.type !== 'raw') return false;
+                                 const mat = materials.find(m => m.id === r.id);
+                                 return mat?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
+                             }) || false;
+
+          return {
+              ...b,
+              product_details: prod,
+              requires_setting: hasZircons
+          }
+      }) || [];
+  }, [batches, products, materials]);
 
 
   const filteredProducts = products.filter(p => 
@@ -881,13 +895,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     })()}
 
                     {(() => {
-                        const enhancedBatches = batches?.filter(b => b.order_id === managingOrder.id).map(b => ({...b, product_details: products.find(p => p.sku === b.sku)})) || [];
-                        if (enhancedBatches.length > 0) {
+                        const orderBatchesEnriched = enrichedBatches.filter(b => b.order_id === managingOrder.id);
+                        if (orderBatchesEnriched.length > 0) {
                             return (
                                 <div className="!mt-6 pt-6 border-t border-slate-200">
                                     <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider mb-3">Διαχείριση Παραγωγής</h4>
                                     <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        {enhancedBatches.map(batch => {
+                                        {orderBatchesEnriched.map(batch => {
                                             const currentStageInfo = STAGES.find(s => s.id === batch.current_stage);
                                             const nextStages = STAGES.filter(s => {
                                                 const currentIndex = STAGES.findIndex(cs => cs.id === batch.current_stage);
@@ -899,6 +913,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                                     return [ProductionStage.Labeling, ProductionStage.Ready].includes(s.id);
                                                 }
 
+                                                // Strictly enforce Zircon-only setting stage
                                                 if (batch.current_stage === ProductionStage.Casting && !batch.requires_setting && s.id === ProductionStage.Setting) return false;
                                                 if (batch.current_stage === ProductionStage.AwaitingDelivery && !(batch.requires_setting ? [ProductionStage.Setting, ProductionStage.Labeling].includes(s.id) : [ProductionStage.Labeling].includes(s.id))) return false;
                                                 return true;

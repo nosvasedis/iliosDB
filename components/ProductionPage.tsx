@@ -263,6 +263,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   } | null>(null);
 
   const enhancedBatches: ProductionBatch[] = useMemo(() => {
+    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+    
     return batches?.map(b => {
       const prod = products.find(p => p.sku === b.sku);
       const lastUpdate = new Date(b.updated_at);
@@ -271,13 +273,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       const threshold = STAGE_LIMITS_HOURS[b.current_stage] || Infinity;
       const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
       
-      const hasStones = prod?.recipe.some(r => {
-          if (r.type !== 'raw') return false;
-          const material = materials.find(m => m.id === r.id);
-          return material?.type === MaterialType.Stone;
-      }) || false;
+      const suffix = b.variant_suffix || '';
+      // New logic: Only these specific suffixes require Setting (Καρφωτής)
+      const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                         prod?.recipe.some(r => {
+                             if (r.type !== 'raw') return false;
+                             const material = materials.find(m => m.id === r.id);
+                             return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                         }) || false;
 
-      return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasStones };
+      return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons };
     }) || [];
   }, [batches, products, materials]);
 
@@ -296,7 +301,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     if (batch.current_stage === targetStage) return;
 
     if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
-        showToast(`Το ${batch.sku} δεν έχει πέτρες. Προχωρήστε στο επόμενο στάδιο.`, 'info');
+        showToast(`Το ${batch.sku} δεν έχει Ζιργκόν. Προχωρήστε στο επόμενο στάδιο.`, 'info');
         return;
     }
 
@@ -388,7 +393,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
           return ProductionStage.Labeling;
       }
 
-      // Skip Setting if not required
+      // Skip Setting if not required (Strict Rule: Only Zircon suffixes go to Setter)
       if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) {
           nextIndex++;
       }
@@ -461,6 +466,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                             key={stage.id}
                             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(stage.id); }}
                             onDragLeave={() => setDropTarget(null)}
+                            onDragEnd={handleDragEnd}
                             onDrop={() => handleDrop(stage.id)}
                             className={`
                                 flex flex-col rounded-3xl border transition-all duration-300

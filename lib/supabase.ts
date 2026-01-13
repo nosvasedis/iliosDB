@@ -573,16 +573,21 @@ export const api = {
 
         if (!order) throw new Error("Order not found.");
 
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+
         const batches: any[] = [];
         for (const item of order.items) {
             const product = allProducts.find(p => p.sku === item.sku);
             if (!product) continue;
 
-            const hasStones = product.recipe.some(r => {
-                if (r.type !== 'raw') return false;
-                const material = allMaterials.find(m => m.id === r.id);
-                return material?.type === MaterialType.Stone;
-            });
+            const suffix = item.variant_suffix || '';
+            // New logic: Only these specific suffixes require Setting (Καρφωτής)
+            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                             product.recipe.some(r => {
+                                 if (r.type !== 'raw') return false;
+                                 const material = allMaterials.find(m => m.id === r.id);
+                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                             });
 
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
@@ -596,7 +601,7 @@ export const api = {
                 size_info: item.size_info || null,
                 priority: 'Normal',
                 type: 'Νέα',
-                requires_setting: hasStones,
+                requires_setting: hasZircons,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             });

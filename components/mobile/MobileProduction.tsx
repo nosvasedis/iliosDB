@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { ProductionBatch, ProductionStage } from '../../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight } from 'lucide-react';
 import { useUI } from '../UIProvider';
 
@@ -27,7 +27,7 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: ProductionBatch) => void }> = ({ batch, onNext }) => {
-    const isDelayed = batch.isDelayed; // Assumes updated logic from ProductionPage passed down or calculated here
+    const isDelayed = batch.isDelayed; 
     const isReady = batch.current_stage === ProductionStage.Ready;
 
     return (
@@ -63,24 +63,55 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
 
 export default function MobileProduction() {
     const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
     
     // Accordion State: Keep track of open stage ID
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
 
+    const enrichedBatches = useMemo(() => {
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        
+        return batches?.map(b => {
+            const prod = products?.find(p => p.sku === b.sku);
+            const suffix = b.variant_suffix || '';
+            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                             prod?.recipe.some(r => {
+                                 if (r.type !== 'raw') return false;
+                                 const mat = materials?.find(m => m.id === r.id);
+                                 return mat?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
+                             }) || false;
+
+            return { ...b, requires_setting: hasZircons };
+        }) || [];
+    }, [batches, products, materials]);
+
     const toggleStage = (stageId: string) => {
         setOpenStage(openStage === stageId ? null : stageId);
     };
 
-    const handleNextStage = async (batch: ProductionBatch) => {
+    const getNextStage = (batch: ProductionBatch): ProductionStage | null => {
         const currentIndex = STAGES.findIndex(s => s.id === batch.current_stage);
-        if (currentIndex === -1 || currentIndex === STAGES.length - 1) return;
+        if (currentIndex === -1 || currentIndex === STAGES.length - 1) return null;
         
-        const nextStage = STAGES[currentIndex + 1].id;
+        let nextIndex = currentIndex + 1;
+        
+        // Skip Setting if not required
+        if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) {
+            nextIndex++;
+        }
+        
+        return STAGES[nextIndex].id as ProductionStage;
+    };
+
+    const handleNextStage = async (batch: ProductionBatch) => {
+        const nextStage = getNextStage(batch);
+        if (!nextStage) return;
         
         try {
-            await api.updateBatchStage(batch.id, nextStage as ProductionStage);
+            await api.updateBatchStage(batch.id, nextStage);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast(`Το ${batch.sku} μετακινήθηκε.`, "success");
         } catch (error) {
@@ -96,7 +127,7 @@ export default function MobileProduction() {
 
             <div className="space-y-3">
                 {STAGES.map(stage => {
-                    const stageBatches = batches?.filter(b => b.current_stage === stage.id) || [];
+                    const stageBatches = enrichedBatches.filter(b => b.current_stage === stage.id);
                     const isOpen = openStage === stage.id;
                     const colorClass = STAGE_COLORS[stage.color];
 
