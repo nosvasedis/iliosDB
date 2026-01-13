@@ -1,13 +1,15 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
 import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
 import BarcodeView from './BarcodeView';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -28,10 +30,10 @@ const FINISH_COLORS: Record<string, string> = {
     '': 'text-slate-400'    // Lustre
 };
 
-const STONE_CATEGORIES: Record<string, string> = {
+const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400',
     'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-400',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
     'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-400',
     'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
     'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
@@ -39,14 +41,30 @@ const STONE_CATEGORIES: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
+interface CommitLog {
+    id: string;
+    timestamp: Date;
+    itemCount: number;
+    warehouseName: string;
+    totalQty: number;
+}
+
 export default function BatchPrintPage({ allProducts, setPrintItems, skusText, setSkusText }: Props) {
+    const queryClient = useQueryClient();
+    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+    
     const [isProcessing, setIsProcessing] = useState(false);
     const [foundItemsCount, setFoundItemsCount] = useState(0);
     const [notFoundItems, setNotFoundItems] = useState<string[]>([]);
     const [showScanner, setShowScanner] = useState(false);
     const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>('standard');
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
+
+    // Stock Commit State
+    const [isCommitting, setIsCommitting] = useState(false);
+    const [targetWarehouse, setTargetWarehouse] = useState(SYSTEM_IDS.SHOWROOM); // Default to Showroom
+    const [commitHistory, setCommitHistory] = useState<CommitLog[]>([]);
 
     // Smart Entry State
     const [scanInput, setScanInput] = useState('');
@@ -59,13 +77,9 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const handlePrint = () => {
-        setIsProcessing(true);
-        setFoundItemsCount(0);
-        setNotFoundItems([]);
-
+    const parseItemsFromText = () => {
         const lines = skusText.split(/\r?\n/).filter(line => line.trim() !== '');
-        const itemsToPrint: { product: Product; variant?: ProductVariant; quantity: number; format: 'standard' | 'simple' | 'retail' }[] = [];
+        const items: { product: Product; variant?: ProductVariant; quantity: number; rawSku: string }[] = [];
         const notFound: string[] = [];
 
         for (const line of lines) {
@@ -79,27 +93,21 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             
             if (isNaN(quantity) || quantity <= 0) continue;
 
-            // SMART RANGE EXPANSION
-            // NOTE: This handles both single SKUs and ranges like RN160-RN162
             const expandedSkus = expandSkuRange(rawToken);
 
             for (const rawSku of expandedSkus) {
                 let matchFound = false;
-
-                // 1. Try finding exact Match (Master or Specific Variant)
                 const match = findProductByScannedCode(rawSku, allProducts);
                 
                 if (match) {
-                    // CASE A: Specific Variant or Simple Product
                     if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
-                        itemsToPrint.push({ product: match.product, variant: match.variant, quantity, format: labelFormat });
+                        items.push({ product: match.product, variant: match.variant, quantity, rawSku });
                         matchFound = true;
                     } 
-                    // CASE B: Master SKU without specific variant suffix -> Add ALL variants
                     else {
                         if (match.product.variants && match.product.variants.length > 0) {
                             match.product.variants.forEach(v => {
-                                itemsToPrint.push({ product: match.product, variant: v, quantity, format: labelFormat });
+                                items.push({ product: match.product, variant: v, quantity, rawSku: match.product.sku + v.suffix });
                             });
                             matchFound = true;
                         }
@@ -111,18 +119,125 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 }
             }
         }
+        return { items, notFound };
+    };
+
+    const handlePrint = () => {
+        setIsProcessing(true);
+        setFoundItemsCount(0);
+        setNotFoundItems([]);
+
+        const { items, notFound } = parseItemsFromText();
         
+        const printPayload = items.map(i => ({
+            product: i.product,
+            variant: i.variant,
+            quantity: i.quantity,
+            format: labelFormat
+        }));
+
         setTimeout(() => {
-            if (itemsToPrint.length > 0) {
-                setPrintItems(itemsToPrint);
-                showToast(`Στάλθηκαν ${itemsToPrint.reduce((a,b)=>a+b.quantity,0)} ετικέτες για εκτύπωση (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
+            if (printPayload.length > 0) {
+                setPrintItems(printPayload);
+                showToast(`Στάλθηκαν ${printPayload.reduce((a,b)=>a+b.quantity,0)} ετικέτες για εκτύπωση (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
             } else {
                 showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", 'error');
             }
-            setFoundItemsCount(itemsToPrint.reduce((acc, item) => acc + item.quantity, 0));
+            setFoundItemsCount(printPayload.reduce((acc, item) => acc + item.quantity, 0));
             setNotFoundItems(notFound);
             setIsProcessing(false);
         }, 500);
+    };
+
+    const handleCommitToStock = async () => {
+        const { items } = parseItemsFromText();
+        if (items.length === 0) {
+            showToast("Δεν υπάρχουν έγκυροι κωδικοί για καταχώρηση.", "error");
+            return;
+        }
+
+        const warehouseName = warehouses?.find(w => w.id === targetWarehouse)?.name || 'Unknown';
+        
+        const confirmed = await confirm({
+            title: `Καταχώρηση στο ${warehouseName}`,
+            message: `Θα προστεθούν ${items.reduce((acc, i) => acc + i.quantity, 0)} τεμάχια (${items.length} κωδικοί) στο απόθεμα του ${warehouseName}. Είστε σίγουροι;`,
+            confirmText: 'Καταχώρηση',
+            cancelText: 'Άκυρο'
+        });
+
+        if (!confirmed) return;
+
+        setIsCommitting(true);
+        try {
+            let successCount = 0;
+            
+            for (const item of items) {
+                const { product, variant, quantity } = item;
+                const sku = product.sku;
+                const suffix = variant?.suffix || null;
+
+                // Logic differs based on warehouse type and variant existence
+                if (variant) {
+                    // It's a Variant
+                    if (targetWarehouse === SYSTEM_IDS.CENTRAL) {
+                        await supabase.from('product_variants')
+                            .update({ stock_qty: (variant.stock_qty || 0) + quantity })
+                            .match({ product_sku: sku, suffix: suffix });
+                    } else {
+                        // Showroom or Other Warehouse (Stored in product_stock)
+                        const currentQty = variant.location_stock?.[targetWarehouse] || 0;
+                        await supabase.from('product_stock').upsert({
+                            product_sku: sku,
+                            variant_suffix: suffix,
+                            warehouse_id: targetWarehouse,
+                            quantity: currentQty + quantity
+                        }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                    }
+                } else {
+                    // It's a Master/Simple Product
+                    if (targetWarehouse === SYSTEM_IDS.CENTRAL) {
+                        await supabase.from('products')
+                            .update({ stock_qty: (product.stock_qty || 0) + quantity })
+                            .eq('sku', sku);
+                    } else if (targetWarehouse === SYSTEM_IDS.SHOWROOM) {
+                        // Master showroom stock is stored on product table
+                        await supabase.from('products')
+                            .update({ sample_qty: (product.sample_qty || 0) + quantity })
+                            .eq('sku', sku);
+                    } else {
+                        // Other warehouse
+                        const currentQty = product.location_stock?.[targetWarehouse] || 0;
+                        await supabase.from('product_stock').upsert({
+                            product_sku: sku,
+                            variant_suffix: null,
+                            warehouse_id: targetWarehouse,
+                            quantity: currentQty + quantity
+                        }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                    }
+                }
+
+                await recordStockMovement(sku, quantity, `Batch Print Import: ${warehouseName}`, suffix || undefined);
+                successCount++;
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            
+            setCommitHistory(prev => [{
+                id: Date.now().toString(),
+                timestamp: new Date(),
+                itemCount: items.length,
+                totalQty: items.reduce((acc, i) => acc + i.quantity, 0),
+                warehouseName
+            }, ...prev]);
+
+            showToast(`Επιτυχής προσθήκη ${successCount} ειδών στο ${warehouseName}!`, "success");
+
+        } catch (e) {
+            console.error(e);
+            showToast("Σφάλμα κατά την καταχώρηση.", "error");
+        } finally {
+            setIsCommitting(false);
+        }
     };
 
     // --- REVAMPED SMART INPUT LOGIC ---
@@ -139,22 +254,16 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
         // Logic split: Range vs Single
         if (val.includes('-')) {
-            // Range mode: clear specific candidates, visualizer handles the range display
             setCandidateProducts([]);
             setActiveMasterProduct(null);
             setFilteredVariants([]);
             return;
         }
 
-        // 1. Identify Potential Masters & Partial Suffixes
         let bestMaster: Product | null = null;
         let suffixPart = '';
         
-        // Strategy A: Exact Master Match (e.g. typing "DA100")
         const exactMaster = allProducts.find(p => p.sku === val);
-        
-        // Strategy B: Prefix Match (e.g. typing "DA100X" -> Master "DA100")
-        // We look for the longest master SKU that matches the start of the input
         const potentialMasters = allProducts.filter(p => val.startsWith(p.sku));
         const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
 
@@ -166,7 +275,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             suffixPart = val.replace(longestPrefixMaster.sku, '');
         }
 
-        // 2. Set Visual Candidates (Top 6 matches for what is typed so far)
         let candidates: Product[] = [];
         if (bestMaster) {
             candidates = [bestMaster]; 
@@ -175,15 +283,12 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }
         setCandidateProducts(candidates);
 
-        // 3. Set Variants & Suffix Logic
         if (bestMaster) {
             setActiveMasterProduct(bestMaster);
-            
             if (bestMaster.variants) {
                 const validVariants = bestMaster.variants
                     .filter(v => v.suffix.startsWith(suffixPart))
                     .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
-                
                 setFilteredVariants(validVariants);
             } else {
                 setFilteredVariants([]);
@@ -195,11 +300,9 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     };
 
     const selectProductCandidate = (product: Product) => {
-        // If clicking a candidate, we set it as the context
         setScanInput(product.sku);
         setActiveMasterProduct(product);
         setCandidateProducts([product]);
-        // Show all variants
         if (product.variants) {
             setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
         } else {
@@ -212,20 +315,16 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         if (activeMasterProduct) {
             const fullCode = activeMasterProduct.sku + suffix;
             setScanInput(fullCode);
-            setFilteredVariants([]); // Clear suggestions to indicate selection made
+            setFilteredVariants([]); 
             inputRef.current?.focus();
         }
     };
 
     const executeSmartAdd = () => {
         if (!scanInput) return;
-        
-        // Use the unified range expansion logic
         const expandedSkus = expandSkuRange(scanInput);
         let addedCount = 0;
         let notFoundCount = 0;
-
-        // Validation pass
         const validEntries: string[] = [];
 
         for (const rawSku of expandedSkus) {
@@ -240,12 +339,9 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
         if (addedCount > 0) {
             const currentLines = skusText.split('\n').filter(l => l.trim());
-            
-            // Format each valid entry. If quantity > 1, append it.
             const newLines = validEntries.map(sku => `${sku} ${scanQty}`);
             setSkusText([...currentLines, ...newLines].join('\n'));
 
-            // Reset
             setScanInput('');
             setScanQty(1);
             setCandidateProducts([]);
@@ -256,7 +352,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         } else {
             showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", "error");
         }
-        
         if (notFoundCount > 0) {
             showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
         }
@@ -274,7 +369,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 suffixStr = text.slice(masterLen);
             }
         } else {
-            // Fallback heuristics for coloring if no context found (e.g. range end part)
             const split = splitSkuComponents(text);
             masterStr = split.master;
             suffixStr = split.suffix;
@@ -282,7 +376,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
         const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-        const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+        const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
 
         const renderSuffixChars = () => {
             return suffixStr.split('').map((char, i) => {
@@ -302,15 +396,11 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     }
 
     const SkuVisualizer = () => {
-        // Range Detection
         if (scanInput.includes('-')) {
             const parts = scanInput.split('-');
             const start = parts[0];
-            const end = parts.slice(1).join('-'); // Handle rest
-
-            // Try to resolve masters for both parts for better coloring
+            const end = parts.slice(1).join('-');
             const startMatch = findProductByScannedCode(start, allProducts);
-            // End part might be incomplete while typing, try fuzzy
             const endMatch = findProductByScannedCode(end, allProducts) || { product: allProducts.find(p => end.startsWith(p.sku)) || null };
 
             return (
@@ -321,8 +411,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 </div>
             );
         }
-
-        // Standard Single Mode
         return (
             <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
                 <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct} />
@@ -331,7 +419,6 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
     };
 
     const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        // ... (Same as before)
         const file = e.target.files?.[0];
         if (!file || file.type !== 'application/pdf') {
             showToast('Παρακαλώ επιλέξτε αρχείο PDF.', 'error');
@@ -504,7 +591,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                     {filteredVariants.map(s => {
                                         const { finish, stone } = getVariantComponents(s.suffix, activeMasterProduct?.gender);
                                         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-                                        const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+                                        const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
                                         
                                         return (
                                             <button 
@@ -552,7 +639,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             onChange={(e) => setSkusText(e.target.value)}
                             rows={12}
                             className="w-full p-4 border border-slate-200 rounded-xl font-mono text-sm bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder-slate-400 flex-1 custom-scrollbar"
-                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nΥποστηρίζονται εύρη:\nDA050-DA063 2\nXR2020 5`}
+                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA050-DA063 2\nXR2020 5`}
                         />
                     </div>
                 </div>
@@ -576,38 +663,57 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                         </div>
                      </div>
 
-                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-h-[100px]">
-                        {(foundItemsCount > 0 || notFoundItems.length > 0) ? (
-                            <div className="animate-in fade-in">
-                                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2"><FileText size={18} /> Αποτέλεσμα</h2>
-                                <div className="space-y-4">
-                                    {foundItemsCount > 0 && (
-                                        <div className="flex items-start gap-3 text-emerald-700 bg-emerald-50 p-4 rounded-2xl">
-                                            <div className="bg-emerald-200 p-1 rounded-full mt-0.5"><Check size={14} /></div>
-                                            <div><p className="font-bold text-lg">{foundItemsCount}</p><p className="text-xs font-medium opacity-80">ετικέτες προς εκτύπωση</p></div>
-                                        </div>
-                                    )}
-                                    {notFoundItems.length > 0 && (
-                                        <div className="text-rose-700 bg-rose-50 p-4 rounded-2xl">
-                                            <div className="flex items-center gap-2 mb-2"><AlertCircle size={16}/><span className="font-bold text-sm">Δεν βρέθηκαν ({notFoundItems.length})</span></div>
-                                            <ul className="list-disc list-inside text-xs font-mono opacity-80 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
-                                                {notFoundItems.map(sku => <li key={sku}>{sku}</li>)}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
+                     {/* Stock Commit Section */}
+                     <div className="bg-emerald-50/50 p-6 rounded-3xl shadow-sm border border-emerald-100 space-y-4">
+                        <h2 className="font-bold text-emerald-800 text-sm flex items-center gap-2 uppercase tracking-wide">
+                            <PackageCheck size={16}/> Ενημέρωση Αποθήκης
+                        </h2>
+                        
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Χώρος Εισαγωγής</label>
+                            <div className="relative">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <select 
+                                    value={targetWarehouse}
+                                    onChange={e => setTargetWarehouse(e.target.value)}
+                                    className="w-full pl-9 p-2.5 bg-white border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-sm text-slate-800 appearance-none cursor-pointer"
+                                >
+                                    {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                </select>
                             </div>
-                        ) : (
-                             <div className="text-center text-slate-400 py-6 flex flex-col items-center">
-                                 <History size={40} className="mb-2 opacity-20"/>
-                                 <p className="text-sm font-medium">Τα αποτελέσματα της τελευταίας επεξεργασίας θα εμφανιστούν εδώ.</p>
+                        </div>
+
+                        <button 
+                            onClick={handleCommitToStock}
+                            disabled={isCommitting || !skusText.trim()}
+                            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isCommitting ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
+                            {isCommitting ? 'Καταχώρηση...' : 'Καταχώρηση στο Απόθεμα'}
+                        </button>
+                     </div>
+
+                     {/* Commit History */}
+                     {commitHistory.length > 0 && (
+                         <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 animate-in fade-in">
+                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1"><History size={12}/> Πρόσφατες Καταχωρήσεις</h3>
+                             <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                                 {commitHistory.map(log => (
+                                     <div key={log.id} className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 flex justify-between items-center">
+                                         <div>
+                                             <span className="font-bold text-slate-700 block">{log.itemCount} είδη ({log.totalQty} τμχ)</span>
+                                             <span className="text-[9px] text-slate-400">{log.warehouseName}</span>
+                                         </div>
+                                         <span className="text-[9px] font-mono text-slate-400">{log.timestamp.toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                     </div>
+                                 ))}
                              </div>
-                        )}
-                    </div>
+                         </div>
+                     )}
                 </div>
             </div>
 
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-center mt-4 pb-20">
                 <button 
                     onClick={handlePrint}
                     disabled={isProcessing || !skusText.trim()}
