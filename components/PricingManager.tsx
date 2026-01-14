@@ -251,13 +251,15 @@ export default function PricingManager({ products, settings, materials }: Props)
                     updates.selling_price = item.newPrice;
                 }
 
-                // FIXED: Use .eq() instead of .match() for more reliable composite key targeting
-                // This ensures variants with empty string suffixes are correctly identified
+                // FIXED: Use .match() for robust composite key updating (product_sku + suffix).
+                // Ensure empty suffixes are passed as empty strings, not nulls/undefined.
                 if (item.isVariant) {
                     return supabase.from('product_variants')
                         .update(updates)
-                        .eq('product_sku', item.masterSku)
-                        .eq('suffix', item.variantSuffix ?? ''); // Handle potentially null suffix as empty string
+                        .match({ 
+                            product_sku: item.masterSku, 
+                            suffix: item.variantSuffix || "" 
+                        });
                 } else {
                     return supabase.from('products')
                         .update(updates)
