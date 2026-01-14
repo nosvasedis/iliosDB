@@ -251,10 +251,13 @@ export default function PricingManager({ products, settings, materials }: Props)
                     updates.selling_price = item.newPrice;
                 }
 
+                // FIXED: Use .eq() instead of .match() for more reliable composite key targeting
+                // This ensures variants with empty string suffixes are correctly identified
                 if (item.isVariant) {
                     return supabase.from('product_variants')
                         .update(updates)
-                        .match({ product_sku: item.masterSku, suffix: item.variantSuffix || '' }); // Ensure empty string for null suffix if variant
+                        .eq('product_sku', item.masterSku)
+                        .eq('suffix', item.variantSuffix ?? ''); // Handle potentially null suffix as empty string
                 } else {
                     return supabase.from('products')
                         .update(updates)
@@ -441,7 +444,7 @@ export default function PricingManager({ products, settings, materials }: Props)
           </button>
           <button 
             onClick={() => switchMode('selling')} 
-            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'selling' ? 'bg-amber-50 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
           >
              <TrendingUp size={16} /> Markup
           </button>
