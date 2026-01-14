@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -409,6 +410,14 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
         }
     };
 
+    // --- HISTORY ACTIONS ---
+    const handleReloadLog = (log: ActionLog) => {
+        const text = log.details.map(d => `${d.sku}${d.variant || ''} ${d.qty}`).join('\n');
+        setSkusText(text);
+        setShowHistoryModal(false);
+        showToast("Η ουρά φορτώθηκε από το ιστορικό.", "success");
+    };
+
     // --- VISUALIZERS ---
     const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
         let masterStr = text;
@@ -797,7 +806,16 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                                             <span className={`text-[10px] font-black uppercase tracking-wider ${log.type === 'PRINT' ? 'text-slate-500' : 'text-emerald-600'}`}>
                                                 {log.type === 'PRINT' ? 'ΕΚΤΥΠΩΣΗ' : 'ΚΑΤΑΧΩΡΗΣΗ'}
                                             </span>
-                                            <span className="text-[9px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'})}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit', day: '2-digit', month: '2-digit'})}</span>
+                                                <button 
+                                                    onClick={() => handleReloadLog(log)}
+                                                    title="Επαναφόρτωση στην Ουρά"
+                                                    className="p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                                                >
+                                                    <RotateCcw size={12}/>
+                                                </button>
+                                            </div>
                                         </div>
                                         
                                         <div className="font-bold text-slate-800 text-sm mb-2">
