@@ -453,7 +453,7 @@ export default function PricingManager({ products, settings, materials }: Props)
           </button>
           <button 
             onClick={() => switchMode('selling')} 
-            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'selling' ? 'bg-amber-50 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
           >
              <TrendingUp size={16} /> Markup
           </button>
@@ -639,7 +639,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                             return (
                                 <div 
                                     key={virtualRow.key}
-                                    className="absolute top-0 left-0 w-full flex items-center border-b border-slate-50 hover:bg-slate-50/80 transition-colors"
+                                    className={`absolute top-0 left-0 w-full flex items-center border-b border-slate-50 transition-colors ${item.hasChange ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50/80'}`}
                                     style={{ 
                                         height: `${virtualRow.size}px`, 
                                         transform: `translateY(${virtualRow.start}px)`
