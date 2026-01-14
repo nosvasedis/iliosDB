@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import BarcodeView from './BarcodeView';
 // CONSTANTS
 const PLATING_LABELS: Record<string, string> = {
     [PlatingType.None]: 'Λουστρέ',
-    [PlatingType.GoldPlated]: 'Επίхρυσο',
+    [PlatingType.GoldPlated]: 'Επίχρυσο',
     [PlatingType.TwoTone]: 'Δίχρωμο',
     [PlatingType.Platinum]: 'Πλατίνα'
 };
@@ -526,6 +526,38 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       settings, allMaterials, allProducts
   ]);
 
+  // LIVE PREVIEW CALCULATOR FOR SMART ADD
+  const smartPreview = useMemo(() => {
+      if (!smartAddSuffix) return null;
+      const clean = smartAddSuffix.trim().toUpperCase();
+      
+      // 1. Analyze Components (Stone + Finish)
+      const { finish, stone } = getVariantComponents(clean, editedProduct.gender);
+      
+      // 2. Generate Description based on Components
+      let desc = '';
+      if (['X','H','D','P'].includes(finish.code)) desc = finish.name;
+      else desc = 'Λουστρέ'; // Default for empty finish code (if user types just stone code)
+      
+      if (stone.name) desc += ` - ${stone.name}`;
+      
+      // 3. Estimate Cost using strict Pricing Engine logic
+      // This implicitly handles plating costs: if finish.code is 'P' or '', plating cost is 0.
+      const est = estimateVariantCost(editedProduct, clean, settings, allMaterials, allProducts);
+      
+      // Calculate Diff for Display
+      const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+      const masterCost = currentCostCalc.total;
+      const diff = est.total - masterCost;
+
+      return { 
+          description: desc, 
+          cost: est.total, 
+          diff: diff,
+          breakdown: est.breakdown 
+      };
+  }, [smartAddSuffix, editedProduct, settings, allMaterials, allProducts]);
+
   const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
   const masterCost = currentCostCalc.total;
 
@@ -958,30 +990,38 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         return;
     }
 
-    const fullSku = editedProduct.sku + smartAddSuffix.trim().toUpperCase();
-    const analysis = analyzeSku(fullSku, editedProduct.gender);
+    // 1. Validation & Clean
+    const rawSuffix = smartAddSuffix.trim().toUpperCase();
     
-    if (!analysis.isVariant) {
-      showToast('Δεν αναγνωρίστηκε έγκυρος συνδυασμός.', 'error');
-      return;
-    }
-    
-    if (editedProduct.variants.some(v => v.suffix === analysis.suffix)) {
+    // 2. Duplication Check
+    if (editedProduct.variants.some(v => v.suffix === rawSuffix)) {
       showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
       return;
     }
 
+    // 3. Smart Preview Data (Re-calculate for final add)
+    // We already have smartPreview memo, but we need to capture current state
+    const { finish, stone } = getVariantComponents(rawSuffix, editedProduct.gender);
+    
+    // Description Logic: Finish + Stone
+    let description = '';
+    if (['X','H','D','P'].includes(finish.code)) description = finish.name;
+    else description = 'Λουστρέ';
+    
+    if (stone.name) description += ` - ${stone.name}`;
+
+    // Cost Estimation
     const { total: estimatedCost } = estimateVariantCost(
         editedProduct, 
-        analysis.suffix, 
+        rawSuffix, 
         settings, 
         allMaterials, 
         allProducts
     );
 
     const newVariant: ProductVariant = {
-      suffix: analysis.suffix,
-      description: analysis.variantDescription,
+      suffix: rawSuffix,
+      description: description,
       stock_qty: 0,
       active_price: estimatedCost,
       selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
@@ -989,7 +1029,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     
     setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
     setSmartAddSuffix('');
-    showToast(`Παραλλαγή ${analysis.suffix} προστέθηκε!`, 'success');
+    showToast(`Παραλλαγή ${rawSuffix} προστέθηκε!`, 'success');
   };
 
   const handleManualAdd = () => {
@@ -1325,7 +1365,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
                                                     <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
                                                         <option value={PlatingType.None}>Λουστρέ</option>
-                                                        <option value={PlatingType.GoldPlated}>Επίхρυσο</option>
+                                                        <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
                                                         <option value={PlatingType.TwoTone}>Δίχρωμο</option>
                                                         <option value={PlatingType.Platinum}>Πλατίνα</option>
                                                     </select>
@@ -1730,34 +1770,127 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                            )}
 
                            {activeTab === 'variants' && (
-                               <div className="space-y-4 animate-in fade-in">
-                                   {/* ... (Existing Variants code) ... */}
-                                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                       <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Wand2 size={16} className="text-amber-500"/> Έξυπνη Προσθήκη</h4>
-                                       <div className="flex gap-2">
-                                           <input type="text" placeholder="Εισάγετε Suffix (π.χ. XKR)..." value={smartAddSuffix} onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
-                                           <button onClick={handleSmartAdd} className="bg-amber-500 text-white px-4 rounded-lg font-bold text-sm hover:bg-amber-600">Add</button>
+                               <div className="space-y-6 animate-in fade-in">
+                                   {/* --- REVAMPED SMART ADD SECTION --- */}
+                                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative overflow-hidden">
+                                       <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                                           <Wand2 size={120}/>
                                        </div>
+                                       
+                                       <h4 className="font-black text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
+                                           <Wand2 size={16} className="text-amber-500 fill-current"/> Έξυπνη Προσθήκη
+                                       </h4>
+                                       
+                                       <div className="flex gap-2 mb-4 relative z-10">
+                                           <input 
+                                               type="text" 
+                                               placeholder="Εισάγετε Suffix (π.χ. P, X, BSU)..." 
+                                               value={smartAddSuffix} 
+                                               onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())} 
+                                               className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"
+                                           />
+                                           <button onClick={handleSmartAdd} disabled={!smartAddSuffix} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100">
+                                               <Plus size={24}/>
+                                           </button>
+                                       </div>
+
+                                       {/* LIVE PREVIEW CARD */}
+                                       {smartPreview && (
+                                           <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
+                                               <div className="flex justify-between items-start mb-2">
+                                                   <div>
+                                                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Πρόβλεψη Περιγραφής</div>
+                                                       <div className="font-bold text-slate-800 text-sm">{smartPreview.description}</div>
+                                                   </div>
+                                                   <div className="text-right">
+                                                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Εκτίμηση Κόστους</div>
+                                                       <div className="font-black text-lg text-emerald-600">{formatCurrency(smartPreview.cost)}</div>
+                                                   </div>
+                                               </div>
+                                               
+                                               <div className="pt-2 border-t border-slate-50 flex items-center justify-between text-xs font-mono">
+                                                   <span className="text-slate-500">Διαφορά από Master:</span>
+                                                   <span className={`font-bold ${smartPreview.diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                       {smartPreview.diff > 0 ? '+' : ''}{formatCurrency(smartPreview.diff)}
+                                                   </span>
+                                               </div>
+                                               
+                                               {/* Breakdown Badges */}
+                                               <div className="flex gap-2 mt-2 flex-wrap">
+                                                   {smartPreview.breakdown.details.plating_cost === 0 && (
+                                                       <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">No Plating</span>
+                                                   )}
+                                                   {smartPreview.breakdown.details.plating_cost > 0 && (
+                                                       <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
+                                                           +{formatCurrency(smartPreview.breakdown.details.plating_cost)} Plating
+                                                       </span>
+                                                   )}
+                                                   {Math.abs(smartPreview.breakdown.details.stone_diff || 0) > 0.01 && (
+                                                       <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
+                                                           {smartPreview.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(smartPreview.breakdown.details.stone_diff)} Stone Diff
+                                                       </span>
+                                                   )}
+                                               </div>
+                                           </div>
+                                       )}
                                    </div>
                                    
-                                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                       <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-2"><Plus size={16}/> Χειροκίνητη Προσθήκη</h4>
+                                   {/* MANUAL ADD SECTION */}
+                                   <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                                       <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
+                                           <Edit size={14} className="text-slate-400"/> Χειροκίνητη Προσθήκη
+                                       </h4>
                                        <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
-                                           <input type="text" placeholder="Suffix" value={newVariantSuffix} onChange={e => { setNewVariantSuffix(e.target.value.toUpperCase()); setManualSuffixAnalysis(analyzeSuffix(e.target.value, editedProduct.gender, editedProduct.plating_type)); }} className="w-full p-2 border border-slate-200 rounded-lg font-mono text-sm uppercase"/>
-                                           <input type="text" placeholder="Περιγραφή" value={newVariantDesc} onChange={e => setNewVariantDesc(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm"/>
-                                           <button onClick={handleManualAdd} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black">Add</button>
+                                           <div>
+                                               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Suffix</label>
+                                               <input 
+                                                   type="text" 
+                                                   value={newVariantSuffix} 
+                                                   onChange={e => {
+                                                       const val = e.target.value.toUpperCase();
+                                                       setNewVariantSuffix(val); 
+                                                       setManualSuffixAnalysis(analyzeSuffix(val, editedProduct.gender, editedProduct.plating_type)); 
+                                                   }} 
+                                                   className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                               />
+                                           </div>
+                                           <div>
+                                               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Περιγραφή</label>
+                                               <input 
+                                                   type="text" 
+                                                   value={newVariantDesc} 
+                                                   onChange={e => setNewVariantDesc(e.target.value)} 
+                                                   placeholder={manualSuffixAnalysis || "Περιγραφή..."}
+                                                   className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                               />
+                                           </div>
+                                           <button onClick={handleManualAdd} className="bg-white border-2 border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                                               <Plus size={20}/>
+                                           </button>
                                        </div>
-                                       {manualSuffixAnalysis && <div className="text-xs text-blue-600 mt-2 ml-1">Πρόταση: {manualSuffixAnalysis}</div>}
+                                       {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2 ml-1 font-medium flex items-center gap-1"><Info size={10}/> Προτεινόμενη: {manualSuffixAnalysis}</div>}
                                    </div>
                                    
-                                   <div className="pt-4 border-t border-slate-100 space-y-2">
+                                   {/* EXISTING VARIANTS LIST */}
+                                   <div className="space-y-2">
+                                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
                                        {sortedVariantsList.map((v, index) => (
-                                           <div key={v.suffix} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200">
-                                               <span className="font-mono font-bold w-20 text-center">{v.suffix}</span>
-                                               <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 p-1 bg-slate-50 rounded border border-slate-200 text-sm outline-none focus:border-blue-500"/>
-                                               <div className="text-xs text-slate-400">Κόστος: <span className="font-bold text-slate-600">{formatCurrency(v.active_price)}</span></div>
-                                               {!editedProduct.is_component && <input type="number" step="0.1" value={v.selling_price || ''} onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} className="w-20 p-1 bg-emerald-50 rounded border border-emerald-200 text-sm font-bold text-emerald-800 outline-none focus:border-emerald-500"/>}
-                                               <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                           <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
+                                               <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
+                                               <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300"/>
+                                               <div className="text-right">
+                                                   <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
+                                                   <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
+                                               </div>
+                                               {!editedProduct.is_component && (
+                                                   <input 
+                                                       type="number" step="0.1" 
+                                                       value={v.selling_price || ''} 
+                                                       onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} 
+                                                       className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
+                                                   />
+                                               )}
+                                               <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
                                            </div>
                                        ))}
                                    </div>

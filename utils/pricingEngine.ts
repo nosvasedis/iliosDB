@@ -241,7 +241,16 @@ export const calculateProductCost = (
   const labor: Partial<LaborCost> = product.labor || {};
   let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (product.is_component ? product.weight_g * 0.50 : calculateTechnicianCost(totalWeight));
   let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
-  const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0);
+  
+  // Master calculation determines plating based on its own type
+  let platingCost = 0;
+  if (product.plating_type === PlatingType.GoldPlated || product.plating_type === PlatingType.Platinum) {
+      platingCost = labor.plating_cost_x || 0;
+  } else if (product.plating_type === PlatingType.TwoTone) {
+      platingCost = labor.plating_cost_d || 0;
+  }
+
+  const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
   const totalCost = silverBaseCost + materialsCost + laborTotal;
   
   return { 
@@ -251,7 +260,7 @@ export const calculateProductCost = (
           silver: silverBaseCost, 
           materials: parseFloat(materialsCost.toFixed(2)), // Final visual rounding
           labor: laborTotal, 
-          details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0 } 
+          details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost } 
       } 
   };
 };
@@ -434,10 +443,21 @@ export const estimateVariantCost = (
         const stoneCost = labor.stone_setting_cost || 0;
         
         let platingCost = 0;
-        if (['X', 'H'].includes(finish.code) || masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
+        
+        // PLATING LOGIC FOR IMPORTED
+        if (finish.code === 'P') {
+            platingCost = 0; // Force 0 for Patina
+        } else if (['X', 'H'].includes(finish.code)) {
             platingCost = masterProduct.weight_g * (labor.plating_cost_x || 0);
-        } else if (finish.code === 'D' || masterProduct.plating_type === PlatingType.TwoTone) {
+        } else if (finish.code === 'D') {
             platingCost = masterProduct.weight_g * (labor.plating_cost_d || 0);
+        } else {
+            // Inherit from Master if no suffix finish
+            if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
+                platingCost = masterProduct.weight_g * (labor.plating_cost_x || 0);
+            } else if (masterProduct.plating_type === PlatingType.TwoTone) {
+                platingCost = masterProduct.weight_g * (labor.plating_cost_d || 0);
+            }
         }
 
         const totalCost = silverCost + technicianCost + stoneCost + platingCost;
@@ -492,13 +512,27 @@ export const estimateVariantCost = (
     const castingCost = totalWeight * 0.15;
     
     let platingLabor = 0;
-    const isTwoTone = finish.code === 'D' || masterProduct.plating_type === PlatingType.TwoTone;
-    const isPlatedX = ['X', 'H'].includes(finish.code) || masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum;
+    
+    // STRICT PLATING LOGIC
+    // P = Patina (Explicitly unplated)
+    // X = Gold Plated
+    // H = Platinum
+    // D = Two Tone
+    // '' (Empty) = Depends. If explicit, Lustre. If implicit (just stone suffix), Inherit Master.
 
-    if (isTwoTone) {
-        platingLabor = labor.plating_cost_d || 0;
-    } else if (isPlatedX) {
+    if (finish.code === 'P') {
+        platingLabor = 0; // Explicitly remove plating cost
+    } else if (['X', 'H'].includes(finish.code)) {
         platingLabor = labor.plating_cost_x || 0;
+    } else if (finish.code === 'D') {
+        platingLabor = labor.plating_cost_d || 0;
+    } else {
+        // Empty suffix or just stone suffix
+        if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
+            platingLabor = labor.plating_cost_x || 0;
+        } else if (masterProduct.plating_type === PlatingType.TwoTone) {
+            platingLabor = labor.plating_cost_d || 0;
+        }
     }
 
     const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingLabor;
