@@ -157,7 +157,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
                          <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
                             {/* Stretched QR Height slightly by 1mm extra logic if needed, fitting to container */}
-                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
+                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block', imageRendering: 'pixelated', marginTop: '1.5mm' }} alt="QR" />}
                          </div>
                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
                              <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm' }}>
