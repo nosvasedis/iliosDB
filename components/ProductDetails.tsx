@@ -709,64 +709,53 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       });
   }, [finishGroups]);
 
-  // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME)
-  const getSuggestedPriceForFinish = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
-      // Find a representative variant for this finish (e.g., Lustre variant for Lustre Group)
-      // Prioritize the simplest one (shortest suffix) to avoid stone bias if possible
-      const groupVariants = finishGroups[finishCode] || [];
-      const representative = groupVariants.length > 0 ? groupVariants[0] : null; 
-      
-      let weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-      let costBreakdown: any = currentCostCalc.breakdown;
-
-      if (representative) {
-          const est = estimateVariantCost(editedProduct, representative.suffix, settings, allMaterials, allProducts);
-          costBreakdown = est.breakdown;
-          weight = est.breakdown.details?.total_weight || weight;
-      } else if (!hasVariants) {
-          // Simple product logic
-          const est = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-          costBreakdown = est.breakdown;
-          weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-      }
+  // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
+  const getSuggestedPriceForVariant = (suffix: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
+      const est = estimateVariantCost(editedProduct, suffix, settings, allMaterials, allProducts);
+      const costBreakdown = est.breakdown;
+      const weight = est.breakdown.details?.total_weight || (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
 
       if (mode === 'formula') {
           return calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
       } else {
           // Margin Mode
-          const totalCost = costBreakdown.silver + costBreakdown.labor + costBreakdown.materials;
+          const totalCost = est.total;
           const marginDecimal = margin / 100;
           if (marginDecimal >= 1) return 0;
           return roundPrice(totalCost / (1 - marginDecimal));
       }
   };
 
+  // Helper for Group Suggestions (keeping it for the overview hint, using representative)
+  const getSuggestedPriceForFinishGroup = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
+      const groupVariants = finishGroups[finishCode] || [];
+      const representative = groupVariants.length > 0 ? groupVariants[0] : null; 
+      if (representative) return getSuggestedPriceForVariant(representative.suffix, mode, margin);
+      // Fallback to master if no variants
+      return getSuggestedPriceForVariant('', mode, margin);
+  };
+
   const handleApplyAllSuggestions = (mode: 'formula' | 'margin') => {
       const updates = [...(editedProduct.variants || [])];
       let masterPriceUpdate = editedProduct.selling_price;
+      let updateCount = 0;
 
-      // Update Variants
-      sortedFinishCodes.forEach(code => {
-          const group = finishGroups[code];
-          const suggested = getSuggestedPriceForFinish(code, mode, targetMargin);
-          
-          group.forEach(variant => {
-              const idx = updates.findIndex(v => v.suffix === variant.suffix);
-              if (idx !== -1) {
-                  updates[idx] = { ...updates[idx], selling_price: suggested };
-              }
-          });
+      // Update Variants Individually to capture stone/material diffs
+      updates.forEach((variant, idx) => {
+          const suggested = getSuggestedPriceForVariant(variant.suffix, mode, targetMargin);
+          if (Math.abs((variant.selling_price || 0) - suggested) > 0.01) {
+              updates[idx] = { ...variant, selling_price: suggested };
+              updateCount++;
+          }
       });
 
-      // Update Master if needed (Simple Product or if Master Price is synced)
+      // Update Master if needed (Simple Product)
       if (!hasVariants) {
-          masterPriceUpdate = getSuggestedPriceForFinish('', mode, targetMargin);
-      } else {
-          // Sync Master Price to whatever the "Master Finish" variant became
-          // Assuming master is usually Lustre/Patina/Gold based on plating_type
-          // For simplicity, we just keep master as is or update if it matches a variant group
-          // Usually better to leave master alone if it acts as a container, 
-          // BUT here selling_price on Product is used for simple products or as fallback.
+          const suggested = getSuggestedPriceForVariant('', mode, targetMargin);
+          if (Math.abs(masterPriceUpdate - suggested) > 0.01) {
+             masterPriceUpdate = suggested;
+             updateCount++;
+          }
       }
 
       setEditedProduct(prev => ({
@@ -775,7 +764,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
           selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price
       }));
       
-      showToast('Οι τιμές ενημερώθηκαν μαζικά.', 'success');
+      if (updateCount > 0) {
+          showToast(`Ενημερώθηκαν ${updateCount} τιμές (Υλικά/Πέτρες included).`, 'success');
+      } else {
+          showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
+      }
+  };
+
+  const applyFormulaToSingleVariant = (index: number) => {
+      const variant = sortedVariantsList[index];
+      const realIndex = editedProduct.variants.findIndex(v => v.suffix === variant.suffix);
+      if (realIndex === -1) return;
+      
+      const suggested = getSuggestedPriceForVariant(variant.suffix, 'formula');
+      
+      const newVariants = [...editedProduct.variants];
+      newVariants[realIndex] = { ...newVariants[realIndex], selling_price: suggested };
+      setEditedProduct(prev => ({ ...prev, variants: newVariants }));
+      showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
   };
 
   const addRecipeItem = (type: 'raw' | 'component') => {
@@ -1398,7 +1404,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </div>
                                                             {showRepriceTool && (
                                                                 <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                    <ArrowUpRight size={10} className="text-blue-400"/> {getSuggestedPriceForFinish('', 'formula', targetMargin).toFixed(2)}€
+                                                                    <ArrowUpRight size={10} className="text-blue-400"/> {getSuggestedPriceForFinishGroup('', 'formula', targetMargin).toFixed(2)}€
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1409,7 +1415,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         const group = finishGroups[code];
                                                         const price = group[0]?.selling_price || 0;
                                                         const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
-                                                        const suggested = getSuggestedPriceForFinish(code, 'formula', targetMargin);
+                                                        const suggested = getSuggestedPriceForFinishGroup(code, 'formula', targetMargin);
                                                         
                                                         return (
                                                             <div key={code}>
@@ -1468,9 +1474,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                        </div>
 
                                                        <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
-                                                           <Calculator size={16}/> Εφαρμογή Ilios Formula (All)
+                                                           <Calculator size={16}/> Εφαρμογή Ilios Formula (Smart All)
                                                        </button>
-                                                       <p className="text-[9px] text-slate-400 mt-2 text-center">(NonMetal x 2) + Metal + (Weight x 2) applied to each finish</p>
+                                                       <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
                                                    </div>
                                                )}
                                             </div>
@@ -1873,7 +1879,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                    
                                    {/* EXISTING VARIANTS LIST */}
                                    <div className="space-y-2">
-                                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
+                                       <div className="flex justify-between items-end mb-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
+                                            <button 
+                                                onClick={() => handleApplyAllSuggestions('formula')}
+                                                className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                                            >
+                                                <Calculator size={10}/> Auto-Price All
+                                            </button>
+                                       </div>
                                        {sortedVariantsList.map((v, index) => (
                                            <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
                                                <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
@@ -1883,12 +1897,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                    <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
                                                </div>
                                                {!editedProduct.is_component && (
-                                                   <input 
-                                                       type="number" step="0.1" 
-                                                       value={v.selling_price || ''} 
-                                                       onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} 
-                                                       className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
-                                                   />
+                                                   <div className="flex items-center gap-1">
+                                                       <input 
+                                                           type="number" step="0.1" 
+                                                           value={v.selling_price || ''} 
+                                                           onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} 
+                                                           className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
+                                                       />
+                                                       <button 
+                                                            onClick={() => applyFormulaToSingleVariant(index)}
+                                                            className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                            title="Υπολογισμός Τιμής"
+                                                       >
+                                                           <Wand2 size={14}/>
+                                                       </button>
+                                                   </div>
                                                )}
                                                <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
                                            </div>
