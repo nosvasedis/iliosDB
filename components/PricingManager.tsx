@@ -119,18 +119,24 @@ export default function PricingManager({ products, settings, materials }: Props)
         const productItems: PricingItem[] = [];
         
         // Helper to process a specific item (Variant or Master)
-        // BUG FIX: Added isVariantRow explicit flag to handle empty suffix variants correctly
         const processItem = (variantSuffix: string | null, currentVal: number, name: string, isVariantRow: boolean): PricingItem => {
             let newVal = 0;
             let costBasis = 0;
             
-            // Recalculate cost FRESH
+            // Recalculate cost FRESH.
+            // Note: If variantSuffix is "" (Lustre), we still treat it as a variant calculation to ensure
+            // any specific variant logic (like stone override, though unlikely for "") is respected.
             const costCalc = isVariantRow && variantSuffix !== null
                 ? estimateVariantCost(product, variantSuffix, settings, materials, products)
                 : calculateProductCost(product, settings, materials, products);
             
             const freshCost = costCalc.total;
-            const weight = (costCalc.breakdown.details?.total_weight || product.weight_g + (product.secondary_weight_g || 0));
+            
+            // Formula Weight Logic:
+            // For variants, use the total_weight from the estimate details (handles components correctly).
+            // For master, fallback to product weights.
+            const weight = (costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0)));
+            
             costBasis = freshCost;
 
             if (mode === 'cost') {
@@ -155,26 +161,26 @@ export default function PricingManager({ products, settings, materials }: Props)
             const hasChange = Math.abs(newVal - currentVal) > 0.01;
 
             return {
-                id: variantSuffix ? `${product.sku}-${variantSuffix}` : product.sku,
-                sku: variantSuffix ? `${product.sku}${variantSuffix}` : product.sku,
+                id: variantSuffix !== null ? `${product.sku}-${variantSuffix}` : product.sku,
+                sku: variantSuffix !== null ? `${product.sku}${variantSuffix}` : product.sku,
                 masterSku: product.sku,
                 variantSuffix: variantSuffix,
                 name: name,
                 currentPrice: currentVal, // Old/Current Value
                 newPrice: newVal,         // New/Proposed Value
                 costBasis: freshCost,
-                isVariant: isVariantRow, // Correctly identifies if this targets product_variants or products table
+                isVariant: isVariantRow, 
                 hasChange
             };
         };
 
         if (product.variants && product.variants.length > 0) {
             product.variants.forEach(v => {
-                // Pass TRUE for isVariantRow, even if suffix is empty
+                // IMPORTANT: Pass true for isVariantRow, even if suffix is empty string.
                 productItems.push(processItem(v.suffix, mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0), v.description || product.category, true));
             });
         } else {
-            // Pass FALSE for Master (Simple Product)
+            // Master Product (No Variants)
             productItems.push(processItem(null, mode === 'cost' ? (product.active_price || 0) : (product.selling_price || 0), product.category, false));
         }
         
@@ -251,14 +257,15 @@ export default function PricingManager({ products, settings, materials }: Props)
                     updates.selling_price = item.newPrice;
                 }
 
-                // FIXED: Use .match() for robust composite key updating (product_sku + suffix).
-                // Ensure empty suffixes are passed as empty strings, not nulls/undefined.
+                // FIXED: Use .match() instead of chained .eq() for variants.
+                // This ensures the composite key (product_sku + suffix) is correctly targeted,
+                // even when suffix is an empty string.
                 if (item.isVariant) {
                     return supabase.from('product_variants')
                         .update(updates)
                         .match({ 
                             product_sku: item.masterSku, 
-                            suffix: item.variantSuffix || "" 
+                            suffix: item.variantSuffix || "" // Ensure empty string is passed, not null
                         });
                 } else {
                     return supabase.from('products')
