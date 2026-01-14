@@ -765,7 +765,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       }));
       
       if (updateCount > 0) {
-          showToast(`Ενημερώθηκαν ${updateCount} τιμές (Υλικά/Πέτρες included).`, 'success');
+          showToast(`Ενημερώθηκαν ${updateCount} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
       } else {
           showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
       }
@@ -1457,7 +1457,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                        
                                                        <div className="flex items-center gap-4 mb-4">
                                                            <div className="flex-1">
-                                                               <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Target Margin</label>
+                                                               <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Στόχος Margin</label>
                                                                <div className="flex items-center gap-2">
                                                                    <input 
                                                                         type="range" min="10" max="90" step="5" 
@@ -1469,12 +1469,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                </div>
                                                            </div>
                                                            <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                                                               Apply Margin
+                                                               Εφαρμογή Margin
                                                            </button>
                                                        </div>
 
                                                        <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
-                                                           <Calculator size={16}/> Εφαρμογή Ilios Formula (Smart All)
+                                                           <Calculator size={16}/> Εφαρμογή Τύπου Ilios (Smart)
                                                        </button>
                                                        <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
                                                    </div>
@@ -1885,7 +1885,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 onClick={() => handleApplyAllSuggestions('formula')}
                                                 className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 hover:bg-emerald-100 transition-colors"
                                             >
-                                                <Calculator size={10}/> Auto-Price All
+                                                <Calculator size={10}/> Αυτόματη Τιμολόγηση
                                             </button>
                                        </div>
                                        {sortedVariantsList.map((v, index) => (
