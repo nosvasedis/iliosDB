@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, Collection } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Trash2, Info, Zap } from 'lucide-react';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 
@@ -17,17 +17,14 @@ const genderOptions = [
     { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16}/> }
 ];
 
-const genderLabels: Record<string, string> = {
-    [Gender.Men]: 'Αντρικά',
-    [Gender.Women]: 'Γυναικεία',
-    [Gender.Unisex]: 'Unisex'
-};
-
 export default function PriceListPage({ products, collections, onPrint }: Props) {
     const { showToast } = useUI();
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-    const [selectedCollectionId, setSelectedCollectionId] = useState<number | 'none'>('none');
+    
+    // Changed to array for multi-selection
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
+    
     const [searchTerm, setSearchTerm] = useState('');
 
     // MANUAL OVERRIDES STATE
@@ -66,6 +63,12 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         } else {
             setSelectedCategories(allCategories);
         }
+    };
+
+    const toggleCollection = (id: number) => {
+        setSelectedCollectionIds(prev => 
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
     };
 
     const handleAddManualSku = () => {
@@ -129,9 +132,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             if (isManuallyInList) {
                 shouldInclude = true;
             } else if (!isExcluded) {
-                if (selectedCollectionId !== 'none') {
-                    shouldInclude = p.collections?.includes(selectedCollectionId) || false;
+                // Modified Logic: Check if product is in ANY of the selected collections
+                if (selectedCollectionIds.length > 0) {
+                    shouldInclude = p.collections?.some(id => selectedCollectionIds.includes(id)) || false;
                 } else {
+                    // Fallback to standard filters if no collection is selected
                     shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category);
                 }
             }
@@ -191,17 +196,22 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionId, manualSkus, excludedSkus]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus]);
 
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
         let title = '';
         let subtitle = `${filteredItems.length} Κωδικοί`;
 
-        if (selectedCollectionId !== 'none') {
-            const collectionName = collections.find(c => c.id === selectedCollectionId)?.name || 'Collection';
-            title = `${collectionName} - ${dateStr}`;
-            subtitle = `Συλλογή • ` + subtitle;
+        if (selectedCollectionIds.length > 0) {
+            // Smart Title for Collections
+            if (selectedCollectionIds.length === 1) {
+                const collectionName = collections.find(c => c.id === selectedCollectionIds[0])?.name;
+                title = `${collectionName} - ${dateStr}`;
+            } else {
+                title = `${selectedCollectionIds.length} Επιλεγμένες Συλλογές - ${dateStr}`;
+            }
+            subtitle = `Συλλογές • ` + subtitle;
         } else {
             let catStr = selectedCategories.length === allCategories.length ? 'Πλήρης Κατάλογος' : 'Επιλεγμένα Είδη';
             title = `${catStr} - ${dateStr}`;
@@ -275,7 +285,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             </div>
                         </div>
 
-                        <div className={`flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar transition-opacity duration-300 ${selectedCollectionId !== 'none' ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
+                        <div className={`flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar transition-opacity duration-300 ${selectedCollectionIds.length > 0 ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
                             <div className="space-y-3">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Φύλο</label>
                                 <div className="flex gap-2">
@@ -327,19 +337,38 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                     className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                 />
                             </div>
+                            
+                            {/* MULTI-SELECT COLLECTIONS */}
                             <div>
-                                <div className="flex items-center gap-2 mb-2 opacity-60">
-                                    <FolderKanban size={14} className="text-slate-500"/>
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Προβολή Συλλογής (Override)</span>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 opacity-60">
+                                        <FolderKanban size={14} className="text-slate-500"/>
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Συλλογές (Override)</span>
+                                    </div>
+                                    {selectedCollectionIds.length > 0 && (
+                                        <button onClick={() => setSelectedCollectionIds([])} className="text-[9px] text-blue-500 font-bold hover:underline">
+                                            Καθαρισμός
+                                        </button>
+                                    )}
                                 </div>
-                                <select 
-                                    value={selectedCollectionId} 
-                                    onChange={(e) => setSelectedCollectionId(e.target.value === 'none' ? 'none' : Number(e.target.value))}
-                                    className={`w-full p-2.5 rounded-lg border outline-none font-medium text-xs transition-all cursor-pointer ${selectedCollectionId !== 'none' ? 'bg-indigo-50 border-indigo-300 text-indigo-800 ring-2 ring-indigo-200' : 'bg-white border-slate-200 text-slate-500'}`}
-                                >
-                                    <option value="none">-- Καμία --</option>
-                                    {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                
+                                <div className="max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                    {collections.length > 0 ? collections.map(c => {
+                                        const isSelected = selectedCollectionIds.includes(c.id);
+                                        return (
+                                            <button 
+                                                key={c.id} 
+                                                onClick={() => toggleCollection(c.id)}
+                                                className={`w-full text-left p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border ${isSelected ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                            >
+                                                <span>{c.name}</span>
+                                                {isSelected && <Check size={12} className="text-indigo-600"/>}
+                                            </button>
+                                        );
+                                    }) : (
+                                        <div className="text-xs text-slate-400 italic">Δεν υπάρχουν συλλογές.</div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -16,7 +16,10 @@ export default function MobilePriceList({ onPrint }: Props) {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     
     const [mode, setMode] = useState<'collections' | 'custom'>('collections');
-    const [selectedCollection, setSelectedCollection] = useState<number | 'all'>('all');
+    
+    // Updated to array for multiple selections
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
+    
     const [customList, setCustomList] = useState<string[]>([]);
     const [search, setSearch] = useState('');
     const { showToast } = useUI();
@@ -26,8 +29,9 @@ export default function MobilePriceList({ onPrint }: Props) {
         let list = products.filter(p => !p.is_component);
 
         if (mode === 'collections') {
-            if (selectedCollection !== 'all') {
-                list = list.filter(p => p.collections?.includes(selectedCollection));
+            if (selectedCollectionIds.length > 0) {
+                // If collections are selected, check if product belongs to ANY of them
+                list = list.filter(p => p.collections?.some(id => selectedCollectionIds.includes(id)));
             }
             if (search) {
                 const lower = search.toLowerCase();
@@ -42,11 +46,21 @@ export default function MobilePriceList({ onPrint }: Props) {
             }
         }
         return list.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    }, [products, mode, selectedCollection, customList, search]);
+    }, [products, mode, selectedCollectionIds, customList, search]);
 
     const toggleCustomItem = (sku: string) => {
         setCustomList(prev => prev.includes(sku) ? prev.filter(s => s !== sku) : [...prev, sku]);
         if (search) showToast(customList.includes(sku) ? 'Αφαιρέθηκε.' : 'Προστέθηκε.', 'success');
+    };
+
+    const toggleCollection = (id: number) => {
+        setSelectedCollectionIds(prev => 
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const clearCollections = () => {
+        setSelectedCollectionIds([]);
     };
 
     const clearCustomList = () => { setCustomList([]); showToast('Η λίστα καθαρίστηκε.', 'info'); };
@@ -78,7 +92,13 @@ export default function MobilePriceList({ onPrint }: Props) {
         const dateStr = new Date().toLocaleDateString('el-GR');
         let title = 'Τιμοκατάλογος';
         if (mode === 'custom') title = 'Επιλεγμένα Είδη';
-        else if (selectedCollection !== 'all') title = collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή';
+        else if (selectedCollectionIds.length > 0) {
+            if (selectedCollectionIds.length === 1) {
+                title = collections?.find(c => c.id === selectedCollectionIds[0])?.name || 'Συλλογή';
+            } else {
+                title = `${selectedCollectionIds.length} Συλλογές`;
+            }
+        }
 
         if (items.length === 0) { showToast("Δεν υπάρχουν είδη.", "error"); return; }
         if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${items.length} Κωδικοί`, date: dateStr, items });
@@ -106,8 +126,25 @@ export default function MobilePriceList({ onPrint }: Props) {
                 {mode === 'collections' && (
                     <div className="overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide shrink-0">
                         <div className="flex gap-2">
-                            <button onClick={() => setSelectedCollection('all')} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${selectedCollection === 'all' ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-slate-500 border-slate-200'}`}>Όλα</button>
-                            {collections?.map(c => (<button key={c.id} onClick={() => setSelectedCollection(c.id)} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${selectedCollection === c.id ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-slate-500 border-slate-200'}`}>{c.name}</button>))}
+                            <button 
+                                onClick={clearCollections}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${selectedCollectionIds.length === 0 ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-slate-500 border-slate-200'}`}
+                            >
+                                Όλα
+                            </button>
+                            {collections?.map(c => {
+                                const isSelected = selectedCollectionIds.includes(c.id);
+                                return (
+                                    <button 
+                                        key={c.id} 
+                                        onClick={() => toggleCollection(c.id)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-2 ${isSelected ? 'bg-teal-500 text-white border-teal-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200'}`}
+                                    >
+                                        {c.name}
+                                        {isSelected && <Check size={12} />}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
