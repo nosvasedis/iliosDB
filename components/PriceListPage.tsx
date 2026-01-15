@@ -305,7 +305,25 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             }
             subtitle = `Συλλογές • ` + subtitle;
         } else {
-            let catStr = selectedCategories.length === allCategories.length ? 'Πλήρης Κατάλογος' : 'Επιλεγμένα Είδη';
+            // Smart Title for Categories & Exclusion
+            let catStr = '';
+            
+            // Check if all are selected
+            const areAllSelected = selectedCategories.length === allCategories.length && allCategories.length > 0;
+
+            if (areAllSelected) {
+                catStr = 'Πλήρης Κατάλογος';
+            } else if (selectedCategories.length > 0) {
+                // List specific categories
+                if (selectedCategories.length <= 3) {
+                    catStr = selectedCategories.join(' & ');
+                } else {
+                    catStr = `${selectedCategories.slice(0, 2).join(', ')} & ${selectedCategories.length - 2} ακόμα`;
+                }
+            } else {
+                catStr = 'Επιλεγμένα Είδη'; // Fallback
+            }
+
             if (excludeCollections) catStr += ' (Εκτός Συλλογών)';
             title = `${catStr} - ${dateStr}`;
         }

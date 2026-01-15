@@ -24,7 +24,51 @@ interface Props {
 
 export default function PriceListPrintView({ data }: Props) {
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-inside-avoid break-inside-avoid">
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-inside-avoid break-inside-avoid relative">
+            <style>
+            {`
+              @page {
+                size: A4;
+                margin: 10mm;
+                counter-increment: page;
+                
+                @bottom-right {
+                    content: counter(page);
+                    font-size: 9pt;
+                    color: #64748b;
+                }
+              }
+              
+              /* Fixed Footer for browsers that support it (like Chrome) */
+              .fixed-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 30px;
+                background: white;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 4px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 9px;
+                color: #64748b;
+                z-index: 1000;
+              }
+              
+              /* Padding to prevent content overlap with footer */
+              body {
+                padding-bottom: 30px;
+              }
+              
+              /* Attempt to show page number via CSS counter (Standard) */
+              .page-number::after {
+                content: "Σελίδα " counter(page);
+              }
+            `}
+            </style>
+
             {/* HEADER */}
             <header className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-4 max-w-[75%]">
@@ -113,9 +157,11 @@ export default function PriceListPrintView({ data }: Props) {
                 })}
             </div>
 
-            <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
-                <p className="text-[9px] text-slate-400 font-medium">Ilios Kosmima ERP • {data.date}</p>
-            </footer>
+            {/* FIXED FOOTER WITH PAGE NUMBER */}
+            <div className="fixed-footer print:flex hidden">
+                <span className="font-bold">Ilios Kosmima ERP</span>
+                <span className="page-number"></span>
+            </div>
         </div>
     );
 }
