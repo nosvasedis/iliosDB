@@ -5,12 +5,13 @@ import { APP_LOGO } from '../constants';
 export interface PriceListPrintData {
     title: string;
     subtitle: string;
-    collectionNames?: string; // New field for comma-separated collection names
+    collectionNames?: string; // Comma-separated collection names
+    filtersInfo?: string;     // New field: e.g. "ΕΚΤΟΣ ΣΥΛΛΟΓΩΝ"
     date: string;
     items: { 
         skuBase: string; 
         category: string;
-        collectionTag?: string; // New field for the discreet indicator
+        collectionTag?: string; // Discreet indicator
         priceGroups: {
             suffixes: string[];
             price: number;
@@ -42,7 +43,7 @@ export default function PriceListPrintView({ data }: Props) {
               /* Fixed Footer for browsers that support it (like Chrome) */
               .fixed-footer {
                 position: fixed;
-                bottom: 0;
+                bottom: 8mm; /* Moved up to avoid printer margin clipping */
                 left: 0;
                 right: 0;
                 height: 30px;
@@ -59,7 +60,7 @@ export default function PriceListPrintView({ data }: Props) {
               
               /* Padding to prevent content overlap with footer */
               body {
-                padding-bottom: 30px;
+                padding-bottom: 40px; 
               }
               
               /* Attempt to show page number via CSS counter (Standard) */
@@ -71,7 +72,7 @@ export default function PriceListPrintView({ data }: Props) {
 
             {/* HEADER */}
             <header className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
-                <div className="flex items-center gap-4 max-w-[75%]">
+                <div className="flex items-center gap-4 max-w-[70%]">
                     <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
                     <div>
                         <h1 className="text-base font-black text-slate-800 uppercase tracking-tight leading-tight">{data.title}</h1>
@@ -83,7 +84,13 @@ export default function PriceListPrintView({ data }: Props) {
                         )}
                     </div>
                 </div>
-                <div className="text-right flex-shrink-0 flex gap-6">
+                <div className="text-right flex-shrink-0 flex gap-6 items-center">
+                    {/* Tiny Title for Filters/Exclusions */}
+                    {data.filtersInfo && (
+                        <div className="px-2 py-1 rounded bg-rose-50 border border-rose-100 text-[8px] font-bold text-rose-600 uppercase tracking-wider">
+                            {data.filtersInfo}
+                        </div>
+                    )}
                     <div>
                         <p className="text-slate-400 text-[8px] uppercase font-bold tracking-widest">ΗΜΕΡΟΜΗΝΙΑ</p>
                         <p className="text-slate-800 font-bold text-xs">{data.date}</p>

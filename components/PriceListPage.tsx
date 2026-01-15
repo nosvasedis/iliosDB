@@ -29,6 +29,21 @@ const getCollectionInitials = (name: string) => {
         .toUpperCase();
 };
 
+const pluralizeCategory = (cat: string) => {
+    const map: Record<string, string> = {
+        'Δαχτυλίδι': 'Δαχτυλίδια',
+        'Βραχιόλι': 'Βραχιόλια',
+        'Σταυρός': 'Σταυροί',
+        'Μενταγιόν': 'Μενταγιόν',
+        'Σκουλαρίκια': 'Σκουλαρίκια',
+        'Αλυσίδα': 'Αλυσίδες',
+        'Κολιέ': 'Κολιέ'
+    };
+    // Basic heuristic for unknown words:
+    if (map[cat]) return map[cat];
+    return cat;
+};
+
 export default function PriceListPage({ products, collections, onPrint }: Props) {
     const { showToast } = useUI();
     const [activeTab, setActiveTab] = useState<SidebarTab>('filters');
@@ -289,14 +304,15 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         let title = '';
         let subtitle = `${filteredItems.length} Κωδικοί`;
         let collectionNames: string | undefined = undefined;
+        let filtersInfo: string | undefined = undefined;
 
         if (selectedCollectionIds.length > 0) {
             // Smart Title for Collections
             if (selectedCollectionIds.length === 1) {
                 const collectionName = collections.find(c => c.id === selectedCollectionIds[0])?.name;
-                title = `${collectionName} - ${dateStr}`;
+                title = `${collectionName}`; 
             } else {
-                title = `${selectedCollectionIds.length} Επιλεγμένες Συλλογές - ${dateStr}`;
+                title = `${selectedCollectionIds.length} Επιλεγμένες Συλλογές`;
                 // Generate comma separated names for subtitle
                 collectionNames = collections
                     .filter(c => selectedCollectionIds.includes(c.id))
@@ -305,33 +321,50 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             }
             subtitle = `Συλλογές • ` + subtitle;
         } else {
-            // Smart Title for Categories & Exclusion
-            let catStr = '';
+            // Gender Logic
+            const isAllGenders = selectedGenders.length === 3 || selectedGenders.length === 0;
+            let genderPrefix = '';
             
-            // Check if all are selected
-            const areAllSelected = selectedCategories.length === allCategories.length && allCategories.length > 0;
-
-            if (areAllSelected) {
-                catStr = 'Πλήρης Κατάλογος';
-            } else if (selectedCategories.length > 0) {
-                // List specific categories
-                if (selectedCategories.length <= 3) {
-                    catStr = selectedCategories.join(' & ');
-                } else {
-                    catStr = `${selectedCategories.slice(0, 2).join(', ')} & ${selectedCategories.length - 2} ακόμα`;
-                }
-            } else {
-                catStr = 'Επιλεγμένα Είδη'; // Fallback
+            if (!isAllGenders) {
+                const labels: string[] = [];
+                if (selectedGenders.includes(Gender.Men)) labels.push('Αντρικά');
+                if (selectedGenders.includes(Gender.Women)) labels.push('Γυναικεία');
+                if (selectedGenders.includes(Gender.Unisex)) labels.push('Unisex');
+                
+                if (labels.length === 2) genderPrefix = labels.join(' & ');
+                else genderPrefix = labels[0];
             }
 
-            if (excludeCollections) catStr += ' (Εκτός Συλλογών)';
-            title = `${catStr} - ${dateStr}`;
+            // Category Logic
+            let catStr = '';
+            const areAllCats = selectedCategories.length === allCategories.length && allCategories.length > 0;
+            
+            if (areAllCats) {
+                catStr = genderPrefix ? `${genderPrefix} Είδη` : 'Πλήρης Κατάλογος';
+            } else if (selectedCategories.length > 0) {
+                const formattedCats = selectedCategories.map(c => pluralizeCategory(c));
+                let catsList = '';
+                
+                if (formattedCats.length <= 3) {
+                    catsList = formattedCats.join(' & ');
+                } else {
+                    catsList = `${formattedCats.slice(0, 2).join(', ')} & ${formattedCats.length - 2} ακόμα`;
+                }
+
+                catStr = genderPrefix ? `${genderPrefix} ${catsList}` : catsList;
+            } else {
+                catStr = 'Επιλεγμένα Είδη';
+            }
+
+            title = catStr;
+            if (excludeCollections) filtersInfo = 'ΕΚΤΟΣ ΣΥΛΛΟΓΩΝ';
         }
         
         onPrint({
             title,
             subtitle,
             collectionNames,
+            filtersInfo,
             items: filteredItems,
             date: dateStr
         });
