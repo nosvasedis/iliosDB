@@ -30,7 +30,8 @@ export default function PriceListPrintView({ data }: Props) {
             {`
               @page {
                 size: A4;
-                margin: 10mm;
+                /* Increased bottom margin to 15mm to prevent content overlap with page numbers */
+                margin: 10mm 10mm 15mm 10mm; 
                 counter-increment: page;
                 
                 @bottom-right {
@@ -40,38 +41,8 @@ export default function PriceListPrintView({ data }: Props) {
                 }
               }
               
-              /* Fixed Footer for browsers that support it (like Chrome) */
-              .fixed-footer {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 30px;
-                background: white;
-                border-top: 1px solid #e2e8f0;
-                padding-top: 4px;
-                /* Padding to prevent cut-off on printers with margins */
-                padding-left: 15mm; 
-                padding-right: 15mm;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-size: 9px;
-                color: #64748b;
-                z-index: 1000;
-              }
-              
-              /* Padding to prevent content overlap with footer */
               body {
-                padding-bottom: 40px; 
-              }
-              
-              /* Attempt to show page number via CSS counter (Standard) */
-              .page-number {
-                  white-space: nowrap;
-              }
-              .page-number::after {
-                content: "Σελίδα " counter(page);
+                padding-bottom: 0; 
               }
             `}
             </style>
@@ -168,12 +139,6 @@ export default function PriceListPrintView({ data }: Props) {
                         </div>
                     );
                 })}
-            </div>
-
-            {/* FIXED FOOTER WITH PAGE NUMBER */}
-            <div className="fixed-footer print:flex hidden">
-                <span className="font-bold">Ilios Kosmima ERP</span>
-                <span className="page-number"></span>
             </div>
         </div>
     );
