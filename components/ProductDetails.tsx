@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier } from '../types';
+import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight } from 'lucide-react';
@@ -33,6 +33,170 @@ interface Props {
   allMolds: Mold[];
   viewMode?: 'registry' | 'warehouse';
 }
+
+// --- RECIPE ITEM SELECTOR MODAL ---
+const RecipeItemSelectorModal = ({
+    type, productCategory, allMaterials, allProducts, onClose, onSelect
+}: {
+    type: 'raw' | 'component',
+    productCategory: string,
+    allMaterials: Material[],
+    allProducts: Product[],
+    onClose: () => void,
+    onSelect: (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => void
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
+        'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
+        'Σκουλαρίκια': { types: [MaterialType.Stone], names: ['ζιργκόν', 'πεταλούδα', 'καρφωτάκι'] },
+        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Leather], names: ['κούμπωμα', 'δέρμα'] },
+        'Μενταγιόν': { types: [MaterialType.Leather], names: ['κρίκος', 'κρικάκι', 'κορδόνι'] },
+        'Σταυρός': { types: [], names: ['κρίκος', 'κρικάκι'] }
+    };
+
+    const { suggestions, others } = useMemo(() => {
+        const keywords = Object.entries(suggestionKeywords).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
+        
+        let allItems: any[] = [];
+        if (type === 'raw') {
+            allItems = [...allMaterials];
+        } else {
+            // Filter components only
+            allItems = allProducts.filter(p => p.is_component);
+        }
+
+        const suggestedItems: any[] = [];
+        const otherItems: any[] = [];
+        
+        allItems.forEach(item => {
+            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
+            
+            const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
+            if (isSuggested) {
+                suggestedItems.push(item);
+            } else {
+                otherItems.push(item);
+            }
+        });
+
+        const filterFn = (item: any) => {
+            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
+            const search = searchTerm.toLowerCase();
+            return name.includes(search) || description.includes(search);
+        };
+
+        return {
+            suggestions: suggestedItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
+            others: otherItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
+        };
+    }, [type, productCategory, allMaterials, allProducts, searchTerm]);
+
+    const handleSelect = (item: any) => {
+        if (type === 'raw') {
+            onSelect({ type: 'raw', id: item.id });
+        } else {
+            onSelect({ type: 'component', sku: item.sku });
+        }
+    };
+    
+    const renderListItem = (item: any) => {
+        const isComponent = type === 'component';
+        const name = isComponent ? item.sku : item.name;
+        const description = isComponent ? item.description : null;
+        const imageUrl = isComponent ? item.image_url : null;
+        // Cost formatting
+        const cost = isComponent 
+            ? `${(item.active_price || 0).toFixed(2)}€` 
+            : `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}`;
+        
+        const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;
+
+        return (
+            <div
+                key={item.id || item.sku}
+                onClick={() => handleSelect(item)}
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors border border-transparent hover:border-emerald-100 group"
+            >
+                <div className="w-12 h-12 shrink-0 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center relative">
+                    {imageUrl ? (
+                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="text-slate-400">{icon}</div>
+                    )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="font-bold text-slate-800 text-sm truncate">{name}</div>
+                        {isComponent && item.category && (
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[100px]">{item.category}</span>
+                        )}
+                    </div>
+                    
+                    {description ? (
+                        <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
+                    ) : (
+                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : item.type}</div>
+                    )}
+                    
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
+                </div>
+
+                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
+                   <Plus size={16}/>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col h-[70vh] animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"><X size={20}/></button>
+                </div>
+                <div className="p-4 border-b border-slate-100">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                        <input
+                            type="text"
+                            placeholder={type === 'component' ? "Αναζήτηση SKU ή Περιγραφής..." : "Αναζήτηση..."}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            autoFocus
+                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    {suggestions.length > 0 && (
+                        <div className="mb-6">
+                            <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2 ml-2">Προτεινόμενα</h4>
+                            <div className="space-y-1">
+                                {suggestions.map(renderListItem)}
+                            </div>
+                        </div>
+                    )}
+                    {(suggestions.length > 0 || searchTerm) && (
+                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 ml-2">Όλα</h4>
+                    )}
+                    <div className="space-y-1">
+                        {others.map(renderListItem)}
+                    </div>
+                    {suggestions.length === 0 && others.length === 0 && (
+                         <div className="text-center text-slate-400 py-10">
+                             <p>Δεν βρέθηκαν αποτελέσματα.</p>
+                         </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
     // ... (unchanged)
@@ -331,6 +495,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
   const [isEditingSku, setIsEditingSku] = useState(false);
   const [tempSku, setTempSku] = useState(product.sku);
   const [isRenaming, setIsRenaming] = useState(false);
+
+  // Modal State
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
 
   const [editedProduct, setEditedProduct] = useState<Product>(() => {
     const initialLabor: Partial<LaborCost> = product.labor || {};
@@ -784,26 +951,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
       showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
   };
 
-  const addRecipeItem = (type: 'raw' | 'component') => {
+  const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
     let newItem: RecipeItem;
-    if (type === 'raw') {
-        if (!allMaterials || allMaterials.length === 0) {
-            showToast("Δεν υπάρχουν διαθέσιμα υλικά.", "error");
-            return;
-        }
-        newItem = { type: 'raw', id: allMaterials[0].id, quantity: 1 };
+    if (item.type === 'raw') {
+        newItem = { type: 'raw', id: item.id, quantity: 1 };
     } else {
-        const stxProducts = allProducts.filter(p => p.is_component);
-        if (stxProducts.length === 0) {
-            showToast("Δεν υπάρχουν διαθέσιμα εξαρτήματα (STX).", "error");
-            return;
-        }
-        newItem = { type: 'component', sku: stxProducts[0].sku, quantity: 1 };
+        newItem = { type: 'component', sku: item.sku, quantity: 1 };
     }
     setEditedProduct(prev => ({
         ...prev,
         recipe: [...prev.recipe, newItem]
     }));
+    setIsRecipeModalOpen(false);
   };
 
   const updateRecipeItem = (index: number, field: string, value: any) => {
@@ -1192,6 +1351,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
   return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
+        {isRecipeModalOpen && (
+            <RecipeItemSelectorModal 
+                type={isRecipeModalOpen}
+                productCategory={editedProduct.category}
+                allMaterials={allMaterials}
+                allProducts={allProducts}
+                onClose={() => setIsRecipeModalOpen(false)}
+                onSelect={handleSelectRecipeItem}
+            />
+        )}
         {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
         <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
@@ -1715,8 +1884,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                        );
                                    })}
                                    <div className="flex gap-2 pt-4">
-                                       <button onClick={() => addRecipeItem('raw')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Υλικό</button>
-                                       <button onClick={() => addRecipeItem('component')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Εξάρτημα</button>
+                                       <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Υλικό</button>
+                                       <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Εξάρτημα</button>
                                    </div>
                                </div>
                            )}
