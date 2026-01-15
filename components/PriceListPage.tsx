@@ -161,7 +161,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         return next;
                     });
                     setExcludeInput('');
-                    showToast(`Αφαιρέθηκαν ${expanded.length} κωδικοί από τη λίστα.`, 'success');
+                    showToast(`Αφαιρέθηκε ${expanded.length} κωδικοί από τη λίστα.`, 'success');
                     return;
                 }
             }
@@ -307,19 +307,14 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         let filtersInfo: string | undefined = undefined;
 
         if (selectedCollectionIds.length > 0) {
-            // Smart Title for Collections
-            if (selectedCollectionIds.length === 1) {
-                const collectionName = collections.find(c => c.id === selectedCollectionIds[0])?.name;
-                title = `${collectionName}`; 
-            } else {
-                title = `${selectedCollectionIds.length} Επιλεγμένες Συλλογές`;
-                // Generate comma separated names for subtitle
-                collectionNames = collections
-                    .filter(c => selectedCollectionIds.includes(c.id))
-                    .map(c => c.name)
-                    .join(', ');
-            }
-            subtitle = `Συλλογές • ` + subtitle;
+            // Join all selected collection names for the main title
+            title = collections
+                .filter(c => selectedCollectionIds.includes(c.id))
+                .map(c => c.name)
+                .join(', ');
+            
+            // Explicitly undefined so the View does not render the secondary subtitle line
+            collectionNames = undefined; 
         } else {
             // Gender Logic
             const isAllGenders = selectedGenders.length === 3 || selectedGenders.length === 0;
