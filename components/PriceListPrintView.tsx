@@ -25,12 +25,12 @@ interface Props {
 
 export default function PriceListPrintView({ data }: Props) {
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-inside-avoid break-inside-avoid relative">
+        <div className="bg-white text-slate-900 font-sans w-[210mm] mx-auto shadow-lg p-8 print:p-0 print:shadow-none print:w-full relative">
             <style>
             {`
               @page {
                 size: A4;
-                /* Increased bottom margin to 15mm to prevent content overlap with page numbers */
+                /* Margins define the printable area */
                 margin: 10mm 10mm 15mm 10mm; 
                 counter-increment: page;
                 
@@ -41,8 +41,12 @@ export default function PriceListPrintView({ data }: Props) {
                 }
               }
               
-              body {
-                padding-bottom: 0; 
+              html, body {
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
               }
             `}
             </style>
