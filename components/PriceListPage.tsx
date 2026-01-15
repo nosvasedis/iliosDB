@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, Collection } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap } from 'lucide-react';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2 } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 
@@ -17,12 +17,14 @@ const genderOptions = [
     { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16}/> }
 ];
 
+type SidebarTab = 'filters' | 'collections' | 'manual';
+
 export default function PriceListPage({ products, collections, onPrint }: Props) {
     const { showToast } = useUI();
+    const [activeTab, setActiveTab] = useState<SidebarTab>('filters');
+
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-    
-    // Changed to array for multi-selection
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
     
     const [searchTerm, setSearchTerm] = useState('');
@@ -240,149 +242,206 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
-                {/* FILTERS PANEL */}
-                <div className="lg:col-span-4 flex flex-col gap-4 min-h-0">
-                    
-                    {/* Manual Override Section */}
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
-                            <Zap size={16} className="text-amber-500"/> Χειροκίνητη Προσθήκη
-                        </h3>
-                        <div className="flex gap-2">
-                            <input 
-                                type="text" 
-                                value={manualInput} 
-                                onChange={e => setManualInput(e.target.value)} 
-                                onKeyDown={e => e.key === 'Enter' && handleAddManualSku()}
-                                placeholder="SKU ή Εύρος (π.χ. MN050S-MN063S)" 
-                                className="flex-1 p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
-                            />
-                            <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors">
-                                <Plus size={20}/>
-                            </button>
-                        </div>
-                        
-                        {(manualSkus.length > 0 || excludedSkus.size > 0) && (
-                            <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                                {manualSkus.length > 0 && (
-                                    <button onClick={() => setManualSkus([])} className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-100">
-                                        Καθαρισμός Added ({manualSkus.length}) <X size={10}/>
-                                    </button>
-                                )}
-                                {excludedSkus.size > 0 && (
-                                    <button onClick={() => setExcludedSkus(new Set())} className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-rose-100">
-                                        Καθαρισμός Excluded ({excludedSkus.size}) <X size={10}/>
-                                    </button>
-                                )}
-                            </div>
-                        )}
+                {/* CONTROLS PANEL (LEFT) */}
+                <div className="lg:col-span-4 flex flex-col bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                    {/* TABS HEADER */}
+                    <div className="flex border-b border-slate-100 p-2 gap-2 bg-slate-50/50">
+                        <button 
+                            onClick={() => setActiveTab('filters')} 
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'filters' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <ListFilter size={16}/> Φίλτρα
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('collections')} 
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'collections' ? 'bg-white shadow-sm text-pink-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <FolderKanban size={16}/> Συλλογές
+                            {selectedCollectionIds.length > 0 && <span className="w-2 h-2 bg-pink-500 rounded-full"/>}
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('manual')} 
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <PenTool size={16}/> Επιλογή
+                            {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full"/>}
+                        </button>
                     </div>
 
-                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex-1 flex flex-col overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 bg-white">
-                            <div className="flex items-center gap-2 font-bold text-slate-800 text-lg">
-                                <Filter size={20} className="text-indigo-600" /> Φίλτρα
-                            </div>
-                        </div>
+                    {/* TAB CONTENT */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative">
+                        
+                        {/* TAB 1: FILTERS */}
+                        {activeTab === 'filters' && (
+                            <div className={`space-y-8 transition-opacity duration-300 ${selectedCollectionIds.length > 0 ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
+                                {selectedCollectionIds.length > 0 && (
+                                    <div className="bg-pink-50 text-pink-700 text-xs font-bold p-3 rounded-xl border border-pink-100 text-center">
+                                        Έχετε επιλέξει συλλογές. Τα φίλτρα κατηγοριών αγνοούνται.
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Φύλο</label>
+                                    <div className="flex gap-2">
+                                        {genderOptions.map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => toggleGender(opt.value)}
+                                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                            >
+                                                {selectedGenders.includes(opt.value) ? <CheckSquare size={14}/> : <Square size={14}/>}
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-                        <div className={`flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar transition-opacity duration-300 ${selectedCollectionIds.length > 0 ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
-                            <div className="space-y-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Φύλο</label>
-                                <div className="flex gap-2">
-                                    {genderOptions.map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => toggleGender(opt.value)}
-                                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                                        >
-                                            {selectedGenders.includes(opt.value) ? <CheckSquare size={14}/> : <Square size={14}/>}
-                                            {opt.label}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Κατηγορίες</label>
+                                        <button onClick={toggleAllCategories} className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors">
+                                            {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
                                         </button>
-                                    ))}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {allCategories.map(cat => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => toggleCategory(cat)}
+                                                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50 border border-transparent'}`}
+                                            >
+                                                <div className={`w-5 h-5 rounded flex items-center justify-center transition-all shrink-0 ${selectedCategories.includes(cat) ? 'bg-indigo-600 text-white' : 'border-2 border-slate-200 bg-white'}`}>
+                                                    {selectedCategories.includes(cat) && <Check size={14} strokeWidth={3} />}
+                                                </div>
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
+                        )}
 
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block">Κατηγορίες</label>
-                                    <button onClick={toggleAllCategories} className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors">
-                                        {selectedCategories.length === allCategories.length ? 'Αποεπιλογή Όλων' : 'Επιλογή Όλων'}
-                                    </button>
-                                </div>
-                                <div className="space-y-1.5">
-                                    {allCategories.map(cat => (
-                                        <button
-                                            key={cat}
-                                            onClick={() => toggleCategory(cat)}
-                                            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50 border border-transparent'}`}
-                                        >
-                                            <div className={`w-5 h-5 rounded flex items-center justify-center transition-all shrink-0 ${selectedCategories.includes(cat) ? 'bg-indigo-600 text-white' : 'border-2 border-slate-200 bg-white'}`}>
-                                                {selectedCategories.includes(cat) && <Check size={14} strokeWidth={3} />}
-                                            </div>
-                                            {cat}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                                <input 
-                                    type="text" 
-                                    placeholder="Αναζήτηση κωδικού..." 
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                                />
-                            </div>
-                            
-                            {/* MULTI-SELECT COLLECTIONS */}
-                            <div>
+                        {/* TAB 2: COLLECTIONS */}
+                        {activeTab === 'collections' && (
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2 opacity-60">
                                         <FolderKanban size={14} className="text-slate-500"/>
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Συλλογές (Override)</span>
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Επιλογή Συλλογών</span>
                                     </div>
                                     {selectedCollectionIds.length > 0 && (
-                                        <button onClick={() => setSelectedCollectionIds([])} className="text-[9px] text-blue-500 font-bold hover:underline">
+                                        <button onClick={() => setSelectedCollectionIds([])} className="text-[9px] text-pink-500 font-bold hover:underline">
                                             Καθαρισμός
                                         </button>
                                     )}
                                 </div>
-                                
-                                <div className="max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                <div className="space-y-2">
                                     {collections.length > 0 ? collections.map(c => {
                                         const isSelected = selectedCollectionIds.includes(c.id);
                                         return (
                                             <button 
                                                 key={c.id} 
                                                 onClick={() => toggleCollection(c.id)}
-                                                className={`w-full text-left p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border ${isSelected ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                className={`w-full text-left p-3 rounded-xl text-sm font-bold transition-all flex items-center justify-between border ${isSelected ? 'bg-pink-50 border-pink-200 text-pink-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                             >
                                                 <span>{c.name}</span>
-                                                {isSelected && <Check size={12} className="text-indigo-600"/>}
+                                                {isSelected && <Check size={16} className="text-pink-600"/>}
                                             </button>
                                         );
                                     }) : (
-                                        <div className="text-xs text-slate-400 italic">Δεν υπάρχουν συλλογές.</div>
+                                        <div className="text-xs text-slate-400 italic text-center py-10">Δεν υπάρχουν συλλογές.</div>
                                     )}
                                 </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* TAB 3: MANUAL */}
+                        {activeTab === 'manual' && (
+                            <div className="space-y-6">
+                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                                    <h3 className="font-bold text-amber-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
+                                        <Zap size={14}/> Χειροκίνητη Προσθήκη
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={manualInput} 
+                                            onChange={e => setManualInput(e.target.value)} 
+                                            onKeyDown={e => e.key === 'Enter' && handleAddManualSku()}
+                                            placeholder="SKU ή Εύρος (π.χ. MN050-MN063)" 
+                                            className="flex-1 p-2.5 border border-amber-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                        />
+                                        <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors shadow-sm">
+                                            <Plus size={20}/>
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-amber-600/70 mt-2">
+                                        Οι κωδικοί που προσθέτετε εδώ θα εμφανίζονται πάντα, ανεξάρτητα από τα φίλτρα.
+                                    </p>
+                                </div>
+
+                                {(manualSkus.length > 0 || excludedSkus.size > 0) && (
+                                    <div className="space-y-4">
+                                        {manualSkus.length > 0 && (
+                                            <div>
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-xs font-bold text-blue-600 uppercase">Προστέθηκαν ({manualSkus.length})</span>
+                                                    <button onClick={() => setManualSkus([])} className="text-[10px] text-slate-400 hover:text-red-500"><Trash2 size={12}/></button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {manualSkus.map(sku => (
+                                                        <span key={sku} className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                                            {sku}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {excludedSkus.size > 0 && (
+                                            <div>
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-xs font-bold text-red-600 uppercase">Αφαιρέθηκαν ({excludedSkus.size})</span>
+                                                    <button onClick={() => setExcludedSkus(new Set())} className="text-[10px] text-slate-400 hover:text-red-500"><Trash2 size={12}/></button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {Array.from(excludedSkus).map(sku => (
+                                                        <span key={sku} className="text-[10px] font-mono font-bold bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100 line-through decoration-red-400">
+                                                            {sku}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* PREVIEW PANEL */}
+                {/* PREVIEW PANEL (RIGHT) */}
                 <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-full">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                        <h2 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-                            <Layers size={20} className="text-indigo-500"/> Προεπισκόπηση Εκτύπωσης
-                        </h2>
-                        <span className="bg-indigo-100 text-indigo-800 px-4 py-1.5 rounded-full text-xs font-bold">
-                            {filteredItems.length} Κωδικοί
-                        </span>
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 gap-4">
+                        <div className="flex items-center gap-2">
+                            <Layers size={20} className="text-indigo-500"/> 
+                            <span className="font-bold text-slate-800 text-lg hidden sm:inline">Προεπισκόπηση</span>
+                            <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-bold">
+                                {filteredItems.length}
+                            </span>
+                        </div>
+                        
+                        {/* SEARCH IN PREVIEW HEADER */}
+                        <div className="relative flex-1 max-w-xs">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                            <input 
+                                type="text" 
+                                placeholder="Αναζήτηση στη λίστα..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 p-2 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                            />
+                        </div>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
