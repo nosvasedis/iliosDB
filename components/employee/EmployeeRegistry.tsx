@@ -1,11 +1,11 @@
-
 import React, { useState, useMemo } from 'react';
 import { Product, Warehouse, Gender, Material, MaterialType, PlatingType, ProductVariant } from '../../types';
-import { Search, Filter, ImageIcon, Tag, Layers, ChevronLeft, ChevronRight, User, Users, Palette, Gem } from 'lucide-react';
+import { Search, Filter, ImageIcon, Tag, Layers, ChevronLeft, ChevronRight, User, Users, Palette, Gem, Weight, BookOpen, TrendingUp, Coins } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { formatCurrency, getVariantComponents, calculateProductCost, estimateVariantCost } from '../../utils/pricingEngine';
 import EmployeeProductDetails from './EmployeeProductDetails';
+import { useUI } from '../UIProvider';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -156,7 +156,11 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
     // Extract categories dynamically
     const categories = useMemo<string[]>(() => {
         if (!products) return ['All'];
-        const cats = new Set(products.map(p => p.category).filter(Boolean));
+        // Explicitly typed Set to avoid inference issues
+        const cats = new Set<string>();
+        products.forEach(p => {
+            if (p.category) cats.add(p.category);
+        });
         return ['All', ...Array.from(cats).sort()];
     }, [products]);
     const [selectedCategory, setSelectedCategory] = useState('All');

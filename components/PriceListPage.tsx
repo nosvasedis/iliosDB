@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, Collection } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2, Minus } from 'lucide-react';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2, Minus, FolderX } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 
@@ -36,6 +36,9 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const [selectedGenders, setSelectedGenders] = useState<string[]>([Gender.Women, Gender.Men, Gender.Unisex]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
+    
+    // New Toggle State
+    const [excludeCollections, setExcludeCollections] = useState(false);
     
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -214,6 +217,12 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     // Fallback to standard filters if no collection is selected
                     shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category);
                 }
+
+                // EXCLUDE COLLECTIONS LOGIC
+                // Only applies if NOT manually added
+                if (shouldInclude && excludeCollections && p.collections && p.collections.length > 0) {
+                    shouldInclude = false;
+                }
             }
 
             if (searchTerm && !p.sku.includes(searchTerm.toUpperCase())) {
@@ -273,7 +282,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections]);
 
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
@@ -297,6 +306,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             subtitle = `Συλλογές • ` + subtitle;
         } else {
             let catStr = selectedCategories.length === allCategories.length ? 'Πλήρης Κατάλογος' : 'Επιλεγμένα Είδη';
+            if (excludeCollections) catStr += ' (Εκτός Συλλογών)';
             title = `${catStr} - ${dateStr}`;
         }
         
@@ -399,6 +409,25 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+
+                                {/* EXCLUDE COLLECTIONS TOGGLE */}
+                                <div className="pt-4 border-t border-slate-100">
+                                    <button
+                                        onClick={() => setExcludeCollections(!excludeCollections)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all border ${excludeCollections ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <FolderX size={16} />
+                                            <span>Εξαίρεση Συλλογών</span>
+                                        </div>
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${excludeCollections ? 'bg-rose-500 border-rose-500' : 'border-slate-300'}`}>
+                                            {excludeCollections && <Check size={10} className="text-white" />}
+                                        </div>
+                                    </button>
+                                    <p className="text-[10px] text-slate-400 mt-2 px-1">
+                                        Απόκρυψη κωδικών που ανήκουν σε οποιαδήποτε συλλογή.
+                                    </p>
                                 </div>
                             </div>
                         )}
