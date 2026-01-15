@@ -43,13 +43,16 @@ export default function PriceListPrintView({ data }: Props) {
               /* Fixed Footer for browsers that support it (like Chrome) */
               .fixed-footer {
                 position: fixed;
-                bottom: 8mm; /* Moved up to avoid printer margin clipping */
+                bottom: 0;
                 left: 0;
                 right: 0;
                 height: 30px;
                 background: white;
                 border-top: 1px solid #e2e8f0;
                 padding-top: 4px;
+                /* Padding to prevent cut-off on printers with margins */
+                padding-left: 15mm; 
+                padding-right: 15mm;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
@@ -64,6 +67,9 @@ export default function PriceListPrintView({ data }: Props) {
               }
               
               /* Attempt to show page number via CSS counter (Standard) */
+              .page-number {
+                  white-space: nowrap;
+              }
               .page-number::after {
                 content: "Σελίδα " counter(page);
               }
