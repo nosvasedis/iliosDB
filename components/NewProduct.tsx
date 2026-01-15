@@ -27,8 +27,8 @@ const RecipeItemSelectorModal = ({
     const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
         'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
         'Σκουλαρίκια': { types: [MaterialType.Stone], names: ['ζιργκόν', 'πεταλούδα', 'καρφωτάκι'] },
-        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Chain, MaterialType.Leather], names: ['κούμπωμα', 'δέρμα'] },
-        'Μενταγιόν': { types: [MaterialType.Chain, MaterialType.Leather], names: ['κρίκος', 'κρικάκι', 'κορδόνι'] },
+        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Leather], names: ['κούμπωμα', 'δέρμα'] },
+        'Μενταγιόν': { types: [MaterialType.Leather], names: ['κρίκος', 'κρικάκι', 'κορδόνι'] },
         'Σταυρός': { types: [], names: ['κρίκος', 'κρικάκι'] }
     };
 
@@ -324,7 +324,6 @@ const getMaterialIcon = (type?: string) => {
     switch (type) {
         case 'Stone': return <Gem size={16} className="text-emerald-500" />;
         case 'Cord': return <Activity size={16} className="text-amber-600" />;
-        case 'Chain': return <Link size={16} className="text-slate-500" />;
         case 'Component': return <Puzzle size={16} className="text-blue-500" />;
         case 'Enamel': return <Palette size={16} className="text-rose-500" />;
         case 'Leather': return <Scroll size={16} className="text-amber-700" />;

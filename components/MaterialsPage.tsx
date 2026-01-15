@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, AlertTriangle, X, Box, Coins, Link, Activity, Puzzle, Edit, List, Palette, Layers, Search, Scroll, User, Users } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, Box, Activity, Puzzle, List, Palette, Layers, Search, Scroll, User, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -10,7 +10,6 @@ import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
     [MaterialType.Cord]: 'Κορδόνι',
-    [MaterialType.Chain]: 'Αλυσίδα',
     [MaterialType.Component]: 'Εξάρτημα',
     [MaterialType.Enamel]: 'Σμάλτο',
     [MaterialType.Leather]: 'Δέρμα'
@@ -192,7 +191,6 @@ export default function MaterialsPage({ settings }: Props) {
       switch (type) {
           case MaterialType.Stone: return <Gem size={16} className="text-emerald-500" />;
           case MaterialType.Cord: return <Activity size={16} className="text-amber-600" />;
-          case MaterialType.Chain: return <Link size={16} className="text-slate-500" />;
           case MaterialType.Component: return <Puzzle size={16} className="text-blue-500" />;
           case MaterialType.Enamel: return <Palette size={16} className="text-rose-500" />;
           case MaterialType.Leather: return <Scroll size={16} className="text-amber-700" />;
@@ -204,7 +202,6 @@ export default function MaterialsPage({ settings }: Props) {
       { id: 'ALL', label: 'Όλα', icon: Layers },
       { id: MaterialType.Stone, label: 'Πέτρες', icon: Gem },
       { id: MaterialType.Component, label: 'Εξαρτήματα', icon: Puzzle },
-      { id: MaterialType.Chain, label: 'Αλυσίδες', icon: Link },
       { id: MaterialType.Cord, label: 'Κορδόνια', icon: Activity },
       { id: MaterialType.Leather, label: 'Δέρματα', icon: Scroll },
       { id: MaterialType.Enamel, label: 'Σμάλτα', icon: Palette },
@@ -376,7 +373,6 @@ export default function MaterialsPage({ settings }: Props) {
                         </tr>
                     );
                   })}
-                  {/* @FIX: Renamed filteredInventory to filteredMaterials to fix undefined variable error. */}
                   {filteredMaterials.length === 0 && (
                     <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά.</span></td></tr>
                   )}

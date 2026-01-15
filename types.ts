@@ -8,7 +8,6 @@ export enum Gender {
 export enum MaterialType {
   Stone = 'Stone',
   Cord = 'Cord',
-  Chain = 'Chain',
   Component = 'Component',
   Enamel = 'Enamel',
   Leather = 'Leather'

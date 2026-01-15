@@ -9,7 +9,6 @@ import { Material, MaterialType, Mold } from '../../types';
 const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Stone]: 'Πέτρα',
     [MaterialType.Cord]: 'Κορδόνι',
-    [MaterialType.Chain]: 'Αλυσίδα',
     [MaterialType.Component]: 'Εξάρτημα',
     [MaterialType.Enamel]: 'Σμάλτο',
     [MaterialType.Leather]: 'Δέρμα'

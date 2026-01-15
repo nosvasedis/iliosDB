@@ -76,7 +76,6 @@ export const MOCK_MATERIALS: Material[] = [
   { id: '2', name: 'Ζιργκόν Μαύρο 2mm', type: MaterialType.Stone, cost_per_unit: 0.08, unit: 'Τεμ' },
   { id: '3', name: 'Κορδόνι Δερμάτινο Μαύρο', type: MaterialType.Cord, cost_per_unit: 0.50, unit: 'Τεμ' },
   { id: '4', name: 'Κούμπωμα Παπαγαλάκι 9mm', type: MaterialType.Component, cost_per_unit: 1.20, unit: 'Τεμ' }, // Generic bought component
-  { id: '5', name: 'Αλυσίδα Βενετσιάνα 45cm', type: MaterialType.Chain, cost_per_unit: 4.50, unit: 'Τεμ' },
 ];
 
 // Initial Mock Products
