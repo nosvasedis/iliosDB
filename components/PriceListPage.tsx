@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, Gender, Collection } from '../types';
-import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2 } from 'lucide-react';
+import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2, Minus } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 
@@ -43,6 +43,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const [manualSkus, setManualSkus] = useState<string[]>([]);
     const [excludedSkus, setExcludedSkus] = useState<Set<string>>(new Set());
     const [manualInput, setManualInput] = useState('');
+    const [excludeInput, setExcludeInput] = useState('');
 
     // Extract all unique categories
     const allCategories = useMemo(() => {
@@ -114,6 +115,47 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
 
         setManualSkus(prev => Array.from(new Set([...prev, upper])));
         setManualInput('');
+    };
+
+    const handleExcludeManualSku = () => {
+        if (!excludeInput.trim()) return;
+        const upper = excludeInput.trim().toUpperCase();
+        
+        // Range Logic
+        const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
+        const match = upper.match(rangeRegex);
+
+        if (match) {
+            const [, prefix1, num1Str, suffix1, prefix2, num2Str, suffix2] = match;
+            
+            if (prefix1 === prefix2 && suffix1 === suffix2) {
+                const start = parseInt(num1Str, 10);
+                const end = parseInt(num2Str, 10);
+                if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 500) {
+                    const expanded: string[] = [];
+                    const padding = num1Str.length;
+                    for (let i = start; i <= end; i++) {
+                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`);
+                    }
+                    setExcludedSkus(prev => {
+                        const next = new Set(prev);
+                        expanded.forEach(s => next.add(s));
+                        return next;
+                    });
+                    setExcludeInput('');
+                    showToast(`Αφαιρέθηκαν ${expanded.length} κωδικοί από τη λίστα.`, 'success');
+                    return;
+                }
+            }
+        }
+
+        setExcludedSkus(prev => {
+            const next = new Set(prev);
+            next.add(upper);
+            return next;
+        });
+        setExcludeInput('');
+        showToast(`Ο κωδικός ${upper} εξαιρέθηκε.`, 'success');
     };
 
     const toggleExclusion = (sku: string) => {
@@ -417,6 +459,28 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                     </div>
                                     <p className="text-[10px] text-amber-600/70 mt-2">
                                         Οι κωδικοί που προσθέτετε εδώ θα εμφανίζονται πάντα, ανεξάρτητα από τα φίλτρα.
+                                    </p>
+                                </div>
+
+                                <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                                    <h3 className="font-bold text-red-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
+                                        <Minus size={14}/> Χειροκίνητη Αφαίρεση
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={excludeInput} 
+                                            onChange={e => setExcludeInput(e.target.value)} 
+                                            onKeyDown={e => e.key === 'Enter' && handleExcludeManualSku()}
+                                            placeholder="SKU ή Εύρος (π.χ. MN050-MN063)" 
+                                            className="flex-1 p-2.5 border border-red-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-red-500/20 outline-none"
+                                        />
+                                        <button onClick={handleExcludeManualSku} className="bg-red-500 text-white p-2.5 rounded-xl hover:bg-red-600 transition-colors shadow-sm">
+                                            <Minus size={20}/>
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-red-600/70 mt-2">
+                                        Οι κωδικοί αυτοί θα αφαιρούνται πάντα από τη λίστα εκτύπωσης.
                                     </p>
                                 </div>
 

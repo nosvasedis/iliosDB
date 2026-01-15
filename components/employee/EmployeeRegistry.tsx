@@ -154,7 +154,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
     const [showFilters, setShowFilters] = useState(false);
 
     // Extract categories dynamically
-    const categories = useMemo(() => {
+    const categories = useMemo<string[]>(() => {
         if (!products) return ['All'];
         const cats = new Set(products.map(p => p.category).filter(Boolean));
         return ['All', ...Array.from(cats).sort()];
