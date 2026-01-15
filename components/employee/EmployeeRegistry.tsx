@@ -139,9 +139,10 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
 };
 
 export default function EmployeeRegistry({ setPrintItems }: Props) {
-    const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
-    const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    // Explicit type to prevent 'unknown' inference
+    const { data: products, isLoading } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: warehouses } = useQuery<Warehouse[]>({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+    const { data: materials } = useQuery<Material[]>({ queryKey: ['materials'], queryFn: api.getMaterials });
     
     const [search, setSearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -161,12 +162,12 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
     const [selectedCategory, setSelectedCategory] = useState('All');
 
     const filteredProducts = useMemo(() => {
-        if (!products) return [];
+        if (!products || !materials) return [];
         
         const productHasStones = (p: Product): boolean => {
             return p.recipe.some(item => {
                 if (item.type !== 'raw') return false;
-                const mat = materials?.find(m => m.id === item.id);
+                const mat = materials.find(m => m.id === item.id);
                 return mat?.type === MaterialType.Stone;
             });
         };

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw } from 'lucide-react';
@@ -134,7 +133,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
 
                         if (baseVariant) {
                             // If the product has a "Master/Lustre" variant (empty suffix),
-                            // we assume typing the SKU alone specifically targets this variant.
+                            // we assume typing the SKU alone refers specifically to that variant.
                             items.push({ 
                                 product: match.product, 
                                 variant: baseVariant, 
@@ -184,7 +183,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                 const logDetails = printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
                 setActionLogs(prev => [{
                     id: Date.now().toString(),
-                    type: 'PRINT',
+                    type: 'PRINT' as const,
                     timestamp: new Date().toISOString(),
                     summary: `${logDetails.reduce((a,b)=>a+b.qty,0)} Ετικέτες`,
                     details: logDetails
@@ -276,7 +275,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
             const logDetails = items.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
             setActionLogs(prev => [{
                 id: Date.now().toString(),
-                type: 'COMMIT',
+                type: 'COMMIT' as const,
                 timestamp: new Date().toISOString(),
                 summary: `Εισαγωγή (${logDetails.reduce((a,b)=>a+b.qty,0)} τμχ)`,
                 target: warehouseName,

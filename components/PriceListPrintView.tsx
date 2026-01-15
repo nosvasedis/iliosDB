@@ -5,10 +5,12 @@ import { APP_LOGO } from '../constants';
 export interface PriceListPrintData {
     title: string;
     subtitle: string;
+    collectionNames?: string; // New field for comma-separated collection names
     date: string;
     items: { 
         skuBase: string; 
         category: string;
+        collectionTag?: string; // New field for the discreet indicator
         priceGroups: {
             suffixes: string[];
             price: number;
@@ -27,7 +29,15 @@ export default function PriceListPrintView({ data }: Props) {
             <header className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-4 max-w-[75%]">
                     <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
-                    <h1 className="text-base font-black text-slate-800 uppercase tracking-tight leading-tight">{data.title}</h1>
+                    <div>
+                        <h1 className="text-base font-black text-slate-800 uppercase tracking-tight leading-tight">{data.title}</h1>
+                        {/* Secondary Title Line for Collections */}
+                        {data.collectionNames && (
+                            <p className="text-[9px] text-slate-500 font-medium mt-0.5 leading-tight italic">
+                                {data.collectionNames}
+                            </p>
+                        )}
+                    </div>
                 </div>
                 <div className="text-right flex-shrink-0 flex gap-6">
                     <div>
@@ -52,8 +62,14 @@ export default function PriceListPrintView({ data }: Props) {
                             className="flex justify-between items-baseline py-1 px-1 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[20px]"
                         >
                             {/* SKU - Shrink to fit but visible */}
-                            <div className="text-[11px] font-black text-slate-800 mr-1 shrink-0">
+                            <div className="text-[11px] font-black text-slate-800 mr-1 shrink-0 flex items-baseline gap-1">
                                 {item.skuBase}
+                                {/* Discreet Collection Indicator */}
+                                {item.collectionTag && (
+                                    <span className="text-[6px] font-bold text-slate-400 border border-slate-200 px-[2px] rounded-[2px] -translate-y-[1px] inline-block leading-none">
+                                        {item.collectionTag}
+                                    </span>
+                                )}
                             </div>
 
                             {/* PRICE GROUPS */}

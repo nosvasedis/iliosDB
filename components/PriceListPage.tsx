@@ -19,6 +19,16 @@ const genderOptions = [
 
 type SidebarTab = 'filters' | 'collections' | 'manual';
 
+// Helper to get initials (e.g. "Aegean Tales" -> "AT")
+const getCollectionInitials = (name: string) => {
+    return name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+};
+
 export default function PriceListPage({ products, collections, onPrint }: Props) {
     const { showToast } = useUI();
     const [activeTab, setActiveTab] = useState<SidebarTab>('filters');
@@ -120,9 +130,21 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             skuBase: string, 
             category: string, 
             variantMap: Record<string, number>,
-            isManual: boolean
+            isManual: boolean,
+            collectionTag?: string
         }>();
         
+        // Map collection IDs to Initials if multiple collections are selected
+        const multiCollectionMode = selectedCollectionIds.length > 1;
+        const collectionInitialsMap = new Map<number, string>();
+        if (multiCollectionMode) {
+            collections.forEach(c => {
+                if (selectedCollectionIds.includes(c.id)) {
+                    collectionInitialsMap.set(c.id, getCollectionInitials(c.name));
+                }
+            });
+        }
+
         products.forEach(p => {
             if (p.is_component) return;
             
@@ -130,13 +152,22 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             const isExcluded = excludedSkus.has(p.sku);
 
             let shouldInclude = false;
+            let tag: string | undefined = undefined;
 
             if (isManuallyInList) {
                 shouldInclude = true;
             } else if (!isExcluded) {
                 // Modified Logic: Check if product is in ANY of the selected collections
                 if (selectedCollectionIds.length > 0) {
-                    shouldInclude = p.collections?.some(id => selectedCollectionIds.includes(id)) || false;
+                    // Check if it belongs to one of the selected collections
+                    const matchedCollectionId = p.collections?.find(id => selectedCollectionIds.includes(id));
+                    if (matchedCollectionId) {
+                        shouldInclude = true;
+                        // If multiple collections selected, assign the tag
+                        if (multiCollectionMode) {
+                            tag = collectionInitialsMap.get(matchedCollectionId);
+                        }
+                    }
                 } else {
                     // Fallback to standard filters if no collection is selected
                     shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category);
@@ -172,7 +203,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         skuBase: p.sku,
                         category: p.category,
                         variantMap,
-                        isManual: isManuallyInList
+                        isManual: isManuallyInList,
+                        collectionTag: tag
                     });
                 }
             }
@@ -194,16 +226,18 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 skuBase: item.skuBase,
                 category: item.category,
                 isManual: item.isManual,
+                collectionTag: item.collectionTag,
                 priceGroups
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections]);
 
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
         let title = '';
         let subtitle = `${filteredItems.length} Κωδικοί`;
+        let collectionNames: string | undefined = undefined;
 
         if (selectedCollectionIds.length > 0) {
             // Smart Title for Collections
@@ -212,6 +246,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 title = `${collectionName} - ${dateStr}`;
             } else {
                 title = `${selectedCollectionIds.length} Επιλεγμένες Συλλογές - ${dateStr}`;
+                // Generate comma separated names for subtitle
+                collectionNames = collections
+                    .filter(c => selectedCollectionIds.includes(c.id))
+                    .map(c => c.name)
+                    .join(', ');
             }
             subtitle = `Συλλογές • ` + subtitle;
         } else {
@@ -222,6 +261,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         onPrint({
             title,
             subtitle,
+            collectionNames,
             items: filteredItems,
             date: dateStr
         });
@@ -263,7 +303,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             onClick={() => setActiveTab('manual')} 
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
-                            <PenTool size={16}/> Επιλογή
+                            <PenTool size={16}/> Manual
                             {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full"/>}
                         </button>
                     </div>
@@ -463,6 +503,12 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                 <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
                                                 {item.isManual && (
                                                     <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Manual</span>
+                                                )}
+                                                {/* Discreet Collection Tag in Preview */}
+                                                {item.collectionTag && (
+                                                    <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded">
+                                                        {item.collectionTag}
+                                                    </span>
                                                 )}
                                             </div>
                                             <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">{item.category}</span>
