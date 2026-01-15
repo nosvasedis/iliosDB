@@ -540,7 +540,7 @@ export const estimateVariantCost = (
 
     return { 
         total: roundPrice(totalCost), 
-        rawTotal: totalCost,
+        rawTotal: totalCost, 
         breakdown: { 
             silver: silverCost, 
             materials: parseFloat(materialsCost.toFixed(2)), 
@@ -698,6 +698,11 @@ export const analyzeSuffix = (suffix: string, gender?: Gender, plating?: Plating
         return finishName ? `${finishName} - ${stone.name}` : stone.name;
     }
     
+    // FIX: Return finishName even if suffix is empty (for Lustre variants)
+    if (finishName) {
+        return finishName;
+    }
+
     if (finish.code || suffix) {
         return finishName || null;
     }
