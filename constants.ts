@@ -1,10 +1,9 @@
 
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
-// Appended ?v=2 to force cache refresh on Cloudflare/Browser side
-export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png?v=2';
+export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
 
-export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/collapsed-logo.png?v=2';
+export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/collapsed-logo.png';
 
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {
@@ -100,6 +99,8 @@ export const MOCK_PRODUCTS: Product[] = [
     recipe: [
         { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 1.5,
       setter_cost: 0.5,
@@ -133,6 +134,8 @@ export const MOCK_PRODUCTS: Product[] = [
     recipe: [
       { type: 'raw', id: '1', quantity: 10 }
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 2.0,
       setter_cost: 3.5,
@@ -167,6 +170,8 @@ export const MOCK_PRODUCTS: Product[] = [
         { type: 'raw', id: '3', quantity: 1 }, 
         { type: 'component', sku: 'STX-505', quantity: 2 } 
     ],
+    // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
+    // @FIX: Add missing 'subcontract_cost' property.
     labor: {
       casting_cost: 5.0,
       setter_cost: 0,

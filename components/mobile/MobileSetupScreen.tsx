@@ -10,7 +10,6 @@ export default function MobileSetupScreen() {
     const [key, setKey] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
     const [mode, setMode] = useState<'cloud' | 'local'>('cloud');
-    const [logoError, setLogoError] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
 
@@ -47,17 +46,8 @@ export default function MobileSetupScreen() {
         <div className="min-h-screen bg-slate-50 flex flex-col p-6">
             <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
                 <div className="flex flex-col items-center mb-10">
-                     <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-4 p-4 overflow-hidden">
-                         {!logoError ? (
-                             <img 
-                                src={APP_ICON_ONLY} 
-                                alt="Logo" 
-                                className="w-full h-full object-contain"
-                                onError={() => setLogoError(true)}
-                             />
-                         ) : (
-                             <span className="text-amber-500 font-black text-3xl tracking-tighter">IL</span>
-                         )}
+                     <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-4 p-4">
+                         <img src={APP_ICON_ONLY} alt="Logo" className="w-full h-full object-contain"/>
                      </div>
                      <h1 className="text-2xl font-black text-slate-900">Ρύθμιση Ilios</h1>
                      <p className="text-slate-500 text-sm mt-1 font-medium">Επιλέξτε τρόπο λειτουργίας</p>

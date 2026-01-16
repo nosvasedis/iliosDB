@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { LayoutDashboard, ShoppingCart, BookOpen, Users, LogOut, Package, FolderKanban } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { APP_ICON_ONLY } from '../../constants';
@@ -26,7 +26,6 @@ const NavItem = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, la
 
 export default function SellerLayout({ children, activePage, onNavigate }: Props) {
   const { signOut } = useAuth();
-  const [logoError, setLogoError] = useState(false);
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-[#060b00] overflow-hidden">
@@ -37,16 +36,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
           {/* Centered Logo Button */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="w-10 h-10 bg-[#060b00] rounded-full flex items-center justify-center shadow-lg border-2 border-amber-400 overflow-hidden">
-                  {!logoError ? (
-                      <img 
-                          src={APP_ICON_ONLY} 
-                          alt="Logo" 
-                          className="w-6 h-6 object-contain" 
-                          onError={() => setLogoError(true)}
-                      />
-                  ) : (
-                      <span className="text-amber-500 font-black text-xs">IL</span>
-                  )}
+                  <img src={APP_ICON_ONLY} alt="Logo" className="w-6 h-6 object-contain" />
               </div>
           </div>
 
