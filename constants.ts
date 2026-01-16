@@ -3,9 +3,7 @@ import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, P
 
 export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
 
-// UPDATED: Pointing to 'app-icon.png' to force a fresh network request.
-// PLEASE UPLOAD your specific logo as 'app-icon.png' to your R2 bucket.
-export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/app-icon.png?v=999';
+export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/collapsed-logo.png';
 
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {
