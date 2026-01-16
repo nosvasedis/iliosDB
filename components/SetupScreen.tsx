@@ -14,6 +14,7 @@ export default function SetupScreen() {
     const [workerKey, setWorkerKey] = useState('2112Aris101!'); 
     const [geminiKey, setGeminiKey] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
+    const [logoError, setLogoError] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
 
@@ -62,8 +63,17 @@ export default function SetupScreen() {
         <div className="min-h-screen bg-[#060b00] flex items-center justify-center p-4 py-12">
             <div className="bg-white max-w-lg w-full rounded-3xl shadow-2xl p-8 border border-white/10 relative overflow-hidden flex flex-col gap-8">
                 <div className="flex flex-col items-center">
-                     <div className="w-16 h-16 bg-[#060b00] rounded-2xl flex items-center justify-center shadow-lg mb-4 border border-slate-700">
-                         <img src={APP_ICON_ONLY} alt="Logo" className="w-10 h-10 object-contain"/>
+                     <div className="w-16 h-16 bg-[#060b00] rounded-2xl flex items-center justify-center shadow-lg mb-4 border border-slate-700 overflow-hidden">
+                         {!logoError ? (
+                             <img 
+                                src={APP_ICON_ONLY} 
+                                alt="Logo" 
+                                className="w-10 h-10 object-contain"
+                                onError={() => setLogoError(true)}
+                             />
+                         ) : (
+                             <span className="text-amber-500 font-black text-2xl tracking-tighter">IL</span>
+                         )}
                      </div>
                      <h1 className="text-2xl font-black text-[#060b00]">Εκκίνηση Ilios ERP</h1>
                      <p className="text-slate-500 text-sm mt-1 text-center">Επιλέξτε τρόπο λειτουργίας για τη βάση δεδομένων σας.</p>

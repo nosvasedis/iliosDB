@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -220,6 +221,7 @@ function AppContent() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingItems, setPendingItems] = useState<any[]>([]);
+  const [logoError, setLogoError] = useState(false);
   
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -607,7 +609,18 @@ function AppContent() {
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <aside className={`fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl flex flex-col ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'md:w-20' : 'md:w-72'} border-r border-white/5`}>
           <div className={`p-6 flex items-center justify-center h-24 relative bg-black/20`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Icon" className="w-10 h-10 object-contain" />}
+            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : (
+                !logoError ? (
+                    <img 
+                        src={APP_ICON_ONLY} 
+                        alt="Icon" 
+                        className="w-10 h-10 object-contain" 
+                        onError={() => setLogoError(true)}
+                    />
+                ) : (
+                    <span className="text-amber-500 font-black text-xl">IL</span>
+                )
+            )}
             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-6"><X size={24} /></button>
           </div>
           <div className={`px-4 py-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>

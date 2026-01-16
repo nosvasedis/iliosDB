@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'ilios-erp-v1.14'; // Increment cache version to ensure new SW is installed
+const CACHE_NAME = 'ilios-erp-v1.15'; // Increment cache version to ensure new SW is installed
 
 // Critical static assets for initial load (Cache First)
 const CRITICAL_ASSETS = [
@@ -70,7 +70,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('SW: Pre-caching critical assets v1.14');
+      console.log('SW: Pre-caching critical assets v1.15');
       const assetsToCache = [...CRITICAL_ASSETS, ...LIB_ASSETS];
       await cache.addAll(assetsToCache).catch(error => {
           console.error('SW: Some critical assets failed to pre-cache:', error);

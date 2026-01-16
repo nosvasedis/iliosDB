@@ -57,6 +57,7 @@ const MobileNavItem = ({ icon, label, isActive, onClick }: { icon: React.ReactNo
 
 export default function EmployeeLayout({ children, activePage, onNavigate }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const { signOut, profile } = useAuth();
 
   const handleLogout = () => { 
@@ -70,7 +71,18 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         {/* DESKTOP SIDEBAR (Hidden on Mobile) */}
         <aside className={`hidden md:flex flex-col fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl ${isCollapsed ? 'w-20' : 'w-72'} border-r border-white/5`}>
           <div className={`p-6 flex items-center justify-center h-24 relative bg-black/20`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Icon" className="w-10 h-10 object-contain" />}
+            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : (
+                !logoError ? (
+                    <img 
+                        src={APP_ICON_ONLY} 
+                        alt="Icon" 
+                        className="w-10 h-10 object-contain" 
+                        onError={() => setLogoError(true)}
+                    />
+                ) : (
+                    <span className="text-amber-500 font-black text-xl">IL</span>
+                )
+            )}
           </div>
           
           <div className="px-4 py-4">
