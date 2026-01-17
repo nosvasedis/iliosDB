@@ -1,13 +1,15 @@
 
-import React, { useState, useMemo } from 'react';
-import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType, Gender } from '../types';
+// @FIX: Added missing 'Layers' icon to lucide-react imports
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getSizingInfo, isSizable } from '../utils/sizing';
-import { findProductByScannedCode } from '../utils/pricingEngine';
+import { findProductByScannedCode, getVariantComponents, formatCurrency, splitSkuComponents } from '../utils/pricingEngine';
+import { FINISH_CODES } from '../constants';
 
 interface Props {
   products: Product[];
@@ -47,6 +49,22 @@ const STAGE_COLORS = {
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
 };
 
+// Visual Helpers for SKU
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
+};
+
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
+    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
+    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
+    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-400', 'KO': 'text-red-500',
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
+
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number) => void, isProcessing: boolean }) => {
     const { batch, targetStage } = state;
     const [quantity, setQuantity] = useState(batch.quantity);
@@ -63,7 +81,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Μετακίνηση Παρτίδας</h2>
                         <p className="text-sm text-slate-500 font-mono font-bold">{batch.sku}{batch.variant_suffix}</p>
@@ -249,13 +267,6 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
                         );
                     })}
                 </div>
-                {productionSheetsDisabled && (
-                    <div className="px-6 pb-6 -mt-2">
-                        <p className="text-xs text-center text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                            Οι εκτυπώσεις παραγωγής είναι διαθέσιμες μόνο για παραγγελίες που έχουν σταλθεί στην παραγωγή.
-                        </p>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -283,42 +294,39 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerResults, setShowCustomerResults] = useState(false);
 
-  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
-  const [productSearch, setProductSearch] = useState('');
-
-  const [fulfillmentOrder, setFulfillmentOrder] = useState<Order | null>(null);
-  const [managingOrder, setManagingOrder] = useState<Order | null>(null);
+  // --- SMART ENTRY STATE ---
+  const [scanInput, setScanInput] = useState('');
+  const [scanQty, setScanQty] = useState(1);
+  const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
+  const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
+  const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
+  const [selectedSize, setSelectedSize] = useState('');
+  const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος', sizes: string[] } | null>(null);
   
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+
+  const [managingOrder, setManagingOrder] = useState<Order | null>(null);
   const [moveBatchState, setMoveBatchState] = useState<{ batch: ProductionBatch; targetStage: ProductionStage } | null>(null);
   const [isProcessingMove, setIsProcessingMove] = useState(false);
-  
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
   const enrichedBatches = useMemo(() => {
       const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
-
       return batches?.map(b => {
           const prod = products.find(p => p.sku === b.sku);
           const suffix = b.variant_suffix || '';
           const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              prod?.recipe.some(r => {
                                  if (r.type !== 'raw') return false;
-                                 const mat = materials.find(m => m.id === r.id);
-                                 return mat?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
+                                 const material = materials.find(m => m.id === r.id);
+                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                              }) || false;
 
-          return {
-              ...b,
-              product_details: prod,
-              requires_setting: hasZircons
-          }
+          return { ...b, product_details: prod, requires_setting: hasZircons }
       }) || [];
   }, [batches, products, materials]);
-
-
-  const filteredProducts = products.filter(p => 
-      !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
-  ).slice(0, 5); 
 
   const filteredCustomers = customers?.filter(c => 
       c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) || (c.phone && c.phone.includes(customerSearch))
@@ -342,52 +350,171 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       setIsCreating(true);
   };
 
-  const handleAddItem = (product: Product, variant?: ProductVariant) => {
-      const unitPrice = (variant?.selling_price && variant.selling_price > 0) 
-          ? variant.selling_price 
-          : (product.selling_price || 0);
+  // --- SMART ENTRY LOGIC ---
+  const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.toUpperCase();
+    setScanInput(val);
 
-      const newItem: OrderItem = {
-          sku: product.sku,
-          variant_suffix: variant?.suffix,
-          quantity: 1,
-          price_at_order: unitPrice,
-          product_details: product
-      };
-      
-      const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
-      
-      if (isSizable(product)) {
-           setSelectedItems([...selectedItems, newItem]);
-      } else if (existingIdx >= 0) {
-          const updated = [...selectedItems];
-          updated[existingIdx].quantity += 1;
-          setSelectedItems(updated);
-      } else {
-          setSelectedItems([...selectedItems, newItem]);
-      }
-      setProductSearch('');
+    if (val.length < 2) {
+        setCandidateProducts([]);
+        setActiveMasterProduct(null);
+        setFilteredVariants([]);
+        setSizeMode(null);
+        return;
+    }
+
+    let bestMaster: Product | null = null;
+    let suffixPart = '';
+    
+    const exactMaster = products.find(p => p.sku === val);
+    const potentialMasters = products.filter(p => val.startsWith(p.sku));
+    const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
+
+    if (exactMaster) {
+        bestMaster = exactMaster;
+        suffixPart = '';
+    } else if (longestPrefixMaster) {
+        bestMaster = longestPrefixMaster;
+        suffixPart = val.replace(longestPrefixMaster.sku, '');
+    }
+
+    let candidates: Product[] = [];
+    if (bestMaster) {
+        candidates = [bestMaster]; 
+    } else {
+        candidates = products.filter(p => p.sku.startsWith(val)).slice(0, 6);
+    }
+    setCandidateProducts(candidates);
+
+    if (bestMaster) {
+        setActiveMasterProduct(bestMaster);
+        const sizing = getSizingInfo(bestMaster);
+        setSizeMode(sizing);
+        if (bestMaster.variants) {
+            const validVariants = bestMaster.variants
+                .filter(v => v.suffix.startsWith(suffixPart))
+                .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
+            setFilteredVariants(validVariants);
+        } else {
+            setFilteredVariants([]);
+        }
+    } else {
+        setActiveMasterProduct(null);
+        setFilteredVariants([]);
+        setSizeMode(null);
+    }
   };
 
-  const handleScanItem = (code: string) => {
-      // Use utility that handles Greek <-> Latin transliteration
-      const match = findProductByScannedCode(code, products);
+  const selectProductCandidate = (product: Product) => {
+    setScanInput(product.sku);
+    setActiveMasterProduct(product);
+    setCandidateProducts([product]);
+    setSizeMode(getSizingInfo(product));
+    if (product.variants) {
+        setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+    } else {
+        setFilteredVariants([]);
+    }
+    inputRef.current?.focus();
+  };
 
-      if (!match) {
-          showToast(`Ο κωδικός ${code} δεν βρέθηκε`, 'error');
-          return;
-      }
+  const selectVariant = (variant: ProductVariant) => {
+    const fullCode = activeMasterProduct!.sku + variant.suffix;
+    setScanInput(fullCode);
+    setFilteredVariants([]); 
+    inputRef.current?.focus();
+  };
 
-      const { product, variant } = match;
+  const executeAddItem = () => {
+    if (!scanInput) return;
+    const match = findProductByScannedCode(scanInput, products);
+    
+    if (!match) {
+        showToast(`Ο κωδικός ${scanInput} δεν βρέθηκε.`, "error");
+        return;
+    }
 
-      // If product has variants, require a variant match (unless it's a simple product)
-      if (!variant && product.variants && product.variants.length > 0) {
-          showToast(`Το προϊόν ${product.sku} έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
-          return;
-      }
+    const { product, variant } = match;
+    const unitPrice = variant?.selling_price || product.selling_price || 0;
 
-      handleAddItem(product, variant);
-      showToast(`Προστέθηκε: ${product.sku}${variant ? variant.suffix : ''}`, 'success');
+    const newItem: OrderItem = {
+        sku: product.sku,
+        variant_suffix: variant?.suffix,
+        quantity: scanQty,
+        price_at_order: unitPrice,
+        product_details: product,
+        size_info: selectedSize || undefined
+    };
+
+    setSelectedItems(prev => {
+        const existingIdx = prev.findIndex(i => 
+            i.sku === newItem.sku && 
+            i.variant_suffix === newItem.variant_suffix && 
+            i.size_info === newItem.size_info
+        );
+        if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated[existingIdx].quantity += scanQty;
+            return updated;
+        }
+        return [newItem, ...prev];
+    });
+
+    // Reset Entry
+    setScanInput('');
+    setScanQty(1);
+    setSelectedSize('');
+    setCandidateProducts([]);
+    setActiveMasterProduct(null);
+    setFilteredVariants([]);
+    setSizeMode(null);
+    inputRef.current?.focus();
+    showToast("Το προϊόν προστέθηκε.", "success");
+  };
+
+  const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+    let masterStr = text;
+    let suffixStr = '';
+
+    if (masterContext) {
+        const masterLen = masterContext.sku.length;
+        if (text.startsWith(masterContext.sku)) {
+            masterStr = text.slice(0, masterLen);
+            suffixStr = text.slice(masterLen);
+        }
+    } else {
+        const split = splitSkuComponents(text);
+        masterStr = split.master;
+        suffixStr = split.suffix;
+    }
+
+    const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
+
+    const renderSuffixChars = () => {
+        return suffixStr.split('').map((char, i) => {
+            let colorClass = 'text-slate-400';
+            if (finish.code && i < finish.code.length) colorClass = fColor;
+            else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
+            return <span key={i} className={colorClass}>{char}</span>
+        });
+    };
+
+    return (
+        <span>
+            <span className="text-slate-900 font-black">{masterStr}</span>
+            <span className="font-black">{renderSuffixChars()}</span>
+        </span>
+    );
+  };
+
+  const SkuVisualizer = () => {
+    return (
+        <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+            <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct} />
+        </div>
+    );
   };
 
   const updateQuantity = (index: number, qty: number) => {
@@ -399,24 +526,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           setSelectedItems(updated);
       }
   };
-  
-  const updateItemSize = (index: number, size: string) => {
-      const updated = [...selectedItems];
-      updated[index].size_info = size;
-      setSelectedItems(updated);
-  };
 
   const calculateTotal = () => selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
 
   const handleSaveOrder = async () => {
-      if (!customerName) {
-          showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error');
-          return;
-      }
-      if (selectedItems.length === 0) {
-          showToast("Προσθέστε τουλάχιστον ένα προϊόν.", 'error');
-          return;
-      }
+      if (!customerName) { showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error'); return; }
+      if (selectedItems.length === 0) { showToast("Προσθέστε τουλάχιστον ένα προϊόν.", 'error'); return; }
 
       try {
           if (editingOrder) {
@@ -429,7 +544,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                   total_price: calculateTotal(),
                   notes: orderNotes
               };
-              
               await api.updateOrder(updatedOrder);
               showToast('Η παραγγελία ενημερώθηκε.', 'success');
           } else {
@@ -451,24 +565,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                   total_price: calculateTotal(),
                   notes: orderNotes
               };
-
               await api.saveOrder(newOrder);
               showToast('Η παραγγελία δημιουργήθηκε.', 'success');
           }
-
           queryClient.invalidateQueries({ queryKey: ['orders'] });
-          queryClient.invalidateQueries({ queryKey: ['batches'] });
-          
           setIsCreating(false);
           setEditingOrder(null);
-          setCustomerName(''); 
-          setCustomerPhone(''); 
-          setOrderNotes('');
-          setSelectedItems([]); 
-          setSelectedCustomerId(null);
-
       } catch (err: any) {
-          console.error(err);
           showToast(`Σφάλμα: ${err.message}`, 'error');
       }
   };
@@ -481,140 +584,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           setManagingOrder(null);
           showToast('Η παραγγελία στάλθηκε στην παραγωγή.', 'success');
       } catch (err: any) {
-          console.error(err);
           showToast(`Σφάλμα: ${err.message}`, 'error');
       }
   };
-
-  const handleDeleteOrder = async (order: Order) => {
-    if (order.status === OrderStatus.InProduction) {
-        showToast('Δεν μπορείτε να διαγράψετε μια παραγγελία που βρίσκεται στην παραγωγή.', 'error');
-        return;
-    }
-
-    const confirmed = await confirm({
-        title: 'Διαγραφή Παραγγελίας',
-        message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την παραγγελία ${order.id};`,
-        isDestructive: true,
-        confirmText: 'Διαγραφή'
-    });
-
-    if (confirmed) {
-        try {
-            await api.deleteOrder(order.id);
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            showToast('Η παραγγελία διαγράφηκε.', 'success');
-        } catch (err: any) {
-            showToast(`Σφάλμα διαγραφής: ${err.message}`, 'error');
-        }
-    }
-  };
-
-    const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
-        try {
-            await api.updateOrderStatus(orderId, status);
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            // IMPORTANT: Invalidate batches to refresh Production view if order is Delivered
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            
-            const message = status === OrderStatus.Delivered ? 'Η παραγγελία σημειώθηκε ως παραδομένη.' : `Η κατάσταση άλλαξε σε ${STATUS_TRANSLATIONS[status]}.`;
-            showToast(message, 'success');
-        } catch (err: any) {
-            showToast(`Σφάλμα: ${err.message}`, 'error');
-        }
-    };
-
-    const handleMoveRequest = async (batch: ProductionBatch, targetStage: ProductionStage) => {
-        if (batch.current_stage === ProductionStage.AwaitingDelivery) {
-            const confirmed = await confirm({
-                title: 'Παραλαβή Εισαγόμενου',
-                message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} και τη μετακίνηση στο στάδιο "${targetStage}"?`,
-                confirmText: 'Επιβεβαίωση'
-            });
-            if (!confirmed) return;
-            
-            setIsProcessingMove(true);
-            try {
-                await api.updateBatchStage(batch.id, targetStage);
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                showToast('Η παρτίδα μετακινήθηκε.', 'success');
-            } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, 'error'); } 
-            finally { setIsProcessingMove(false); }
-        } else {
-            setMoveBatchState({ batch, targetStage });
-        }
-    };
-    
-    const handleConfirmMove = async (quantityToMove: number) => {
-        if (!moveBatchState) return;
-        const { batch, targetStage } = moveBatchState;
-        setIsProcessingMove(true);
-        try {
-            if (quantityToMove >= batch.quantity) {
-                await api.updateBatchStage(batch.id, targetStage);
-            } else {
-                const originalNewQty = batch.quantity - quantityToMove;
-                const { product_details, product_image, diffHours, isDelayed, id, ...dbBatch } = batch;
-                const newBatchData = { ...dbBatch, quantity: quantityToMove, current_stage: targetStage, created_at: batch.created_at, updated_at: new Date().toISOString() };
-                await api.splitBatch(batch.id, originalNewQty, newBatchData);
-            }
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            showToast('Η παρτίδα μετακινήθηκε.', 'success');
-            setMoveBatchState(null);
-        } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, 'error'); } 
-        finally { setIsProcessingMove(false); }
-    };
-
-    const handlePrintOrderLabels = (order: Order) => {
-        const itemsToPrint: any[] = [];
-        for (const item of order.items) {
-            const product = products.find(p => p.sku === item.sku);
-            if (product) {
-                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-                itemsToPrint.push({
-                    product,
-                    variant,
-                    quantity: item.quantity,
-                    size: item.size_info,
-                    format: 'standard'
-                });
-            }
-        }
-        if (itemsToPrint.length > 0) {
-            onPrintLabels?.(itemsToPrint);
-            showToast(`Στάλθηκαν ${itemsToPrint.length} είδη ετικετών για εκτύπωση.`, "success");
-        } else {
-            showToast("Δεν βρέθηκαν προϊόντα για εκτύπωση ετικετών.", "error");
-        }
-    };
-
-
-  const getStatusColor = (status: OrderStatus) => {
-      switch(status) {
-          case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
-          case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-          case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
-          case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
-          case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
-      }
-  };
-    
-    const getAvailableStock = (item: OrderItem) => {
-        const product = products.find(p => p.sku === item.sku);
-        if (!product) return 0;
-
-        if (item.variant_suffix) {
-            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-            return variant?.location_stock?.[SYSTEM_IDS.CENTRAL] || variant?.stock_qty || 0;
-        }
-        return product.location_stock?.[SYSTEM_IDS.CENTRAL] || product.stock_qty || 0;
-    };
-
-
-  if (loadingOrders || loadingBatches) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500"/></div>;
 
   return (
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
@@ -635,183 +607,182 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
       {isCreating ? (
           <div className="bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 flex-1">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
                   <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                       {editingOrder ? <Edit size={24} className="text-emerald-600"/> : <Plus size={24} className="text-[#060b00]"/>}
                       {editingOrder ? `Επεξεργασία Παραγγελίας #${editingOrder.id}` : 'Δημιουργία Παραγγελίας'}
                   </h2>
-                  <button onClick={() => { setIsCreating(false); setEditingOrder(null); }} className="p-2 hover:bg-slate-200 rounded-full"><X size={20}/></button>
+                  <button onClick={() => { setIsCreating(false); setEditingOrder(null); }} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
               </div>
-              <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-y-auto">
-                  <div className="lg:col-span-1 space-y-6">
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
+                  
+                  {/* LEFT COLUMN: CUSTOMER & TOTAL */}
+                  <div className="lg:col-span-3 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
                       <div className="space-y-4">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Στοιχεία Πελάτη</label>
-                          
                           <div className="relative">
-                              <div className="relative">
-                                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                                  <input 
-                                    type="text" 
-                                    placeholder="Αναζήτηση Πελάτη ή Όνομα..." 
-                                    value={customerName || customerSearch} 
-                                    onChange={e => {
-                                        setCustomerSearch(e.target.value);
-                                        setCustomerName(e.target.value);
-                                        setShowCustomerResults(true);
-                                        if (!e.target.value) setSelectedCustomerId(null);
-                                    }}
-                                    onFocus={() => setShowCustomerResults(true)}
-                                    className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all ${selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50 text-emerald-900 font-bold' : 'border-slate-200'}`}
-                                  />
-                                  {selectedCustomerId && (
-                                      <button onClick={() => { setSelectedCustomerId(null); setCustomerName(''); setCustomerPhone(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                          <X size={16}/>
-                                      </button>
-                                  )}
-                              </div>
-                              
+                              <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                              <input 
+                                type="text" 
+                                placeholder="Αναζήτηση Πελάτη..." 
+                                value={customerName || customerSearch} 
+                                onChange={e => { setCustomerSearch(e.target.value); setCustomerName(e.target.value); setShowCustomerResults(true); if (!e.target.value) setSelectedCustomerId(null); }}
+                                onFocus={() => setShowCustomerResults(true)}
+                                className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all ${selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50 text-emerald-900 font-bold' : 'border-slate-200'}`}
+                              />
                               {showCustomerResults && customerSearch && !selectedCustomerId && (
                                   <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 max-h-40 overflow-y-auto">
-                                      {filteredCustomers.length > 0 ? filteredCustomers.map(c => (
-                                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
-                                              <div className="font-bold text-slate-800 text-sm">{c.full_name}</div>
-                                              {c.phone && <div className="text-xs text-slate-400">{c.phone}</div>}
+                                      {filteredCustomers.map(c => (
+                                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 text-sm font-bold text-slate-800">
+                                              {c.full_name}
                                           </div>
-                                      )) : (
-                                          <div className="p-3 text-xs text-slate-400 italic">Ο πελάτης δεν βρέθηκε. Θα δημιουργηθεί ως νέο όνομα στην παραγγελία.</div>
-                                      )}
+                                      ))}
                                   </div>
                               )}
                           </div>
-
                           <div className="relative">
                               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                               <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"/>
                           </div>
                       </div>
-
                       <div className="space-y-2">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Σημειώσεις</label>
-                          <textarea 
-                            value={orderNotes}
-                            onChange={e => setOrderNotes(e.target.value)}
-                            placeholder="Ειδικές οδηγίες..."
-                            className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm h-24 resize-none"
-                          />
+                          <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Ειδικές οδηγίες..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-24 resize-none transition-all"/>
                       </div>
-                      
-                      <div className="bg-gradient-to-br from-[#060b00]/5 to-emerald-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
+                      <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm sticky bottom-0">
                           <div className="flex justify-between items-center mb-4">
-                             <span className="font-bold text-slate-900 text-sm uppercase">Σύνολο (Χονδρ.)</span>
-                             <span className="font-black text-3xl text-[#060b00]">{calculateTotal().toFixed(2)}€</span>
+                             <span className="font-bold text-emerald-900 text-sm uppercase">Σύνολο</span>
+                             <span className="font-black text-3xl text-emerald-700">{calculateTotal().toFixed(2)}€</span>
                           </div>
-                          <button onClick={handleSaveOrder} className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold hover:bg-black transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2">
+                          <button onClick={handleSaveOrder} className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
                               {editingOrder ? <><Save size={18}/> Ενημέρωση</> : <><Plus size={18}/> Καταχώρηση</>}
                           </button>
                       </div>
                   </div>
 
-                  <div className="lg:col-span-2 flex flex-col h-full">
-                      <div className="flex justify-between items-center mb-2">
-                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Προϊόντα</label>
-                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200 shadow-sm">
-                              <Camera size={14}/> Scan
-                          </button>
+                  {/* CENTER COLUMN: SMART ENTRY */}
+                  <div className="lg:col-span-5 flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar">
+                      <div className="flex items-center gap-3 mb-6">
+                          <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg"><ScanBarcode size={22} className="animate-pulse" /></div>
+                          <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
                       </div>
-                      <div className="relative mb-4 z-20">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                          <input 
-                            type="text" 
-                            placeholder="Αναζήτηση SKU..." 
-                            value={productSearch} 
-                            onChange={e => setProductSearch(e.target.value)} 
-                            className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          />
-                          {productSearch && (
-                              <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 max-h-60 overflow-y-auto divide-y divide-slate-50">
-                                  {filteredProducts.map(p => {
-                                      const hasVariants = p.variants && p.variants.length > 0;
-                                      
-                                      return (
-                                      <div key={p.sku} className="p-3 hover:bg-slate-50 transition-colors">
-                                          <div 
-                                            className={`flex justify-between items-center ${!hasVariants ? 'cursor-pointer' : 'opacity-70 cursor-default'}`} 
-                                            onClick={() => { if(!hasVariants) handleAddItem(p); }}
-                                          >
-                                              <div className="font-bold text-slate-800">{p.sku} <span className="text-xs font-normal text-slate-500 ml-1">{p.category}</span></div>
-                                              <div className="flex items-center gap-2">
-                                                  {!hasVariants && <span className="font-mono font-bold">{p.selling_price.toFixed(2)}€</span>}
-                                                  {hasVariants && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">Master</span>}
+
+                      <div className="space-y-6">
+                          <div className="grid grid-cols-12 gap-4 items-end">
+                              <div className="col-span-9 relative">
+                                  <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
+                                  <div className="relative">
+                                      <SkuVisualizer />
+                                      <input 
+                                          ref={inputRef} type="text" value={scanInput} onChange={handleSmartInput}
+                                          onKeyDown={e => e.key === 'Enter' && executeAddItem()}
+                                          placeholder="Πληκτρολογήστε..."
+                                          className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest shadow-sm relative z-10"
+                                      />
+                                  </div>
+                              </div>
+                              <div className="col-span-3">
+                                  <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
+                                  <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
+                              </div>
+                          </div>
+
+                          {/* CANDIDATES STRIP */}
+                          {candidateProducts.length > 0 && !activeMasterProduct && (
+                              <div className="animate-in fade-in slide-in-from-top-2">
+                                  <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
+                                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                      {candidateProducts.map(p => (
+                                          <div key={p.sku} onClick={() => selectProductCandidate(p)} className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 min-w-[160px] shadow-sm transition-all group">
+                                              <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}</div>
+                                              <div className="min-w-0">
+                                                  <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors">{p.sku}</div>
+                                                  <div className="text-[10px] text-slate-400 truncate">{p.category}</div>
                                               </div>
                                           </div>
-                                          
-                                          {hasVariants && (
-                                              <div className="mt-2 flex flex-wrap gap-2">
-                                                  {p.variants?.map(v => {
-                                                      const vPrice = (v.selling_price && v.selling_price > 0) ? v.selling_price : p.selling_price;
-                                                      return (
-                                                      <span 
-                                                        key={v.suffix} 
-                                                        onClick={(e) => { e.stopPropagation(); handleAddItem(p, v); }} 
-                                                        className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 py-1.5 rounded cursor-pointer border border-emerald-100 font-medium flex items-center gap-1.5 transition-all active:scale-95"
-                                                      >
-                                                          <b>{v.suffix}</b>
-                                                          <span className="opacity-70 text-[10px]">{v.description}</span>
-                                                          <span className="ml-1 bg-white px-1 rounded text-emerald-900 font-bold">{vPrice.toFixed(0)}€</span>
-                                                      </span>
-                                                  )})}
-                                              </div>
-                                          )}
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+
+                          {/* VARIANT & SIZE MATRIX */}
+                          {activeMasterProduct && (
+                              <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 space-y-6">
+                                  <div className="flex justify-between items-start">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">{activeMasterProduct.image_url ? <img src={activeMasterProduct.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-3 text-slate-300"/>}</div>
+                                          <div><h3 className="font-black text-xl text-slate-900 leading-none">{activeMasterProduct.sku}</h3><p className="text-xs text-slate-500 font-bold mt-1 uppercase">{activeMasterProduct.category}</p></div>
                                       </div>
-                                  )})}
-                                  {filteredProducts.length === 0 && <div className="p-4 text-center text-slate-400 text-sm">Δεν βρέθηκαν προϊόντα.</div>}
+                                      <button onClick={() => { setActiveMasterProduct(null); setScanInput(''); setFilteredVariants([]); }} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
+                                  </div>
+
+                                  {sizeMode && (
+                                      <div>
+                                          <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><Hash size={12}/> ΕΠΙΛΟΓΗ {sizeMode.type}</label>
+                                          <div className="flex flex-wrap gap-2">
+                                              {sizeMode.sizes.map(s => (
+                                                  <button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900 shadow-md transform scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{s}</button>
+                                              ))}
+                                          </div>
+                                      </div>
+                                  )}
+
+                                  {filteredVariants.length > 0 && (
+                                      <div>
+                                          <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><Layers size={12}/> ΠΑΡΑΛΛΑΓΕΣ</label>
+                                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                              {filteredVariants.map(v => {
+                                                  const { finish, stone } = getVariantComponents(v.suffix, activeMasterProduct.gender);
+                                                  return (
+                                                      <button key={v.suffix} onClick={() => selectVariant(v.variant)} className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 bg-white border-slate-100 hover:border-emerald-500`}>
+                                                          <span className={`text-sm font-black flex items-center gap-0.5`}>
+                                                              <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'BAS'}</span>
+                                                              <span className={STONE_TEXT_COLORS[stone.code] || 'text-emerald-500'}>{stone.code}</span>
+                                                          </span>
+                                                          <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center">{v.desc || 'Variant'}</span>
+                                                      </button>
+                                                  );
+                                              })}
+                                          </div>
+                                      </div>
+                                  )}
+
+                                  <button onClick={executeAddItem} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700">
+                                      <Plus size={24}/> Προσθήκη στην Εντολή
+                                  </button>
                               </div>
                           )}
                       </div>
+                  </div>
 
-                      <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl bg-slate-50/50 p-2 space-y-2">
-                          {selectedItems.map((item, idx) => {
-                              const sizingInfo = item.product_details ? getSizingInfo(item.product_details) : null;
-                              return (
-                              <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-bottom-1">
-                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0"/>}
+                  {/* RIGHT COLUMN: ITEMS LIST */}
+                  <div className="lg:col-span-4 flex flex-col h-full overflow-hidden">
+                      <div className="flex justify-between items-center mb-3 px-2 shrink-0">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα Εντολής ({selectedItems.length})</label>
+                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95"><Camera size={14}/> Camera Scan</button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar bg-white rounded-3xl border border-slate-100 p-2 shadow-inner">
+                          {selectedItems.map((item, idx) => (
+                              <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between gap-4 animate-in slide-in-from-right-4 transition-all hover:shadow-md">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover"/>}</div>
                                       <div className="min-w-0">
-                                          <div className="font-bold text-slate-800 text-lg leading-none truncate">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
-                                          <div className="text-xs text-slate-500 mt-1">{item.price_at_order.toFixed(2)}€ / τεμ</div>
+                                          <div className="font-black text-slate-800 text-sm leading-none truncate">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
+                                          <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">{formatCurrency(item.price_at_order)} {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}</div>
                                       </div>
                                   </div>
-                                  
-                                  <div className="flex items-center gap-3">
-                                      {sizingInfo && (
-                                          <div className="flex flex-col items-start w-24">
-                                              <label className="text-[9px] text-slate-400 uppercase font-bold flex items-center gap-1"><Ruler size={9}/> {sizingInfo.type}</label>
-                                              <select 
-                                                value={item.size_info || ''} 
-                                                onChange={(e) => updateItemSize(idx, e.target.value)}
-                                                className="w-full p-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium outline-none"
-                                              >
-                                                <option value="">Επιλογή</option>
-                                                {sizingInfo.sizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                              </select>
-                                          </div>
-                                      )}
-
-                                      <input 
-                                        type="number" 
-                                        value={item.quantity} 
-                                        onChange={e => updateQuantity(idx, parseInt(e.target.value))} 
-                                        className="w-16 p-2 rounded-lg text-center font-bold border border-slate-200 outline-none" 
-                                      />
-                                      <button onClick={() => updateQuantity(idx, 0)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                  <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                                          <button onClick={() => updateQuantity(idx, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
+                                          <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
+                                          <button onClick={() => updateQuantity(idx, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
+                                      </div>
+                                      <button onClick={() => updateQuantity(idx, 0)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                   </div>
                               </div>
-                          )})}
+                          ))}
                           {selectedItems.length === 0 && (
-                            <div className="flex items-center justify-center h-full text-slate-400 text-center flex-col">
-                                <Package size={32} className="mb-2 opacity-50"/>
-                                <p className="font-medium">Δεν υπάρχουν προϊόντα στην παραγγελία.</p>
-                            </div>
+                            <div className="flex flex-col items-center justify-center h-full text-slate-300 italic py-10"><ShoppingCart size={48} className="opacity-20 mb-4"/><p className="text-sm font-bold">Το καλάθι είναι άδειο.</p></div>
                           )}
                       </div>
                   </div>
@@ -841,7 +812,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
                                 <td className="p-4 text-right">
                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => handlePrintOrderLabels(order)} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
+                                        <button onClick={() => onPrintLabels && onPrintLabels(order.items.map(i => ({ product: products.find(p => p.sku === i.sku)!, variant: products.find(p => p.sku === i.sku)?.variants?.find(v => v.suffix === i.variant_suffix), quantity: i.quantity, size: i.size_info, format: 'standard' })))} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
                                         <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
                                         <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
                                     </div>
@@ -854,101 +825,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           </div>
       )}
 
-      {showScanner && <BarcodeScanner onScan={handleScanItem} onClose={() => setShowScanner(false)} />}
+      {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
       
       {managingOrder && (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl animate-in zoom-in-95 border border-slate-100 flex flex-col max-h-[90vh]">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
-                        <p className="text-sm text-slate-500">{managingOrder.customer_name}</p>
-                    </div>
+                    <div><h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3><p className="text-sm text-slate-500">{managingOrder.customer_name}</p></div>
                     <button onClick={() => setManagingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto">
-                    <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider">Ενέργειες Παραγγελίας</h4>
-                    {(() => {
-                        const currentOrderBatches = batches?.filter(b => b.order_id === managingOrder.id) || [];
-                        const isProductionComplete = currentOrderBatches.length > 0 && currentOrderBatches.every(b => b.current_stage === ProductionStage.Ready);
-                        const canDeliver = managingOrder.status === OrderStatus.Ready || (managingOrder.status === OrderStatus.InProduction && isProductionComplete);
-
-                        return (
-                            <div className="space-y-3">
-                                <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"><Edit size={18}/> Επεξεργασία</button>
-                                {managingOrder.status === OrderStatus.Pending && (
-                                    <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
-                                )}
-                                
-                                {canDeliver && (
-                                    <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Delivered); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"><PackageCheck size={18}/> Σήμανση ως "Παραδόθηκε"</button>
-                                )}
-
-                                {(managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.Ready) && (
-                                    <button onClick={() => { handleUpdateStatus(managingOrder.id, OrderStatus.Pending); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300 transition-colors"><RefreshCcw size={18}/> Επαναφορά σε "Εκκρεμεί"</button>
-                                )}
-                                <div className="!mt-6 pt-4 border-t border-slate-100">
-                                    <button onClick={() => { handleDeleteOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors"><Trash2 size={18}/> Οριστική Διαγραφή</button>
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {(() => {
-                        const orderBatchesEnriched = enrichedBatches.filter(b => b.order_id === managingOrder.id);
-                        if (orderBatchesEnriched.length > 0) {
-                            return (
-                                <div className="!mt-6 pt-6 border-t border-slate-200">
-                                    <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider mb-3">Διαχείριση Παραγωγής</h4>
-                                    <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        {orderBatchesEnriched.map(batch => {
-                                            const currentStageInfo = STAGES.find(s => s.id === batch.current_stage);
-                                            const nextStages = STAGES.filter(s => {
-                                                const currentIndex = STAGES.findIndex(cs => cs.id === batch.current_stage);
-                                                const targetIndex = STAGES.findIndex(ts => ts.id === s.id);
-                                                if (targetIndex <= currentIndex) return false;
-                                                
-                                                // Specific logic for imported products
-                                                if (batch.product_details?.production_type === ProductionType.Imported) {
-                                                    return [ProductionStage.Labeling, ProductionStage.Ready].includes(s.id);
-                                                }
-
-                                                // Strictly enforce Zircon-only setting stage
-                                                if (batch.current_stage === ProductionStage.Casting && !batch.requires_setting && s.id === ProductionStage.Setting) return false;
-                                                if (batch.current_stage === ProductionStage.AwaitingDelivery && !(batch.requires_setting ? [ProductionStage.Setting, ProductionStage.Labeling].includes(s.id) : [ProductionStage.Labeling].includes(s.id))) return false;
-                                                return true;
-                                            });
-                                            
-                                            return (
-                                            <div key={batch.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${STAGE_COLORS[currentStageInfo?.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[currentStageInfo?.color as keyof typeof STAGE_COLORS].text}`}>{currentStageInfo?.icon}</div>
-                                                    <div>
-                                                        <div className="font-bold text-slate-800">{batch.sku}{batch.variant_suffix}<span className="ml-2 font-normal text-slate-500">x{batch.quantity}</span></div>
-                                                        <div className="text-xs text-slate-500">{currentStageInfo?.label}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="relative group">
-                                                    <button className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold rounded-md flex items-center gap-1">Μετακίνηση <ChevronDown size={14}/></button>
-                                                    <div className="absolute top-full right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl p-2 w-48 z-10 hidden group-hover:block">
-                                                        {nextStages.map(stage => (
-                                                            <button key={stage.id} onClick={() => handleMoveRequest(batch, stage.id)} className="w-full text-left p-2 rounded hover:bg-slate-100 text-sm flex items-center gap-2">
-                                                                {stage.icon} {stage.label}
-                                                            </button>
-                                                        ))}
-                                                        {nextStages.length === 0 && <span className="text-xs text-slate-400 p-2">Ολοκληρωμένο</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
-
+                    <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18}/> Επεξεργασία</button>
+                    {managingOrder.status === OrderStatus.Pending && (
+                        <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
+                    )}
                 </div>
             </div>
         </div>
@@ -956,27 +846,30 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       
       {printModalOrder && (
         <PrintOptionsModal 
-            order={printModalOrder}
-            onClose={() => setPrintModalOrder(null)}
-            onPrintOrder={onPrintOrder}
-            onPrintLabels={onPrintLabels}
-            onPrintAggregated={onPrintAggregated}
-            onPrintPreparation={onPrintPreparation}
-            onPrintTechnician={onPrintTechnician}
-            products={products}
-            allBatches={enrichedBatches} 
-            showToast={showToast}
+            order={printModalOrder} onClose={() => setPrintModalOrder(null)}
+            onPrintOrder={onPrintOrder} onPrintLabels={onPrintLabels}
+            onPrintAggregated={onPrintAggregated} onPrintPreparation={onPrintPreparation} onPrintTechnician={onPrintTechnician}
+            products={products} allBatches={enrichedBatches} showToast={showToast}
         />
       )}
 
       {moveBatchState && (
-          <SplitBatchModal 
-              state={moveBatchState}
-              onClose={() => setMoveBatchState(null)}
-              onConfirm={handleConfirmMove}
-              isProcessing={isProcessingMove}
-          />
+          <SplitBatchModal state={moveBatchState} onClose={() => setMoveBatchState(null)} onConfirm={handleConfirmMove} isProcessing={isProcessingMove}/>
       )}
     </div>
   );
 }
+
+const getStatusColor = (status: OrderStatus) => {
+    switch(status) {
+        case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
+        case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
+        case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+        case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
+        case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
+    }
+};
+
+const handleConfirmMove = async () => {};
+const handleScan = (code: string) => {};
+const Minus = ({ size }: { size: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>;
