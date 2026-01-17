@@ -13,7 +13,7 @@ export const SIZED_PREFIXES = {
 const RING_SIZES_MEN = Array.from({ length: 70 - 58 + 1 }, (_, i) => (58 + i).toString());
 const RING_SIZES_WOMEN = Array.from({ length: 62 - 48 + 1 }, (_, i) => (48 + i).toString());
 const BRACELET_SIZES_WOMEN = ['17cm', '19cm', '21cm'];
-const BRACELET_SIZES_MEN = ['19cm', '21cm', '23cm'];
+const BRACELET_SIZES_MEN = ['19cm', '21cm', '23cm', '25cm'];
 
 export function isSizable(product: { prefix: string, category?: string }): boolean {
     return getSizingInfo(product) !== null;
