@@ -3,7 +3,6 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus, Product, Material, ProductionBatch, ProductVariant } from '../../types';
-// @FIX: Added missing Loader2 import
 import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Factory, RefreshCcw, Tag, BookOpen, Hammer, FileText, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
@@ -94,8 +93,8 @@ const OrderCard: React.FC<{
                             </button>
                         )}
                         
-                        <button onClick={(e) => { e.stopPropagation(); onEdit(order); }} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95"><Edit size={14}/> Edit</button>
-                        <button onClick={(e) => { e.stopPropagation(); onDelete(order); }} className="flex items-center justify-center gap-2 bg-white border border-red-100 text-red-500 py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95"><Trash2 size={14}/> Delete</button>
+                        <button onClick={(e) => { e.stopPropagation(); onEdit(order); }} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95"><Edit size={14}/> Επεξεργασία</button>
+                        <button onClick={(e) => { e.stopPropagation(); onDelete(order); }} className="flex items-center justify-center gap-2 bg-white border border-red-100 text-red-500 py-2.5 rounded-xl text-xs font-bold shadow-sm active:scale-95"><Trash2 size={14}/> Διαγραφή</button>
                     </div>
 
                     {/* Print Actions */}
@@ -192,10 +191,11 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, products, mate
     const handleResetStatus = async (order: Order) => {
         if (await confirm({ title: 'Επαναφορά Κατάστασης', message: 'Η παραγγελία θα επιστρέψει σε "Εκκρεμεί" και οι παρτίδες παραγωγής της θα διαγραφούν. Συνέχεια;' })) {
             try {
+                // api.updateOrderStatus now correctly deletes batches for OrderStatus.Pending in lib/supabase.ts
                 await api.updateOrderStatus(order.id, OrderStatus.Pending);
                 await queryClient.invalidateQueries({ queryKey: ['orders'] });
                 await queryClient.invalidateQueries({ queryKey: ['batches'] });
-                showToast("Η κατάσταση επαναφέρθηκε.", "info");
+                showToast("Η κατάσταση επαναφέρθηκε και οι παρτίδες διαγράφηκαν.", "info");
             } catch (e) {
                 showToast("Σφάλμα.", "error");
             }

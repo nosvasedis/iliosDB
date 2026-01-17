@@ -142,7 +142,7 @@ export default function MobileProduction({ onPrintBatch, onPrintAggregated, onPr
                                             <div className="flex justify-between items-start">
                                                 <div className="flex gap-3">
                                                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">{batch.product_image ? <img src={batch.product_image} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}</div>
-                                                    <div><div className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</div><div className="text-[10px] font-bold text-slate-400">Qty: {batch.quantity}</div></div>
+                                                    <div><div className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</div><div className="text-[10px] font-bold text-slate-400">Ποσ: {batch.quantity}</div></div>
                                                 </div>
                                                 <button onClick={() => onPrintBatch?.(batch)} className="p-2 bg-slate-50 text-slate-400 rounded-lg"><Printer size={16}/></button>
                                             </div>
