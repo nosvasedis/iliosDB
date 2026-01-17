@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType, Gender } from '../types';
-// @FIX: Added missing 'Layers' icon to lucide-react imports
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -14,7 +13,7 @@ import { FINISH_CODES } from '../constants';
 interface Props {
   products: Product[];
   onPrintOrder?: (order: Order) => void;
-  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' }[]) => void;
+  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
   materials: Material[];
   onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
@@ -137,7 +136,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, on
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
-    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' }[]) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
@@ -718,7 +717,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
                                   {sizeMode && (
                                       <div>
-                                          <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><Hash size={12}/> ΕΠΙΛΟΓΗ {sizeMode.type}</label>
+                                          <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
+                                              <Hash size={12}/> ΕΠΙΛΟΓΗ {sizeMode.type} <span className="font-normal text-slate-300 normal-case">(Προαιρετικό)</span>
+                                          </label>
                                           <div className="flex flex-wrap gap-2">
                                               {sizeMode.sizes.map(s => (
                                                   <button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900 shadow-md transform scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{s}</button>
@@ -872,4 +873,3 @@ const getStatusColor = (status: OrderStatus) => {
 
 const handleConfirmMove = async () => {};
 const handleScan = (code: string) => {};
-const Minus = ({ size }: { size: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>;
