@@ -5,7 +5,7 @@ import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import QRCode from 'qrcode';
-import { ImageIcon, Phone, Mail, MapPin } from 'lucide-react';
+import { ImageIcon, Phone, Mail, MapPin, StickyNote } from 'lucide-react';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface Props {
@@ -119,7 +119,7 @@ export default function OrderInvoiceView({ order }: Props) {
                             const description = variant?.description || product?.category || 'Προϊόν';
 
                             return (
-                                <tr key={fullSku + item.size_info} className="border-b border-slate-100 break-inside-avoid">
+                                <tr key={index} className="border-b border-slate-100 break-inside-avoid">
                                     <td className="py-3 pr-2 text-center text-slate-600 font-bold">{index + 1}</td>
                                     <td className="py-3 px-2">
                                         <div className="w-12 h-12 bg-slate-100 rounded-md overflow-hidden border border-slate-200">
@@ -138,6 +138,11 @@ export default function OrderInvoiceView({ order }: Props) {
                                             {item.size_info && <span className="text-xs font-normal text-slate-600 bg-slate-100 px-1.5 rounded">({item.size_info})</span>}
                                         </div>
                                         <div className="text-slate-700 text-xs mt-0.5">{description}</div>
+                                        {item.notes && (
+                                            <div className="mt-1 flex items-center gap-1 text-emerald-700 font-bold italic text-[10px]">
+                                                <StickyNote size={10}/> {item.notes}
+                                            </div>
+                                        )}
                                         <div className="mt-1">
                                             <QRCodeImage sku={fullSku} />
                                         </div>
@@ -179,4 +184,3 @@ export default function OrderInvoiceView({ order }: Props) {
         </div>
     );
 }
-    

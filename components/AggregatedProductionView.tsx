@@ -2,7 +2,7 @@
 import React from 'react';
 import { AggregatedData } from '../App';
 import { APP_LOGO } from '../constants';
-import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight } from 'lucide-react';
+import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { GlobalSettings } from '../types';
 
@@ -105,7 +105,11 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                             {batch.product_details?.supplier_sku && (
                                                 <div className="text-[10px] text-slate-500 font-sans">Code: {batch.product_details.supplier_sku}</div>
                                             )}
-                                            {batch.notes && <div className="text-xs text-slate-600 font-sans break-all">Σημ: {batch.notes}</div>}
+                                            {batch.notes && (
+                                                <div className="text-[11px] text-emerald-800 font-black italic flex items-center gap-1 mt-1">
+                                                    <StickyNote size={10}/> {batch.notes}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="py-2 px-2 text-center font-bold text-slate-900 text-base">{batch.quantity}</td>
                                         <td className="py-2 px-2 text-center text-slate-700 font-mono">

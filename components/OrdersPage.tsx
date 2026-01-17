@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType, Gender } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus, StickyNote } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -296,6 +296,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   // --- SMART ENTRY STATE ---
   const [scanInput, setScanInput] = useState('');
   const [scanQty, setScanQty] = useState(1);
+  const [itemNotes, setItemNotes] = useState('');
   const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
   const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
   const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
@@ -442,14 +443,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         quantity: scanQty,
         price_at_order: unitPrice,
         product_details: product,
-        size_info: selectedSize || undefined
+        size_info: selectedSize || undefined,
+        notes: itemNotes || undefined
     };
 
     setSelectedItems(prev => {
         const existingIdx = prev.findIndex(i => 
             i.sku === newItem.sku && 
             i.variant_suffix === newItem.variant_suffix && 
-            i.size_info === newItem.size_info
+            i.size_info === newItem.size_info &&
+            i.notes === newItem.notes
         );
         if (existingIdx >= 0) {
             const updated = [...prev];
@@ -462,6 +465,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     // Reset Entry
     setScanInput('');
     setScanQty(1);
+    setItemNotes('');
     setSelectedSize('');
     setCandidateProducts([]);
     setActiveMasterProduct(null);
@@ -524,6 +528,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           updated[index].quantity = qty;
           setSelectedItems(updated);
       }
+  };
+
+  const updateItemNotes = (index: number, notes: string) => {
+      const updated = [...selectedItems];
+      updated[index].notes = notes || undefined;
+      setSelectedItems(updated);
   };
 
   const calculateTotal = () => selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
@@ -645,8 +655,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                           </div>
                       </div>
                       <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Σημειώσεις</label>
-                          <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Ειδικές οδηγίες..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-24 resize-none transition-all"/>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Σημειώσεις Παραγγελίας</label>
+                          <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Ειδικές οδηγίες για όλη την παραγγελία..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-24 resize-none transition-all"/>
                       </div>
                       <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm sticky bottom-0">
                           <div className="flex justify-between items-center mb-4">
@@ -748,6 +758,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                       </div>
                                   )}
 
+                                  {/* Item-specific Notes */}
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
+                                          <StickyNote size={12}/> ΕΙΔΙΚΕΣ ΠΑΡΑΤΗΡΗΣΕΙΣ ΕΙΔΟΥΣ
+                                      </label>
+                                      <input 
+                                          type="text" 
+                                          value={itemNotes} 
+                                          onChange={e => setItemNotes(e.target.value)}
+                                          placeholder="π.χ. Αλλαγή κουμπώματος, Μακρύτερη αλυσίδα..."
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
+                                      />
+                                  </div>
+
                                   <button onClick={executeAddItem} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700">
                                       <Plus size={24}/> Προσθήκη στην Εντολή
                                   </button>
@@ -764,21 +788,35 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                       </div>
                       <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar bg-white rounded-3xl border border-slate-100 p-2 shadow-inner">
                           {selectedItems.map((item, idx) => (
-                              <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between gap-4 animate-in slide-in-from-right-4 transition-all hover:shadow-md">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover"/>}</div>
-                                      <div className="min-w-0">
-                                          <div className="font-black text-slate-800 text-sm leading-none truncate">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
-                                          <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">{formatCurrency(item.price_at_order)} {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}</div>
+                              <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md">
+                                  <div className="flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover"/>}</div>
+                                          <div className="min-w-0">
+                                              <div className="font-black text-slate-800 text-sm leading-none truncate">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
+                                              <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">{formatCurrency(item.price_at_order)} {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}</div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                                              <button onClick={() => updateQuantity(idx, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
+                                              <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
+                                              <button onClick={() => updateQuantity(idx, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
+                                          </div>
+                                          <button onClick={() => updateQuantity(idx, 0)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                       </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-                                          <button onClick={() => updateQuantity(idx, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
-                                          <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
-                                          <button onClick={() => updateQuantity(idx, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
-                                      </div>
-                                      <button onClick={() => updateQuantity(idx, 0)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                  
+                                  {/* Editable Inline Notes for Cart Items */}
+                                  <div className="relative group/note">
+                                      <input 
+                                          type="text" 
+                                          value={item.notes || ''} 
+                                          onChange={e => updateItemNotes(idx, e.target.value)}
+                                          placeholder="Προσθήκη παρατήρησης είδους..."
+                                          className="w-full pl-7 py-1.5 text-[10px] bg-slate-50/50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-lg outline-none font-medium text-slate-600 transition-all placeholder:italic"
+                                      />
+                                      <StickyNote size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 group-hover/note:text-emerald-400" />
                                   </div>
                               </div>
                           ))}

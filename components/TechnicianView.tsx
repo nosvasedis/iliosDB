@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { ProductionBatch, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
-import { Hammer } from 'lucide-react';
+import { Hammer, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -16,6 +16,7 @@ interface GroupedItem {
     platingDesc: string;
     totalQuantity: number;
     sizes: Record<string, number>;
+    notes: Set<string>;
 }
 
 export default function TechnicianView({ batches }: Props) {
@@ -31,7 +32,7 @@ export default function TechnicianView({ batches }: Props) {
                 const { finish } = getVariantComponents(batch.variant_suffix || '', product.gender);
                 const platingDesc = finish.name;
 
-                // Group by SKU, variant, but NOT size initially
+                // Group by SKU, variant
                 const key = `${batch.sku}-${batch.variant_suffix || ''}`;
                 
                 if (map.has(key)) {
@@ -40,18 +41,23 @@ export default function TechnicianView({ batches }: Props) {
                     if(batch.size_info) {
                         existing.sizes[batch.size_info] = (existing.sizes[batch.size_info] || 0) + batch.quantity;
                     }
+                    if(batch.notes) existing.notes.add(batch.notes);
                 } else {
                     const sizes: Record<string, number> = {};
                     if(batch.size_info) {
                         sizes[batch.size_info] = batch.quantity;
                     }
+                    const notes = new Set<string>();
+                    if(batch.notes) notes.add(batch.notes);
+
                     map.set(key, {
                         sku: batch.sku,
                         variantSuffix: batch.variant_suffix,
                         imageUrl: product.image_url,
                         platingDesc,
                         totalQuantity: batch.quantity,
-                        sizes
+                        sizes,
+                        notes
                     });
                 }
             });
@@ -70,9 +76,9 @@ export default function TechnicianView({ batches }: Props) {
 
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (
-                    <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid h-28 bg-white">
+                    <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[7rem] bg-white relative">
                         {/* Top part: SKU, Plating */}
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start mb-1">
                             <div>
                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{item.sku}{item.variantSuffix}</p>
                                 <p className="text-[10px] font-bold text-slate-900 mt-0.5 uppercase">{item.platingDesc}</p>
@@ -82,16 +88,28 @@ export default function TechnicianView({ batches }: Props) {
                             </div>
                         </div>
 
-                        {/* Middle: Sizes */}
-                        {Object.keys(item.sizes).length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                                {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
-                                    <div key={size} className="bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[9px]">
-                                        <span className="font-black text-slate-800">{size}</span>: <span className="font-bold text-slate-600">{qty}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {/* Middle: Sizes & Notes */}
+                        <div className="flex-1 space-y-1">
+                            {Object.keys(item.sizes).length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                    {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
+                                        <div key={size} className="bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[9px]">
+                                            <span className="font-black text-slate-800">{size}</span>: <span className="font-bold text-slate-600">{qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {item.notes.size > 0 && (
+                                <div className="space-y-0.5">
+                                    {Array.from(item.notes).map((note, nIdx) => (
+                                        <div key={nIdx} className="bg-emerald-50 border border-emerald-100 text-emerald-900 p-1 rounded text-[8px] font-black flex items-center gap-1 uppercase italic leading-tight">
+                                            <StickyNote size={8}/> {note}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Bottom: Total Quantity */}
                         <div className="mt-auto pt-1 border-t border-slate-100 flex justify-between items-end">

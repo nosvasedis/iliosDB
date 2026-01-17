@@ -713,6 +713,7 @@ export const api = {
                 quantity: item.quantity,
                 current_stage: stage,
                 size_info: item.size_info || null,
+                notes: item.notes || null, // @FIX: Carrying over item-level special notes to Production
                 priority: 'Normal',
                 type: 'Νέα',
                 requires_setting: hasZircons,

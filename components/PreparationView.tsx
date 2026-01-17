@@ -2,20 +2,13 @@
 import React from 'react';
 import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
-import { Box, Coins, Gem, Puzzle, Globe, MapPin } from 'lucide-react';
+import { Box, Coins, Gem, Puzzle, Globe, MapPin, StickyNote } from 'lucide-react';
 
 interface Props {
     batches: ProductionBatch[];
     allMaterials: Material[];
     allProducts: Product[];
     allMolds: Mold[];
-}
-
-interface AggregatedResource {
-    name: string;
-    unit: string;
-    totalQuantity: number;
-    type: 'material' | 'component' | 'stone';
 }
 
 export default function PreparationView({ batches, allMaterials, allProducts, allMolds }: Props) {
@@ -67,36 +60,43 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                     <span className="text-sm font-black text-slate-900 block truncate uppercase">{batch.sku}{batch.variant_suffix || ''}</span>
                                                     <span className="text-[10px] font-bold text-slate-900 truncate block uppercase">{platingDesc}</span>
                                                 </div>
-                                                {batch.size_info && <span className="text-[10px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block mt-1">{batch.size_info}</span>}
+                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                    {batch.size_info && <span className="text-[10px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block">{batch.size_info}</span>}
+                                                    {batch.notes && (
+                                                        <span className="text-[9px] font-black text-emerald-800 italic uppercase flex items-center gap-0.5">
+                                                            <StickyNote size={8}/> Note
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="text-[9px] leading-tight mt-1">
-                                                {/* Materials Inline */}
-                                                {product.recipe.length > 0 ? (
-                                                    <div className="text-slate-800 line-clamp-2 font-bold">
-                                                        <span>ΥΛΙΚΑ: </span>
-                                                        {product.recipe.map((item, idx) => {
-                                                            const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-                                                            const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
-                                                            return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
-                                                        })}
+                                                {batch.notes ? (
+                                                    <div className="bg-emerald-50 p-1 rounded border border-emerald-100 text-emerald-900 font-bold line-clamp-2">
+                                                        {batch.notes}
                                                     </div>
-                                                ) : null}
+                                                ) : (
+                                                    <>
+                                                        {/* Materials Inline */}
+                                                        {product.recipe.length > 0 ? (
+                                                            <div className="text-slate-800 line-clamp-2 font-bold">
+                                                                <span>ΥΛΙΚΑ: </span>
+                                                                {product.recipe.map((item, idx) => {
+                                                                    const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+                                                                    const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
+                                                                    return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
+                                                                })}
+                                                            </div>
+                                                        ) : null}
 
-                                                {/* Molds Inline */}
-                                                {product.molds.length > 0 && (
-                                                    <div className="text-slate-900 mt-0.5">
-                                                        <span className="font-bold">ΛΑΣΤΙΧΑ:</span>
-                                                        {product.molds.map((productMold) => {
-                                                            const moldDetails = allMolds.find(m => m.code === productMold.code);
-                                                            const locationInfo = moldDetails?.location ? `(${moldDetails.location})` : '';
-                                                            return (
-                                                                <div key={productMold.code} className="font-bold uppercase text-[8px] leading-tight">
-                                                                   <span>(x{productMold.quantity}) {productMold.code} {locationInfo} - {moldDetails?.description || 'N/A'}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                        {/* Molds Inline */}
+                                                        {product.molds.length > 0 && (
+                                                            <div className="text-slate-900 mt-0.5 truncate">
+                                                                <span className="font-bold">ΛΑΣΤΙΧΑ:</span>
+                                                                {product.molds.map((pm) => pm.code).join(', ')}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
@@ -132,8 +132,14 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                             )}
                                         </div>
                                         <div className="text-[9px]">
-                                            <p className="font-bold text-slate-800">ΕΙΣΑΓΩΓΗ</p>
-                                            <p className="truncate text-slate-700 font-bold">ΠΡΟΜ: {product.supplier_details?.name || 'Unknown'}</p>
+                                            {batch.notes ? (
+                                                <p className="bg-emerald-100 p-1 rounded font-bold text-emerald-800 line-clamp-1">{batch.notes}</p>
+                                            ) : (
+                                                <>
+                                                    <p className="font-bold text-slate-800">ΕΙΣΑΓΩΓΗ</p>
+                                                    <p className="truncate text-slate-700 font-bold">ΠΡΟΜ: {product.supplier_details?.name || 'Unknown'}</p>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
