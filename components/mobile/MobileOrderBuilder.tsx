@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
 import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus } from 'lucide-react';
@@ -200,8 +199,19 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setIsSaving(true);
         try {
             const total = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
+            
+            let orderId = initialOrder?.id;
+            if (!orderId) {
+                const now = new Date();
+                const year = now.getFullYear().toString().slice(-2);
+                const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                const day = now.getDate().toString().padStart(2, '0');
+                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                orderId = `ORD-${year}${month}${day}-${random}`;
+            }
+
             const orderPayload: Order = {
-                id: initialOrder?.id || `ORD-${Date.now().toString().slice(-6)}`,
+                id: orderId,
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_id: customerId || undefined,
