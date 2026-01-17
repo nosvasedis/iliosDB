@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, XCircle, Truck, AlertCircle, Plus, Edit, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 
@@ -31,7 +31,7 @@ const STATUS_COLORS = {
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };
 
-const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: (o: Order) => void }> = ({ order, onEdit, onDelete }) => {
+const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: (o: Order) => void, onPrint?: (o: Order) => void }> = ({ order, onEdit, onDelete, onPrint }) => {
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -43,7 +43,7 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: 
                 <div className="flex justify-between items-start">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id.slice(0, 8)}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id}</span>
                             <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
                         <h3 className="font-bold text-slate-800 text-base">{order.customer_name}</h3>
@@ -67,7 +67,15 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: 
 
             {expanded && (
                 <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-3 animate-in slide-in-from-top-2">
-                    <div className="flex justify-end gap-2 mb-2">
+                    <div className="flex justify-end gap-2 mb-2 flex-wrap">
+                        {onPrint && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onPrint(order); }}
+                                className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            >
+                                <Printer size={14}/> Εκτύπωση
+                            </button>
+                        )}
                         <button 
                             onClick={(e) => { e.stopPropagation(); onDelete(order); }}
                             className="flex items-center gap-1 bg-white border border-red-200 text-red-500 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
@@ -110,9 +118,10 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: 
 interface MobileOrdersProps {
     onCreate?: () => void;
     onEdit?: (order: Order) => void;
+    onPrint?: (order: Order) => void;
 }
 
-export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
+export default function MobileOrders({ onCreate, onEdit, onPrint }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -214,6 +223,7 @@ export default function MobileOrders({ onCreate, onEdit }: MobileOrdersProps) {
                         order={order} 
                         onEdit={onEdit || (() => {})} 
                         onDelete={handleDeleteOrder}
+                        onPrint={onPrint}
                     />
                 ))}
                 {filteredOrders.length === 0 && (

@@ -18,6 +18,7 @@ import MobileBatchPrint from './components/mobile/MobileBatchPrint';
 import MobileCollections from './components/mobile/MobileCollections';
 import MobilePriceList from './components/mobile/MobilePriceList';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
+import OrderInvoiceView from './components/OrderInvoiceView';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
@@ -36,6 +37,8 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   
   // Printing State
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
+  const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
@@ -45,7 +48,9 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   // PRINTING EFFECT
   useEffect(() => {
-    if (priceListPrintData) {
+    const dataToPrint = priceListPrintData || orderToPrint;
+    
+    if (dataToPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
         const iframe = iframeRef.current;
@@ -54,7 +59,12 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         const iframeDoc = iframe.contentWindow?.document;
         if (!iframeDoc) return;
 
-        const docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        let docTitle = 'Document';
+        if (priceListPrintData) {
+             docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        } else if (orderToPrint) {
+             docTitle = `Order_${orderToPrint.id}`;
+        }
 
         iframeDoc.open();
         let styles = '';
@@ -96,17 +106,18 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
         const handleAfterPrint = () => {
             setPriceListPrintData(null);
+            setOrderToPrint(null);
             window.removeEventListener('focus', handleAfterPrint);
         };
         window.addEventListener('focus', handleAfterPrint, { once: true });
         // Fallback cleanup
-        setTimeout(() => setPriceListPrintData(null), 5000);
+        setTimeout(() => { setPriceListPrintData(null); setOrderToPrint(null); }, 5000);
 
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [priceListPrintData]);
+  }, [priceListPrintData, orderToPrint]);
 
   if (!settings || !products || !warehouses) {
       return (
@@ -129,7 +140,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   let content;
   switch (activePage) {
     case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
-    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} />; break;
+    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} />; break;
     case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
     case 'production': content = <MobileProduction />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
@@ -154,6 +165,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         {/* Hidden Print Container */}
         <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
             {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
+            {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         </div>
         <iframe 
             ref={iframeRef} 
