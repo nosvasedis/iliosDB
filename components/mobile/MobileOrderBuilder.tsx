@@ -1,6 +1,6 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
-// Added missing Minus icon import
 import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
@@ -149,6 +149,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         const match = findProductByScannedCode(code, products);
         if (match) {
             const { product, variant } = match;
+
+            // @FIX: Block adding components (STX) via Barcode Scanner in Order workflow
+            if (product.is_component) {
+                showToast(`Ο κωδικός ${product.sku} είναι εξάρτημα και δεν πωλείται.`, "error");
+                return;
+            }
+
             const isSpecific = !!variant;
             const isSimple = !product.variants || product.variants.length === 0;
 

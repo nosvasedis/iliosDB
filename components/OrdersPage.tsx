@@ -48,7 +48,6 @@ const STAGE_COLORS = {
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
 };
 
-// Visual Helpers for SKU
 const FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
 };
@@ -366,8 +365,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     let bestMaster: Product | null = null;
     let suffixPart = '';
     
-    const exactMaster = products.find(p => p.sku === val);
-    const potentialMasters = products.filter(p => val.startsWith(p.sku));
+    // @FIX: Excluded is_component (STX) from smart suggestions
+    const exactMaster = products.find(p => p.sku === val && !p.is_component);
+    const potentialMasters = products.filter(p => val.startsWith(p.sku) && !p.is_component);
     const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
 
     if (exactMaster) {
@@ -382,7 +382,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     if (bestMaster) {
         candidates = [bestMaster]; 
     } else {
-        candidates = products.filter(p => p.sku.startsWith(val)).slice(0, 6);
+        // @FIX: Filtered candidates to exclude STX items
+        candidates = products.filter(p => p.sku.startsWith(val) && !p.is_component).slice(0, 6);
     }
     setCandidateProducts(candidates);
 
@@ -435,6 +436,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     }
 
     const { product, variant } = match;
+
+    // @FIX: Explicitly block adding STX components to orders manually
+    if (product.is_component) {
+        showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
+        return;
+    }
+
     const unitPrice = variant?.selling_price || product.selling_price || 0;
 
     const newItem: OrderItem = {
@@ -597,6 +605,23 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       }
   };
 
+  const handleScanInOrder = (code: string) => {
+    const match = findProductByScannedCode(code, products);
+    if (match) {
+        if (match.product.is_component) {
+            showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
+        } else {
+            const targetCode = match.product.sku + (match.variant?.suffix || '');
+            setScanInput(targetCode);
+            showToast(`Σάρωση: ${targetCode}`, 'success');
+            setShowScanner(false);
+            executeAddItem();
+        }
+    } else {
+        showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
@@ -625,7 +650,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
               </div>
               <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
                   
-                  {/* LEFT COLUMN: CUSTOMER & TOTAL */}
                   <div className="lg:col-span-3 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
                       <div className="space-y-4">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Στοιχεία Πελάτη</label>
@@ -669,7 +693,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                       </div>
                   </div>
 
-                  {/* CENTER COLUMN: SMART ENTRY */}
                   <div className="lg:col-span-5 flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar">
                       <div className="flex items-center gap-3 mb-6">
                           <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg"><ScanBarcode size={22} className="animate-pulse" /></div>
@@ -696,7 +719,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                               </div>
                           </div>
 
-                          {/* CANDIDATES STRIP */}
                           {candidateProducts.length > 0 && !activeMasterProduct && (
                               <div className="animate-in fade-in slide-in-from-top-2">
                                   <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
@@ -714,7 +736,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                               </div>
                           )}
 
-                          {/* VARIANT & SIZE MATRIX */}
                           {activeMasterProduct && (
                               <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 space-y-6">
                                   <div className="flex justify-between items-start">
@@ -758,7 +779,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                       </div>
                                   )}
 
-                                  {/* Item-specific Notes */}
                                   <div>
                                       <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
                                           <StickyNote size={12}/> ΕΙΔΙΚΕΣ ΠΑΡΑΤΗΡΗΣΕΙΣ ΕΙΔΟΥΣ
@@ -780,7 +800,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                       </div>
                   </div>
 
-                  {/* RIGHT COLUMN: ITEMS LIST */}
                   <div className="lg:col-span-4 flex flex-col h-full overflow-hidden">
                       <div className="flex justify-between items-center mb-3 px-2 shrink-0">
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα Εντολής ({selectedItems.length})</label>
@@ -807,7 +826,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                       </div>
                                   </div>
                                   
-                                  {/* Editable Inline Notes for Cart Items */}
                                   <div className="relative group/note">
                                       <input 
                                           type="text" 
@@ -864,7 +882,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           </div>
       )}
 
-      {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+      {showScanner && <BarcodeScanner onScan={handleScanInOrder} onClose={() => setShowScanner(false)} />}
       
       {managingOrder && (
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -910,4 +928,3 @@ const getStatusColor = (status: OrderStatus) => {
 };
 
 const handleConfirmMove = async () => {};
-const handleScan = (code: string) => {};
