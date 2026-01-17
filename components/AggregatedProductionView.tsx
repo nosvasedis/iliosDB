@@ -1,10 +1,10 @@
 
 import React from 'react';
-// @FIX: Corrected import of AggregatedData to come from types.ts
+import { AggregatedData } from '../App';
 import { APP_LOGO } from '../constants';
 import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
-import { GlobalSettings, AggregatedData } from '../types';
+import { GlobalSettings } from '../types';
 
 interface Props {
     data: AggregatedData;

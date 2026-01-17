@@ -310,7 +310,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             {showFilters && (
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-4 space-y-4 animate-in slide-in-from-top-2">
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase">Φύλο</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Φύλο</label>
                         <div className="flex flex-wrap gap-2">
                             <FilterChip label="Όλα" active={filterGender === 'All'} onClick={() => setFilterGender('All')} />
                             <FilterChip label="Γυναικεία" active={filterGender === Gender.Women} onClick={() => setFilterGender(Gender.Women)} icon={<User size={10}/>} />
@@ -319,14 +319,14 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase">Χαρακτηριστικά</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Χαρακτηριστικά</label>
                         <div className="flex flex-wrap gap-2">
                             <FilterChip label="Με Πέτρες" active={subFilters.stone === 'with'} onClick={() => setSubFilters(prev => ({...prev, stone: prev.stone === 'with' ? 'all' : 'with'}))} icon={<Gem size={10}/>} />
                             <FilterChip label="Χωρίς Πέτρες" active={subFilters.stone === 'without'} onClick={() => setSubFilters(prev => ({...prev, stone: prev.stone === 'without' ? 'all' : 'without'}))} />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase">Φινίρισμα</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Φινίρισμα</label>
                         <div className="flex flex-wrap gap-2">
                             <FilterChip label="Όλα" active={subFilters.plating === 'all'} onClick={() => setSubFilters(prev => ({...prev, plating: 'all'}))} />
                             <FilterChip label="Χρυσό" active={subFilters.plating === 'gold'} onClick={() => setSubFilters(prev => ({...prev, plating: 'gold'}))} icon={<Palette size={10} className="text-amber-500"/>} />

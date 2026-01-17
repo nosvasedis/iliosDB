@@ -1,15 +1,4 @@
 
-import React, { useState, useEffect, useRef } from 'export default function App() {
-  if (!isConfigured) return <SetupScreen />;
-  return (
-    <AuthProvider>
-      <AuthGuard>
-        <AppContent />
-      </AuthGuard>
-    </AuthProvider>
-  );
-}
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -54,7 +43,7 @@ import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
-// @FIX: Removed non-existent import hookHooks
+import { hookHooks } from './hooks/useIsMobile';
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
 import EmployeeApp from './components/employee/EmployeeApp';

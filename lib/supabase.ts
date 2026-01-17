@@ -598,9 +598,8 @@ export const api = {
         await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); 
         
         // Super-Interconnected Logic:
-        // If an order is finalized (Delivered/Cancelled) OR reset to Pending, 
-        // remove its tracks from active production.
-        if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
+        // If an order is finalized (Delivered/Cancelled), remove its tracks from active production.
+        if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
     },
@@ -696,7 +695,7 @@ export const api = {
             if (!product) continue;
 
             const suffix = item.variant_suffix || '';
-            // New logic: Only these specific suffixes require Setting (Καρωτής)
+            // New logic: Only these specific suffixes require Setting (Καρφωτής)
             const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              product.recipe.some(r => {
                                  if (r.type !== 'raw') return false;
