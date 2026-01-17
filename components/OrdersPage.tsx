@@ -1,13 +1,13 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, Lightbulb, Hash, ImageIcon } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getSizingInfo, isSizable } from '../utils/sizing';
-import { findProductByScannedCode } from '../utils/pricingEngine';
+import { findProductByScannedCode, getVariantComponents, splitSkuComponents, formatCurrency } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -45,6 +45,26 @@ const STAGE_COLORS = {
     blue: { bg: 'bg-blue-50', text: 'text-blue-500', border: 'border-blue-200' },
     yellow: { bg: 'bg-yellow-50', text: 'text-yellow-500', border: 'border-yellow-200' },
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-500', border: 'border-emerald-200' },
+};
+
+// Visual Helpers for Smart Input
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500',  
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400',   
+    '': 'text-slate-400'    
+};
+
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400',
+    'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500',
+    'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
+    'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
+    'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-500',
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number) => void, isProcessing: boolean }) => {
@@ -272,7 +292,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [isCreating, setIsCreating] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   
-  const [searchTerm, setSearchTerm] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -284,7 +303,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [showCustomerResults, setShowCustomerResults] = useState(false);
 
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
-  const [productSearch, setProductSearch] = useState('');
 
   const [fulfillmentOrder, setFulfillmentOrder] = useState<Order | null>(null);
   const [managingOrder, setManagingOrder] = useState<Order | null>(null);
@@ -293,6 +311,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [isProcessingMove, setIsProcessingMove] = useState(false);
   
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
+
+  // --- SMART ENTRY STATE ---
+  const [scanInput, setScanInput] = useState('');
+  const [scanQty, setScanQty] = useState(1);
+  const [scanSize, setScanSize] = useState('');
+  const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
+  const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
+  const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const enrichedBatches = useMemo(() => {
       const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -314,11 +341,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
           }
       }) || [];
   }, [batches, products, materials]);
-
-
-  const filteredProducts = products.filter(p => 
-      !p.is_component && (p.sku.includes(productSearch.toUpperCase()) || p.category.toLowerCase().includes(productSearch.toLowerCase()))
-  ).slice(0, 5); 
 
   const filteredCustomers = customers?.filter(c => 
       c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) || (c.phone && c.phone.includes(customerSearch))
@@ -342,7 +364,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       setIsCreating(true);
   };
 
-  const handleAddItem = (product: Product, variant?: ProductVariant) => {
+  const handleAddItem = (product: Product, variant?: ProductVariant, quantity: number = 1, size?: string) => {
       const unitPrice = (variant?.selling_price && variant.selling_price > 0) 
           ? variant.selling_price 
           : (product.selling_price || 0);
@@ -350,42 +372,187 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       const newItem: OrderItem = {
           sku: product.sku,
           variant_suffix: variant?.suffix,
-          quantity: 1,
+          quantity: quantity,
           price_at_order: unitPrice,
-          product_details: product
+          product_details: product,
+          size_info: size
       };
       
-      const existingIdx = selectedItems.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
+      const existingIdx = selectedItems.findIndex(i => 
+          i.sku === newItem.sku && 
+          i.variant_suffix === newItem.variant_suffix && 
+          i.size_info === newItem.size_info
+      );
       
-      if (isSizable(product)) {
-           setSelectedItems([...selectedItems, newItem]);
-      } else if (existingIdx >= 0) {
+      if (existingIdx >= 0) {
           const updated = [...selectedItems];
-          updated[existingIdx].quantity += 1;
+          updated[existingIdx].quantity += quantity;
           setSelectedItems(updated);
       } else {
           setSelectedItems([...selectedItems, newItem]);
       }
-      setProductSearch('');
+  };
+
+  // --- SMART INPUT HANDLERS ---
+  const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.toUpperCase();
+      setScanInput(val);
+
+      if (val.length < 2) {
+          setCandidateProducts([]);
+          setActiveMasterProduct(null);
+          setFilteredVariants([]);
+          return;
+      }
+
+      let bestMaster: Product | null = null;
+      let suffixPart = '';
+      
+      const exactMaster = products.find(p => p.sku === val);
+      const potentialMasters = products.filter(p => val.startsWith(p.sku));
+      const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
+
+      if (exactMaster) {
+          bestMaster = exactMaster;
+          suffixPart = '';
+      } else if (longestPrefixMaster) {
+          bestMaster = longestPrefixMaster;
+          suffixPart = val.replace(longestPrefixMaster.sku, '');
+      }
+
+      let candidates: Product[] = [];
+      if (bestMaster) {
+          candidates = [bestMaster]; 
+      } else {
+          candidates = products.filter(p => p.sku.startsWith(val) && !p.is_component).slice(0, 6);
+      }
+      setCandidateProducts(candidates);
+
+      if (bestMaster) {
+          // If master changes, we should reset size
+          if (activeMasterProduct?.sku !== bestMaster.sku) {
+              setScanSize('');
+          }
+          setActiveMasterProduct(bestMaster);
+          if (bestMaster.variants) {
+              const validVariants = bestMaster.variants
+                  .filter(v => v.suffix.startsWith(suffixPart))
+                  .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
+              setFilteredVariants(validVariants);
+          } else {
+              setFilteredVariants([]);
+          }
+      } else {
+          setActiveMasterProduct(null);
+          setFilteredVariants([]);
+      }
+  };
+
+  const selectProductCandidate = (product: Product) => {
+      setScanInput(product.sku);
+      setActiveMasterProduct(product);
+      setCandidateProducts([product]);
+      setScanSize(''); // Reset size on new product selection
+      if (product.variants) {
+          setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+      } else {
+          setFilteredVariants([]);
+      }
+      inputRef.current?.focus();
+  };
+
+  const selectSuffix = (suffix: string) => {
+      if (activeMasterProduct) {
+          const fullCode = activeMasterProduct.sku + suffix;
+          setScanInput(fullCode);
+          setFilteredVariants([]); 
+          inputRef.current?.focus();
+      }
+  };
+
+  const executeSmartAdd = () => {
+      if (!scanInput) return;
+      const match = findProductByScannedCode(scanInput, products);
+      
+      if (match) {
+          const { product, variant } = match;
+          
+          // Check for sizing requirement
+          if (isSizable(product) && !scanSize) {
+              showToast(`Το προϊόν ${product.sku} απαιτεί μέγεθος.`, 'error');
+              return;
+          }
+
+          handleAddItem(product, variant, scanQty, scanSize);
+          showToast(`Προστέθηκε: ${product.sku}${variant ? variant.suffix : ''}`, 'success');
+          
+          // Reset
+          setScanInput('');
+          setScanQty(1);
+          setScanSize('');
+          setCandidateProducts([]);
+          setActiveMasterProduct(null);
+          setFilteredVariants([]);
+          inputRef.current?.focus();
+      } else {
+          showToast(`Ο κωδικός ${scanInput} δεν βρέθηκε.`, 'error');
+      }
+  };
+
+  const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+      let masterStr = text;
+      let suffixStr = '';
+
+      if (masterContext) {
+          const masterLen = masterContext.sku.length;
+          if (text.startsWith(masterContext.sku)) {
+              masterStr = text.slice(0, masterLen);
+              suffixStr = text.slice(masterLen);
+          }
+      } else {
+          const split = splitSkuComponents(text);
+          masterStr = split.master;
+          suffixStr = split.suffix;
+      }
+
+      const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
+      const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+      const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
+
+      return (
+          <span>
+              <span className="text-slate-900 font-black">{masterStr}</span>
+              {suffixStr.split('').map((char, i) => {
+                  let colorClass = 'text-slate-400';
+                  if (finish.code && i < finish.code.length) colorClass = fColor;
+                  else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
+                  return <span key={i} className={colorClass}>{char}</span>
+              })}
+          </span>
+      );
+  }
+
+  const SkuVisualizer = () => {
+      return (
+          <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+              <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct} />
+          </div>
+      );
   };
 
   const handleScanItem = (code: string) => {
-      // Use utility that handles Greek <-> Latin transliteration
       const match = findProductByScannedCode(code, products);
-
       if (!match) {
           showToast(`Ο κωδικός ${code} δεν βρέθηκε`, 'error');
           return;
       }
-
       const { product, variant } = match;
-
-      // If product has variants, require a variant match (unless it's a simple product)
       if (!variant && product.variants && product.variants.length > 0) {
-          showToast(`Το προϊόν ${product.sku} έχει παραλλαγές. Σκανάρετε το barcode της παραλλαγής.`, 'error');
+          // If scanned master but variants exist, populate smart input
+          selectProductCandidate(product);
+          showToast(`Επιλέξτε παραλλαγή για ${product.sku}`, 'info');
           return;
       }
-
       handleAddItem(product, variant);
       showToast(`Προστέθηκε: ${product.sku}${variant ? variant.suffix : ''}`, 'success');
   };
@@ -515,9 +682,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         try {
             await api.updateOrderStatus(orderId, status);
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            // IMPORTANT: Invalidate batches to refresh Production view if order is Delivered
             queryClient.invalidateQueries({ queryKey: ['batches'] });
-            
             const message = status === OrderStatus.Delivered ? 'Η παραγγελία σημειώθηκε ως παραδομένη.' : `Η κατάσταση άλλαξε σε ${STATUS_TRANSLATIONS[status]}.`;
             showToast(message, 'success');
         } catch (err: any) {
@@ -602,18 +767,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       }
   };
     
-    const getAvailableStock = (item: OrderItem) => {
-        const product = products.find(p => p.sku === item.sku);
-        if (!product) return 0;
-
-        if (item.variant_suffix) {
-            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-            return variant?.location_stock?.[SYSTEM_IDS.CENTRAL] || variant?.stock_qty || 0;
-        }
-        return product.location_stock?.[SYSTEM_IDS.CENTRAL] || product.stock_qty || 0;
-    };
-
-
   if (loadingOrders || loadingBatches) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500"/></div>;
 
   return (
@@ -714,57 +867,106 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                   <div className="lg:col-span-2 flex flex-col h-full">
                       <div className="flex justify-between items-center mb-2">
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Προϊόντα</label>
-                          <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200 shadow-sm">
-                              <Camera size={14}/> Scan
-                          </button>
                       </div>
-                      <div className="relative mb-4 z-20">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                          <input 
-                            type="text" 
-                            placeholder="Αναζήτηση SKU..." 
-                            value={productSearch} 
-                            onChange={e => setProductSearch(e.target.value)} 
-                            className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          />
-                          {productSearch && (
-                              <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 max-h-60 overflow-y-auto divide-y divide-slate-50">
-                                  {filteredProducts.map(p => {
-                                      const hasVariants = p.variants && p.variants.length > 0;
-                                      
-                                      return (
-                                      <div key={p.sku} className="p-3 hover:bg-slate-50 transition-colors">
-                                          <div 
-                                            className={`flex justify-between items-center ${!hasVariants ? 'cursor-pointer' : 'opacity-70 cursor-default'}`} 
-                                            onClick={() => { if(!hasVariants) handleAddItem(p); }}
-                                          >
-                                              <div className="font-bold text-slate-800">{p.sku} <span className="text-xs font-normal text-slate-500 ml-1">{p.category}</span></div>
-                                              <div className="flex items-center gap-2">
-                                                  {!hasVariants && <span className="font-mono font-bold">{p.selling_price.toFixed(2)}€</span>}
-                                                  {hasVariants && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">Master</span>}
-                                              </div>
+                      
+                      {/* SMART ENTRY BLOCK */}
+                      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
+                          <div className="relative">
+                              <SkuVisualizer />
+                              <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+                                  <Search size={20} className="text-slate-400 ml-1"/>
+                                  <input 
+                                      ref={inputRef}
+                                      type="text" 
+                                      value={scanInput}
+                                      onChange={handleSmartInput}
+                                      onKeyDown={e => e.key === 'Enter' && executeSmartAdd()}
+                                      placeholder="π.χ. DA100 ή 1005..."
+                                      className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-transparent uppercase placeholder-slate-300 relative z-10"
+                                      autoFocus
+                                  />
+                                  {scanInput && <button onClick={() => { setScanInput(''); setActiveMasterProduct(null); setFilteredVariants([]); setCandidateProducts([]); }} className="z-10"><X size={18} className="text-slate-400"/></button>}
+                                  <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800 z-10"><Camera size={20}/></button>
+                              </div>
+                          </div>
+
+                          {/* Candidate Strip */}
+                          {candidateProducts.length > 0 && !activeMasterProduct && (
+                              <div className="mt-2 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                  {candidateProducts.map(p => (
+                                      <div 
+                                          key={p.sku} 
+                                          onClick={() => selectProductCandidate(p)}
+                                          className="flex items-center gap-2 p-2 rounded-xl border cursor-pointer bg-slate-50 border-slate-200 hover:border-emerald-300 hover:bg-white min-w-[140px] group"
+                                      >
+                                          <div className="w-8 h-8 bg-white rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                                              {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={14} className="text-slate-300 m-2"/>}
                                           </div>
-                                          
-                                          {hasVariants && (
-                                              <div className="mt-2 flex flex-wrap gap-2">
-                                                  {p.variants?.map(v => {
-                                                      const vPrice = (v.selling_price && v.selling_price > 0) ? v.selling_price : p.selling_price;
-                                                      return (
-                                                      <span 
-                                                        key={v.suffix} 
-                                                        onClick={(e) => { e.stopPropagation(); handleAddItem(p, v); }} 
-                                                        className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 py-1.5 rounded cursor-pointer border border-emerald-100 font-medium flex items-center gap-1.5 transition-all active:scale-95"
-                                                      >
-                                                          <b>{v.suffix}</b>
-                                                          <span className="opacity-70 text-[10px]">{v.description}</span>
-                                                          <span className="ml-1 bg-white px-1 rounded text-emerald-900 font-bold">{vPrice.toFixed(0)}€</span>
-                                                      </span>
-                                                  )})}
-                                              </div>
-                                          )}
+                                          <div>
+                                              <div className="font-black text-xs text-slate-700">{p.sku}</div>
+                                              <div className="text-[9px] text-slate-500 truncate max-w-[80px]">{p.category}</div>
+                                          </div>
                                       </div>
-                                  )})}
-                                  {filteredProducts.length === 0 && <div className="p-4 text-center text-slate-400 text-sm">Δεν βρέθηκαν προϊόντα.</div>}
+                                  ))}
+                              </div>
+                          )}
+
+                          {/* Active Master Controls */}
+                          {activeMasterProduct && (
+                              <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                  {/* Variant Grid */}
+                                  {filteredVariants.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
+                                          {filteredVariants.map(v => {
+                                              const { finish, stone } = getVariantComponents(v.suffix, activeMasterProduct.gender);
+                                              const fColor = FINISH_COLORS[finish.code] || 'bg-white text-slate-600 border-slate-200';
+                                              const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-600';
+                                              
+                                              return (
+                                                  <button 
+                                                      key={v.suffix} 
+                                                      onClick={() => selectSuffix(v.suffix)}
+                                                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all shadow-sm border flex items-center gap-1 active:scale-95 ${fColor}`}
+                                                      title={v.desc}
+                                                  >
+                                                      {finish.code || 'BAS'}
+                                                      {stone.code && <span className={sColor}>{stone.code}</span>}
+                                                  </button>
+                                              );
+                                          })}
+                                      </div>
+                                  )}
+
+                                  <div className="flex items-end gap-3">
+                                       {/* Sizing (If needed) */}
+                                      {isSizable(activeMasterProduct) && (
+                                          <div className="flex-1">
+                                              <label className="text-[9px] font-black text-slate-400 uppercase ml-1 mb-1 block flex items-center gap-1">
+                                                  <Hash size={10}/> {getSizingInfo(activeMasterProduct)?.type}
+                                              </label>
+                                              <select 
+                                                  value={scanSize}
+                                                  onChange={e => setScanSize(e.target.value)}
+                                                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                                              >
+                                                  <option value="">Επιλογή</option>
+                                                  {getSizingInfo(activeMasterProduct)?.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                              </select>
+                                          </div>
+                                      )}
+
+                                      <div className="w-20">
+                                          <label className="text-[9px] font-black text-slate-400 uppercase ml-1 mb-1 block">Ποσ.</label>
+                                          <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-2.5 text-center font-black text-lg rounded-xl outline-none bg-slate-50 text-slate-900 border border-slate-200 focus:ring-2 focus:ring-emerald-500"/>
+                                      </div>
+                                      
+                                      <button 
+                                          onClick={executeSmartAdd}
+                                          className="flex-1 bg-emerald-500 text-white p-2.5 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md hover:bg-emerald-600 h-[46px]"
+                                      >
+                                          <Plus size={20}/> Προσθήκη
+                                      </button>
+                                  </div>
                               </div>
                           )}
                       </div>
@@ -809,7 +1011,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                           )})}
                           {selectedItems.length === 0 && (
                             <div className="flex items-center justify-center h-full text-slate-400 text-center flex-col">
-                                <Package size={32} className="mb-2 opacity-50"/>
+                                <Box size={32} className="mb-2 opacity-50"/>
                                 <p className="font-medium">Δεν υπάρχουν προϊόντα στην παραγγελία.</p>
                             </div>
                           )}
@@ -834,11 +1036,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     <tbody className="divide-y divide-slate-50">
                         {orders?.map(order => (
                             <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                                <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
-                                <td className="p-4 text-slate-800 font-medium">{order.customer_name}</td>
+                                <td className="p-4 pl-6 font-mono font-bold text-slate-600">#{order.id.slice(0,8)}</td>
+                                <td className="p-4 font-bold text-slate-800">{order.customer_name}</td>
                                 <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
-                                <td className="p-4 text-right font-bold text-slate-800">{order.total_price.toFixed(2)}€</td>
-                                <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
+                                <td className="p-4 text-right font-black text-slate-900">{formatCurrency(order.total_price)}</td>
+                                <td className="p-4 text-center">
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getStatusColor(order.status)}`}>
+                                        {STATUS_TRANSLATIONS[order.status]}
+                                    </span>
+                                </td>
                                 <td className="p-4 text-right">
                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => handlePrintOrderLabels(order)} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
