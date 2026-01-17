@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -36,7 +37,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch } from './types';
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -72,26 +73,6 @@ import PriceListPrintView, { PriceListPrintData } from './components/PriceListPr
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist';
-
-export interface AggregatedBatch extends ProductionBatch {
-    cost_per_piece: number;
-    total_cost: number;
-}
-export interface AggregatedData {
-  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
-  materials: Map<string, { name: string; unit: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
-  components: Map<string, { sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
-  totalSilverWeight: number;
-  batches: AggregatedBatch[];
-  totalProductionCost: number;
-  totalSilverCost: number;
-  totalMaterialsCost: number;
-  totalInHouseLaborCost: number;
-  totalImportedLaborCost: number;
-  totalSubcontractCost: number;
-  orderId?: string;
-  customerName?: string;
-}
 
 // Visual Sync Indicator Component
 const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingItems: any[], isOnline: boolean, isSyncing: boolean }) => {
@@ -629,7 +610,7 @@ function AppContent() {
                 <>
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
-                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμηθευτές" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
+                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμ." isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
                 </>
             )}
             <div className="my-2 border-t border-white/10 mx-2"></div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AggregatedData } from '../App';
+import { AggregatedData } from '../types';
 import { APP_LOGO } from '../constants';
 import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';

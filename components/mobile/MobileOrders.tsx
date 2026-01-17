@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Order, OrderStatus } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer } from 'lucide-react';
+import { Order, OrderStatus, Product, ProductVariant } from '../../types';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 
@@ -31,8 +31,36 @@ const STATUS_COLORS = {
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };
 
-const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: (o: Order) => void, onPrint?: (o: Order) => void }> = ({ order, onEdit, onDelete, onPrint }) => {
+const OrderCard: React.FC<{ 
+    order: Order, 
+    products: Product[],
+    onEdit: (o: Order) => void, 
+    onDelete: (o: Order) => void, 
+    onPrint?: (o: Order) => void,
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+}> = ({ order, products, onEdit, onDelete, onPrint, onPrintLabels }) => {
     const [expanded, setExpanded] = useState(false);
+
+    const handlePrintLabels = () => {
+        if (!onPrintLabels) return;
+        const itemsToPrint: any[] = [];
+        for (const item of order.items) {
+            const product = products.find(p => p.sku === item.sku);
+            if (product) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                itemsToPrint.push({
+                    product,
+                    variant,
+                    quantity: item.quantity,
+                    size: item.size_info,
+                    format: 'standard'
+                });
+            }
+        }
+        if (itemsToPrint.length > 0) {
+            onPrintLabels(itemsToPrint);
+        }
+    };
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200 active:scale-[0.99]">
@@ -68,6 +96,14 @@ const OrderCard: React.FC<{ order: Order, onEdit: (o: Order) => void, onDelete: 
             {expanded && (
                 <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-3 animate-in slide-in-from-top-2">
                     <div className="flex justify-end gap-2 mb-2 flex-wrap">
+                        {onPrintLabels && (
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); handlePrintLabels(); }}
+                                className="flex items-center gap-1 bg-white border border-slate-200 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            >
+                                <Tag size={14}/> Ετικέτες
+                            </button>
+                        )}
                         {onPrint && (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onPrint(order); }}
@@ -119,9 +155,11 @@ interface MobileOrdersProps {
     onCreate?: () => void;
     onEdit?: (order: Order) => void;
     onPrint?: (order: Order) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    products?: Product[];
 }
 
-export default function MobileOrders({ onCreate, onEdit, onPrint }: MobileOrdersProps) {
+export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels, products = [] }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -220,10 +258,12 @@ export default function MobileOrders({ onCreate, onEdit, onPrint }: MobileOrders
                 {filteredOrders.map(order => (
                     <OrderCard 
                         key={order.id} 
-                        order={order} 
+                        order={order}
+                        products={products}
                         onEdit={onEdit || (() => {})} 
                         onDelete={handleDeleteOrder}
                         onPrint={onPrint}
+                        onPrintLabels={onPrintLabels}
                     />
                 ))}
                 {filteredOrders.length === 0 && (

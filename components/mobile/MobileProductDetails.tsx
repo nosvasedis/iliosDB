@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler } from 'lucide-react';
@@ -15,6 +14,7 @@ interface Props {
   product: Product;
   onClose: () => void;
   warehouses: Warehouse[];
+  setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 const GENDER_LABELS: Record<string, string> = {
@@ -63,7 +63,7 @@ const toBase64 = async (url: string): Promise<string | null> => {
     }
 };
 
-export default function MobileProductDetails({ product, onClose, warehouses }: Props) {
+export default function MobileProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
   const { showToast } = useUI();
   const queryClient = useQueryClient();
   const [showShareModal, setShowShareModal] = useState(false);

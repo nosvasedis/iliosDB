@@ -3,8 +3,14 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer } from 'lucide-react';
 import { useUI } from '../UIProvider';
+
+interface Props {
+    onPrintAggregated: (batches: ProductionBatch[]) => void;
+    onPrintPreparation: (batches: ProductionBatch[]) => void;
+    onPrintTechnician: (batches: ProductionBatch[]) => void;
+}
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'indigo' },
@@ -61,7 +67,7 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
     );
 };
 
-export default function MobileProduction() {
+export default function MobileProduction({ onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
     const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -121,9 +127,34 @@ export default function MobileProduction() {
 
     if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
 
+    const activeBatches = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready);
+
     return (
         <div className="p-4 space-y-4 pb-24">
-            <h1 className="text-2xl font-black text-slate-900 mb-2">Ροή Παραγωγής</h1>
+            <div className="flex justify-between items-center mb-2">
+                <h1 className="text-2xl font-black text-slate-900">Ροή Παραγωγής</h1>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <button 
+                    onClick={() => onPrintPreparation(activeBatches)}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-purple-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap"
+                >
+                    <BookOpen size={14} /> Προετοιμασία
+                </button>
+                <button 
+                    onClick={() => onPrintTechnician(activeBatches)}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-blue-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap"
+                >
+                    <Hammer size={14} /> Τεχνίτης
+                </button>
+                <button 
+                    onClick={() => onPrintAggregated(activeBatches)}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap"
+                >
+                    <FileText size={14} /> Συγκεντρωτική
+                </button>
+            </div>
 
             <div className="space-y-3">
                 {STAGES.map(stage => {
