@@ -16,7 +16,7 @@ interface Props {
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.InProduction]: 'Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
@@ -41,7 +41,7 @@ const STATUS_ICONS = {
 const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) => (
     <button 
         onClick={onClick}
-        className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all w-full h-24"
+        className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all w-full h-24"
     >
         <div className={`p-2.5 rounded-xl mb-1.5 ${color}`}>{icon}</div>
         <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">{label}</span>
@@ -223,7 +223,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                               </div>
                               <div>
                                   <div className="font-black text-slate-800 text-sm leading-tight">{order.customer_name}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">#{order.id.slice(0,8)}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">#{order.id}</div>
                               </div>
                           </div>
                           <div className="text-right">

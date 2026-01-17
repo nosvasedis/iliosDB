@@ -44,7 +44,7 @@ export default function EmployeeOrders() {
 
     const filteredOrders = orders?.filter(o => 
         o.customer_name.toLowerCase().includes(search.toLowerCase()) || 
-        o.id.includes(search)
+        o.id.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
     if (isLoading || !products) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-emerald-600"/></div>;
@@ -95,8 +95,8 @@ export default function EmployeeOrders() {
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-xs">
-                                            #{order.id.slice(0,3)}
+                                        <div className="w-auto px-2 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-[10px]">
+                                            #{order.id}
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-800 text-sm">{order.customer_name}</div>
@@ -132,7 +132,7 @@ export default function EmployeeOrders() {
                         <tbody className="divide-y divide-slate-50">
                             {filteredOrders.map(order => (
                                 <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setEditingOrder(order)}>
-                                    <td className="p-4 font-mono font-bold text-slate-600">#{order.id.slice(0,8)}</td>
+                                    <td className="p-4 font-mono font-bold text-slate-600">#{order.id}</td>
                                     <td className="p-4 font-bold text-slate-800">{order.customer_name}</td>
                                     <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
                                     <td className="p-4 text-right font-black text-slate-900">{formatCurrency(order.total_price)}</td>

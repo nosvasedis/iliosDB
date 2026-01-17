@@ -38,7 +38,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
             <div className="p-4" onClick={() => setExpanded(!expanded)}>
                 <div className="flex justify-between items-start mb-2">
                     <div>
-                        <div className="text-[10px] font-mono text-slate-400 font-bold mb-0.5">#{order.id.slice(0,8)}</div>
+                        <div className="text-[10px] font-mono text-slate-400 font-bold mb-0.5">#{order.id}</div>
                         <div className="font-bold text-slate-800">{order.customer_name}</div>
                     </div>
                     <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${STATUS_COLORS[order.status]}`}>
@@ -89,7 +89,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
     
     const filteredOrders = myOrders.filter(o => 
         o.customer_name.toLowerCase().includes(search.toLowerCase()) || 
-        o.id.includes(search)
+        o.id.toLowerCase().includes(search.toLowerCase())
     );
 
     if (isLoading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-emerald-600"/></div>;
