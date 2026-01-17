@@ -382,8 +382,32 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     if (bestMaster) {
         candidates = [bestMaster]; 
     } else {
-        // @FIX: Filtered candidates to exclude STX items
-        candidates = products.filter(p => p.sku.startsWith(val) && !p.is_component).slice(0, 6);
+        // @FIX: Filtered candidates to exclude STX items and improve search priority
+        candidates = products.filter(p => !p.is_component).filter(p => {
+            // Case 1: SKU starts with term
+            if (p.sku.startsWith(val)) return true;
+            // Case 2: SKU includes term (e.g. numeric search)
+            if (val.length >= 3 && p.sku.includes(val)) return true;
+            return false;
+        }).sort((a, b) => {
+            // Priority 1: Exact Match
+            const aExact = a.sku === val;
+            const bExact = b.sku === val;
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+
+            // Priority 2: Starts With Match
+            const aStarts = a.sku.startsWith(val);
+            const bStarts = b.sku.startsWith(val);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+
+            // Priority 3: Shorter length
+            if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
+            
+            // Priority 4: Alphabetical
+            return a.sku.localeCompare(b.sku);
+        }).slice(0, 6);
     }
     setCandidateProducts(candidates);
 
@@ -623,7 +647,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   };
 
   return (
-    <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
+    <div className="space-y-6 h-full flex flex-col">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
           <div>
             <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">

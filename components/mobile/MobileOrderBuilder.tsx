@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
 import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus } from 'lucide-react';
@@ -77,11 +78,28 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
         const results = products.filter(p => {
             if (p.is_component) return false;
+            // Case 1: SKU starts with term
             if (p.sku.startsWith(term)) return true;
+            // Case 2: SKU contains the numeric part (e.g. searching "602" matches "PN602")
             if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
             return false;
         }).sort((a, b) => {
+            // Priority 1: Exact Match
+            const aExact = a.sku === term;
+            const bExact = b.sku === term;
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+
+            // Priority 2: Starts With Match (e.g. "PN" puts "PN602" before "RN602" even if RN has "PN" somewhere else or via numeric match)
+            const aStarts = a.sku.startsWith(term);
+            const bStarts = b.sku.startsWith(term);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+
+            // Priority 3: Shorter length (e.g. "A100" before "A1005")
             if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
+            
+            // Priority 4: Alphabetical
             return a.sku.localeCompare(b.sku);
         }).slice(0, 10);
 
