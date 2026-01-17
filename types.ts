@@ -249,6 +249,28 @@ export interface ProductionBatch {
   isDelayed?: boolean;
 }
 
+// @FIX: Added AggregatedBatch and AggregatedData interfaces moved from App.tsx
+export interface AggregatedBatch extends ProductionBatch {
+    cost_per_piece: number;
+    total_cost: number;
+}
+
+export interface AggregatedData {
+  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
+  materials: Map<string, { name: string; unit: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  components: Map<string, { sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
+  totalSilverWeight: number;
+  batches: AggregatedBatch[];
+  totalProductionCost: number;
+  totalSilverCost: number;
+  totalMaterialsCost: number;
+  totalInHouseLaborCost: number;
+  totalImportedLaborCost: number;
+  totalSubcontractCost: number;
+  orderId?: string;
+  customerName?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';

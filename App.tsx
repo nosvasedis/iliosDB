@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -36,11 +37,13 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType } from './types';
+// @FIX: Included AggregatedData and AggregatedBatch in types import
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch } from './types';
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
+import { hookHooks } from './hooks/useIsMobile';
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
 import EmployeeApp from './components/employee/EmployeeApp';
@@ -73,25 +76,7 @@ import PriceListPrintView, { PriceListPrintData } from './components/PriceListPr
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist';
 
-export interface AggregatedBatch extends ProductionBatch {
-    cost_per_piece: number;
-    total_cost: number;
-}
-export interface AggregatedData {
-  molds: Map<string, { code: string; location: string; description: string; usedIn: Set<string> }>;
-  materials: Map<string, { name: string; unit: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
-  components: Map<string, { sku: string; totalQuantity: number; totalCost: number; usedIn: Map<string, number> }>;
-  totalSilverWeight: number;
-  batches: AggregatedBatch[];
-  totalProductionCost: number;
-  totalSilverCost: number;
-  totalMaterialsCost: number;
-  totalInHouseLaborCost: number;
-  totalImportedLaborCost: number;
-  totalSubcontractCost: number;
-  orderId?: string;
-  customerName?: string;
-}
+// @FIX: Removed local interface definitions as they are now in types.ts
 
 // Visual Sync Indicator Component
 const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingItems: any[], isOnline: boolean, isSyncing: boolean }) => {
