@@ -267,14 +267,17 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   }, [batches]);
 
   const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group">
+      <div 
+        className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
+        title={hint} // Native browser tooltip
+      >
           <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 ${colorClass}`}>
               {React.cloneElement(icon as React.ReactElement<any>, { size: 64 })}
           </div>
           <div>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
                 {title}
-                {hint && <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors" title={hint} />}
+                {hint && <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />}
               </p>
               <h3 className="text-3xl font-black text-slate-800 tracking-tight">{value}</h3>
           </div>
@@ -389,9 +392,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
                         <div className="h-px bg-white/10 w-full"></div>
 
-                        <div className="text-center relative z-10">
-                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1">
-                                Δυνητικός Τζίρος <HelpCircle size={10} title="Η συνολική αξία πώλησης (χονδρική) αν πουληθεί όλο το υπάρχον στοκ." />
+                        <div className="text-center relative z-10" title="Η συνολική αξία πώλησης (χονδρική) αν πουληθεί όλο το υπάρχον στοκ.">
+                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1 cursor-help">
+                                Δυνητικός Τζίρος <HelpCircle size={10} />
                             </p>
                             <h3 className="text-3xl font-black tracking-tight text-amber-400">{formatCurrency(stats.totalPotentialRevenue)}</h3>
                             <p className="text-emerald-200/40 text-[10px] mt-1 italic">Αν πουληθεί όλο το στοκ (Χονδρική)</p>
