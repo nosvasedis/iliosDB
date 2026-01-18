@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash } from 'lucide-react';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -249,13 +249,17 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders }); // Needed for Finder
   
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
   const [isProcessingSplit, setIsProcessingSplit] = useState(false);
   
   // Mobile Accordion State
-  const [expandedStageId, setExpandedStageId] = useState<string | null>(STAGES[1].id); // Default to Waxing or first active
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(STAGES[1].id); 
+  
+  // Finder State
+  const [finderTerm, setFinderTerm] = useState('');
 
   const [splitModalState, setSplitModalState] = useState<{
       batch: ProductionBatch;
@@ -285,6 +289,27 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons };
     }) || [];
   }, [batches, products, materials]);
+
+  const foundBatches = useMemo(() => {
+        if (!finderTerm || finderTerm.length < 2) return [];
+        const term = finderTerm.toUpperCase();
+        
+        return enhancedBatches
+            .filter(b => {
+                const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+                return fullSku.includes(term) || (b.order_id && b.order_id.includes(term));
+            })
+            .map(b => {
+                const order = orders?.find(o => o.id === b.order_id);
+                return { ...b, customerName: order?.customer_name || 'Unknown' };
+            })
+            // Sort: Exact matches first
+            .sort((a, b) => {
+                const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
+                const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
+                return (aExact === bExact) ? 0 : aExact ? -1 : 1;
+            });
+    }, [enhancedBatches, finderTerm, orders]);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
       e.dataTransfer.effectAllowed = 'move';
@@ -421,6 +446,55 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     Ροή Παραγωγής
                 </h1>
                 <p className="text-slate-500 mt-1 ml-14">Διαχείριση εντολών σε πραγματικό χρόνο.</p>
+            </div>
+
+            {/* ORDER FINDER (DESKTOP) */}
+            <div className="flex-1 max-w-xl w-full mx-4">
+                 <div className="relative group">
+                     <input 
+                         type="text" 
+                         value={finderTerm}
+                         onChange={(e) => setFinderTerm(e.target.value)}
+                         placeholder="Εύρεση SKU / Εντολής..." 
+                         className="w-full pl-10 p-3 rounded-2xl bg-slate-100 border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold text-slate-800 uppercase"
+                     />
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600" size={18}/>
+                     {finderTerm && (
+                         <button onClick={() => setFinderTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={16}/></button>
+                     )}
+                     
+                     {/* RESULTS DROPDOWN */}
+                     {finderTerm.length >= 2 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-96 overflow-y-auto custom-scrollbar p-2 space-y-2">
+                             {foundBatches.map(b => (
+                                 <div key={b.id} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group">
+                                     <div className="flex justify-between items-start">
+                                         <div>
+                                             <div className="flex items-center gap-2">
+                                                <span className="font-black text-slate-800 text-lg">{b.sku}{b.variant_suffix}</span>
+                                                {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
+                                             </div>
+                                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                                 <User size={12}/> <span className="font-bold text-slate-700">{b.customerName}</span>
+                                             </div>
+                                         </div>
+                                         <div className="text-right">
+                                             <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
+                                             <span className="text-[10px] uppercase font-bold bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">{b.current_stage}</span>
+                                         </div>
+                                     </div>
+                                     {b.notes && (
+                                         <div className="mt-2 bg-amber-50 text-amber-800 text-xs font-bold p-2 rounded-lg flex items-start gap-2 border border-amber-100">
+                                             <StickyNote size={14} className="shrink-0 mt-0.5"/>
+                                             <span>{b.notes}</span>
+                                         </div>
+                                     )}
+                                 </div>
+                             ))}
+                             {foundBatches.length === 0 && <div className="p-4 text-center text-slate-400 text-xs italic">Δεν βρέθηκαν ενεργές παρτίδες.</div>}
+                        </div>
+                     )}
+                 </div>
             </div>
             
             <div className="flex items-center gap-2 flex-wrap">

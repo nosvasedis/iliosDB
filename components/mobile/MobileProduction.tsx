@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer } from 'lucide-react';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order } from '../../types';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X } from 'lucide-react';
 import { useUI } from '../UIProvider';
 
 interface Props {
@@ -71,11 +71,16 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders }); // Needed for finder
+    
     const queryClient = useQueryClient();
     const { showToast } = useUI();
     
     // Accordion State: Keep track of open stage ID
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
+
+    // Finder State
+    const [finderTerm, setFinderTerm] = useState('');
 
     const enrichedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -93,6 +98,27 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
             return { ...b, requires_setting: hasZircons };
         }) || [];
     }, [batches, products, materials]);
+
+    const foundBatches = useMemo(() => {
+        if (!finderTerm || finderTerm.length < 2) return [];
+        const term = finderTerm.toUpperCase();
+        
+        return enrichedBatches
+            .filter(b => {
+                const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+                return fullSku.includes(term) || (b.order_id && b.order_id.includes(term));
+            })
+            .map(b => {
+                const order = orders?.find(o => o.id === b.order_id);
+                return { ...b, customerName: order?.customer_name || 'Unknown' };
+            })
+            // Sort: Exact matches first
+            .sort((a, b) => {
+                const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
+                const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
+                return (aExact === bExact) ? 0 : aExact ? -1 : 1;
+            });
+    }, [enrichedBatches, finderTerm, orders]);
 
     const toggleStage = (stageId: string) => {
         setOpenStage(openStage === stageId ? null : stageId);
@@ -133,6 +159,65 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         <div className="p-4 space-y-4 pb-24">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-2xl font-black text-slate-900">Ροή Παραγωγής</h1>
+            </div>
+
+            {/* ORDER FINDER SECTION */}
+            <div className="bg-slate-900 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10 text-white"><Search size={80}/></div>
+                 <div className="relative z-10">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                        <Search size={16} className="text-emerald-400"/> Εύρεση Εντολής / Πελάτη
+                    </h2>
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            value={finderTerm}
+                            onChange={(e) => setFinderTerm(e.target.value)}
+                            placeholder="Πληκτρολογήστε SKU ή ID..." 
+                            className="w-full pl-10 p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 font-bold transition-all uppercase"
+                        />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={18}/>
+                        {finderTerm && (
+                            <button onClick={() => setFinderTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1">
+                                <X size={16}/>
+                            </button>
+                        )}
+                    </div>
+                 </div>
+
+                 {/* FINDER RESULTS */}
+                 {finderTerm.length >= 2 && (
+                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar relative z-10">
+                        {foundBatches.map(b => (
+                            <div key={b.id} className="bg-white rounded-xl p-3 shadow-md border-l-4 border-emerald-500 animate-in slide-in-from-top-2">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-black text-slate-800 text-lg">{b.sku}{b.variant_suffix}</span>
+                                            {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
+                                        </div>
+                                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                            <User size={12}/> {b.customerName}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-mono text-slate-400">#{b.order_id?.slice(0,6)}</div>
+                                        <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded mt-1">{b.current_stage}</div>
+                                    </div>
+                                </div>
+                                {b.notes && (
+                                    <div className="bg-amber-50 text-amber-800 text-xs font-bold p-2 rounded-lg flex items-start gap-2 border border-amber-100">
+                                        <StickyNote size={14} className="shrink-0 mt-0.5"/>
+                                        <span>{b.notes}</span>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {foundBatches.length === 0 && (
+                            <div className="text-white/50 text-center text-xs py-2 italic">Δεν βρέθηκαν ενεργές παρτίδες.</div>
+                        )}
+                    </div>
+                 )}
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
