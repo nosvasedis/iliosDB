@@ -55,6 +55,7 @@ import { useUI } from './UIProvider';
 interface Props {
   products: Product[];
   settings: GlobalSettings;
+  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics') => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -138,7 +139,7 @@ const SmartReportRenderer = ({ text }: { text: string }) => {
     );
 };
 
-export default function Dashboard({ products, settings }: Props) {
+export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory' | 'smart'>('overview');
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -409,6 +410,25 @@ export default function Dashboard({ products, settings }: Props) {
                   <KPICard title="Συνολικά Έσοδα" value={formatCurrency(stats.totalRevenue)} icon={<DollarSign/>} colorClass="text-emerald-600" />
                   <KPICard title="Εκτιμώμενο Κέρδος" value={formatCurrency(stats.potentialMargin)} subValue={`${stats.marginPercent.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" />
                   <KPICard title="Αξία Αποθέματος (Retail)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" />
+              </div>
+
+              {/* Call to Action for Full Analytics */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                      <div className="p-4 bg-indigo-100 text-indigo-600 rounded-2xl">
+                          <BarChart3 size={32} />
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-indigo-900 text-lg">Προηγμένη Ανάλυση Δεδομένων</h3>
+                          <p className="text-sm text-indigo-600/80">Δείτε αναλυτικά γραφήματα, τάσεις πωλήσεων και best sellers.</p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => onNavigate && onNavigate('analytics')}
+                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 whitespace-nowrap"
+                  >
+                      Άνοιγμα Αναλυτικών <ArrowUpRight size={18}/>
+                  </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
