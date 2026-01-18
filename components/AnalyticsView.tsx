@@ -300,7 +300,9 @@ export default function AnalyticsView({ products, onBack }: Props) {
 
   return (
     <>
-    <AnalyticsPrintReport stats={stats} />
+    <div className="hidden print:block">
+        <AnalyticsPrintReport stats={stats} />
+    </div>
 
     <div className="max-w-7xl mx-auto space-y-8 pb-20 no-print animate-in fade-in duration-500">
         
