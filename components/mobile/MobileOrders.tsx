@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus, Product, ProductVariant } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 
@@ -116,27 +116,31 @@ const OrderCard: React.FC<{
                                 <Printer size={14}/> Εκτύπωση
                             </button>
                         )}
-                        {!isCancelled && !isDelivered && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onCancel(order); }}
-                                className="flex items-center gap-1 bg-white border border-red-200 text-red-500 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
-                            >
-                                <XCircle size={14}/> Ακύρωση
-                            </button>
-                        )}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onDelete(order); }}
-                            className="flex items-center gap-1 bg-white border border-red-200 text-red-500 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
-                        >
-                            <Trash2 size={14}/> Διαγραφή
-                        </button>
+                        
                         <button 
                             onClick={(e) => { e.stopPropagation(); onEdit(order); }}
                             className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
                         >
                             <Edit size={14}/> Επεξεργασία
                         </button>
+                        
+                        {!isCancelled && !isDelivered && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onCancel(order); }}
+                                className="flex items-center gap-1 bg-orange-50 border border-orange-200 text-orange-600 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            >
+                                <Ban size={14}/> Ακύρωση
+                            </button>
+                        )}
+                        
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onDelete(order); }}
+                            className="flex items-center gap-1 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                        >
+                            <Trash2 size={14}/> Διαγραφή
+                        </button>
                     </div>
+                    
                     {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded-lg border border-slate-100">
                             <div className="flex items-center gap-3">
@@ -191,14 +195,9 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     }, [orders, filter, search]);
 
     const handleDeleteOrder = async (order: Order) => {
-        if (order.status === OrderStatus.InProduction) {
-            showToast('Αδύνατη η διαγραφή (Σε Παραγωγή).', 'error');
-            return;
-        }
-        
         const yes = await confirm({
-            title: 'Διαγραφή Παραγγελίας',
-            message: 'Είστε σίγουροι; Η ενέργεια δεν αναιρείται.',
+            title: 'Οριστική Διαγραφή',
+            message: 'ΠΡΟΣΟΧΗ: Διαγραφή οριστικά της παραγγελίας και όλων των δεδομένων της. Δεν αναιρείται.',
             isDestructive: true,
             confirmText: 'Διαγραφή'
         });
@@ -218,7 +217,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     const handleCancelOrder = async (order: Order) => {
         const yes = await confirm({
             title: 'Ακύρωση Παραγγελίας',
-            message: 'Θέλετε να ακυρώσετε αυτή την παραγγελία; Τυχόν παρτίδες παραγωγής θα αφαιρεθούν.',
+            message: 'Η παραγγελία θα σημειωθεί ως Ακυρωμένη αλλά θα παραμείνει στο ιστορικό.',
             isDestructive: true,
             confirmText: 'Ακύρωση'
         });

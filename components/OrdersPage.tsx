@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType, Gender } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus, StickyNote, XCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus, StickyNote, XCircle, Ban } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -382,30 +382,22 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     if (bestMaster) {
         candidates = [bestMaster]; 
     } else {
-        // @FIX: Filtered candidates to exclude STX items and improve search priority
         candidates = products.filter(p => !p.is_component).filter(p => {
-            // Case 1: SKU starts with term
             if (p.sku.startsWith(val)) return true;
-            // Case 2: SKU includes term (e.g. numeric search)
             if (val.length >= 3 && p.sku.includes(val)) return true;
             return false;
         }).sort((a, b) => {
-            // Priority 1: Exact Match
             const aExact = a.sku === val;
             const bExact = b.sku === val;
             if (aExact && !bExact) return -1;
             if (!aExact && bExact) return 1;
 
-            // Priority 2: Starts With Match
             const aStarts = a.sku.startsWith(val);
             const bStarts = b.sku.startsWith(val);
             if (aStarts && !bStarts) return -1;
             if (!aStarts && bStarts) return 1;
 
-            // Priority 3: Shorter length
             if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
-            
-            // Priority 4: Alphabetical
             return a.sku.localeCompare(b.sku);
         }).slice(0, 6);
     }
@@ -461,7 +453,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
     const { product, variant } = match;
 
-    // @FIX: Explicitly block adding STX components to orders manually
     if (product.is_component) {
         showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
         return;
@@ -494,7 +485,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         return [newItem, ...prev];
     });
 
-    // Reset Entry
     setScanInput('');
     setScanQty(1);
     setItemNotes('');
@@ -632,7 +622,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const handleCancelOrder = async (orderId: string) => {
     const yes = await confirm({
         title: 'Ακύρωση Παραγγελίας',
-        message: 'Είστε σίγουροι ότι θέλετε να ακυρώσετε αυτή την παραγγελία; Η ενέργεια θα αφαιρέσει τυχόν παρτίδες παραγωγής.',
+        message: 'Είστε σίγουροι ότι θέλετε να ακυρώσετε αυτή την παραγγελία; Η ενέργεια θα αφαιρέσει τυχόν παρτίδες παραγωγής, αλλά θα διατηρήσει το ιστορικό.',
         isDestructive: true,
         confirmText: 'Ακύρωση'
     });
@@ -644,6 +634,27 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             setManagingOrder(null);
             showToast('Η παραγγελία ακυρώθηκε.', 'info');
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        }
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    const yes = await confirm({
+        title: 'Διαγραφή Παραγγελίας',
+        message: 'ΠΡΟΣΟΧΗ: Αυτή η ενέργεια θα διαγράψει ΟΡΙΣΤΙΚΑ την παραγγελία και όλα τα δεδομένα της. Δεν μπορεί να αναιρεθεί.',
+        isDestructive: true,
+        confirmText: 'Οριστική Διαγραφή'
+    });
+
+    if (yes) {
+        try {
+            await api.deleteOrder(orderId);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            setManagingOrder(null);
+            showToast('Η παραγγελία διαγράφηκε οριστικά.', 'success');
         } catch (err: any) {
             showToast(`Σφάλμα: ${err.message}`, 'error');
         }
@@ -917,16 +928,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                         <button onClick={() => onPrintLabels && onPrintLabels(order.items.map(i => ({ product: products.find(p => p.sku === i.sku)!, variant: products.find(p => p.sku === i.sku)?.variants?.find(v => v.suffix === i.variant_suffix), quantity: i.quantity, size: i.size_info, format: 'standard' })))} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
                                         <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
                                         <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
-                                        {/* Added Cancel Button */}
-                                        {order.status !== OrderStatus.Cancelled && order.status !== OrderStatus.Delivered && (
-                                            <button 
-                                                onClick={() => handleCancelOrder(order.id)} 
-                                                title="Ακύρωση" 
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                            >
-                                                <XCircle size={16}/>
-                                            </button>
-                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -951,9 +952,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     {managingOrder.status === OrderStatus.Pending && (
                         <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
                     )}
+                    {/* Separate Cancel and Delete Buttons */}
                     {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
-                        <button onClick={() => handleCancelOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"><XCircle size={18}/> Ακύρωση Παραγγελίας</button>
+                        <button onClick={() => handleCancelOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors">
+                            <Ban size={18}/> Ακύρωση (Soft Cancel)
+                        </button>
                     )}
+                    <button onClick={() => handleDeleteOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors">
+                        <Trash2 size={18}/> Οριστική Διαγραφή (Hard Delete)
+                    </button>
                 </div>
             </div>
         </div>
