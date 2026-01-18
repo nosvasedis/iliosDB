@@ -4,8 +4,7 @@ import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Ge
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
-// Use the Cloudflare Worker as the public URL for reading images
-// This bypasses r2.dev instability by using the worker's GET handler
+// Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev'; 
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
@@ -296,15 +295,10 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         const { error } = await safeMutate('products', 'DELETE', null, { match: { sku: sku } });
         if (error) throw error;
 
-        if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) {
-             const filename = imageUrl.split('/').pop();
-             if (filename) {
-                 await fetch(`${CLOUDFLARE_WORKER_URL}/${filename}`, {
-                     method: 'DELETE',
-                     headers: { 'Authorization': AUTH_KEY_SECRET }
-                 });
-             }
-        }
+        // FORTIFICATION: We NEVER delete the image from R2 when a product is deleted.
+        // This prevents accidental image loss if the product is deleted during a rename or error.
+        // Storage is cheap; lost data is expensive.
+        // if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) { ... } // Disabled.
 
         return { success: true };
     } catch (e: any) {
