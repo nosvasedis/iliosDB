@@ -4,7 +4,9 @@ import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Ge
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
-export const R2_PUBLIC_URL = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'; 
+// Use the Cloudflare Worker as the public URL for reading images
+// This bypasses r2.dev instability by using the worker's GET handler
+export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev'; 
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;

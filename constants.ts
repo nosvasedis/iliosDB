@@ -1,9 +1,10 @@
 
 import { GlobalSettings, Material, MaterialType, PlatingType, Product, Gender, ProductionType } from './types';
 
-export const APP_LOGO = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/logo.png';
+// Using Cloudflare Worker for reliable image serving instead of public r2.dev
+export const APP_LOGO = 'https://ilios-image-handler.iliosdb.workers.dev/logo.png';
 
-export const APP_ICON_ONLY = 'https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/collapsed-logo.png';
+export const APP_ICON_ONLY = 'https://ilios-image-handler.iliosdb.workers.dev/collapsed-logo.png';
 
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {

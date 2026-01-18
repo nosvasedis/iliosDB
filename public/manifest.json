@@ -1,19 +1,20 @@
+
 {
   "short_name": "Ilios ERP",
   "name": "Ilios Kosmima ERP",
   "icons": [
     {
-      "src": "https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/favicon.ico",
+      "src": "https://ilios-image-handler.iliosdb.workers.dev/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/android-chrome-192x192.png",
+      "src": "https://ilios-image-handler.iliosdb.workers.dev/android-chrome-192x192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev/android-chrome-512x512.png",
+      "src": "https://ilios-image-handler.iliosdb.workers.dev/android-chrome-512x512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
