@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, OrderItem, ProductionStage, ProductionBatch, Material, MaterialType, Customer, BatchType, ProductionType, Gender } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus, StickyNote, XCircle, Ban } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, Phone, User, CheckCircle, Package, ArrowRight, X, Loader2, Factory, Users, ScanBarcode, Camera, Printer, AlertTriangle, PackageCheck, PackageX, Trash2, Settings, RefreshCcw, LayoutList, Edit, Save, Ruler, ChevronDown, BookOpen, Hammer, Flame, Gem, Tag, Globe, FileText, ImageIcon, ChevronLeft, ChevronRight, Hash, Layers, Minus, StickyNote, XCircle, Ban, BarChart3 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, SYSTEM_IDS, recordStockMovement } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -18,6 +18,7 @@ interface Props {
   onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
   onPrintTechnician: (batches: ProductionBatch[]) => void;
+  onPrintAnalytics?: (order: Order) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -131,7 +132,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     );
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician }: {
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
@@ -139,6 +140,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
+    onPrintAnalytics?: (order: Order) => void;
     products: Product[];
     allBatches: ProductionBatch[] | undefined;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -203,6 +205,13 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
             disabled: !onPrintLabels,
         },
         {
+            label: "Οικονομική Ανάλυση",
+            icon: <BarChart3 size={20} />,
+            color: "teal",
+            action: () => { onPrintAnalytics && onPrintAnalytics(order); onClose(); },
+            disabled: !onPrintAnalytics,
+        },
+        {
             label: "Συγκεντρωτική Παραγωγής",
             icon: <FileText size={20} />,
             color: "blue",
@@ -228,6 +237,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     const colors = {
         slate: { bg: 'bg-slate-100', text: 'text-slate-700', hover: 'hover:bg-slate-200', border: 'border-slate-200' },
         emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', hover: 'hover:bg-emerald-100', border: 'border-emerald-200' },
+        teal: { bg: 'bg-teal-50', text: 'text-teal-700', hover: 'hover:bg-teal-100', border: 'border-teal-200' },
         blue: { bg: 'bg-blue-50', text: 'text-blue-700', hover: 'hover:bg-blue-100', border: 'border-blue-200' },
         purple: { bg: 'bg-purple-50', text: 'text-purple-700', hover: 'hover:bg-purple-100', border: 'border-purple-200' },
         orange: { bg: 'bg-orange-50', text: 'text-orange-700', hover: 'hover:bg-orange-100', border: 'border-orange-200' },
@@ -271,7 +281,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
 };
 
 
-export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -925,7 +935,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
                                 <td className="p-4 text-right">
                                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => onPrintLabels && onPrintLabels(order.items.map(i => ({ product: products.find(p => p.sku === i.sku)!, variant: products.find(p => p.sku === i.sku)?.variants?.find(v => v.suffix === i.variant_suffix), quantity: i.quantity, size: i.size_info, format: 'standard' })))} title="Εκτύπωση Ετικετών" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Tag size={16}/></button>
                                         <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
                                         <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
                                     </div>
@@ -970,6 +979,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             order={printModalOrder} onClose={() => setPrintModalOrder(null)}
             onPrintOrder={onPrintOrder} onPrintLabels={onPrintLabels}
             onPrintAggregated={onPrintAggregated} onPrintPreparation={onPrintPreparation} onPrintTechnician={onPrintTechnician}
+            onPrintAnalytics={onPrintAnalytics}
             products={products} allBatches={enrichedBatches} showToast={showToast}
         />
       )}

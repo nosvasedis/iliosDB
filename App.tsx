@@ -71,7 +71,7 @@ import TechnicianView from './components/TechnicianView';
 import SetupScreen from './components/SetupScreen';
 import PriceListPage from './components/PriceListPage';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
-import AnalyticsView from './components/AnalyticsView';
+import AnalyticsView, { AnalyticsPrintReport, calculateBusinessStats } from './components/AnalyticsView';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics';
@@ -215,6 +215,8 @@ function AppContent() {
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
+  const [analyticsPrintData, setAnalyticsPrintData] = useState<any>(null);
+
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   
@@ -284,7 +286,7 @@ function AppContent() {
 
   // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData;
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -299,7 +301,9 @@ function AppContent() {
         const dateStr = new Date().toISOString().split('T')[0];
 
         if (priceListPrintData) {
-            docTitle = priceListPrintData.title; // Set Title for PDF Filename
+            docTitle = priceListPrintData.title; 
+        } else if (analyticsPrintData) {
+            docTitle = `Economics_${dateStr}`;
         } else if (orderToPrint) {
             docTitle = `Order_${orderToPrint.id}_${orderToPrint.customer_name}`;
         } else if (batchToPrint) {
@@ -341,6 +345,7 @@ function AppContent() {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
             setAggregatedPrintData(null); setPreparationPrintData(null); 
             setTechnicianPrintData(null); setPriceListPrintData(null);
+            setAnalyticsPrintData(null);
         };
 
         iframeDoc.open();
@@ -402,7 +407,7 @@ function AppContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData]);
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
@@ -546,6 +551,14 @@ function AppContent() {
   const handlePrintTechnician = (batches: ProductionBatch[]) => {
       setTechnicianPrintData({ batches });
   };
+  
+  const handlePrintOrderAnalytics = (order: Order) => {
+      if (!products || !materials) return;
+      const stats = calculateBusinessStats([order], products, materials);
+      if (stats) {
+        setAnalyticsPrintData({ ...stats, title: `Οικονομική Ανάλυση Παραγγελίας #${order.id}` });
+      }
+  };
 
   // DESKTOP RENDERING (ADMIN)
   // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
@@ -562,6 +575,7 @@ function AppContent() {
         {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
+        {analyticsPrintData && <AnalyticsPrintReport stats={analyticsPrintData} title={analyticsPrintData.title} />}
         {printItems.length > 0 && (
             <div className="print-area">
             {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
@@ -649,7 +663,7 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} />}

@@ -23,11 +23,11 @@ interface Props {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
-const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
+export const AnalyticsPrintReport = ({ stats, title }: { stats: any, title?: string }) => {
     if (!stats) return null;
 
     return (
-        <div className="hidden print:block bg-white text-slate-900 font-sans w-full max-w-[210mm] mx-auto p-10">
+        <div className="bg-white text-slate-900 font-sans w-full max-w-[210mm] mx-auto p-10 page-break-inside-avoid">
             <style>{`
                 @page { size: A4; margin: 15mm; }
                 .break-avoid { break-inside: avoid; }
@@ -38,7 +38,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
                 <div className="flex items-center gap-4">
                     <img src={APP_LOGO} alt="Ilios" className="w-24 object-contain" />
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Οικονομική Αναφορά</h1>
+                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{title || "Οικονομική Αναφορά"}</h1>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ilios Kosmima • Σύστημα Επιχειρηματικής Ευφυΐας</p>
                     </div>
                 </div>
@@ -163,12 +163,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
     );
 };
 
-export default function AnalyticsView({ products, onBack }: Props) {
-  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-  const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-  const [showHelp, setShowHelp] = React.useState(false);
-
-  const stats = useMemo(() => {
+export const calculateBusinessStats = (orders: Order[], products: Product[], materials: any[]) => {
     if (!orders || !products || !materials) return null;
 
     const validOrders = orders.filter(o => o.status !== OrderStatus.Cancelled);
@@ -238,7 +233,7 @@ export default function AnalyticsView({ products, onBack }: Props) {
             }, 0) * item.quantity;
             materialCostSum += matCost;
             
-            const silverC = (w * 0.85) * item.quantity;
+            const silverC = (w * 0.85) * item.quantity; // Est silver cost
             silverCostSum += silverC;
             
             // The rest is labor/overhead
@@ -290,6 +285,15 @@ export default function AnalyticsView({ products, onBack }: Props) {
         topCustomers,
         topSkus
     };
+};
+
+export default function AnalyticsView({ products, onBack }: Props) {
+  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+  const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const [showHelp, setShowHelp] = React.useState(false);
+
+  const stats = useMemo(() => {
+     return calculateBusinessStats(orders || [], products, materials || []);
   }, [orders, products, materials]);
 
   if (!stats) return <div className="p-20 text-center flex flex-col items-center gap-4"><Loader2 className="animate-spin text-blue-500" size={40}/> <p className="font-bold text-slate-500">Φόρτωση Οικονομικών Δεδομένων...</p></div>;
