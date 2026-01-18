@@ -245,7 +245,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     ];
 
     return (
-        <div className="bg-slate-50">
+        <div className="min-h-full bg-slate-50 pb-4">
             
             {/* Sticky Header Group */}
             <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm pt-4 pb-2 px-4 shadow-sm border-b border-slate-100 space-y-3">
