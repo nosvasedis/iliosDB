@@ -613,7 +613,6 @@ function AppContent() {
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
                 <NavItem icon={<Users size={22} />} label="Πελάτες & Προμ." isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
-                <NavItem icon={<TrendingUp size={22} />} label="Αναλυτικά" isActive={activePage === 'analytics'} isCollapsed={isCollapsed} onClick={() => handleNav('analytics')} />
                 </>
             )}
             <div className="my-2 border-t border-white/10 mx-2"></div>
@@ -653,12 +652,12 @@ function AppContent() {
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
-              {activePage === 'analytics' && <AnalyticsView products={products} />}
+              {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} />}
               {activePage === 'resources' && (
                 <div className="space-y-6">
                     <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
                         <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><Gem size={18} /> Υλικά</button>
-                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
+                        <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-amber-50 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
                     </div>
                     {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
                     {resourceTab === 'molds' && <MoldsPage />}

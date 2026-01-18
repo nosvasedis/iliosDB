@@ -36,9 +36,10 @@ const OrderCard: React.FC<{
     products: Product[],
     onEdit: (o: Order) => void, 
     onDelete: (o: Order) => void, 
+    onCancel: (o: Order) => void,
     onPrint?: (o: Order) => void,
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
-}> = ({ order, products, onEdit, onDelete, onPrint, onPrintLabels }) => {
+}> = ({ order, products, onEdit, onDelete, onCancel, onPrint, onPrintLabels }) => {
     const [expanded, setExpanded] = useState(false);
 
     const handlePrintLabels = () => {
@@ -61,6 +62,9 @@ const OrderCard: React.FC<{
             onPrintLabels(itemsToPrint);
         }
     };
+
+    const isCancelled = order.status === OrderStatus.Cancelled;
+    const isDelivered = order.status === OrderStatus.Delivered;
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200 active:scale-[0.99]">
@@ -110,6 +114,14 @@ const OrderCard: React.FC<{
                                 className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
                             >
                                 <Printer size={14}/> Εκτύπωση
+                            </button>
+                        )}
+                        {!isCancelled && !isDelivered && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onCancel(order); }}
+                                className="flex items-center gap-1 bg-white border border-red-200 text-red-500 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            >
+                                <XCircle size={14}/> Ακύρωση
                             </button>
                         )}
                         <button 
@@ -203,6 +215,26 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
         }
     };
 
+    const handleCancelOrder = async (order: Order) => {
+        const yes = await confirm({
+            title: 'Ακύρωση Παραγγελίας',
+            message: 'Θέλετε να ακυρώσετε αυτή την παραγγελία; Τυχόν παρτίδες παραγωγής θα αφαιρεθούν.',
+            isDestructive: true,
+            confirmText: 'Ακύρωση'
+        });
+
+        if (yes) {
+            try {
+                await api.updateOrderStatus(order.id, OrderStatus.Cancelled);
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                showToast('Η παραγγελία ακυρώθηκε.', 'info');
+            } catch (err: any) {
+                showToast('Σφάλμα ακύρωσης.', 'error');
+            }
+        }
+    };
+
     if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
 
     const tabs = [
@@ -262,6 +294,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                         products={products}
                         onEdit={onEdit || (() => {})} 
                         onDelete={handleDeleteOrder}
+                        onCancel={handleCancelOrder}
                         onPrint={onPrint}
                         onPrintLabels={onPrintLabels}
                     />

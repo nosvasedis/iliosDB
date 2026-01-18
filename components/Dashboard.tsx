@@ -183,6 +183,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     // --- TOP SELLERS LOGIC ---
     const revenueBySku: Record<string, { revenue: number, qty: number, category: string }> = {};
     orders?.forEach(o => {
+        if (o.status === OrderStatus.Cancelled) return;
         o.items.forEach(i => {
             const key = i.sku + (i.variant_suffix || '');
             if (!revenueBySku[key]) revenueBySku[key] = { revenue: 0, qty: 0, category: i.product_details?.category || 'Unknown' };
@@ -424,7 +425,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </div>
                   </div>
                   <button 
-                    onClick={() => onNavigate && onNavigate('analytics')}
+                    onClick={() => onNavigate?.('analytics')}
                     className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 whitespace-nowrap"
                   >
                       Άνοιγμα Αναλυτικών <ArrowUpRight size={18}/>
@@ -435,7 +436,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   {/* TOP SELLERS */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <Trophy size={20} className="text-amber-500" /> Top Sellers (Revenue)
+                          <Trophy size={20} className="text-amber-500" /> Κορυφαία σε Πωλήσεις (Έσοδα)
                       </h3>
                       <div className="space-y-4">
                           {stats.topSellers.map((item, index) => (
@@ -462,7 +463,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   {/* HIGH VALUE STOCK */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <Crown size={20} className="text-purple-500" /> High Value Inventory
+                          <Crown size={20} className="text-purple-500" /> Απόθεμα Υψηλής Αξίας
                       </h3>
                       <div className="space-y-4">
                           {stats.topStockValue.map((item, index) => (
