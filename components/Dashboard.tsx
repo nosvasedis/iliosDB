@@ -31,7 +31,8 @@ import {
   Trophy,
   Crown,
   Gem,
-  Hammer
+  Hammer,
+  HelpCircle
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -265,13 +266,16 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       return Object.entries(stages).map(([name, value]) => ({ name, value }));
   }, [batches]);
 
-  const KPICard = ({ title, value, subValue, icon, colorClass }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string }) => (
+  const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group">
           <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 ${colorClass}`}>
               {React.cloneElement(icon as React.ReactElement<any>, { size: 64 })}
           </div>
           <div>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">{title}</p>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                {title}
+                {hint && <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors" title={hint} />}
+              </p>
               <h3 className="text-3xl font-black text-slate-800 tracking-tight">{value}</h3>
           </div>
           {subValue && (
@@ -288,8 +292,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-[#060b00] tracking-tight">Πίνακας Ελέγχου</h1>
-          <p className="text-slate-500 mt-2 font-medium">Έξυπνη επισκόπηση και ανάλυση κερδοφορίας.</p>
+          <h1 className="text-3xl font-black text-[#060b00] tracking-tight">Πίνακας Ελέγχου</h1>
+          <p className="text-slate-500 mt-2 font-medium">Έξυπνη επισκόπηση και ανάλυση κερδοφορίας της επιχείρησης.</p>
         </div>
         
         <div className="bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm flex overflow-x-auto scrollbar-hide">
@@ -320,10 +324,10 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" />
-                  <KPICard title="Εκκρεμής Τζίρος" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" />
-                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" />
-                  <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" />
+                  <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" hint="Η συνολική αξία κόστους των προϊόντων που βρίσκονται στην αποθήκη." />
+                  <KPICard title="Εκκρεμής Τζίρος" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" hint="Τα αναμενόμενα έσοδα από παραγγελίες που δεν έχουν ακόμη παραδοθεί." />
+                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" hint="Συνολικά τεμάχια που βρίσκονται αυτή τη στιγμή στα διάφορα στάδια της παραγωγής." />
+                  <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" hint="Η τρέχουσα τιμή αγοράς του ασημιού ανά γραμμάριο." />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -386,7 +390,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                         <div className="h-px bg-white/10 w-full"></div>
 
                         <div className="text-center relative z-10">
-                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Δυνητικός Τζίρος</p>
+                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1">
+                                Δυνητικός Τζίρος <HelpCircle size={10} title="Η συνολική αξία πώλησης (χονδρική) αν πουληθεί όλο το υπάρχον στοκ." />
+                            </p>
                             <h3 className="text-3xl font-black tracking-tight text-amber-400">{formatCurrency(stats.totalPotentialRevenue)}</h3>
                             <p className="text-emerald-200/40 text-[10px] mt-1 italic">Αν πουληθεί όλο το στοκ (Χονδρική)</p>
                         </div>
@@ -398,20 +404,19 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'financials' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <KPICard title="Συνολικά Έσοδα" value={formatCurrency(stats.totalRevenue)} icon={<DollarSign/>} colorClass="text-emerald-600" />
-                  <KPICard title="Εκτιμώμενο Κέρδος" value={formatCurrency(stats.potentialMargin)} subValue={`${stats.marginPercent.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" />
-                  <KPICard title="Αξία Αποθέματος (Retail)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" />
+                  <KPICard title="Συνολικά Έσοδα" value={formatCurrency(stats.totalRevenue)} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Ο συνολικός τζίρος από όλες τις ολοκληρωμένες παραγγελίες." />
+                  <KPICard title="Εκτιμώμενο Κέρδος" value={formatCurrency(stats.potentialMargin)} subValue={`${stats.marginPercent.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Το μεικτό κέρδος μετά την αφαίρεση του κόστους παραγωγής (Μέταλλο + Εργατικά + Υλικά)." />
+                  <KPICard title="Αξία Αποθέματος (Retail)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
               </div>
 
-              {/* Call to Action for Full Analytics */}
               <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                       <div className="p-4 bg-indigo-100 text-indigo-600 rounded-2xl">
                           <BarChart3 size={32} />
                       </div>
                       <div>
-                          <h3 className="font-bold text-indigo-900 text-lg">Προηγμένη Ανάλυση Δεδομένων</h3>
-                          <p className="text-sm text-indigo-600/80">Δείτε αναλυτικά γραφήματα, τάσεις πωλήσεων και best sellers.</p>
+                          <h3 className="font-black text-indigo-900 text-lg">Προηγμένη Ανάλυση Δεδομένων</h3>
+                          <p className="text-sm text-indigo-600/80">Δείτε αναλυτικά γραφήματα, τάσεις πωλήσεων και κερδοφορία ανά κατηγορία.</p>
                       </div>
                   </div>
                   <button 
@@ -423,7 +428,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* MATERIAL USAGE (REPLACEMENT FOR REDUNDANT TOP SELLERS) */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
                           <Gem size={20} className="text-emerald-500" /> Ανάλυση Κατανάλωσης Υλικών
@@ -460,7 +464,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </div>
                   </div>
                   
-                  {/* HIGH VALUE STOCK */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
                           <Crown size={20} className="text-purple-500" /> Απόθεμα Υψηλής Αξίας
@@ -530,7 +533,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
-                              {products.filter(p => p.stock_qty < 5).slice(0, 5).map(p => (
+                              {products.filter(p => p.stock_qty < 5).slice(0, 10).map(p => (
                                   <tr key={p.sku} className="hover:bg-slate-50/50 transition-colors">
                                       <td className="p-4 font-bold text-slate-800">{p.sku}</td>
                                       <td className="p-4 text-slate-500">{p.category}</td>
@@ -564,7 +567,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                           <h2 className="text-3xl font-black tracking-tight">Ilios Business Intelligence</h2>
                       </div>
                       <p className="text-emerald-50 text-lg leading-relaxed mb-8 opacity-90">
-                          Το Ilios AI αναλύει το μητρώο σας (συμπεριλαμβανομένων των παραλλαγών), τις τιμές του ασημιού και το ιστορικό πωλήσεων για να εντοπίσει ευκαιρίες κέρδους.
+                          Το Ilios AI αναλύει το μητρώο σας, τις τιμές του ασημιού και το ιστορικό πωλήσεων για να εντοπίσει ευκαιρίες κέρδους και ρίσκα.
                       </p>
                       <button 
                         onClick={handleRunAiAudit}
@@ -587,27 +590,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       <SmartReportRenderer text={aiReport} />
 
                       <div className="mt-12 pt-8 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                          <ShieldCheck size={14} className="text-emerald-500" /> Επαληθεύτηκε από Gemini 3 Flash Intelligence
-                      </div>
-                  </div>
-              )}
-
-              {!aiReport && !isAnalyzing && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-60 grayscale transition-all hover:grayscale-0 hover:opacity-100">
-                      <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
-                          <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto"><Target size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Έλεγχος Κερδοφορίας</h4>
-                          <p className="text-xs text-slate-500">Εντοπισμός προϊόντων με λάθος περιθώρια.</p>
-                      </div>
-                      <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
-                          <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto"><Scale size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Διαχείριση Κινδύνου</h4>
-                          <p className="text-xs text-slate-500">Πρόβλεψη επιπτώσεων από άνοδο ασημιού.</p>
-                      </div>
-                      <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center space-y-4">
-                          <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto"><TrendingUp size={24}/></div>
-                          <h4 className="font-bold text-slate-700">Στρατηγική Ανάπτυξης</h4>
-                          <p className="text-xs text-slate-500">Προτάσεις για βελτίωση του product mix.</p>
+                          <ShieldCheck size={14} className="text-emerald-500" /> Επαληθεύτηκε από Gemini AI Intelligence
                       </div>
                   </div>
               )}
