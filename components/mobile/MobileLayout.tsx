@@ -44,7 +44,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto pb-24 scroll-smooth overscroll-none">
+      <main className="flex-1 overflow-y-auto pb-20 scroll-smooth overscroll-none">
         {children}
       </main>
 

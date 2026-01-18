@@ -104,7 +104,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
   }, [products, orders, batches]);
 
   return (
-    <div className="p-5 space-y-6 pb-28 bg-slate-50 min-h-screen">
+    <div className="p-5 space-y-6 pb-2 bg-slate-50 min-h-full">
       {/* Header */}
       <div className="flex items-center justify-between pt-2">
         <div className="flex items-center gap-3">

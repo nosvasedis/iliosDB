@@ -245,47 +245,49 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     ];
 
     return (
-        <div className="p-4 space-y-4 pb-24 h-full flex flex-col bg-slate-50">
-            <div className="flex justify-between items-center shrink-0">
-                <h1 className="text-2xl font-black text-slate-900">Παραγγελίες</h1>
-                {onCreate && (
-                    <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
-                        <Plus size={18}/> Νέα
-                    </button>
-                )}
-            </div>
+        <div className="bg-slate-50">
             
-            {/* Search */}
-            <div className="relative shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Αναζήτηση πελάτη ή ID..." 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                />
+            {/* Sticky Header Group */}
+            <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm pt-4 pb-2 px-4 shadow-sm border-b border-slate-100 space-y-3">
+                <div className="flex justify-between items-center">
+                    <h1 className="text-2xl font-black text-slate-900">Παραγγελίες</h1>
+                    {onCreate && (
+                        <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
+                            <Plus size={18}/> Νέα
+                        </button>
+                    )}
+                </div>
+                
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                        type="text" 
+                        placeholder="Αναζήτηση πελάτη ή ID..." 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    />
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setFilter(tab.id as any)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                                filter === tab.id 
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                                    : 'bg-white text-slate-500 border-slate-200'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setFilter(tab.id as any)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                            filter === tab.id 
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                                : 'bg-white text-slate-500 border-slate-200'
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* List */}
-            <div className="space-y-3 overflow-y-auto pb-24 custom-scrollbar">
+            {/* List - Natural Flow */}
+            <div className="px-4 py-3 space-y-3">
                 {filteredOrders.map(order => (
                     <OrderCard 
                         key={order.id} 
