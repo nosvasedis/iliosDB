@@ -69,10 +69,13 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string, gender: Gender }) => 
     const { finish, stone } = getVariantComponents(suffix, gender);
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+    
+    // Localization Override: "BAS" or empty -> "Λουστρέ"
+    const finishLabel = (finish.code === '' || !finish.code) ? 'Λουστρέ' : (finish.code);
 
     return (
         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-black ${badgeColor}`}>
-            <span>{finish.code || 'BAS'}</span>
+            <span>{finishLabel}</span>
             {stone.code && (
                 <>
                     <span className="opacity-30">|</span>
@@ -257,7 +260,7 @@ const InventoryDetailsModal = ({
                                 </span>
                                 {rows.some(r => r.demandQty > 0) && (
                                     <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                                        <Activity size={10}/> {rows.reduce((a,b) => a + b.demandQty, 0)} Δέσμευση
+                                        <Activity size={10}/> {rows.reduce((a,b) => a + b.demandQty, 0)} Ζήτηση
                                     </span>
                                 )}
                             </div>
@@ -273,7 +276,7 @@ const InventoryDetailsModal = ({
                             <tr>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100">Παραλλαγή / Περιγραφή</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center w-24">Σύνολο</th>
-                                <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-amber-700 w-24 bg-amber-50/50">Δέσμευση</th>
+                                <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-amber-700 w-24 bg-amber-50/50">Ζήτηση</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-emerald-700 w-24">Κεντρική</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-purple-700 w-24">Δειγμ.</th>
                                 {warehouses.filter(w => !w.is_system).map(w => (
@@ -290,7 +293,7 @@ const InventoryDetailsModal = ({
                                             {row.suffix ? (
                                                 <SuffixBadge suffix={row.suffix} gender={product.gender} />
                                             ) : (
-                                                <span className="font-black text-slate-800 font-mono text-base">ΒΑΣΙΚΟ</span>
+                                                <span className="font-black text-slate-800 font-mono text-xs border border-slate-200 bg-slate-100 px-2 py-0.5 rounded">ΒΑΣΙΚΟ</span>
                                             )}
                                             <span className="text-xs text-slate-500 font-medium">{row.description}</span>
                                         </div>
@@ -804,7 +807,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                               <div>
                                                   <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                                                       <span className="font-black">{p.sku}</span>
-                                                      {item.totalDemand > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1"><Activity size={10}/> Demand: {item.totalDemand}</span>}
+                                                      {item.totalDemand > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1"><Activity size={10}/> Ζήτηση: {item.totalDemand}</span>}
                                                   </h3>
                                                   <div className="flex items-center gap-3 mt-0.5">
                                                       <p className="text-xs text-slate-500">{p.category}</p>
