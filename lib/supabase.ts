@@ -27,6 +27,34 @@ export const supabase = createClient(
 );
 
 /**
+ * SMART URL RESOLVER
+ * Ensures any image URL (old or new) is routed through the Cloudflare Worker.
+ * Extracts the filename and rebuilds the path to avoid CORS issues and broken links.
+ */
+export const resolveImageUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url; // Base64 preview
+    if (url.includes('picsum.photos')) return url; // Placeholder images
+
+    try {
+        // Handle cases where we might have a full absolute URL from an old domain
+        // or a simple filename. We extract only the last part (the actual file key).
+        const parts = url.split('/');
+        const filename = parts[parts.length - 1];
+        
+        if (filename && filename.trim() !== '') {
+            // Return the Worker domain + the filename
+            // This forces all jewelry images through the proxy worker.
+            return `${R2_PUBLIC_URL}/${filename}`;
+        }
+    } catch (e) {
+        console.warn("URL resolution failed for:", url);
+        return url;
+    }
+    return url;
+};
+
+/**
  * STRIPPER: Ensures only real DB columns are sent to Supabase.
  * This prevents "Column not found" errors during sync when UI objects are passed.
  */
@@ -402,7 +430,9 @@ export const api = {
             const pMolds = Array.from(uniqueMoldsMap.values());
 
             return {
-                sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, image_url: p.image_url, weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
+                sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, 
+                image_url: resolveImageUrl(p.image_url), // NORMALIZE IMAGE URL
+                weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
                 supplier_sku: p.supplier_sku,
                 supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, 
                 molds: pMolds, 
