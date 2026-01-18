@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold, Gender } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
@@ -44,13 +44,109 @@ interface QuickActionHistory {
     type: 'add' | 'subtract';
 }
 
-const FINISH_COLORS: Record<string, string> = { 'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400' };
-const STONE_CATEGORIES: Record<string, string> = { 'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400', 'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800', 'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-400', 'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-400', 'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500', 'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400', 'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-400', 'MV': 'text-purple-400', 'RZ': 'text-pink-400', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400' };
+// VISUALS & COLORS
+const FINISH_COLORS: Record<string, string> = { 
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500', 
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400', 
+    '': 'text-slate-400' 
+};
+
+// Updated Stone Colors per user request
+const STONE_CATEGORIES: Record<string, string> = { 
+    'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400', 
+    'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800', 
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-400', 
+    'NF': 'text-green-700', 
+    'CO': 'text-teal-500', // Copper -> Turquoise Color
+    'PCO': 'text-emerald-400', 'MCO': 'text-purple-400', 
+    'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500', 
+    'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400', 
+    'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-400', 
+    'MV': 'text-purple-400', 'RZ': 'text-pink-400', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400',
+    'TKO': 'text-red-600', // Triplet Red
+    'TPR': 'text-green-600', // Triplet Green
+    'TMP': 'text-blue-600' // Triplet Blue
+};
+
+// --- STOCK MANAGEMENT MODAL ---
+const StockManagementModal = ({ 
+    item, 
+    warehouses, 
+    onClose, 
+    onSave 
+}: { 
+    item: InventoryItem, 
+    warehouses: Warehouse[], 
+    onClose: () => void, 
+    onSave: (updates: Record<string, number>) => Promise<void> 
+}) => {
+    const [stockMap, setStockMap] = useState<Record<string, number>>(item.locationStock);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleUpdate = (whId: string, val: number) => {
+        setStockMap(prev => ({ ...prev, [whId]: val >= 0 ? val : 0 }));
+    };
+
+    const handleConfirm = async () => {
+        setIsSaving(true);
+        await onSave(stockMap);
+        setIsSaving(false);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">Διαχείριση Αποθέματος</h3>
+                        <p className="text-sm font-mono font-bold text-slate-500 mt-1">{item.masterSku}{item.suffix}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
+                </div>
+                
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {warehouses.map(wh => (
+                        <div key={wh.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${wh.is_system ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
+                                    <MapPin size={18}/>
+                                </div>
+                                <span className="font-bold text-slate-700 text-sm">{wh.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) - 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Minus size={14}/></button>
+                                <input 
+                                    type="number" 
+                                    value={stockMap[wh.id] || 0} 
+                                    onChange={(e) => handleUpdate(wh.id, parseInt(e.target.value) || 0)}
+                                    className="w-16 text-center font-black text-lg text-slate-800 outline-none bg-transparent"
+                                />
+                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) + 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Plus size={14}/></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
+                    <button onClick={onClose} disabled={isSaving} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Ακύρωση</button>
+                    <button onClick={handleConfirm} disabled={isSaving} className="flex-[2] py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-lg">
+                        {isSaving ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
+                        Αποθήκευση
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function Inventory({ products, setPrintItems, settings, collections, molds }: Props) {
   const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [managingItem, setManagingItem] = useState<InventoryItem | null>(null); // For Stock Modal
   const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
   const [showScanner, setShowScanner] = useState(false);
   const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
@@ -113,6 +209,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
   const rowVirtualizer = useVirtualizer({ count: filteredInventory.length, getScrollElement: () => listParentRef.current, estimateSize: () => 100, overscan: 10 });
 
+  // ... (Scan Logic retained same as before) ...
   const handleScanInput = (e: string | React.ChangeEvent<HTMLInputElement>) => {
       const val = (typeof e === 'string' ? e : e.target.value).toUpperCase();
       setScanInput(val);
@@ -124,28 +221,19 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           return; 
       }
       
-      // 1. Try Exact Match (Master or Variant)
       const match = findProductByScannedCode(val, products);
       if (match) {
           const { product } = match;
           setScanSuggestion(product.sku + (match.variant?.suffix || ''));
           setAvailableSuffixes(product.variants?.map(v => ({ suffix: v.suffix, desc: v.description })) || []);
       } else {
-          // 2. Try identifying Master by looking at what starts with the typed value (Standard Autocomplete)
-          // OR if the typed value STARTS with a known master SKU (Variant Typing Logic)
-          
-          // Logic: Find longest master SKU that matches the START of 'val'
           const potentialMasters = products.filter(p => val.startsWith(p.sku));
           const variantTypingMatch = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
-
-          // Logic: Find master SKU that starts with 'val' (Standard Autocomplete)
           const standardAutocompleteMatch = products.find(p => p.sku.startsWith(val) || transliterateForBarcode(p.sku).startsWith(val));
-
           const masterMatch = variantTypingMatch || standardAutocompleteMatch;
 
           if (masterMatch) {
               setScanSuggestion(masterMatch.sku);
-              // Filter suggestions if we are typing a variant
               if (variantTypingMatch) {
                   const typedSuffix = val.replace(masterMatch.sku, '');
                   const filtered = masterMatch.variants?.filter(v => v.suffix.startsWith(typedSuffix)).map(v => ({ suffix: v.suffix, desc: v.description })) || [];
@@ -198,21 +286,15 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   };
 
   const getScanProductInfo = () => { 
-      // Enhanced lookup that respects potential masters from partial input
       let t = scanSuggestion || scanInput; 
       if (!t) return null;
-      
       let match = findProductByScannedCode(t, products);
       if (!match) {
-          // Fallback: Check if scanSuggestion is just a master and input has suffix parts
           const master = products.find(p => p.sku === scanSuggestion);
           if (master) {
               const suffix = scanInput.replace(master.sku, '');
-              // Try to find the closest variant match for visualization
               const variant = master.variants?.find(v => v.suffix === suffix) || master.variants?.find(v => v.suffix.startsWith(suffix));
-              if (variant) {
-                  return { product: master, variant: variant, variantSuffix: variant.suffix };
-              }
+              if (variant) return { product: master, variant: variant, variantSuffix: variant.suffix };
               return { product: master, variant: undefined, variantSuffix: suffix };
           }
           return null;
@@ -220,39 +302,73 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       return { product: match.product, variant: match.variant, variantSuffix: match.variant?.suffix || '' }; 
   }
 
-  const SkuVisualizer = () => {
-    // VISUALIZER FIX: Always render input text even if not matched
-    const info = getScanProductInfo();
-    const textToRender = scanInput;
-    
-    if (!info) {
-        return (
-            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                <span className="text-slate-800 font-bold">{textToRender}</span>
-            </div>
-        );
+  // --- NEW VISUALIZER ---
+  const SkuVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+    let masterStr = text;
+    let suffixStr = '';
+
+    // If we have context, split smartly
+    if (masterContext) {
+        if (text.startsWith(masterContext.sku)) {
+            masterStr = text.substring(0, masterContext.sku.length);
+            suffixStr = text.substring(masterContext.sku.length);
+        }
+    } else {
+        // Simple heuristic if no context
+        // This is tricky without knowing the master, but we can guess
+        // Or just render as is until matched.
     }
 
-    const { product, variantSuffix } = info;
-    const masterLen = product.sku.length;
-    const masterPart = textToRender.substring(0, masterLen);
-    const suffixPart = textToRender.substring(masterLen);
-
-    const { finish, stone } = getVariantComponents(suffixPart, product.gender);
-    const finishColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const stoneColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+    const { finish, stone } = getVariantComponents(suffixStr, masterContext?.gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
 
     return (
         <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-            <span className="text-slate-900 font-black">{masterPart}</span>
-            {suffixPart.split('').map((char, i) => {
+            <span className="text-slate-900 font-black">{masterStr}</span>
+            {suffixStr && suffixStr.split('').map((char, i) => {
                 let colorClass = 'text-slate-400';
-                if (finish.code && i < finish.code.length) colorClass = finishColor;
-                else if (stone.code && i >= (suffixPart.length - stone.code.length)) colorClass = stoneColor;
+                // Heuristic coloring based on detected parts
+                if (finish.code && i < finish.code.length) colorClass = fColor;
+                else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
                 return <span key={i} className={`${colorClass} font-black`}>{char}</span>;
             })}
         </div>
     );
+  };
+
+  const handleStockUpdate = async (updates: Record<string, number>) => {
+        if (!managingItem) return;
+        const sku = managingItem.masterSku;
+        const suffix = managingItem.suffix;
+
+        // Iterate over updates
+        for (const [whId, qty] of Object.entries(updates)) {
+            const currentQty = managingItem.locationStock[whId] || 0;
+            if (currentQty === qty) continue;
+            
+            const diff = qty - currentQty;
+            const whName = warehouses?.find(w => w.id === whId)?.name || 'Unknown';
+
+            if (managingItem.isSingleVariantMode) {
+                 if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku);
+                 else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
+                 else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+            } else if (suffix) {
+                // Variant
+                if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: suffix });
+                else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: suffix, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+            } else {
+                // Master
+                if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku);
+                else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
+                else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+            }
+            
+            await recordStockMovement(sku, diff, `Manual Set: ${whName}`, suffix || undefined);
+        }
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        showToast("Το απόθεμα ενημερώθηκε.", "success");
   };
 
   const handleDeleteItem = async (item: InventoryItem) => {
@@ -309,12 +425,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const handleGlobalScan = (code: string) => {
     const match = findProductByScannedCode(code, products);
     if (match) {
-        // Find correct Greek SKU and populate quick entry
         const targetCode = match.product.sku + (match.variant?.suffix || '');
         handleScanInput(targetCode);
         showToast(`Σάρωση: ${targetCode}`, 'success');
         setShowScanner(false);
-        // Scroll to top to ensure entry is visible and input is focused
         window.scrollTo({ top: 0, behavior: 'smooth' });
         inputRef.current?.focus();
     } else {
@@ -371,7 +485,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                             <div className="md:col-span-5 relative">
                                 <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
                                 <div className="relative">
-                                    <SkuVisualizer />
+                                    <SkuVisualizer text={scanInput} masterContext={getScanProductInfo()?.product || null} />
                                     <input 
                                         ref={inputRef} type="text" value={scanInput} onChange={handleScanInput} 
                                         onKeyDown={e => { if(e.key==='ArrowRight'&&scanSuggestion){e.preventDefault();setScanInput(scanSuggestion);} if(e.key==='Enter'){e.preventDefault();executeQuickAdd();} }} 
@@ -382,9 +496,12 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                             <div className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> ΠΡΟΤΑΣΕΙΣ ΠΑΡΑΛΛΑΓΩΝ</div>
                                             {availableSuffixes.map(s => {
                                                 const info = getScanProductInfo(); const { finish, stone } = getVariantComponents(s.suffix, info?.product?.gender);
+                                                const fColor = FINISH_COLORS[finish.code]?.split(' ')[1] || 'text-slate-400';
+                                                const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+
                                                 return <button key={s.suffix} onClick={() => selectSuffix(s.suffix)} className="bg-slate-50 hover:bg-emerald-50 text-slate-600 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1" title={s.desc}>
-                                                    <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'ΛΟΥΣΤΡΕ'}</span>
-                                                    {stone.code && <span className={STONE_CATEGORIES[stone.code] || 'text-emerald-400'}>{stone.code}</span>}
+                                                    <span className={fColor}>{finish.code || 'LUSTRE'}</span>
+                                                    {stone.code && <span className={sColor}>{stone.code}</span>}
                                                 </button>;
                                             })}
                                         </div>
@@ -416,8 +533,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                 <div className="flex items-start gap-4 mb-6">
                                     <div className="w-24 h-24 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shrink-0 shadow-sm">{getScanProductInfo()!.product.image_url ? <img src={getScanProductInfo()!.product.image_url!} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}</div>
                                     <div className="min-w-0">
-                                        <h4 className="font-black text-slate-800 text-xl leading-none truncate">{getScanProductInfo()!.product.sku}{getScanProductInfo()!.variantSuffix}</h4>
-                                        <p className="text-xs text-slate-400 font-bold mt-1.5 truncate">{getScanProductInfo()!.product.category}</p>
+                                        <div className="font-black text-slate-800 text-xl leading-none truncate mb-1">
+                                            <SkuVisualizer text={getScanProductInfo()!.product.sku + getScanProductInfo()!.variantSuffix} masterContext={getScanProductInfo()!.product} />
+                                        </div>
+                                        <p className="text-xs text-slate-400 font-bold truncate">{getScanProductInfo()!.product.category}</p>
                                         <div className="flex flex-wrap gap-1.5 mt-3"><div className="px-2 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded uppercase">ΣΤΟΚ: {getScanProductInfo()!.variant?.stock_qty ?? getScanProductInfo()!.product.stock_qty}</div>{getScanProductInfo()!.product.selling_price > 0 && <div className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black rounded uppercase">{formatCurrency(getScanProductInfo()!.variant?.selling_price ?? getScanProductInfo()!.product.selling_price)}</div>}</div>
                                     </div>
                                 </div>
@@ -433,7 +552,45 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                     <input type="text" placeholder="Φίλτρο λίστας..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl outline-none w-full bg-white shadow-sm"/>
                  </div>
               </div>
-              <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">{filteredInventory.length > 0 ? <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>{rowVirtualizer.getVirtualItems().map((virtualRow) => { const item = filteredInventory[virtualRow.index]; const displayPrice = item.variantRef?.selling_price ?? item.product.selling_price; return <div key={virtualRow.key} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, padding: '4px 0' }}><div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden h-full"><div className={`absolute left-0 top-0 bottom-0 w-1 ${item.totalStock > 0 ? 'bg-emerald-500' : 'bg-slate-200'}`} /><div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2"><div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">{item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}</div><div><h3 className="font-bold text-lg text-slate-800 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>{item.isSingleVariantMode || !item.suffix ? item.masterSku : `${item.masterSku}-${item.suffix}`} {item.suffix && <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100 ml-1">{item.description}</span>}</h3><div className="flex items-center gap-3 mt-0.5"><p className="text-xs text-slate-500">{item.category}</p>{displayPrice > 0 && <span className="text-xs font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded">{formatCurrency(displayPrice)}</span>}</div></div></div><div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">{Object.entries(item.locationStock).map(([whId, qty]) => { if (Number(qty) <= 0) return null; const wh = warehouses?.find(w => w.id === whId); return <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm ${whId === SYSTEM_IDS.CENTRAL ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-100 text-blue-700'}`}><span className="text-[10px] uppercase opacity-70">{(wh ? getWarehouseNameClean(wh) : '???').substring(0, 15)}</span><span className="text-base">{qty}</span></div>; })}{item.totalStock === 0 && <span className="text-slate-400 text-sm italic">Εξαντλημένο</span>}</div><div className="flex items-center gap-2 w-full md:w-auto justify-end"><button onClick={() => openTransfer(item)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm"><ArrowLeftRight size={16}/></button><button onClick={() => setSelectedProduct(item.product)} className="bg-[#060b00] text-white p-2.5 rounded-xl"><Edit2 size={16}/></button><button onClick={() => handleDeleteItem(item)} className="bg-red-50 text-red-600 p-2.5 rounded-xl"><Trash2 size={16}/></button></div></div></div>; })}</div> : <div className="text-center py-20 text-slate-400"><Package size={48} className="mx-auto mb-4 opacity-20"/><p className="font-medium">Δεν βρέθηκαν αποθέματα.</p></div>}</div>
+              
+              <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
+                  {filteredInventory.length > 0 ? (
+                      <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                              const item = filteredInventory[virtualRow.index];
+                              const displayPrice = item.variantRef?.selling_price ?? item.product.selling_price;
+                              const { finish, stone } = getVariantComponents(item.suffix, item.product.gender);
+                              const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+                              const sColor = STONE_CATEGORIES[stone.code] || 'text-emerald-400';
+
+                              return (
+                                  <div key={virtualRow.key} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, padding: '4px 0' }}>
+                                      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden h-full">
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.totalStock > 0 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                                          <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
+                                              <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">{item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}</div>
+                                              <div>
+                                                  <h3 className="font-bold text-lg text-slate-800 cursor-pointer flex items-center gap-1" onClick={() => setSelectedProduct(item.product)}>
+                                                      <span className="font-black">{item.masterSku}</span>
+                                                      <span className={`font-black ${fColor.split(' ')[0].replace('bg-', 'text-')}`}>{finish.code}</span>
+                                                      <span className={`font-black ${sColor}`}>{stone.code}</span>
+                                                  </h3>
+                                                  <div className="flex items-center gap-3 mt-0.5"><p className="text-xs text-slate-500">{item.category}</p>{displayPrice > 0 && <span className="text-xs font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded">{formatCurrency(displayPrice)}</span>}</div>
+                                              </div>
+                                          </div>
+                                          <div className="flex-1 flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide py-2 items-center">{Object.entries(item.locationStock).map(([whId, qty]) => { if (Number(qty) <= 0) return null; const wh = warehouses?.find(w => w.id === whId); return <div key={whId} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-bold whitespace-nowrap shadow-sm ${whId === SYSTEM_IDS.CENTRAL ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-100 text-blue-700'}`}><span className="text-[10px] uppercase opacity-70">{(wh ? getWarehouseNameClean(wh) : '???').substring(0, 15)}</span><span className="text-base">{qty}</span></div>; })}{item.totalStock === 0 && <span className="text-slate-400 text-sm italic font-medium bg-slate-50 px-3 py-1 rounded-full">Μη Διαθέσιμο</span>}</div>
+                                          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                                              <button onClick={() => openTransfer(item)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm"><ArrowLeftRight size={16}/></button>
+                                              <button onClick={() => setManagingItem(item)} className="bg-[#060b00] text-white p-2.5 rounded-xl hover:bg-black transition-colors"><Edit2 size={16}/></button>
+                                              <button onClick={() => handleDeleteItem(item)} className="bg-red-50 text-red-600 p-2.5 rounded-xl hover:bg-red-100 transition-colors"><Trash2 size={16}/></button>
+                                          </div>
+                                      </div>
+                                  </div>
+                              ); 
+                          })}
+                      </div>
+                  ) : <div className="text-center py-20 text-slate-400"><Package size={48} className="mx-auto mb-4 opacity-20"/><p className="font-medium">Δεν βρέθηκαν αποθέματα.</p></div>}
+              </div>
           </div>
       )}
 
@@ -463,6 +620,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
               </div>
           </div>
       )}
+      
+      {managingItem && warehouses && (
+          <StockManagementModal 
+            item={managingItem} 
+            warehouses={warehouses} 
+            onClose={() => setManagingItem(null)} 
+            onSave={handleStockUpdate} 
+          />
+      )}
+
       {selectedProduct && <ProductDetails product={selectedProduct} allProducts={products} allMaterials={[]} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems} settings={settings} collections={collections} allMolds={molds} viewMode="warehouse" />}
       {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
     </div>
