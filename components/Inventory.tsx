@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold, Gender } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin, Layers, Box } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin, Layers, Box, Activity } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,26 @@ import BarcodeScanner from './BarcodeScanner';
 import { formatCurrency, formatDecimal, analyzeSku, getVariantComponents, findProductByScannedCode, transliterateForBarcode, splitSkuComponents, expandSkuRange } from '../utils/pricingEngine';
 import { getSizingInfo, isSizable } from '../utils/sizing';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
+
+// --- VISUAL CONSTANTS ---
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'bg-amber-100 text-amber-700 border-amber-200', 
+    'P': 'bg-stone-100 text-stone-600 border-stone-200', 
+    'D': 'bg-orange-100 text-orange-700 border-orange-200', 
+    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200', 
+    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+};
+
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
+    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
+    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
+    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
 
 // --- INTERFACES ---
 interface InventoryItem {
@@ -21,7 +41,7 @@ interface InventoryItem {
     imageUrl: string | null;
     locationStock: Record<string, number>;
     totalStock: number;
-    demandQty: number;
+    demandQty: number; // NEW: Calculated from Orders
     product: Product;
     variantRef?: ProductVariant;
     isSingleVariantMode?: boolean;
@@ -44,7 +64,26 @@ interface QuickActionHistory {
     type: 'add' | 'subtract';
 }
 
-// --- STOCK MANAGEMENT MODAL (Existing Logic, kept for reuse) ---
+// --- HELPER COMPONENT: SUFFIX BADGE ---
+const SuffixBadge = ({ suffix, gender }: { suffix: string, gender: Gender }) => {
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+
+    return (
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-black ${badgeColor}`}>
+            <span>{finish.code || 'BAS'}</span>
+            {stone.code && (
+                <>
+                    <span className="opacity-30">|</span>
+                    <span className={stoneColor}>{stone.code}</span>
+                </>
+            )}
+        </div>
+    );
+};
+
+// --- STOCK MANAGEMENT MODAL ---
 const StockManagementModal = ({ 
     item, 
     warehouses, 
@@ -117,15 +156,16 @@ const StockManagementModal = ({
 };
 
 // --- NEW INVENTORY DETAILS MODAL ---
-// This replaces the ProductDetails modal for the Inventory Context
 const InventoryDetailsModal = ({ 
     product, 
     warehouses, 
+    orders,
     onClose,
     onManageStock
 }: { 
     product: Product, 
     warehouses: Warehouse[], 
+    orders: Order[] | undefined,
     onClose: () => void,
     onManageStock: (item: InventoryItem) => void
 }) => {
@@ -133,6 +173,22 @@ const InventoryDetailsModal = ({
     // Helper to build rows
     const rows = useMemo(() => {
         const result: InventoryItem[] = [];
+
+        // 1. Calculate Demand Map
+        const demandMap: Record<string, number> = {}; // Key: VariantSuffix (or '' for master)
+        if (orders) {
+            orders.forEach(o => {
+                // Only count active orders (Pending/InProduction)
+                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
+                    o.items.forEach(item => {
+                        if (item.sku === product.sku) {
+                            const key = item.variant_suffix || '';
+                            demandMap[key] = (demandMap[key] || 0) + item.quantity;
+                        }
+                    });
+                }
+            });
+        }
         
         // Helper to construct InventoryItem
         const buildItem = (v: ProductVariant | null): InventoryItem => {
@@ -160,7 +216,7 @@ const InventoryDetailsModal = ({
                 imageUrl: product.image_url,
                 locationStock: locStock,
                 totalStock: total,
-                demandQty: 0, // Not needed for this view
+                demandQty: demandMap[suffix] || 0, // Injected Demand
                 product: product,
                 variantRef: v || undefined,
                 isSingleVariantMode: !v
@@ -174,11 +230,11 @@ const InventoryDetailsModal = ({
         }
 
         return result.sort((a,b) => a.suffix.localeCompare(b.suffix));
-    }, [product, warehouses]);
+    }, [product, warehouses, orders]);
 
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-4xl h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-white w-full max-w-5xl h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50">
                     <div className="flex items-center gap-4">
@@ -199,6 +255,11 @@ const InventoryDetailsModal = ({
                                 <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
                                     {rows.reduce((a,b) => a + b.totalStock, 0)} Σύνολο
                                 </span>
+                                {rows.some(r => r.demandQty > 0) && (
+                                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                                        <Activity size={10}/> {rows.reduce((a,b) => a + b.demandQty, 0)} Δέσμευση
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -212,6 +273,7 @@ const InventoryDetailsModal = ({
                             <tr>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100">Παραλλαγή / Περιγραφή</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center w-24">Σύνολο</th>
+                                <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-amber-700 w-24 bg-amber-50/50">Δέσμευση</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-emerald-700 w-24">Κεντρική</th>
                                 <th className="p-4 bg-slate-50 border-b border-slate-100 text-center text-purple-700 w-24">Δειγμ.</th>
                                 {warehouses.filter(w => !w.is_system).map(w => (
@@ -224,8 +286,12 @@ const InventoryDetailsModal = ({
                             {rows.map((row) => (
                                 <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
                                     <td className="p-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-slate-800 font-mono text-base">{row.suffix || 'ΒΑΣΙΚΟ'}</span>
+                                        <div className="flex flex-col items-start gap-1">
+                                            {row.suffix ? (
+                                                <SuffixBadge suffix={row.suffix} gender={product.gender} />
+                                            ) : (
+                                                <span className="font-black text-slate-800 font-mono text-base">ΒΑΣΙΚΟ</span>
+                                            )}
                                             <span className="text-xs text-slate-500 font-medium">{row.description}</span>
                                         </div>
                                     </td>
@@ -233,6 +299,9 @@ const InventoryDetailsModal = ({
                                         <span className={`inline-block min-w-[2rem] py-1 px-2 rounded-lg font-black text-sm ${row.totalStock > 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                             {row.totalStock}
                                         </span>
+                                    </td>
+                                    <td className="p-4 text-center font-bold text-amber-700 bg-amber-50/30">
+                                        {row.demandQty > 0 ? row.demandQty : '-'}
                                     </td>
                                     <td className="p-4 text-center font-bold text-slate-700 bg-emerald-50/30">
                                         {row.locationStock[SYSTEM_IDS.CENTRAL] || 0}
@@ -308,7 +377,22 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const masterInventory = useMemo(() => {
       if (!products) return [];
       
-      return products.map(p => {
+      // Filter out Components (STX)
+      const sellableProducts = products.filter(p => !p.is_component);
+
+      // Pre-calculate demand map for performance
+      const demandMap: Record<string, number> = {}; 
+      if (orders) {
+          orders.forEach(o => {
+              if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
+                  o.items.forEach(item => {
+                      demandMap[item.sku] = (demandMap[item.sku] || 0) + item.quantity;
+                  });
+              }
+          });
+      }
+
+      return sellableProducts.map(p => {
           let totalStock = (p.stock_qty || 0) + (p.sample_qty || 0);
           
           // Add warehouse stocks for master
@@ -329,10 +413,11 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           return {
               product: p,
               totalStock,
+              totalDemand: demandMap[p.sku] || 0,
               variantCount: p.variants?.length || 0
           };
       }).sort((a,b) => b.totalStock - a.totalStock); // Show high stock first
-  }, [products]);
+  }, [products, orders]);
 
   const filteredMasterInventory = useMemo(() => {
       const term = searchTerm.toUpperCase();
@@ -340,8 +425,6 @@ export default function Inventory({ products, setPrintItems, settings, collectio
           if (viewWarehouseId !== 'ALL') {
               // Warehouse filter logic is tricky for aggregated view. 
               // Simplification: Allow all in Master view, detailed breakdown shows specifics.
-              // Ideally, filter if ANY variant has stock in that warehouse.
-              // For now, keep it simple or implement deep check if critical.
           }
           return !term || item.product.sku.includes(term) || item.product.category.toUpperCase().includes(term);
       });
@@ -377,7 +460,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       let bestMaster: Product | null = null;
       let suffixPart = '';
       
-      const potentialMasters = products.filter(p => val.startsWith(p.sku));
+      const potentialMasters = products.filter(p => !p.is_component && val.startsWith(p.sku));
       const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
 
       if (longestPrefixMaster) {
@@ -389,7 +472,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       if (bestMaster) {
           candidates = [bestMaster];
       } else {
-          candidates = products.filter(p => p.sku.startsWith(val)).slice(0, 6);
+          candidates = products.filter(p => !p.is_component && p.sku.startsWith(val)).slice(0, 6);
       }
       setCandidateProducts(candidates);
 
@@ -439,6 +522,12 @@ export default function Inventory({ products, setPrintItems, settings, collectio
       }
 
       const { product, variant } = match;
+      
+      if (product.is_component) {
+          showToast(`Το ${product.sku} είναι εξάρτημα και δεν εμφανίζεται στα αποθέματα πώλησης.`, "error");
+          return;
+      }
+
       const sizing = isSizable(product) ? getSizingInfo(product) : null;
       if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
       
@@ -641,10 +730,10 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                                             <button 
                                                                 key={s.suffix} 
                                                                 onClick={() => selectSuffix(s.suffix)} 
-                                                                className="bg-slate-50 hover:bg-emerald-50 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1" 
+                                                                className="bg-white hover:bg-emerald-50 shadow-sm border border-slate-200 hover:border-emerald-200 rounded-lg active:scale-95 transition-all"
                                                                 title={s.desc}
                                                             >
-                                                                <span className="text-slate-600">{s.suffix || 'BAS'}</span>
+                                                                <SuffixBadge suffix={s.suffix} gender={activeMasterProduct!.gender} />
                                                             </button>
                                                         );
                                                     })}
@@ -715,6 +804,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                                               <div>
                                                   <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                                                       <span className="font-black">{p.sku}</span>
+                                                      {item.totalDemand > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1"><Activity size={10}/> Demand: {item.totalDemand}</span>}
                                                   </h3>
                                                   <div className="flex items-center gap-3 mt-0.5">
                                                       <p className="text-xs text-slate-500">{p.category}</p>
@@ -779,6 +869,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
         <InventoryDetailsModal 
             product={selectedMaster} 
             warehouses={warehouses} 
+            orders={orders}
             onClose={() => setSelectedMaster(null)} 
             onManageStock={(item) => setManagingItem(item)}
         />
