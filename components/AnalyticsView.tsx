@@ -404,11 +404,11 @@ export default function AnalyticsView({ products, onBack }: Props) {
                                 <YAxis tick={{fontSize: 10}} stroke="#94a3b8" tickFormatter={(v) => `${v}€`} />
                                 <Tooltip 
                                     contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontSize: '12px'}} 
-                                    formatter={(value: number, name: string) => [formatCurrency(value), name === 'revenue' ? 'Έσοδα' : 'Κέρδος']}
+                                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
                                 />
                                 <Legend iconType="circle" />
-                                <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRevenue)" name="revenue" />
-                                <Area type="monotone" dataKey="profit" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" name="profit" />
+                                <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRevenue)" name="Έσοδα" />
+                                <Area type="monotone" dataKey="profit" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" name="Κέρδος" />
                             </AreaChart>
                          </ResponsiveContainer>
                     </div>
@@ -463,10 +463,10 @@ export default function AnalyticsView({ products, onBack }: Props) {
                                 <Tooltip 
                                     cursor={{fill: '#f8fafc'}}
                                     contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontSize: '11px'}}
-                                    formatter={(value: number, name: string) => [formatCurrency(value), name === 'revenue' ? 'Έσοδα' : 'Κέρδος']}
+                                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
                                 />
-                                <Bar dataKey="revenue" name="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
-                                <Bar dataKey="profit" name="profit" fill="#10b981" radius={[0, 4, 4, 0]} barSize={12} stackId="b" />
+                                <Bar dataKey="revenue" name="Έσοδα" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} stackId="a" />
+                                <Bar dataKey="profit" name="Κέρδος" fill="#10b981" radius={[0, 4, 4, 0]} barSize={12} stackId="b" />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
