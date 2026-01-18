@@ -227,7 +227,7 @@ export default function AnalyticsView({ products, onBack }: Props) {
     <AnalyticsPrintReport stats={stats} />
 
     {/* SCREEN ONLY DASHBOARD */}
-    <div className="max-w-7xl mx-auto space-y-8 pb-20 print:hidden">
+    <div className="max-w-7xl mx-auto space-y-8 pb-20 no-print">
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">

@@ -131,7 +131,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     );
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels, products, allBatches, showToast }: {
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
@@ -941,7 +941,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       {showScanner && <BarcodeScanner onScan={handleScanInOrder} onClose={() => setShowScanner(false)} />}
       
       {managingOrder && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl animate-in zoom-in-95 border border-slate-100 flex flex-col max-h-[90vh]">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                     <div><h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3><p className="text-sm text-slate-500">{managingOrder.customer_name}</p></div>
@@ -952,14 +952,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     {managingOrder.status === OrderStatus.Pending && (
                         <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
                     )}
-                    {/* Separate Cancel and Delete Buttons */}
                     {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
                         <button onClick={() => handleCancelOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors">
-                            <Ban size={18}/> Ακύρωση (Soft Cancel)
+                            <Ban size={18}/> Ακύρωση
                         </button>
                     )}
                     <button onClick={() => handleDeleteOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors">
-                        <Trash2 size={18}/> Οριστική Διαγραφή (Hard Delete)
+                        <Trash2 size={18}/> Οριστική Διαγραφή
                     </button>
                 </div>
             </div>
