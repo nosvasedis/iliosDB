@@ -38,7 +38,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
                 <div className="flex items-center gap-4">
                     <img src={APP_LOGO} alt="Ilios" className="w-24 object-contain" />
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Οικονομική Αναφορά Επιχείρησης</h1>
+                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Οικονομική Αναφορά</h1>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ilios Kosmima • Σύστημα Επιχειρηματικής Ευφυΐας</p>
                     </div>
                 </div>
@@ -49,17 +49,17 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
             </header>
 
             <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Βασικοί Δείκτες Απόδοσης (KPIs)</h2>
+                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Βασικοί Δείκτες (KPIs)</h2>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                         <p className="text-[10px] font-bold text-slate-500 uppercase">Συνολικά Έσοδα (Τζίρος)</p>
                         <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalRevenue)}</p>
-                        <p className="text-[9px] text-slate-400 mt-1">Σύνολο πωλήσεων προ εξόδων</p>
+                        <p className="text-[9px] text-slate-400 mt-1">Πωλήσεις προ εξόδων</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
                         <p className="text-[10px] font-bold text-emerald-600 uppercase">Μεικτό Κέρδος</p>
                         <p className="text-2xl font-black text-emerald-700">{formatCurrency(stats.totalProfit)}</p>
-                        <p className="text-[9px] text-emerald-500 font-bold mt-1">Περιθώριο Κέρδους: {stats.avgMargin.toFixed(1)}%</p>
+                        <p className="text-[9px] text-emerald-500 font-bold mt-1">Περιθώριο: {stats.avgMargin.toFixed(1)}%</p>
                     </div>
                     <div className="p-4 border border-slate-200 rounded-xl">
                         <p className="text-[10px] font-bold text-slate-500 uppercase">Μέση Αξία Παραγγελίας</p>
@@ -73,7 +73,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
             </section>
             
             <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση Κόστους (Statement of Operations)</h2>
+                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση Κόστους (Κατάσταση Αποτελεσμάτων)</h2>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-sm">
                     <div className="flex justify-between py-1 border-b border-slate-200 font-bold mb-1">
                         <span>Έσοδα</span>
@@ -101,7 +101,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
             </section>
 
             <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση ανά Κατηγορία Προϊόντων</h2>
+                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση ανά Κατηγορία</h2>
                 <table className="w-full text-xs text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-900 text-white font-bold uppercase tracking-wider">
@@ -109,7 +109,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
                             <th className="p-3 text-right">Έσοδα</th>
                             <th className="p-3 text-right">Κόστος</th>
                             <th className="p-3 text-right">Κέρδος</th>
-                            <th className="p-3 text-right rounded-tr-lg">Margin %</th>
+                            <th className="p-3 text-right rounded-tr-lg">Περιθώριο %</th>
                         </tr>
                     </thead>
                     <tbody className="border border-slate-200">
@@ -132,7 +132,7 @@ const AnalyticsPrintReport = ({ stats }: { stats: any }) => {
                 <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Top Προϊόντα & Πελάτες</h2>
                 <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <h3 className="font-bold text-sm mb-2 text-slate-700">Top 5 Προϊόντα (Έσοδα)</h3>
+                        <h3 className="font-bold text-sm mb-2 text-slate-700">Top 5 Προϊόντα (Τζίρος)</h3>
                         <ul className="text-xs space-y-1">
                             {stats.topSkus.slice(0, 5).map((p: any, i: number) => (
                                 <li key={i} className="flex justify-between border-b border-slate-100 pb-1">
@@ -225,27 +225,10 @@ export default function AnalyticsView({ products, onBack }: Props) {
             // Add profit to time grouping
             salesOverTime[monthKey].profit += profit;
 
-            // Simple approximation of breakdown based on product ratios if available
-            // Assuming active_price is somewhat close to calculated cost.
-            // For a perfect breakdown, we'd need to re-calculate per item, but let's approximate
-            // using the product's defined weights.
             const w = product.weight_g + (product.secondary_weight_g || 0);
-            const sCost = w * 0.85; // Using approx historical silver price or just ratio
-            // Better: use weight * current settings price if available, but settings not in scope here.
-            // We'll calculate totals based on item properties.
             
-            // Actually, let's use the lineCost and weight.
-            // Silver part
             silverSoldWeight += (product.weight_g * item.quantity);
-            // We can infer silver cost portion if we know the price, but let's just sum up weights and use a standard rate for now or skip exact historical cost.
-            // Instead, let's re-calculate cost breakdown for accurate P&L
-            // NOTE: This uses current settings logic which might differ from historical, but it's the best estimation tool we have.
             
-            // ... Assuming cost structure:
-            // Silver: weight * ~0.85
-            // Labor: ~Cost - Silver - Materials
-            
-            // Let's categorize simply based on item type
             const matCost = product.recipe.reduce((acc, r) => {
                 if (r.type === 'raw') {
                     const m = materials.find(mat => mat.id === r.id);
@@ -255,7 +238,6 @@ export default function AnalyticsView({ products, onBack }: Props) {
             }, 0) * item.quantity;
             materialCostSum += matCost;
             
-            // Approximate silver cost (using 0.85 as a base average for reporting if exact not saved)
             const silverC = (w * 0.85) * item.quantity;
             silverCostSum += silverC;
             
@@ -443,8 +425,8 @@ export default function AnalyticsView({ products, onBack }: Props) {
                          {/* Bar Container */}
                          <div className="flex h-12 w-full rounded-2xl overflow-hidden shadow-inner bg-slate-800">
                              <div className="bg-slate-400 h-full flex items-center justify-center text-[10px] font-black uppercase text-slate-900" style={{ width: `${(stats.costBreakdown.silver / stats.totalCost) * 100}%` }} title="Ασήμι">Ag</div>
-                             <div className="bg-blue-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.labor / stats.totalCost) * 100}%` }} title="Εργατικά">Lab</div>
-                             <div className="bg-purple-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.materials / stats.totalCost) * 100}%` }} title="Υλικά">Mat</div>
+                             <div className="bg-blue-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.labor / stats.totalCost) * 100}%` }} title="Εργατικά">Εργ</div>
+                             <div className="bg-purple-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.materials / stats.totalCost) * 100}%` }} title="Υλικά">Υλ</div>
                          </div>
                          
                          <div className="grid grid-cols-3 gap-4 text-center">
@@ -504,7 +486,7 @@ export default function AnalyticsView({ products, onBack }: Props) {
                                     </div>
                                     <div>
                                         <div className="font-bold text-slate-800 text-xs truncate max-w-[100px]">{c.name}</div>
-                                        <div className="text-[9px] text-slate-400 font-bold uppercase">{c.orders} orders</div>
+                                        <div className="text-[9px] text-slate-400 font-bold uppercase">{c.orders} παραγγελίες</div>
                                     </div>
                                 </div>
                                 <div className="font-black text-slate-900 text-sm">{formatCurrency(c.revenue)}</div>
@@ -520,7 +502,7 @@ export default function AnalyticsView({ products, onBack }: Props) {
             <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
                     <h3 className="font-black text-slate-800 text-xl flex items-center gap-2">
-                        <Award size={28} className="text-amber-500"/> Top Performers
+                        <Award size={28} className="text-amber-500"/> Κορυφαία Προϊόντα
                     </h3>
                     <p className="text-sm text-slate-400 font-medium mt-1">Τα 10 προϊόντα με τον υψηλότερο τζίρο.</p>
                 </div>
@@ -571,11 +553,11 @@ export default function AnalyticsView({ products, onBack }: Props) {
                             <p className="text-blue-800 text-sm leading-relaxed">Είναι το συνολικό ποσό που εισπράττει η επιχείρηση από τις πωλήσεις της, χωρίς καμία αφαίρεση εξόδων ή φόρων.</p>
                         </div>
                         <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
-                            <h4 className="font-black text-emerald-900 uppercase text-xs mb-2 tracking-widest">Μεικτό Κέρδος (Gross Profit)</h4>
+                            <h4 className="font-black text-emerald-900 uppercase text-xs mb-2 tracking-widest">Μεικτό Κέρδος</h4>
                             <p className="text-emerald-800 text-sm leading-relaxed">Το αποτέλεσμα της αφαίρεσης του <strong>Κόστους Παραγωγής</strong> (Ασήμι + Εργατικά + Υλικά) από τα Έσοδα. Δεν περιλαμβάνει γενικά έξοδα (ενοίκια, ρεύμα).</p>
                         </div>
                         <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
-                            <h4 className="font-black text-purple-900 uppercase text-xs mb-2 tracking-widest">Δομή Κόστους (Cost Breakdown)</h4>
+                            <h4 className="font-black text-purple-900 uppercase text-xs mb-2 tracking-widest">Δομή Κόστους</h4>
                             <p className="text-purple-800 text-sm leading-relaxed">Ανάλυση του πού πηγαίνουν τα χρήματα της παραγωγής: Αγορά Ασημιού, Πληρωμές Εργατικών/Φασόν και Αγορά Υλικών/Πετρών.</p>
                         </div>
                     </div>
