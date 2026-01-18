@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage, Gender } from '../types';
+import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage, Gender, MaterialType } from '../types';
 import { 
   TrendingUp, 
   Package, 
@@ -29,7 +29,9 @@ import {
   Rocket, 
   Filter,
   Trophy,
-  Crown
+  Crown,
+  Gem,
+  Hammer
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -78,15 +80,8 @@ const STAGE_LABELS: Record<string, string> = {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
-/**
- * Premium UI Renderer for AI Business Audit.
- * Replaces ugly markdown with functional UI cards.
- */
 const SmartReportRenderer = ({ text }: { text: string }) => {
-    // Split by [TITLE] and [/TITLE] tags
     const parts = text.split(/\[TITLE\]|\[\/TITLE\]/).filter(p => p.trim());
-    
-    // Fallback if AI didn't follow the specific tagging format perfectly
     if (parts.length < 2) {
         return (
             <div className="p-8 bg-slate-50 rounded-[2rem] text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-100">
@@ -149,7 +144,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
-  // --- Aggregate Stats ---
   const stats = useMemo(() => {
     const totalStockQty = products.reduce((acc, p) => acc + p.stock_qty, 0);
     
@@ -157,12 +151,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     let totalPotentialRevenue = 0; 
     let totalSilverWeight = 0;
 
-    // Calculate totals based on master stock records (simplification)
     products.forEach(p => {
         totalCostValue += (p.active_price * p.stock_qty);
         totalSilverWeight += (p.weight_g * p.stock_qty);
-        
-        // Handle Potential Revenue
         if (!p.is_component) {
             if (p.variants && p.variants.length > 0) {
                 const maxVarPrice = Math.max(...p.variants.map(v => v.selling_price || 0));
@@ -176,27 +167,25 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     const potentialMargin = totalPotentialRevenue - totalCostValue;
     const marginPercent = totalPotentialRevenue > 0 ? (potentialMargin / totalPotentialRevenue) * 100 : 0;
 
-    const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) || [];
+    const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready) || [];
     const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
     
-    // --- TOP SELLERS LOGIC ---
-    const revenueBySku: Record<string, { revenue: number, qty: number, category: string }> = {};
-    orders?.forEach(o => {
-        if (o.status === OrderStatus.Cancelled) return;
+    // --- MATERIAL USAGE LOGIC ---
+    let silverSold = 0;
+    let stonesSold = 0;
+    completedOrders.forEach(o => {
         o.items.forEach(i => {
-            const key = i.sku + (i.variant_suffix || '');
-            if (!revenueBySku[key]) revenueBySku[key] = { revenue: 0, qty: 0, category: i.product_details?.category || 'Unknown' };
-            revenueBySku[key].revenue += (i.price_at_order * i.quantity);
-            revenueBySku[key].qty += i.quantity;
+            const p = products.find(prod => prod.sku === i.sku);
+            if (p) {
+                silverSold += (p.weight_g * i.quantity);
+                p.recipe.forEach(ri => {
+                   if (ri.type === 'raw') stonesSold += (ri.quantity * i.quantity);
+                });
+            }
         });
     });
-    const topSellers = Object.entries(revenueBySku)
-        .map(([sku, data]) => ({ sku, ...data }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
 
-    // --- HIGH VALUE STOCK LOGIC ---
     const stockValueBySku = products
         .filter(p => !p.is_component)
         .flatMap(p => {
@@ -231,8 +220,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         totalRevenue: completedOrders.reduce((acc, o) => acc + o.total_price, 0),
         activeBatchesCount: activeBatches.length,
         totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
-        topSellers,
-        topStockValue: stockValueBySku
+        topStockValue: stockValueBySku,
+        silverSold: silverSold / 1000, // to kg
+        stonesSold
     };
   }, [products, orders, batches]);
 
@@ -433,30 +423,40 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* TOP SELLERS */}
+                  {/* MATERIAL USAGE (REPLACEMENT FOR REDUNDANT TOP SELLERS) */}
                   <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <Trophy size={20} className="text-amber-500" /> Κορυφαία σε Πωλήσεις (Έσοδα)
+                          <Gem size={20} className="text-emerald-500" /> Ανάλυση Κατανάλωσης Υλικών
                       </h3>
                       <div className="space-y-4">
-                          {stats.topSellers.map((item, index) => (
-                              <div key={item.sku} className="flex items-center justify-between p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
-                                  <div className="flex items-center gap-3">
-                                      <div className={`w-6 h-6 flex items-center justify-center rounded-full font-bold text-xs ${index === 0 ? 'bg-amber-400 text-white' : 'bg-amber-200 text-amber-700'}`}>
-                                          {index + 1}
-                                      </div>
-                                      <div>
-                                          <div className="font-bold text-slate-800">{item.sku}</div>
-                                          <div className="text-[10px] text-slate-500">{item.category}</div>
-                                      </div>
-                                  </div>
-                                  <div className="text-right">
-                                      <div className="font-black text-amber-700">{formatCurrency(item.revenue)}</div>
-                                      <div className="text-[10px] text-slate-400">{item.qty} τμχ</div>
-                                  </div>
-                              </div>
-                          ))}
-                          {stats.topSellers.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν υπάρχουν δεδομένα πωλήσεων.</div>}
+                          <div className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                                        <Scale size={20}/>
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 uppercase text-[10px] tracking-widest">Συνολικό Ασήμι</div>
+                                        <div className="text-slate-500 text-xs">Από πωληθέντα είδη</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-black text-emerald-700 text-xl">{stats.silverSold.toFixed(3)} kg</div>
+                                </div>
+                          </div>
+                          <div className="flex items-center justify-between p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                                        <Gem size={20}/>
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 uppercase text-[10px] tracking-widest">Πέτρες & Υλικά</div>
+                                        <div className="text-slate-500 text-xs">Συνολικά τεμάχια</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-black text-blue-700 text-xl">{stats.stonesSold} <span className="text-xs font-normal">τμχ</span></div>
+                                </div>
+                          </div>
                       </div>
                   </div>
                   
