@@ -20,7 +20,7 @@ export default function OfferPrintView({ offer }: Props) {
         name: "ILIOS KOSMIMA",
         address: "Αβέρωφ 73, Κορυδαλλός, 18120",
         phone: "2104905405",
-        email: "info@ilios-kosmima.gr"
+        email: "ilioskosmima@gmail.com"
     };
     
     // Calculate subtotal from items to show breakdown
@@ -35,43 +35,48 @@ export default function OfferPrintView({ offer }: Props) {
                 <img src={APP_LOGO} className="w-[120mm]" />
             </div>
 
-            {/* HEADER - Changed to div to avoid global print styles hiding 'header' tags */}
-            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4 shrink-0 relative z-10">
+            {/* COMPACT HEADER */}
+            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-4 shrink-0 relative z-10">
                 <div className="flex flex-col items-start">
-                    <img src={APP_LOGO} alt="ILIOS" className="h-12 object-contain mb-2" />
-                    <div className="text-[9px] text-slate-600 font-medium leading-tight space-y-0.5">
-                        <p className="font-bold text-slate-900 text-xs">{company.name}</p>
-                        <p className="flex items-center gap-1"><MapPin size={10}/> {company.address}</p>
-                        <p className="flex items-center gap-1"><Phone size={10}/> {company.phone}</p>
-                        <p className="flex items-center gap-1"><Mail size={10}/> {company.email}</p>
+                    <img src={APP_LOGO} alt="ILIOS" className="h-10 object-contain mb-1" />
+                    <div className="text-[8px] text-slate-600 font-medium leading-tight space-y-0.5">
+                        <p className="font-bold text-slate-900">{company.name}</p>
+                        <p className="flex items-center gap-1"><MapPin size={8}/> {company.address}</p>
+                        <p className="flex items-center gap-1"><Phone size={8}/> {company.phone} <span className="text-slate-300">|</span> <Mail size={8}/> {company.email}</p>
                     </div>
                 </div>
                 
                 <div className="text-right">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase leading-none mb-1">ΠΡΟΣΦΟΡΑ</h1>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none mb-1">ΠΡΟΣΦΟΡΑ</h1>
                     <div className="text-xs text-slate-600 font-medium space-y-0.5">
-                        <p className="flex items-center justify-end gap-2"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Αριθμος</span> <span className="font-mono font-bold text-slate-900">#{offer.id.slice(0, 8).toUpperCase()}</span></p>
-                        <p className="flex items-center justify-end gap-2"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Ημερομηνια</span> <span className="font-mono font-bold text-slate-900">{formatDate(offer.created_at)}</span></p>
-                        <p className="flex items-center justify-end gap-2 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 mt-1">
+                        <div className="flex items-center justify-end gap-2">
+                             <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Αριθμος</span> 
+                             <span className="font-mono font-bold text-slate-900">#{offer.id.slice(0, 8).toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                            <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Ημερομηνια</span> 
+                            <span className="font-mono font-bold text-slate-900">{formatDate(offer.created_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-0.5 inline-flex">
                             <Coins size={10} className="text-slate-400"/>
-                            <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
-                            <span className="font-mono font-black text-slate-900">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>
-                        </p>
+                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
+                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>
+                        </div>
                     </div>
                 </div>
             </div>
             
             {/* CUSTOMER INFO */}
-            <section className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-4 flex justify-between items-center text-xs shrink-0 relative z-10">
+            <section className="bg-slate-50 rounded-lg p-2 border border-slate-100 mb-4 flex justify-between items-center text-xs shrink-0 relative z-10">
                 <div>
-                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Πελατης</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Πελατης</span>
                     <span className="font-black text-slate-900 text-sm block">{offer.customer_name}</span>
                     {offer.customer_phone && (
-                        <span className="font-medium text-slate-600 flex items-center gap-1 text-[10px]"><Phone size={10}/> {offer.customer_phone}</span>
+                        <span className="font-medium text-slate-600 flex items-center gap-1 text-[10px] mt-0.5"><Phone size={10}/> {offer.customer_phone}</span>
                     )}
                 </div>
                 <div className="text-right">
-                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Ισχυς Προσφορας</span>
+                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Ισχυς Προσφορας</span>
                      <span className="font-bold text-slate-800 text-xs">30 Ημέρες</span>
                 </div>
             </section>

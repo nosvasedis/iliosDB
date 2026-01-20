@@ -34,19 +34,20 @@ export const AnalyticsPrintReport = ({ stats, title }: { stats: any, title?: str
                 .print-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
             `}</style>
             
-            <header className="flex justify-between items-center border-b-4 border-slate-900 pb-6 mb-8">
+            {/* COMPACT HEADER TO MATCH OTHER PDFS */}
+            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-6">
                 <div className="flex items-center gap-4">
-                    <img src={APP_LOGO} alt="Ilios" className="w-24 object-contain" />
-                    <div>
-                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{title || "Οικονομική Αναφορά"}</h1>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ilios Kosmima • Σύστημα Επιχειρηματικής Ευφυΐας</p>
+                    <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain" />
+                    <div className="flex flex-col border-l border-slate-300 pl-3">
+                         <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">{title || "Οικονομική Αναφορά"}</h1>
+                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ilios Kosmima • Business Intelligence</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Ημερομηνία Έκδοσης</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Ημερομηνία</p>
                     <p className="text-sm font-black">{new Date().toLocaleDateString('el-GR')}</p>
                 </div>
-            </header>
+            </div>
 
             <section className="mb-10 break-avoid">
                 <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Βασικοί Δείκτες (KPIs)</h2>
