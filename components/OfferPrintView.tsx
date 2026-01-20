@@ -23,9 +23,12 @@ export default function OfferPrintView({ offer }: Props) {
         email: "ilioskosmima@gmail.com"
     };
     
-    // Calculate subtotal from items to show breakdown
+    // Calculate breakdown
     const subtotal = offer.items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const discountAmount = subtotal * (offer.discount_percent / 100);
+    const netAmount = subtotal - discountAmount;
+    const vatAmount = netAmount * 0.24;
+    const grandTotal = netAmount + vatAmount;
 
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
@@ -173,18 +176,18 @@ export default function OfferPrintView({ offer }: Props) {
                     )}
                     <div className="flex justify-between items-center text-slate-600 pb-1 border-b border-slate-200 mb-1">
                         <span>Φ.Π.Α. (24%):</span>
-                        <span className="font-mono font-bold">{formatCurrency((offer.total_price / 1.24) * 0.24)}</span>
+                        <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
                         <span className="uppercase">Γενικο Συνολο:</span>
-                        <span className="font-mono text-base">{formatCurrency(offer.total_price)}</span>
+                        <span className="font-mono text-base">{formatCurrency(grandTotal)}</span>
                     </div>
                 </div>
             </div>
 
             <footer className="mt-4 pt-2 border-t border-slate-100 flex justify-between items-center text-[7px] text-slate-400 font-bold uppercase tracking-widest shrink-0 relative z-10">
                 <p>ILIOS KOSMIMA ERP</p>
-                <p>Σελίδα 1/1</p>
+                {/* Page number removed as requested */}
             </footer>
         </div>
     );
