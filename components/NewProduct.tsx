@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal } from '../utils/pricingEngine';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 /* @FIX: Added missing 'Zap' icon import from lucide-react */
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap, PieChart, TrendingUp, Sparkles, Scale } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
@@ -622,6 +622,35 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           if (desc) setNewVariantDesc(desc); 
       } 
   }, [newVariantSuffix, gender, plating]);
+
+  const handleApplyIliosFormula = () => {
+    if (!settings) return;
+    
+    const updatedVariants = variants.map(v => {
+        // Recalculate cost for specific variant (stone differences etc)
+        const est = estimateVariantCost(currentTempProduct, v.suffix, settings, materials, products);
+        
+        // Extract components for formula
+        const silverCost = est.breakdown.silver;
+        const laborCost = est.breakdown.labor;
+        const materialCost = est.breakdown.materials;
+        const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
+
+        // Calculate Price
+        const suggested = calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
+        
+        return { ...v, selling_price: suggested };
+    });
+
+    setVariants(updatedVariants);
+    
+    // Also update the main selling price state to reflect the first variant (as a default)
+    if (updatedVariants.length > 0) {
+        setSellingPrice(updatedVariants[0].selling_price || 0);
+    }
+
+    showToast("Εφαρμόστηκε ο Τύπος Ilios σε όλες τις παραλλαγές!", "success");
+  };
 
   const handleAddVariant = () => {
       if (!newVariantSuffix) { showToast("Η κατάληξη είναι υποχρεωτική.", "error"); return; }
@@ -1325,7 +1354,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                         <div className="lg:col-span-8 flex flex-col min-h-0 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                 <h4 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-emerald-600"/> Ανάλυση Κερδοφορίας Παραλλαγών</h4>
-                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">{variants.length} Παραλλαγές</span>
+                                <div className="flex gap-2 items-center">
+                                    <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">{variants.length} Παραλλαγές</span>
+                                    <button 
+                                        onClick={handleApplyIliosFormula}
+                                        className="text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-100 flex items-center gap-1 transition-colors shadow-sm"
+                                        title="Αυτόματη Τιμολόγηση με Τύπο Ilios"
+                                    >
+                                        <Wand2 size={12}/> Εφαρμογή Τύπου Ilios
+                                    </button>
+                                </div>
                             </div>
                             
                             <div className="flex-1 overflow-y-auto custom-scrollbar">
