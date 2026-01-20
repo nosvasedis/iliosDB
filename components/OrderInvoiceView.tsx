@@ -62,8 +62,8 @@ export default function OrderInvoiceView({ order }: Props) {
 
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-10 page-break-after-always">
-            {/* HEADER */}
-            <header className="flex justify-between items-start mb-10">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-start mb-10">
                 <div className="w-40">
                     <img src={APP_LOGO} alt="ILIOS" className="w-full object-contain" />
                     <div className="text-[9px] text-slate-600 mt-2 space-y-0.5">
@@ -76,7 +76,7 @@ export default function OrderInvoiceView({ order }: Props) {
                     <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Παραστατικο Παραγγελιας</h1>
                     <p className="text-slate-700 font-mono font-bold text-lg mt-1">#{order.id}</p>
                 </div>
-            </header>
+            </div>
             
             {/* INFO SECTION */}
             <section className="grid grid-cols-2 gap-8 mb-8">

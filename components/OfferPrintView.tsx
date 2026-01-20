@@ -35,8 +35,8 @@ export default function OfferPrintView({ offer }: Props) {
                 <img src={APP_LOGO} className="w-[120mm]" />
             </div>
 
-            {/* HEADER */}
-            <header className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4 shrink-0 relative z-10">
+            {/* HEADER - Changed to div to avoid global print styles hiding 'header' tags */}
+            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4 shrink-0 relative z-10">
                 <div className="flex flex-col items-start">
                     <img src={APP_LOGO} alt="ILIOS" className="h-12 object-contain mb-2" />
                     <div className="text-[9px] text-slate-600 font-medium leading-tight space-y-0.5">
@@ -59,7 +59,7 @@ export default function OfferPrintView({ offer }: Props) {
                         </p>
                     </div>
                 </div>
-            </header>
+            </div>
             
             {/* CUSTOMER INFO */}
             <section className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-4 flex justify-between items-center text-xs shrink-0 relative z-10">

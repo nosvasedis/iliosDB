@@ -66,7 +66,8 @@ export default function TechnicianView({ batches }: Props) {
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
-            <header className="flex justify-between items-start border-b border-slate-900 pb-2 mb-4">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-start border-b border-slate-900 pb-2 mb-4">
                 <div className="w-24">
                      <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
@@ -74,7 +75,7 @@ export default function TechnicianView({ batches }: Props) {
                     <h1 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer size={18}/> Φύλλο Τεχνίτη</h1>
                     <p className="text-slate-600 text-xs font-bold mt-1">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
-            </header>
+            </div>
 
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (

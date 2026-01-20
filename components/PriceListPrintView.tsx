@@ -51,8 +51,8 @@ export default function PriceListPrintView({ data }: Props) {
             `}
             </style>
 
-            {/* HEADER */}
-            <header className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-4 max-w-[70%]">
                     <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
                     <div>
@@ -81,7 +81,7 @@ export default function PriceListPrintView({ data }: Props) {
                         <p className="text-slate-800 font-bold text-xs">{data.items.length} είδη</p>
                     </div>
                 </div>
-            </header>
+            </div>
 
             {/* CONTENT - CSS COLUMNS LAYOUT */}
             <div className="text-xs" style={{ columnCount: 3, columnGap: '20px' }}>

@@ -19,7 +19,8 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
-            <header className="flex justify-between items-center border-b border-slate-900 pb-2 mb-4">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-center border-b border-slate-900 pb-2 mb-4">
                 <div className="w-24">
                      <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
@@ -27,7 +28,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                     <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight">Φύλλο Προετοιμασίας</h1>
                     <p className="text-slate-600 text-xs font-bold">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
-            </header>
+            </div>
             
             <main>
                 {/* In-House Production Section */}

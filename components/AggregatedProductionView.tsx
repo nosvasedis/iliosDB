@@ -22,8 +22,8 @@ export default function AggregatedProductionView({ data, settings }: Props) {
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full page-break-inside-avoid break-inside-avoid">
-            {/* HEADER */}
-            <header className="flex justify-between items-start border-b border-slate-900 pb-4 mb-6">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-start border-b border-slate-900 pb-4 mb-6">
                 <div className="w-32">
                     <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
@@ -41,7 +41,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         </>
                     )}
                 </div>
-            </header>
+            </div>
 
             {/* SUMMARY */}
             <section className="grid grid-cols-4 gap-4 mb-6">

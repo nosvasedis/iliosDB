@@ -54,8 +54,8 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
 
     return (
         <div className="w-full bg-white text-slate-900 p-8 font-sans text-sm leading-normal h-full flex flex-col page-break-inside-avoid break-inside-avoid">
-            {/* HEADER */}
-            <header className="flex justify-between items-start border-b border-slate-200 pb-4 mb-6">
+            {/* HEADER changed to DIV */}
+            <div className="flex justify-between items-start border-b border-slate-200 pb-4 mb-6">
                 <div>
                     <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain" />
                 </div>
@@ -67,7 +67,7 @@ export default function ProductionWorkerView({ batch, allMolds, allProducts, all
                     <p className="text-slate-600 font-mono font-bold">#{batch.id}</p>
                     <p className="text-slate-600 text-xs mt-1">Ημερομηνία: <span className="font-bold">{formatDate(batch.created_at)}</span></p>
                 </div>
-            </header>
+            </div>
 
             {/* PRODUCT INFO */}
             <section className="grid grid-cols-12 gap-6 mb-6">
