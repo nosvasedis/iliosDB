@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -32,13 +34,14 @@ import {
   CloudOff,
   ScrollText,
   ShieldAlert,
-  TrendingUp
+  TrendingUp,
+  FileBadge
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer } from './types';
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -72,9 +75,11 @@ import SetupScreen from './components/SetupScreen';
 import PriceListPage from './components/PriceListPage';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 import AnalyticsView, { AnalyticsPrintReport, calculateBusinessStats } from './components/AnalyticsView';
+import OffersPage from './components/OffersPage';
+import OfferPrintView from './components/OfferPrintView';
 
 
-type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
 
 // Visual Sync Indicator Component
 const SyncStatusIndicator = ({ pendingItems, isOnline, isSyncing }: { pendingItems: any[], isOnline: boolean, isSyncing: boolean }) => {
@@ -210,6 +215,7 @@ function AppContent() {
 
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail'}[]>([]);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -286,7 +292,7 @@ function AppContent() {
 
   // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData;
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -306,6 +312,8 @@ function AppContent() {
             docTitle = `Economics_${dateStr}`;
         } else if (orderToPrint) {
             docTitle = `Order_${orderToPrint.id}_${orderToPrint.customer_name}`;
+        } else if (offerToPrint) {
+            docTitle = `Offer_${offerToPrint.id}_${offerToPrint.customer_name}`;
         } else if (batchToPrint) {
             docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id}`;
         } else if (aggregatedPrintData) {
@@ -342,7 +350,7 @@ function AppContent() {
         docTitle = docTitle.replace(/[^a-zA-Z0-9\-_]/g, '_').replace(/_+/g, '_');
 
         const cleanup = () => {
-            setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); 
+            setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null);
             setAggregatedPrintData(null); setPreparationPrintData(null); 
             setTechnicianPrintData(null); setPriceListPrintData(null);
             setAnalyticsPrintData(null);
@@ -407,7 +415,7 @@ function AppContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint]);
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
@@ -570,6 +578,7 @@ function AppContent() {
 
       <div ref={printContainerRef} className="print-view" aria-hidden="true">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+        {offerToPrint && <OfferPrintView offer={offerToPrint} />}
         {batchToPrint && <ProductionWorkerView batch={batchToPrint} allMolds={molds} allProducts={products} allMaterials={materials} />}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
@@ -625,6 +634,7 @@ function AppContent() {
             {!isLocalMode && (
                 <>
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
+                <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
                 <NavItem icon={<Users size={22} />} label="Πελάτες & Προμ." isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
                 </>
@@ -683,6 +693,7 @@ function AppContent() {
               {activePage === 'settings' && <SettingsPage />}
               {activePage === 'ai-studio' && <AiStudio />}
               {activePage === 'pricelist' && <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />}
+              {activePage === 'offers' && <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />}
             </div>
           </div>
         </main>

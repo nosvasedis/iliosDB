@@ -203,6 +203,22 @@ export interface Order {
   notes?: string;
 }
 
+export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';
+
+export interface Offer {
+  id: string;
+  customer_id?: string;
+  customer_name: string;
+  customer_phone?: string;
+  created_at: string;
+  status: OfferStatus;
+  custom_silver_price: number;
+  discount_percent: number;
+  items: OrderItem[];
+  total_price: number; // Final price after discount
+  notes?: string;
+}
+
 export interface Customer {
   id: string;
   full_name: string;

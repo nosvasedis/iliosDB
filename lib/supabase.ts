@@ -1,6 +1,8 @@
 
+
+
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
@@ -809,7 +811,7 @@ export const api = {
             'customers', 'suppliers', 'warehouses', 'production_batches', 
             'product_stock', 'stock_movements', 'recipes', 'product_molds', 
             'collections', 'product_collections', 'global_settings',
-            'price_snapshots', 'price_snapshot_items'
+            'price_snapshots', 'price_snapshot_items', 'offers'
         ];
         const results: Record<string, any[]> = {};
         for (const table of tables) {
@@ -823,7 +825,7 @@ export const api = {
             'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
             'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings',
-            'price_snapshots', 'price_snapshot_items'
+            'price_snapshots', 'price_snapshot_items', 'offers'
         ];
 
         if (isLocalMode || !SUPABASE_URL) {
@@ -848,5 +850,13 @@ export const api = {
                 }
             }
         }
-    }
+    },
+    
+    // OFFERS API
+    getOffers: async (): Promise<Offer[]> => {
+        return fetchFullTable('offers', '*', (q) => q.order('created_at', { ascending: false }));
+    },
+    saveOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'INSERT', offer); },
+    updateOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'UPDATE', offer, { match: { id: offer.id } }); },
+    deleteOffer: async (id: string): Promise<void> => { await safeMutate('offers', 'DELETE', null, { match: { id } }); },
 };
