@@ -18,19 +18,21 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
     const importedBatches = batches.filter(b => b.product_details?.production_type === ProductionType.Imported);
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-4 mx-auto shadow-lg print:shadow-none print:p-4">
-            <header className="flex justify-between items-center border-b border-slate-200 pb-2 mb-3">
-                <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
+            <header className="flex justify-between items-center border-b border-slate-900 pb-2 mb-4">
+                <div className="w-24">
+                     <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
+                </div>
                 <div className="text-right">
-                    <h1 className="text-base font-black text-slate-800 uppercase tracking-tight">Φύλλο Προετοιμασίας</h1>
-                    <p className="text-slate-500 text-xs font-bold">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
+                    <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight">Φύλλο Προετοιμασίας</h1>
+                    <p className="text-slate-600 text-xs font-bold">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
             </header>
             
             <main>
                 {/* In-House Production Section */}
                 {inHouseBatches.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         <div className="grid grid-cols-3 gap-3">
                             {inHouseBatches.map(batch => {
                                 const product = batch.product_details;
@@ -40,65 +42,66 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                 const platingDesc = variant?.description || product.category;
 
                                 return (
-                                    <div key={batch.id} className="border-2 border-slate-800 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid h-28 bg-white overflow-hidden relative">
+                                    <div key={batch.id} className="border-2 border-slate-900 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid bg-white min-h-[7rem]">
                                         {/* Image & Qty Column */}
-                                        <div className="flex flex-col items-center justify-between w-14 shrink-0 h-full">
-                                            <div className="w-14 h-14 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                        <div className="flex flex-col items-center justify-between w-12 shrink-0 h-full">
+                                            <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                 {product.image_url ? (
                                                     <img src={product.image_url} className="w-full h-full object-cover" alt="img"/>
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-slate-300 text-[8px]">No Img</div>
                                                 )}
                                             </div>
-                                            <div className="text-2xl font-black text-slate-900 leading-none text-center">x{batch.quantity}</div>
+                                            <div className="text-2xl font-black text-slate-900 leading-none text-center mt-2">x{batch.quantity}</div>
                                         </div>
 
-                                        {/* Details Column */}
-                                        <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                            <div>
-                                                <div className="leading-tight">
-                                                    <span className="text-sm font-black text-slate-900 block truncate uppercase">{batch.sku}{batch.variant_suffix || ''}</span>
-                                                    <span className="text-[10px] font-bold text-slate-900 truncate block uppercase">{platingDesc}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                                    {batch.size_info && <span className="text-[10px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block">{batch.size_info}</span>}
-                                                    {batch.notes && (
-                                                        <span className="text-[9px] font-black text-emerald-800 italic uppercase flex items-center gap-0.5">
-                                                            <StickyNote size={8}/> Note
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="text-[9px] leading-tight mt-1">
-                                                {batch.notes ? (
-                                                    <div className="bg-emerald-50 p-1 rounded border border-emerald-100 text-emerald-900 font-bold line-clamp-2">
-                                                        {batch.notes}
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        {/* Materials Inline */}
-                                                        {product.recipe.length > 0 ? (
-                                                            <div className="text-slate-800 line-clamp-2 font-bold">
-                                                                <span>ΥΛΙΚΑ: </span>
-                                                                {product.recipe.map((item, idx) => {
-                                                                    const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-                                                                    const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
-                                                                    return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
-                                                                })}
-                                                            </div>
-                                                        ) : null}
-
-                                                        {/* Molds Inline */}
-                                                        {product.molds.length > 0 && (
-                                                            <div className="text-slate-900 mt-0.5 truncate">
-                                                                <span className="font-bold">ΛΑΣΤΙΧΑ:</span>
-                                                                {product.molds.map((pm) => pm.code).join(', ')}
-                                                            </div>
-                                                        )}
-                                                    </>
+                                        {/* Details Column - Stacked Flex for Safety */}
+                                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                            
+                                            {/* Header Info */}
+                                            <div className="leading-tight border-b border-slate-100 pb-1">
+                                                <span className="text-sm font-black text-slate-900 block truncate uppercase">{batch.sku}{batch.variant_suffix || ''}</span>
+                                                <span className="text-[10px] font-bold text-slate-600 truncate block uppercase">{platingDesc}</span>
+                                                
+                                                {batch.size_info && (
+                                                    <span className="text-[9px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                                                        {batch.size_info}
+                                                    </span>
                                                 )}
                                             </div>
+
+                                            {/* Materials & Molds Section - Always Visible */}
+                                            <div className="text-[9px] leading-tight space-y-1">
+                                                {product.recipe.length > 0 && (
+                                                    <div className="text-slate-800 font-bold">
+                                                        <span className="text-slate-500 uppercase text-[8px]">ΥΛΙΚΑ: </span>
+                                                        {product.recipe.map((item, idx) => {
+                                                            const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+                                                            const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
+                                                            return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
+                                                        })}
+                                                    </div>
+                                                )}
+
+                                                {product.molds.length > 0 && (
+                                                    <div className="text-slate-900 truncate">
+                                                        <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ: </span>
+                                                        <span className="font-bold">{product.molds.map((pm) => pm.code).join(', ')}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Notes Section - Stacked at bottom, doesn't hide materials */}
+                                            {batch.notes && (
+                                                <div className="mt-auto pt-1">
+                                                    <div className="text-[8px] font-black text-emerald-800 uppercase flex items-center gap-0.5 mb-0.5">
+                                                        <StickyNote size={8}/> ΣΗΜΕΙΩΣΗ
+                                                    </div>
+                                                    <div className="bg-emerald-50 p-1 rounded border border-emerald-100 text-[9px] font-bold text-emerald-900 leading-tight">
+                                                        {batch.notes}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -117,12 +120,12 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                             if (!product) return null;
                             
                             return (
-                                <div key={batch.id} className="border-2 border-dashed border-slate-600 bg-slate-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid h-28 overflow-hidden">
-                                     <div className="flex flex-col items-center justify-between w-14 shrink-0 h-full">
-                                        <div className="w-14 h-14 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                <div key={batch.id} className="border-2 border-dashed border-slate-600 bg-slate-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid min-h-[6rem]">
+                                     <div className="flex flex-col items-center justify-between w-12 shrink-0 h-full">
+                                        <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                             {product.image_url && <img src={product.image_url} className="w-full h-full object-cover"/>}
                                         </div>
-                                        <div className="text-2xl font-black text-slate-900 leading-none">x{batch.quantity}</div>
+                                        <div className="text-2xl font-black text-slate-900 leading-none mt-2">x{batch.quantity}</div>
                                     </div>
                                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                                         <div>
@@ -131,9 +134,12 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 <p className="text-[10px] font-bold text-slate-600 bg-white px-1 rounded border border-slate-200 w-fit mt-1">{product.supplier_sku}</p>
                                             )}
                                         </div>
-                                        <div className="text-[9px]">
+                                        <div className="text-[9px] mt-2">
                                             {batch.notes ? (
-                                                <p className="bg-emerald-100 p-1 rounded font-bold text-emerald-800 line-clamp-1">{batch.notes}</p>
+                                                <div className="bg-emerald-100 p-1 rounded border border-emerald-200 text-emerald-900 font-bold">
+                                                    <span className="block text-[7px] uppercase opacity-70">ΣΗΜΕΙΩΣΗ</span>
+                                                    {batch.notes}
+                                                </div>
                                             ) : (
                                                 <>
                                                     <p className="font-bold text-slate-800">ΕΙΣΑΓΩΓΗ</p>

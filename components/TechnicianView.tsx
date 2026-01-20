@@ -65,23 +65,25 @@ export default function TechnicianView({ batches }: Props) {
     }, [batches]);
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-4 mx-auto shadow-lg print:shadow-none print:p-4">
-            <header className="flex justify-between items-start border-b border-slate-200 pb-2 mb-4">
-                <img src={APP_LOGO} alt="ILIOS" className="w-16 object-contain" />
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
+            <header className="flex justify-between items-start border-b border-slate-900 pb-2 mb-4">
+                <div className="w-24">
+                     <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
+                </div>
                 <div className="text-right">
                     <h1 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer size={18}/> Φύλλο Τεχνίτη</h1>
-                    <p className="text-slate-500 text-xs font-bold mt-1">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
+                    <p className="text-slate-600 text-xs font-bold mt-1">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
             </header>
 
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (
-                    <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[7rem] bg-white relative">
+                    <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[8rem] bg-white">
                         {/* Top part: SKU, Plating */}
-                        <div className="flex justify-between items-start mb-1">
+                        <div className="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <div>
                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{item.sku}{item.variantSuffix}</p>
-                                <p className="text-[10px] font-bold text-slate-900 mt-0.5 uppercase">{item.platingDesc}</p>
+                                <p className="text-[10px] font-bold text-slate-600 mt-0.5 uppercase">{item.platingDesc}</p>
                             </div>
                             <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden border border-slate-200 shrink-0">
                                 {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}
@@ -91,7 +93,7 @@ export default function TechnicianView({ batches }: Props) {
                         {/* Middle: Sizes & Notes */}
                         <div className="flex-1 space-y-1">
                             {Object.keys(item.sizes).length > 0 && (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1 mb-1">
                                     {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
                                         <div key={size} className="bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[9px]">
                                             <span className="font-black text-slate-800">{size}</span>: <span className="font-bold text-slate-600">{qty}</span>
@@ -101,10 +103,15 @@ export default function TechnicianView({ batches }: Props) {
                             )}
                             
                             {item.notes.size > 0 && (
-                                <div className="space-y-0.5">
+                                <div className="space-y-1 mt-1">
                                     {Array.from(item.notes).map((note, nIdx) => (
-                                        <div key={nIdx} className="bg-emerald-50 border border-emerald-100 text-emerald-900 p-1 rounded text-[8px] font-black flex items-center gap-1 uppercase italic leading-tight">
-                                            <StickyNote size={8}/> {note}
+                                        <div key={nIdx} className="bg-emerald-50 border border-emerald-100 text-emerald-900 p-1 rounded">
+                                            <div className="text-[7px] font-black uppercase flex items-center gap-0.5 text-emerald-700 mb-0.5">
+                                                <StickyNote size={6}/> ΣΗΜΕΙΩΣΗ
+                                            </div>
+                                            <div className="text-[9px] font-bold leading-tight">
+                                                {note}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -112,8 +119,8 @@ export default function TechnicianView({ batches }: Props) {
                         </div>
 
                         {/* Bottom: Total Quantity */}
-                        <div className="mt-auto pt-1 border-t border-slate-100 flex justify-between items-end">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">Συνολο</span>
+                        <div className="mt-2 pt-1 border-t border-slate-200 flex justify-between items-end">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Συνολο</span>
                             <span className="text-2xl font-black text-slate-900 leading-none">{item.totalQuantity}</span>
                         </div>
                     </div>

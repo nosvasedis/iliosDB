@@ -594,7 +594,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                          </div>
                                          <div className="text-right">
                                              <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
-                                             <span className="text-[10px] uppercase font-bold bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">{b.current_stage}</span>
+                                             {/* FIX: Localized Stage Label */}
+                                             <span className="text-[10px] uppercase font-bold bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">
+                                                 {STAGES.find(s => s.id === b.current_stage)?.label || b.current_stage}
+                                             </span>
                                          </div>
                                      </div>
                                      {b.notes && (

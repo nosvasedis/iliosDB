@@ -21,23 +21,23 @@ export default function AggregatedProductionView({ data, settings }: Props) {
     };
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-10 page-break-inside-avoid break-inside-avoid">
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full page-break-inside-avoid break-inside-avoid">
             {/* HEADER */}
-            <header className="flex justify-between items-start border-b border-slate-200 pb-4 mb-6">
-                <div>
-                    <img src={APP_LOGO} alt="ILIOS" className="w-24 object-contain" />
+            <header className="flex justify-between items-start border-b border-slate-900 pb-4 mb-6">
+                <div className="w-32">
+                    <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
                 <div className="text-right">
                     {data.orderId ? (
                         <>
                             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Εντολη Παραγωγησ</h1>
-                            <p className="text-slate-500 font-mono font-bold text-lg mt-1">#{data.orderId}</p>
-                            <p className="text-slate-500 text-sm mt-1">Πελάτης: <span className="font-bold">{data.customerName}</span></p>
+                            <p className="text-slate-600 font-mono font-bold text-lg mt-1">#{data.orderId}</p>
+                            <p className="text-slate-600 text-sm mt-1">Πελάτης: <span className="font-bold">{data.customerName}</span></p>
                         </>
                     ) : (
                         <>
                             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Συγκεντρωτικη Εντολη Παραγωγησ</h1>
-                            <p className="text-slate-500 text-xs mt-1">Ημερομηνία Εκτύπωσης: <span className="font-bold">{formatDate(new Date().toISOString())}</span></p>
+                            <p className="text-slate-600 text-xs mt-1">Ημερομηνία Εκτύπωσης: <span className="font-bold">{formatDate(new Date().toISOString())}</span></p>
                         </>
                     )}
                 </div>
