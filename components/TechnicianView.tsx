@@ -13,7 +13,7 @@ interface GroupedItem {
     sku: string;
     variantSuffix?: string;
     imageUrl?: string | null;
-    platingDesc: string;
+    description: string; // Renamed from platingDesc to be more generic
     totalQuantity: number;
     sizes: Record<string, number>;
     notes: Set<string>;
@@ -29,8 +29,13 @@ export default function TechnicianView({ batches }: Props) {
                 const product = batch.product_details;
                 if (!product) return;
                 
-                const { finish } = getVariantComponents(batch.variant_suffix || '', product.gender);
-                const platingDesc = finish.name;
+                const { finish, stone } = getVariantComponents(batch.variant_suffix || '', product.gender);
+                
+                // Build complete description: Finish + Stone
+                let desc = finish.name;
+                if (stone.name) {
+                    desc += ` • ${stone.name}`;
+                }
 
                 // Group by SKU, variant
                 const key = `${batch.sku}-${batch.variant_suffix || ''}`;
@@ -54,7 +59,7 @@ export default function TechnicianView({ batches }: Props) {
                         sku: batch.sku,
                         variantSuffix: batch.variant_suffix,
                         imageUrl: product.image_url,
-                        platingDesc,
+                        description: desc,
                         totalQuantity: batch.quantity,
                         sizes,
                         notes
@@ -80,11 +85,13 @@ export default function TechnicianView({ batches }: Props) {
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (
                     <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[8rem] bg-white">
-                        {/* Top part: SKU, Plating */}
+                        {/* Top part: SKU, Description */}
                         <div className="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <div>
                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{item.sku}{item.variantSuffix}</p>
-                                <p className="text-[10px] font-bold text-slate-600 mt-0.5 uppercase">{item.platingDesc}</p>
+                                <p className="text-[10px] font-bold text-slate-600 mt-0.5 uppercase break-words max-w-[120px] leading-tight">
+                                    {item.description}
+                                </p>
                             </div>
                             <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden border border-slate-200 shrink-0">
                                 {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}
