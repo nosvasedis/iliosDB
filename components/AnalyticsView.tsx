@@ -27,139 +27,138 @@ export const AnalyticsPrintReport = ({ stats, title }: { stats: any, title?: str
     if (!stats) return null;
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-full max-w-[210mm] mx-auto p-10 page-break-inside-avoid">
-            <style>{`
-                @page { size: A4; margin: 15mm; }
-                .break-avoid { break-inside: avoid; }
-                .print-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-            `}</style>
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 flex flex-col page-break-after-always">
             
-            {/* COMPACT HEADER TO MATCH OTHER PDFS */}
-            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-6">
-                <div className="flex items-center gap-4">
-                    <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain" />
-                    <div className="flex flex-col border-l border-slate-300 pl-3">
-                         <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">{title || "Οικονομική Αναφορά"}</h1>
-                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ilios Kosmima • Business Intelligence</p>
+            {/* COMPACT HEADER */}
+            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-4 shrink-0">
+                <div className="flex items-center gap-3">
+                    <img src={APP_LOGO} alt="ILIOS" className="h-8 w-auto object-contain" />
+                    <div className="text-[7px] text-slate-500 leading-tight border-l border-slate-300 pl-2">
+                        <p className="font-bold text-slate-900 uppercase tracking-wide">ILIOS KOSMIMA</p>
+                        <p>Business Intelligence</p>
+                        <p>Report ID: {Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Ημερομηνία</p>
-                    <p className="text-sm font-black">{new Date().toLocaleDateString('el-GR')}</p>
+                    <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">{title || "Οικονομικη Αναλυση"}</h1>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{new Date().toLocaleDateString('el-GR', { dateStyle: 'full' })}</p>
                 </div>
             </div>
 
-            <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Βασικοί Δείκτες (KPIs)</h2>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">Συνολικά Έσοδα (Τζίρος)</p>
-                        <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalRevenue)}</p>
-                        <p className="text-[9px] text-slate-400 mt-1">Πωλήσεις προ εξόδων</p>
+            {/* CONTENT */}
+            <div className="flex-1 space-y-4">
+                
+                {/* 1. KPIs - Single Row */}
+                <section className="grid grid-cols-4 gap-3 break-inside-avoid">
+                    <div className="p-2 rounded border border-slate-200 bg-slate-50">
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Εσοδα</p>
+                        <p className="text-xl font-black text-slate-900 leading-none mt-1">{formatCurrency(stats.totalRevenue)}</p>
                     </div>
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Μεικτό Κέρδος</p>
-                        <p className="text-2xl font-black text-emerald-700">{formatCurrency(stats.totalProfit)}</p>
-                        <p className="text-[9px] text-emerald-500 font-bold mt-1">Περιθώριο: {stats.avgMargin.toFixed(1)}%</p>
+                    <div className="p-2 rounded border border-emerald-200 bg-emerald-50">
+                        <p className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">Μεικτο Κερδος</p>
+                        <p className="text-xl font-black text-emerald-700 leading-none mt-1">{formatCurrency(stats.totalProfit)}</p>
+                        <p className="text-[8px] font-bold text-emerald-600 mt-0.5">{stats.avgMargin.toFixed(1)}% Yield</p>
                     </div>
-                    <div className="p-4 border border-slate-200 rounded-xl">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">Μέση Αξία Παραγγελίας</p>
-                        <p className="text-xl font-black text-slate-800">{formatCurrency(stats.avgOrderValue)}</p>
+                    <div className="p-2 rounded border border-slate-200">
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Avg Order</p>
+                        <p className="text-xl font-black text-slate-800 leading-none mt-1">{formatCurrency(stats.avgOrderValue)}</p>
                     </div>
-                    <div className="p-4 border border-slate-200 rounded-xl">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">Κόστος Παραγωγής %</p>
-                        <p className="text-xl font-black text-slate-800">{stats.cogsPercent.toFixed(1)}%</p>
+                    <div className="p-2 rounded border border-slate-200">
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Cost Ratio</p>
+                        <p className="text-xl font-black text-slate-800 leading-none mt-1">{stats.cogsPercent.toFixed(1)}%</p>
                     </div>
-                </div>
-            </section>
-            
-            <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση Κόστους (Κατάσταση Αποτελεσμάτων)</h2>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-sm">
-                    <div className="flex justify-between py-1 border-b border-slate-200 font-bold mb-1">
-                        <span>Έσοδα</span>
-                        <span>{formatCurrency(stats.totalRevenue)}</span>
-                    </div>
-                    <div className="pl-4 space-y-1 text-xs">
-                        <div className="flex justify-between text-slate-600">
-                            <span>- Κόστος Ασημιού</span>
-                            <span>{formatCurrency(stats.costBreakdown.silver)}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                            <span>- Κόστος Υλικών</span>
-                            <span>{formatCurrency(stats.costBreakdown.materials)}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                            <span>- Κόστος Εργασίας</span>
-                            <span>{formatCurrency(stats.costBreakdown.labor)}</span>
-                        </div>
-                    </div>
-                    <div className="flex justify-between py-2 border-t-2 border-slate-300 font-black mt-2 text-emerald-700 text-base">
-                        <span>Μεικτό Κέρδος</span>
-                        <span>{formatCurrency(stats.totalProfit)}</span>
-                    </div>
-                </div>
-            </section>
+                </section>
 
-            <section className="mb-10 break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Ανάλυση ανά Κατηγορία</h2>
-                <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                        <tr className="bg-slate-900 text-white font-bold uppercase tracking-wider">
-                            <th className="p-3 rounded-tl-lg">Κατηγορία</th>
-                            <th className="p-3 text-right">Έσοδα</th>
-                            <th className="p-3 text-right">Κόστος</th>
-                            <th className="p-3 text-right">Κέρδος</th>
-                            <th className="p-3 text-right rounded-tr-lg">Περιθώριο %</th>
-                        </tr>
-                    </thead>
-                    <tbody className="border border-slate-200">
-                        {stats.categoryChartData.map((cat: any, idx: number) => (
-                            <tr key={idx} className="border-b border-slate-100 odd:bg-slate-50/50">
-                                <td className="p-3 font-bold text-slate-800">{cat.name}</td>
-                                <td className="p-3 text-right font-mono">{formatCurrency(cat.revenue)}</td>
-                                <td className="p-3 text-right font-mono text-slate-400">{formatCurrency(cat.cost)}</td>
-                                <td className="p-3 text-right font-mono font-bold text-emerald-600">{formatCurrency(cat.profit)}</td>
-                                <td className="p-3 text-right font-black">
-                                    {cat.revenue > 0 ? ((cat.profit / cat.revenue) * 100).toFixed(1) : 0}%
-                                </td>
+                {/* 2. Cost Analysis & Breakdown (Horizontal) */}
+                <section className="break-inside-avoid border border-slate-200 rounded-lg p-3">
+                    <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-1 mb-2">Αναλυση Κοστους</h3>
+                    <div className="flex justify-between items-end text-xs">
+                        <div>
+                            <p className="text-slate-500 text-[9px] uppercase font-bold">Ασήμι</p>
+                            <p className="font-bold text-slate-900">{formatCurrency(stats.costBreakdown.silver)}</p>
+                        </div>
+                        <div>
+                            <p className="text-slate-500 text-[9px] uppercase font-bold">Υλικά</p>
+                            <p className="font-bold text-slate-900">{formatCurrency(stats.costBreakdown.materials)}</p>
+                        </div>
+                        <div>
+                            <p className="text-slate-500 text-[9px] uppercase font-bold">Εργατικά</p>
+                            <p className="font-bold text-slate-900">{formatCurrency(stats.costBreakdown.labor)}</p>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200 mx-2"></div>
+                        <div className="text-right">
+                            <p className="text-slate-500 text-[9px] uppercase font-bold">Σύνολο Εξόδων</p>
+                            <p className="font-bold text-slate-900">{formatCurrency(stats.totalCost)}</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 3. Category Analysis Table */}
+                <section className="break-inside-avoid">
+                     <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Αναλυση Κατηγοριων</h3>
+                     <table className="w-full text-left border-collapse text-[10px]">
+                        <thead>
+                            <tr className="border-b-2 border-slate-800 text-slate-600">
+                                <th className="py-1 px-1 font-bold">Κατηγορία</th>
+                                <th className="py-1 px-1 text-right">Έσοδα</th>
+                                <th className="py-1 px-1 text-right">Κόστος</th>
+                                <th className="py-1 px-1 text-right text-emerald-700">Κέρδος</th>
+                                <th className="py-1 px-1 text-right">%</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </section>
-            
-            <section className="break-avoid">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Top Προϊόντα & Πελάτες</h2>
-                <div className="grid grid-cols-2 gap-6">
-                    <div>
-                        <h3 className="font-bold text-sm mb-2 text-slate-700">Top 5 Προϊόντα (Τζίρος)</h3>
-                        <ul className="text-xs space-y-1">
-                            {stats.topSkus.slice(0, 5).map((p: any, i: number) => (
-                                <li key={i} className="flex justify-between border-b border-slate-100 pb-1">
-                                    <span>{p.sku} (x{p.qty})</span>
-                                    <span className="font-bold">{formatCurrency(p.revenue)}</span>
-                                </li>
+                        </thead>
+                        <tbody>
+                            {stats.categoryChartData.map((cat: any, idx: number) => (
+                                <tr key={idx} className="border-b border-slate-100">
+                                    <td className="py-1 px-1 font-bold text-slate-800">{cat.name}</td>
+                                    <td className="py-1 px-1 text-right text-slate-600 font-mono">{formatCurrency(cat.revenue)}</td>
+                                    <td className="py-1 px-1 text-right text-slate-400 font-mono">{formatCurrency(cat.cost)}</td>
+                                    <td className="py-1 px-1 text-right font-bold text-emerald-700 font-mono">{formatCurrency(cat.profit)}</td>
+                                    <td className="py-1 px-1 text-right font-black text-slate-800">
+                                        {cat.revenue > 0 ? ((cat.profit / cat.revenue) * 100).toFixed(1) : 0}%
+                                    </td>
+                                </tr>
                             ))}
-                        </ul>
+                        </tbody>
+                     </table>
+                </section>
+                
+                {/* 4. Top Lists (Side by Side) */}
+                <section className="grid grid-cols-2 gap-6 break-inside-avoid">
+                    <div>
+                        <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 border-b border-slate-200 pb-1">Top Products</h3>
+                        <table className="w-full text-[9px]">
+                            <tbody>
+                                {stats.topSkus.slice(0, 8).map((p: any, i: number) => (
+                                    <tr key={i} className="border-b border-slate-50">
+                                        <td className="py-1 font-bold text-slate-700">{p.sku}</td>
+                                        <td className="py-1 text-right text-slate-500">x{p.qty}</td>
+                                        <td className="py-1 text-right font-bold font-mono">{formatCurrency(p.revenue)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm mb-2 text-slate-700">Top 5 Πελάτες</h3>
-                        <ul className="text-xs space-y-1">
-                            {stats.topCustomers.map((c: any, i: number) => (
-                                <li key={i} className="flex justify-between border-b border-slate-100 pb-1">
-                                    <span>{c.name}</span>
-                                    <span className="font-bold">{formatCurrency(c.revenue)}</span>
-                                </li>
-                            ))}
-                        </ul>
+                        <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 border-b border-slate-200 pb-1">Top Customers</h3>
+                        <table className="w-full text-[9px]">
+                            <tbody>
+                                {stats.topCustomers.slice(0, 8).map((c: any, i: number) => (
+                                    <tr key={i} className="border-b border-slate-50">
+                                        <td className="py-1 font-bold text-slate-700 truncate max-w-[100px]">{c.name}</td>
+                                        <td className="py-1 text-right text-slate-500">{c.orders} ord</td>
+                                        <td className="py-1 text-right font-bold font-mono">{formatCurrency(c.revenue)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
 
-            <footer className="mt-20 pt-4 border-t border-slate-200 text-center text-[8px] text-slate-400 uppercase tracking-widest">
-                Εμπιστευτικό Έγγραφο • Παραγωγή από Ilios Kosmima BI Engine • Σελίδα 1
-            </footer>
+            {/* Footer */}
+            <div className="mt-4 pt-2 border-t-2 border-slate-900 text-center text-[7px] text-slate-300 uppercase tracking-widest shrink-0">
+                System Generated • Ilios Kosmima ERP • {new Date().toLocaleTimeString()}
+            </div>
         </div>
     );
 };
