@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { Order, Product, OrderStatus, Gender, MaterialType } from '../types';
+import { Order, Product, OrderStatus, Gender, MaterialType, GlobalSettings } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { 
@@ -14,7 +14,7 @@ import {
   HelpCircle, BarChart3, FileText, ChevronRight, Calculator, Hash, Coins,
   Target
 } from 'lucide-react';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { formatCurrency, formatDecimal, calculateProductCost } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
 
 interface Props {
@@ -25,8 +25,8 @@ interface Props {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
-export const calculateBusinessStats = (orders: Order[], products: Product[], materials: any[]) => {
-    if (!orders || !products || !materials) return null;
+export const calculateBusinessStats = (orders: Order[], products: Product[], materials: any[], globalSettings: GlobalSettings) => {
+    if (!orders || !products || !materials || !globalSettings) return null;
 
     const validOrders = orders.filter(o => o.status !== OrderStatus.Cancelled);
     const isSingleOrder = validOrders.length === 1;
@@ -54,6 +54,11 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
     validOrders.forEach(order => {
         totalRevenue += order.total_price;
         
+        // DETERMINE EFFECTIVE SETTINGS FOR COSTING
+        // If order has a custom rate (locked from Offer), use it. Otherwise use current global.
+        const orderSilverPrice = order.custom_silver_rate || globalSettings.silver_price_gram;
+        const effectiveSettings = { ...globalSettings, silver_price_gram: orderSilverPrice };
+        
         const cKey = order.customer_id || order.customer_name;
         if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
         customerRanking[cKey].revenue += order.total_price;
@@ -72,11 +77,11 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
 
             const revenue = item.price_at_order * item.quantity;
             
-            let unitCost = product.active_price;
-            if (item.variant_suffix) {
-                const v = product.variants?.find(variant => variant.suffix === item.variant_suffix);
-                if (v?.active_price) unitCost = v.active_price;
-            }
+            // ACCURATE COST CALCULATION
+            // We must recalculate the cost of the product using the EFFECTIVE settings (historical silver price)
+            // instead of using product.active_price which is always current.
+            const costResult = calculateProductCost(product, effectiveSettings, materials, products);
+            const unitCost = costResult.total;
             
             const lineCost = unitCost * item.quantity;
             const profit = revenue - lineCost;
@@ -101,24 +106,13 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             // Add profit to time grouping
             salesOverTime[monthKey].profit += profit;
 
+            // Breakdown sums using the detailed cost result from pricing engine
+            silverCostSum += (costResult.breakdown.silver * item.quantity);
+            materialCostSum += (costResult.breakdown.materials * item.quantity);
+            laborCostSum += (costResult.breakdown.labor * item.quantity);
+            
             const w = product.weight_g + (product.secondary_weight_g || 0);
-            
-            silverSoldWeight += (product.weight_g * item.quantity);
-            
-            const matCost = product.recipe.reduce((acc, r) => {
-                if (r.type === 'raw') {
-                    const m = materials.find(mat => mat.id === r.id);
-                    return acc + ((m?.cost_per_unit || 0) * r.quantity);
-                }
-                return acc;
-            }, 0) * item.quantity;
-            materialCostSum += matCost;
-            
-            const silverC = (w * 0.85) * item.quantity; // Est silver cost
-            silverCostSum += silverC;
-            
-            // The rest is labor/overhead
-            laborCostSum += Math.max(0, lineCost - matCost - silverC);
+            silverSoldWeight += (w * item.quantity);
 
             product.recipe.forEach(ri => {
                 if (ri.type === 'raw') {
@@ -174,11 +168,12 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
 export default function AnalyticsView({ products, onBack, onPrint }: Props) {
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const [showHelp, setShowHelp] = React.useState(false);
 
   const stats = useMemo(() => {
-     return calculateBusinessStats(orders || [], products, materials || []);
-  }, [orders, products, materials]);
+     return calculateBusinessStats(orders || [], products, materials || [], settings);
+  }, [orders, products, materials, settings]);
   
   const handlePrint = () => {
       if (onPrint && stats) {

@@ -201,6 +201,7 @@ export interface Order {
   items: OrderItem[];
   total_price: number;
   notes?: string;
+  custom_silver_rate?: number; // New: Locks in the silver price used at the time of order
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';

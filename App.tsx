@@ -1,9 +1,5 @@
-
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
 import { 
   LayoutDashboard, 
   Warehouse, 
@@ -564,8 +560,8 @@ function AppContent() {
   };
   
   const handlePrintOrderAnalytics = (order: Order) => {
-      if (!products || !materials) return;
-      const stats = calculateBusinessStats([order], products, materials);
+      if (!products || !materials || !settings) return;
+      const stats = calculateBusinessStats([order], products, materials, settings);
       if (stats) {
         setAnalyticsPrintData({ ...stats, title: `Οικονομική Ανάλυση Παραγγελίας #${order.id}` });
       }

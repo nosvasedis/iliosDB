@@ -247,7 +247,7 @@ export default function OffersPage({ products, materials, settings, collections,
   const handleConvertToOrder = async (offer: Offer) => {
       const yes = await confirm({
           title: 'Μετατροπή σε Παραγγελία',
-          message: 'Η προσφορά θα μετατραπεί σε ενεργή παραγγελία και θα δεσμεύσει απόθεμα (αν υπάρχει) ή θα μπει σε παραγωγή. Οι τιμές θα κλειδώσουν.',
+          message: 'Η προσφορά θα μετατραπεί σε ενεργή παραγγελία. Η τιμή του ασημιού θα κλειδωθεί για αυτή την παραγγελία.',
           confirmText: 'Μετατροπή'
       });
 
@@ -271,7 +271,9 @@ export default function OffersPage({ products, materials, settings, collections,
               status: 'Pending',
               items: offer.items,
               total_price: offer.total_price,
-              notes: `Converted from Offer #${offer.id.slice(0,8)}. ${offer.notes || ''}`
+              notes: `Converted from Offer #${offer.id.slice(0,8)}. ${offer.notes || ''}`,
+              // LOCK THE SILVER RATE from the offer
+              custom_silver_rate: offer.custom_silver_price
           };
 
           await api.saveOrder(orderPayload as any);
