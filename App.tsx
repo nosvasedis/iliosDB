@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -74,7 +76,8 @@ import TechnicianView from './components/TechnicianView';
 import SetupScreen from './components/SetupScreen';
 import PriceListPage from './components/PriceListPage';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
-import AnalyticsView, { AnalyticsPrintReport, calculateBusinessStats } from './components/AnalyticsView';
+import AnalyticsView, { calculateBusinessStats } from './components/AnalyticsView';
+import AnalyticsPrintReport from './components/AnalyticsPrintReport';
 import OffersPage from './components/OffersPage';
 import OfferPrintView from './components/OfferPrintView';
 
