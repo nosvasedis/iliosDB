@@ -11,15 +11,16 @@ import {
   TrendingUp, DollarSign, ShoppingBag, XCircle, Printer, 
   Calendar, PieChart as PieIcon, Award, ArrowUpRight, ArrowLeft,
   Scale, Gem, Users, ArrowDownRight, Info, Wallet, Loader2, Image as ImageIcon,
-  HelpCircle, BarChart3, FileText, ChevronRight, Calculator, Hash, Coins
+  HelpCircle, BarChart3, FileText, ChevronRight, Calculator, Hash, Coins,
+  Target
 } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
-import AnalyticsPrintReport from './AnalyticsPrintReport';
 
 interface Props {
   products: Product[];
   onBack?: () => void;
+  onPrint?: (stats: any) => void;
 }
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -28,6 +29,7 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
     if (!orders || !products || !materials) return null;
 
     const validOrders = orders.filter(o => o.status !== OrderStatus.Cancelled);
+    const isSingleOrder = validOrders.length === 1;
     
     let totalRevenue = 0;
     let totalProfit = 0;
@@ -45,6 +47,9 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
     const salesOverTime: Record<string, { revenue: number, profit: number }> = {};
     const customerRanking: Record<string, { name: string, revenue: number, orders: number }> = {};
     const skuRanking: Record<string, { sku: string, qty: number, revenue: number, img: string | null }> = {};
+    
+    // Detailed Item Breakdown (For Single Order Print)
+    const itemsBreakdown: any[] = [];
 
     validOrders.forEach(order => {
         totalRevenue += order.total_price;
@@ -75,8 +80,23 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             
             const lineCost = unitCost * item.quantity;
             const profit = revenue - lineCost;
+            const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+            
             totalProfit += profit;
             totalCost += lineCost;
+            
+            // Collect detailed breakdown for single order analysis
+            if (isSingleOrder) {
+                itemsBreakdown.push({
+                    sku: item.sku,
+                    variant: item.variant_suffix,
+                    quantity: item.quantity,
+                    revenue,
+                    cost: lineCost,
+                    profit,
+                    margin
+                });
+            }
             
             // Add profit to time grouping
             salesOverTime[monthKey].profit += profit;
@@ -126,9 +146,11 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
     const topSkus = Object.values(skuRanking).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 
     return {
+        isSingleOrder,
         totalRevenue,
         totalProfit,
         totalCost,
+        totalItems: totalItemsSold,
         avgOrderValue: validOrders.length > 0 ? totalRevenue / validOrders.length : 0,
         avgBasketSize: validOrders.length > 0 ? totalItemsSold / validOrders.length : 0,
         cogsPercent: totalRevenue > 0 ? (totalCost / totalRevenue) * 100 : 0,
@@ -144,11 +166,12 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
         categoryChartData,
         timeChartData,
         topCustomers,
-        topSkus
+        topSkus,
+        itemsBreakdown: isSingleOrder ? itemsBreakdown : undefined
     };
 };
 
-export default function AnalyticsView({ products, onBack }: Props) {
+export default function AnalyticsView({ products, onBack, onPrint }: Props) {
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const [showHelp, setShowHelp] = React.useState(false);
@@ -156,17 +179,20 @@ export default function AnalyticsView({ products, onBack }: Props) {
   const stats = useMemo(() => {
      return calculateBusinessStats(orders || [], products, materials || []);
   }, [orders, products, materials]);
+  
+  const handlePrint = () => {
+      if (onPrint && stats) {
+          onPrint(stats);
+      }
+  };
 
   if (!stats) return <div className="p-20 text-center flex flex-col items-center gap-4"><Loader2 className="animate-spin text-blue-500" size={40}/> <p className="font-bold text-slate-500">Φόρτωση Οικονομικών Δεδομένων...</p></div>;
+  
+  // Helpers for Unit Economics (Space Filler)
+  const avgCostPerItem = stats.totalItems > 0 ? stats.totalCost / stats.totalItems : 0;
+  const silverEfficiency = stats.totalCost > 0 ? (stats.costBreakdown.silver / stats.totalCost) * 100 : 0;
 
   return (
-    <>
-    {/* Hidden Print View */}
-    <div className="hidden print:block print:w-full">
-        <AnalyticsPrintReport stats={stats} />
-    </div>
-
-    {/* Screen View */}
     <div className="max-w-7xl mx-auto space-y-8 pb-20 print:hidden animate-in fade-in duration-500">
         
         {/* HEADER */}
@@ -196,7 +222,7 @@ export default function AnalyticsView({ products, onBack }: Props) {
                     <HelpCircle size={20}/>
                 </button>
                 <button 
-                    onClick={() => window.print()}
+                    onClick={handlePrint}
                     className="flex items-center gap-2 bg-[#060b00] text-white px-6 py-3.5 rounded-2xl hover:bg-black font-bold transition-all shadow-xl active:scale-95"
                 >
                     <Printer size={20}/> Εκτύπωση PDF
@@ -284,32 +310,53 @@ export default function AnalyticsView({ products, onBack }: Props) {
                 </div>
 
                 {/* Cost Structure (Waterfall style breakdown) */}
-                <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-xl relative overflow-hidden">
+                <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-xl relative overflow-hidden flex flex-col justify-between">
                      <div className="absolute right-0 bottom-0 p-10 opacity-5"><Coins size={150}/></div>
-                     <h3 className="font-black text-xl mb-6 flex items-center gap-2 relative z-10">
-                        <Wallet size={24} className="text-amber-400"/> Δομή Κόστους Παραγωγής
-                     </h3>
                      
-                     <div className="space-y-4 relative z-10">
-                         {/* Bar Container */}
-                         <div className="flex h-12 w-full rounded-2xl overflow-hidden shadow-inner bg-slate-800">
-                             <div className="bg-slate-400 h-full flex items-center justify-center text-[10px] font-black uppercase text-slate-900" style={{ width: `${(stats.costBreakdown.silver / stats.totalCost) * 100}%` }} title="Ασήμι">Ag</div>
-                             <div className="bg-blue-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.labor / stats.totalCost) * 100}%` }} title="Εργατικά">Εργ</div>
-                             <div className="bg-purple-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.materials / stats.totalCost) * 100}%` }} title="Υλικά">Υλ</div>
+                     <div>
+                        <h3 className="font-black text-xl mb-6 flex items-center gap-2 relative z-10">
+                            <Wallet size={24} className="text-amber-400"/> Δομή Κόστους Παραγωγής
+                        </h3>
+                        
+                        <div className="space-y-4 relative z-10">
+                            {/* Bar Container */}
+                            <div className="flex h-12 w-full rounded-2xl overflow-hidden shadow-inner bg-slate-800">
+                                <div className="bg-slate-400 h-full flex items-center justify-center text-[10px] font-black uppercase text-slate-900" style={{ width: `${(stats.costBreakdown.silver / stats.totalCost) * 100}%` }} title="Ασήμι">Ag</div>
+                                <div className="bg-blue-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.labor / stats.totalCost) * 100}%` }} title="Εργατικά">Εργ</div>
+                                <div className="bg-purple-500 h-full flex items-center justify-center text-[10px] font-black uppercase text-white" style={{ width: `${(stats.costBreakdown.materials / stats.totalCost) * 100}%` }} title="Υλικά">Υλ</div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Ασήμι</div>
+                                    <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.silver)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-blue-400 uppercase font-bold">Εργατικά</div>
+                                    <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.labor)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-purple-400 uppercase font-bold">Υλικά</div>
+                                    <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.materials)}</div>
+                                </div>
+                            </div>
+                        </div>
+                     </div>
+                     
+                     {/* Unit Economics - Fill Empty Space */}
+                     <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
+                         <div className="flex justify-between items-center text-xs">
+                             <span className="text-white/60 font-bold uppercase tracking-wider flex items-center gap-2"><Target size={14}/> Unit Economics</span>
+                             <span className="bg-white/10 px-3 py-1 rounded-full text-[10px] font-black text-amber-400">AVERAGES</span>
                          </div>
-                         
-                         <div className="grid grid-cols-3 gap-4 text-center">
-                             <div>
-                                 <div className="text-[10px] text-slate-400 uppercase font-bold">Ασήμι</div>
-                                 <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.silver)}</div>
+                         <div className="grid grid-cols-2 gap-4 mt-4">
+                             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                                 <p className="text-[9px] text-white/50 font-bold uppercase">Μέσο Κόστος / Τμχ</p>
+                                 <p className="text-lg font-black text-white">{formatCurrency(avgCostPerItem)}</p>
                              </div>
-                             <div>
-                                 <div className="text-[10px] text-blue-400 uppercase font-bold">Εργατικά</div>
-                                 <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.labor)}</div>
-                             </div>
-                             <div>
-                                 <div className="text-[10px] text-purple-400 uppercase font-bold">Υλικά</div>
-                                 <div className="text-xl font-black">{formatCurrency(stats.costBreakdown.materials)}</div>
+                             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                                 <p className="text-[9px] text-white/50 font-bold uppercase">Silver Efficiency</p>
+                                 <p className="text-lg font-black text-slate-300">{silverEfficiency.toFixed(1)}% <span className="text-[9px] font-normal opacity-50">of Cost</span></p>
                              </div>
                          </div>
                      </div>
@@ -436,6 +483,5 @@ export default function AnalyticsView({ products, onBack }: Props) {
             </div>
         )}
     </div>
-    </>
   );
 }
