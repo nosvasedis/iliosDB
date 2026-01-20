@@ -2,8 +2,8 @@
 import React from 'react';
 import { Offer } from '../types';
 import { APP_LOGO } from '../constants';
-import { formatCurrency } from '../utils/pricingEngine';
-import { Phone, Mail, MapPin } from 'lucide-react';
+import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { Phone, Mail, MapPin, Coins } from 'lucide-react';
 
 interface Props {
     offer: Offer;
@@ -52,6 +52,11 @@ export default function OfferPrintView({ offer }: Props) {
                     <div className="text-xs text-slate-600 font-medium space-y-0.5">
                         <p className="flex items-center justify-end gap-2"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Αριθμος</span> <span className="font-mono font-bold text-slate-900">#{offer.id.slice(0, 8).toUpperCase()}</span></p>
                         <p className="flex items-center justify-end gap-2"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Ημερομηνια</span> <span className="font-mono font-bold text-slate-900">{formatDate(offer.created_at)}</span></p>
+                        <p className="flex items-center justify-end gap-2 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 mt-1">
+                            <Coins size={10} className="text-slate-400"/>
+                            <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
+                            <span className="font-mono font-black text-slate-900">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>
+                        </p>
                     </div>
                 </div>
             </header>
@@ -66,7 +71,7 @@ export default function OfferPrintView({ offer }: Props) {
                     )}
                 </div>
                 <div className="text-right">
-                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Ισχυς</span>
+                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Ισχυς Προσφορας</span>
                      <span className="font-bold text-slate-800 text-xs">30 Ημέρες</span>
                 </div>
             </section>
