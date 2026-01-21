@@ -212,40 +212,43 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
               <button onClick={() => onNavigate && onNavigate('orders')} className="text-xs font-bold text-emerald-600">Όλες</button>
           </div>
           <div className="space-y-3">
-              {stats.recentOrders.map(order => (
-                  <div 
-                    key={order.id} 
-                    onClick={() => onNavigate && onNavigate('orders')}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 active:scale-[0.98] transition-transform"
-                  >
-                      <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
-                                  <ShoppingCart size={18}/>
+              {stats.recentOrders.map(order => {
+                  const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                  return (
+                      <div 
+                        key={order.id} 
+                        onClick={() => onNavigate && onNavigate('orders')}
+                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 active:scale-[0.98] transition-transform"
+                      >
+                          <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
+                                      <ShoppingCart size={18}/>
+                                  </div>
+                                  <div>
+                                      <div className="font-black text-slate-800 text-sm leading-tight">{order.customer_name}</div>
+                                      <div className="text-[10px] text-slate-400 font-mono">#{order.id.slice(0,8)}</div>
+                                  </div>
                               </div>
-                              <div>
-                                  <div className="font-black text-slate-800 text-sm leading-tight">{order.customer_name}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">#{order.id}</div>
+                              <div className="text-right">
+                                  <div className="font-black text-slate-900 text-sm">{formatCurrency(netValue)}</div>
+                                  <div className="text-[10px] text-slate-400 font-bold">{order.items.length} είδη</div>
                               </div>
                           </div>
-                          <div className="text-right">
-                              <div className="font-black text-slate-900 text-sm">{formatCurrency(order.total_price)}</div>
-                              <div className="text-[10px] text-slate-400 font-bold">{order.items.length} είδη</div>
+                          
+                          {/* STATUS BAR */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                              <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1.5 border ${STATUS_STYLES[order.status]}`}>
+                                  {STATUS_ICONS[order.status]}
+                                  {STATUS_TRANSLATIONS[order.status]}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium">
+                                  {new Date(order.created_at).toLocaleDateString('el-GR')}
+                              </div>
                           </div>
                       </div>
-                      
-                      {/* STATUS BAR */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                          <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1.5 border ${STATUS_STYLES[order.status]}`}>
-                              {STATUS_ICONS[order.status]}
-                              {STATUS_TRANSLATIONS[order.status]}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-medium">
-                              {new Date(order.created_at).toLocaleDateString('el-GR')}
-                          </div>
-                      </div>
-                  </div>
-              ))}
+                  );
+              })}
               
               {stats.recentOrders.length === 0 && (
                   <div className="text-center py-10 text-slate-400 text-xs italic bg-white rounded-2xl border border-slate-100 border-dashed">

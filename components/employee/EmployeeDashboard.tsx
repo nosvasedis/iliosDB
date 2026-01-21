@@ -41,9 +41,10 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
         const pending = orders.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction).length;
         const ready = orders.filter(o => o.status === OrderStatus.Ready).length;
         
+        // Calculate NET Sales for Today
         const todaySales = orders
             .filter(o => o.created_at.startsWith(today))
-            .reduce((acc, o) => acc + o.total_price, 0);
+            .reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate || 0.24))), 0);
 
         return { pending, todaySales, ready };
     }, [orders]);
@@ -65,7 +66,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard 
-                    title="Πωλήσεις Σήμερα" 
+                    title="Πωλήσεις Σήμερα (Net)" 
                     value={formatCurrency(stats.todaySales)} 
                     icon={<ShoppingCart size={24} />} 
                     color="bg-emerald-500" 
@@ -92,29 +93,32 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                     </div>
                     
                     <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
-                        {orders?.slice(0, 10).map(order => (
-                            <div key={order.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 font-bold">
-                                        #{order.id.slice(0,3)}
+                        {orders?.slice(0, 10).map(order => {
+                            const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                            return (
+                                <div key={order.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 font-bold">
+                                            #{order.id.slice(0,3)}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800">{order.customer_name}</div>
-                                        <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                    <div className="text-right">
+                                        <div className="font-black text-emerald-700">{formatCurrency(netValue)}</div>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                            order.status === OrderStatus.Delivered ? 'bg-slate-200 text-slate-600' :
+                                            order.status === OrderStatus.Ready ? 'bg-emerald-100 text-emerald-600' : 
+                                            'bg-amber-100 text-amber-600'
+                                        }`}>
+                                            {STATUS_TRANSLATIONS[order.status] || order.status}
+                                        </span>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="font-black text-emerald-700">{formatCurrency(order.total_price)}</div>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                        order.status === OrderStatus.Delivered ? 'bg-slate-200 text-slate-600' :
-                                        order.status === OrderStatus.Ready ? 'bg-emerald-100 text-emerald-600' : 
-                                        'bg-amber-100 text-amber-600'
-                                    }`}>
-                                        {STATUS_TRANSLATIONS[order.status] || order.status}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {!orders?.length && <div className="text-center py-10 text-slate-400 italic">Καμία παραγγελία.</div>}
                     </div>
                 </div>
