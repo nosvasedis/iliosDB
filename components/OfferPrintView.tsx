@@ -24,10 +24,12 @@ export default function OfferPrintView({ offer }: Props) {
     };
     
     // Calculate breakdown
+    // Default to 24% if vat_rate is missing for backward compatibility
+    const vatRate = offer.vat_rate !== undefined ? offer.vat_rate : 0.24;
     const subtotal = offer.items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const discountAmount = subtotal * (offer.discount_percent / 100);
     const netAmount = subtotal - discountAmount;
-    const vatAmount = netAmount * 0.24;
+    const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
 
     return (
@@ -175,7 +177,7 @@ export default function OfferPrintView({ offer }: Props) {
                         </div>
                     )}
                     <div className="flex justify-between items-center text-slate-600 pb-1 border-b border-slate-200 mb-1">
-                        <span>Φ.Π.Α. (24%):</span>
+                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
                         <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
@@ -187,7 +189,6 @@ export default function OfferPrintView({ offer }: Props) {
 
             <footer className="mt-4 pt-2 border-t border-slate-100 flex justify-between items-center text-[7px] text-slate-400 font-bold uppercase tracking-widest shrink-0 relative z-10">
                 <p>ILIOS KOSMIMA ERP</p>
-                {/* Page number removed as requested */}
             </footer>
         </div>
     );

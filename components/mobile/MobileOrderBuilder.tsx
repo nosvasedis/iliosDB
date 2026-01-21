@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus } from 'lucide-react';
+import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -49,6 +49,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
     const [items, setItems] = useState<OrderItem[]>(initialOrder?.items || []);
+    const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [isSaving, setIsSaving] = useState(false);
 
     // --- INPUT STATE ---
@@ -211,13 +212,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         }
     };
 
+    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
+    const vatAmount = subtotal * vatRate;
+    const grandTotal = subtotal + vatAmount;
+
     const handleSaveOrder = async () => {
         if (!customerName) { showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error'); return; }
         if (items.length === 0) { showToast("Η παραγγελία είναι κενή.", 'error'); return; }
         setIsSaving(true);
         try {
-            const total = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-            
             let orderId = initialOrder?.id;
             if (!orderId) {
                 const now = new Date();
@@ -235,7 +238,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 customer_id: customerId || undefined,
                 seller_id: isSeller ? profile?.id : undefined,
                 items: items,
-                total_price: total,
+                total_price: grandTotal,
+                vat_rate: vatRate,
                 status: initialOrder?.status || OrderStatus.Pending,
                 created_at: initialOrder?.created_at || new Date().toISOString(),
                 notes: initialOrder?.notes
@@ -273,7 +277,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50"><Save size={20}/></button>
             </div>
 
-            <div className="p-4 bg-white border-b border-slate-100 shrink-0 z-10">
+            <div className="p-4 bg-white border-b border-slate-100 shrink-0 z-10 space-y-3">
                 <div className="relative">
                     <div className="flex items-center gap-2 mb-2">
                         <User size={16} className="text-slate-400"/>
@@ -288,6 +292,20 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                         </div>
                     )}
                     <div className="flex items-center gap-2 border-t border-slate-50 pt-2"><Phone size={16} className="text-slate-400"/><input className="flex-1 outline-none text-sm text-slate-600 placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/></div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <Coins size={14} className="text-slate-400"/>
+                    <label className="text-xs font-bold text-slate-500 uppercase shrink-0">ΦΠΑ:</label>
+                    <select 
+                        value={vatRate} 
+                        onChange={(e) => setVatRate(parseFloat(e.target.value))} 
+                        className="flex-1 bg-transparent text-sm font-bold text-slate-800 outline-none"
+                    >
+                        <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                        <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                        <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                    </select>
                 </div>
             </div>
 
@@ -346,7 +364,21 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 )}
 
                 <div className="mt-4 pb-20">
-                    <div className="flex justify-between items-end mb-2 px-2"><h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3><span className="text-emerald-600 font-black text-lg">{formatCurrency(items.reduce((a,b)=>a+(b.price_at_order*b.quantity),0))}</span></div>
+                    <div className="flex flex-col gap-1 mb-2 px-2 border-b border-slate-100 pb-2">
+                        <div className="flex justify-between items-center text-xs text-slate-500">
+                             <span>Καθαρή Αξία:</span>
+                             <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-slate-500">
+                             <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                             <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
+                        </div>
+                        <div className="flex justify-between items-end mt-1">
+                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3>
+                            <span className="text-emerald-600 font-black text-xl">{formatCurrency(grandTotal)}</span>
+                        </div>
+                    </div>
+                    
                     <div className="space-y-2">
                         {items.map((item, idx) => (
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">

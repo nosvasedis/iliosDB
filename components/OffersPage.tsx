@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, Customer, Offer, OfferStatus, OrderItem, GlobalSettings, Collection, Material } from '../types';
+import { Product, Customer, Offer, OfferStatus, OrderItem, GlobalSettings, Collection, Material, VatRegime } from '../types';
 import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw, Loader2, ArrowRight, Ban, FolderKanban, Coins, Percent, X, AlertTriangle } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
@@ -30,6 +30,7 @@ export default function OffersPage({ products, materials, settings, collections,
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customSilverPrice, setCustomSilverPrice] = useState(settings.silver_price_gram);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [vatRate, setVatRate] = useState<number>(VatRegime.Standard);
   const [offerNotes, setOfferNotes] = useState('');
   const [items, setItems] = useState<OrderItem[]>([]);
   
@@ -60,6 +61,7 @@ export default function OffersPage({ products, materials, settings, collections,
       setCustomerId(offer.customer_id || null);
       setCustomSilverPrice(offer.custom_silver_price);
       setDiscountPercent(offer.discount_percent);
+      setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
       setOfferNotes(offer.notes || '');
       setItems(offer.items);
       setIsCreating(true);
@@ -96,9 +98,6 @@ export default function OffersPage({ products, materials, settings, collections,
       let totalWeight = costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0));
 
       // Calculate wholesale price based on the Ilios formula
-      // Formula: (NonMetalCost * 2) + SilverCost + (Weight * 2)
-      // Note: breakdown.silver is already calculated using tempSettings (custom price) inside calculateProductCost
-      
       const suggestedPrice = calculateSuggestedWholesalePrice(totalWeight, breakdown.silver, breakdown.labor, breakdown.materials);
       return suggestedPrice;
   };
@@ -165,10 +164,6 @@ export default function OffersPage({ products, materials, settings, collections,
       let addedCount = 0;
 
       collectionProducts.forEach(p => {
-          // Strategy: Add master or first variant if exists. 
-          // If variants exist, we add all variants? No, let's add just master/lustre or first to avoid spam.
-          // Better: Add all variants to be thorough?
-          // Decision: Add all variants.
           if (p.variants && p.variants.length > 0) {
               p.variants.forEach(v => {
                   const unitPrice = calculateItemPrice(p, v.suffix);
@@ -211,7 +206,9 @@ export default function OffersPage({ products, materials, settings, collections,
 
   const subtotal = items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
   const discountAmount = subtotal * (discountPercent / 100);
-  const grandTotal = subtotal - discountAmount;
+  const netAmount = subtotal - discountAmount;
+  const vatAmount = netAmount * vatRate;
+  const grandTotal = netAmount + vatAmount;
 
   const handleSaveOffer = async () => {
       if (!customerName) { showToast("Παρακαλώ εισάγετε πελάτη.", "error"); return; }
@@ -226,6 +223,7 @@ export default function OffersPage({ products, materials, settings, collections,
           status: editingOffer ? editingOffer.status : 'Pending',
           custom_silver_price: customSilverPrice,
           discount_percent: discountPercent,
+          vat_rate: vatRate,
           items: items,
           total_price: grandTotal,
           notes: offerNotes
@@ -272,8 +270,8 @@ export default function OffersPage({ products, materials, settings, collections,
               items: offer.items,
               total_price: offer.total_price,
               notes: `Converted from Offer #${offer.id.slice(0,8)}. ${offer.notes || ''}`,
-              // LOCK THE SILVER RATE from the offer
-              custom_silver_rate: offer.custom_silver_price
+              custom_silver_rate: offer.custom_silver_price,
+              vat_rate: offer.vat_rate !== undefined ? offer.vat_rate : 0.24
           };
 
           await api.saveOrder(orderPayload as any);
@@ -323,7 +321,7 @@ export default function OffersPage({ products, materials, settings, collections,
                       <p className="text-sm text-slate-500">Δημιουργήστε μια προσαρμοσμένη οικονομική προσφορά.</p>
                   </div>
                   <div className="flex gap-2">
-                      <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Ακύρωση</button>
+                      <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); setVatRate(VatRegime.Standard); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Ακύρωση</button>
                       <button onClick={handleSaveOffer} className="px-6 py-2 bg-[#060b00] text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors flex items-center gap-2">
                           <Save size={18}/> Αποθήκευση
                       </button>
@@ -381,16 +379,30 @@ export default function OffersPage({ products, materials, settings, collections,
                               <p className="text-[10px] text-amber-600/60 mt-1 italic">Οι τιμές των ειδών θα υπολογιστούν αυτόματα με βάση αυτή την τιμή.</p>
                           </div>
 
-                          <div>
-                              <label className="text-[10px] font-bold text-amber-600/70 uppercase mb-1 block">Έκπτωση (%)</label>
-                              <div className="relative">
-                                  <input 
-                                      type="number" min="0" max="100" 
-                                      value={discountPercent} 
-                                      onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} 
-                                      className="w-full p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 pr-8"
-                                  />
-                                  <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400"/>
+                          <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="text-[10px] font-bold text-amber-600/70 uppercase mb-1 block">Έκπτωση (%)</label>
+                                  <div className="relative">
+                                      <input 
+                                          type="number" min="0" max="100" 
+                                          value={discountPercent} 
+                                          onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                                          className="w-full p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 pr-8"
+                                      />
+                                      <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400"/>
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="text-[10px] font-bold text-amber-600/70 uppercase mb-1 block">Καθεστώς ΦΠΑ</label>
+                                  <select 
+                                    value={vatRate} 
+                                    onChange={(e) => setVatRate(parseFloat(e.target.value))} 
+                                    className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-sm text-amber-900 outline-none cursor-pointer"
+                                  >
+                                    <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                                    <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                                    <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                                  </select>
                               </div>
                           </div>
                       </div>
@@ -495,6 +507,10 @@ export default function OffersPage({ products, materials, settings, collections,
                                <div className="text-xs font-bold text-slate-400 uppercase">Έκπτωση ({discountPercent}%)</div>
                                <div className="text-xl font-bold text-rose-500">-{formatCurrency(discountAmount)}</div>
                            </div>
+                           <div className="text-right">
+                               <div className="text-xs font-bold text-slate-400 uppercase">Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%)</div>
+                               <div className="text-xl font-bold text-slate-600">{formatCurrency(vatAmount)}</div>
+                           </div>
                            <div className="text-right pl-6 border-l border-slate-100">
                                <div className="text-xs font-bold text-slate-400 uppercase">Γενικό Σύνολο</div>
                                <div className="text-3xl font-black text-slate-900">{formatCurrency(grandTotal)}</div>
@@ -519,7 +535,7 @@ export default function OffersPage({ products, materials, settings, collections,
                 </h1>
                 <p className="text-slate-500 mt-1 ml-14">Διαχείριση οικονομικών προσφορών.</p>
              </div>
-             <button onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
+             <button onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setVatRate(VatRegime.Standard); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
                  <Plus size={20} /> Νέα Προσφορά
              </button>
         </div>

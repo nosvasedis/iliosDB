@@ -25,6 +25,12 @@ export enum ProductionType {
   Imported = 'Imported' // Bought finished (Resale)
 }
 
+export enum VatRegime {
+  Standard = 0.24,
+  Reduced = 0.17,
+  Zero = 0.00
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -202,6 +208,7 @@ export interface Order {
   total_price: number;
   notes?: string;
   custom_silver_rate?: number; // New: Locks in the silver price used at the time of order
+  vat_rate?: number; // 0.24, 0.17, 0.00
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';
@@ -218,6 +225,7 @@ export interface Offer {
   items: OrderItem[];
   total_price: number; // Final price after discount
   notes?: string;
+  vat_rate?: number; // 0.24, 0.17, 0.00
 }
 
 export interface Customer {
