@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Product, ProductVariant } from '../../types';
+import { Product, ProductVariant } from '../types';
 import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
@@ -34,12 +33,11 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-500', 'QN': 'text-neutral-900', 'LA': 'text-blue-500', 'TY': 'text-teal-400',
     'TG': 'text-orange-600', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-teal-500', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500',
+    'NF': 'text-green-700', 'CO': 'text-orange-400', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500',
     'PAX': 'text-green-500', 'MAX': 'text-blue-600', 'KAX': 'text-red-600', 'AI': 'text-slate-500',
     'AP': 'text-cyan-500', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-400',
     'MP': 'text-blue-400', 'LE': 'text-slate-300', 'PR': 'text-green-400', 'KO': 'text-red-500',
-    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400',
-    'TPR': 'text-green-600', 'TKO': 'text-red-600', 'TMP': 'text-blue-600',
+    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
 interface ActionLog {
@@ -731,7 +729,7 @@ export default function BatchPrintPage({ allProducts, setPrintItems, skusText, s
                             onChange={(e) => setSkusText(e.target.value)}
                             rows={12}
                             className="w-full p-4 border border-slate-200 rounded-xl font-mono text-sm bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder-slate-400 flex-1 custom-scrollbar"
-                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA100-DA1063 2\nXR2020 5`}
+                            placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA050-DA063 2\nXR2020 5`}
                         />
                     </div>
                 </div>
