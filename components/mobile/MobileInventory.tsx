@@ -23,10 +23,10 @@ const BUTTON_COLORS: Record<string, string> = {
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500', 'TG': 'text-orange-700', 'IA': 'text-red-800', 
     'BSU': 'text-slate-800', 'GSU': 'text-emerald-800', 'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600', 'MAX': 'text-blue-700',
+    'NF': 'text-green-800', 'CO': 'text-teal-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600', 'MAX': 'text-blue-700',
     'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
     'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500', 'RZ': 'text-pink-500',
-    'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'AK': 'text-cyan-400', 'XAL': 'text-stone-500', 'TPR': 'text-green-600', 'TKO': 'text-red-600', 'TMP': 'text-blue-600',
 };
 
 interface Props {
@@ -224,8 +224,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             showToast(`Παρακαλώ επιλέξτε ${sizing.type}.`, "error");
             return;
         }
-
-        // Logic
+        
         const targetSku = activeMaster.sku;
         const targetSuffix = activeVariant?.suffix || null;
         // Correctly calculate delta
@@ -310,28 +309,6 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             console.error(e);
             showToast("Σφάλμα ενημέρωσης.", "error");
         }
-    };
-
-    // Helper Component for Visualizer
-    const SkuVisualizer = () => {
-        if (!activeMaster) {
-            return (
-                <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                    <span className="text-slate-800 font-bold">{qmSkuInput}</span>
-                </div>
-            );
-        }
-        
-        const suffixStr = activeVariant ? activeVariant.suffix : qmSkuInput.replace(activeMaster.sku, '');
-        const { finish, stone } = getVariantComponents(suffixStr, activeMaster.gender);
-        
-        return (
-            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                <span className="text-slate-900 font-black">{activeMaster.sku}</span>
-                <span className={`font-black ${FINISH_COLORS[finish.code]?.split(' ')[1] || 'text-slate-400'}`}>{finish.code}</span>
-                <span className={`font-black ${STONE_TEXT_COLORS[stone.code] || 'text-emerald-500'}`}>{stone.code}</span>
-            </div>
-        );
     };
 
     // ... Warehouse handlers ...
@@ -564,20 +541,6 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                                 </div>
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {isEditingWarehouse && (
-                <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-sm rounded-3xl p-6 animate-in zoom-in-95">
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">{warehouseForm.id ? 'Επεξεργασία' : 'Νέος Χώρος'}</h3><button onClick={() => setIsEditingWarehouse(false)}><X size={20}/></button></div>
-                        <div className="space-y-3">
-                            <input value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} placeholder="Όνομα" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none"/>
-                            <select value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})} className="w-full p-3 bg-slate-50 border rounded-xl outline-none"><option value="Store">Κατάστημα</option><option value="Showroom">Δειγματολόγιο</option><option value="Central">Αποθήκη</option><option value="Other">Άλλο</option></select>
-                            <input value={warehouseForm.address} onChange={e => setWarehouseForm({...warehouseForm, address: e.target.value})} placeholder="Διεύθυνση" className="w-full p-3 bg-slate-50 border rounded-xl outline-none"/>
-                            <button onClick={handleSaveWarehouse} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 mt-4"><Save size={18}/> Αποθήκευση</button>
-                        </div>
                     </div>
                 </div>
             )}
