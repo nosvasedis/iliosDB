@@ -52,23 +52,23 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
     const itemsBreakdown: any[] = [];
 
     validOrders.forEach(order => {
-        totalRevenue += order.total_price;
-        
         // DETERMINE EFFECTIVE SETTINGS FOR COSTING
         // If order has a custom rate (locked from Offer), use it. Otherwise use current global.
         const orderSilverPrice = order.custom_silver_rate || globalSettings.silver_price_gram;
         const effectiveSettings = { ...globalSettings, silver_price_gram: orderSilverPrice };
         
+        // Use Net Value for Revenue calculation to align with Cost/Profit math
+        // order.total_price is Gross (inc VAT). We need Net.
+        // We calculate Net Revenue by summing item lines below.
+        
         const cKey = order.customer_id || order.customer_name;
         if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
-        customerRanking[cKey].revenue += order.total_price;
         customerRanking[cKey].orders += 1;
         
         // Time Grouping (Monthly)
         const date = new Date(order.created_at);
         const monthKey = date.toLocaleDateString('el-GR', { month: 'short', year: '2-digit' }); // e.g. "Ιαν 25"
         if (!salesOverTime[monthKey]) salesOverTime[monthKey] = { revenue: 0, profit: 0 };
-        salesOverTime[monthKey].revenue += order.total_price;
 
         order.items.forEach(item => {
             totalItemsSold += item.quantity;
@@ -76,6 +76,7 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             if (!product) return;
 
             const revenue = item.price_at_order * item.quantity;
+            totalRevenue += revenue; // Accumulate Net Revenue
             
             // ACCURATE COST CALCULATION
             // We must recalculate the cost of the product using the EFFECTIVE settings (historical silver price)
@@ -103,8 +104,12 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
                 });
             }
             
-            // Add profit to time grouping
+            // Add profit/revenue to time grouping
             salesOverTime[monthKey].profit += profit;
+            salesOverTime[monthKey].revenue += revenue;
+            
+            // Add to customer ranking
+            customerRanking[cKey].revenue += revenue;
 
             // Breakdown sums using the detailed cost result from pricing engine
             silverCostSum += (costResult.breakdown.silver * item.quantity);
@@ -227,10 +232,10 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
 
         {/* MAIN KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group" title="Συνολικός τζίρος προ φόρων και εξόδων.">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group" title="Καθαρός τζίρος (χωρίς ΦΠΑ).">
                 <div className="absolute right-0 top-0 p-6 opacity-5 text-blue-600 scale-150 group-hover:scale-110 transition-transform"><DollarSign size={80}/></div>
                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-help">
-                    Συνολικά Έσοδα <HelpCircle size={10} className="text-slate-300 pointer-events-none"/>
+                    Καθαρα Εσοδα (Net Revenue) <HelpCircle size={10} className="text-slate-300 pointer-events-none"/>
                 </div>
                 <div>
                     <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{formatCurrency(stats.totalRevenue)}</h3>
@@ -238,7 +243,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
                 </div>
             </div>
 
-            <div className="bg-[#060b00] p-8 rounded-[2.5rem] shadow-xl flex flex-col justify-between h-40 relative overflow-hidden group" title="Έσοδα μείον κόστος παραγωγής (Υλικά & Εργατικά).">
+            <div className="bg-[#060b00] p-8 rounded-[2.5rem] shadow-xl flex flex-col justify-between h-40 relative overflow-hidden group" title="Καθαρά Έσοδα μείον κόστος παραγωγής.">
                 <div className="absolute right-0 top-0 p-6 opacity-10 text-white scale-150 group-hover:scale-110 transition-transform"><TrendingUp size={80}/></div>
                 <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest cursor-help">
                     Μεικτό Κέρδος <HelpCircle size={10} className="text-emerald-900 pointer-events-none"/>
@@ -251,7 +256,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
                 <div className="absolute right-0 top-0 p-6 opacity-5 text-amber-600 scale-150 group-hover:scale-110 transition-transform"><Calculator size={80}/></div>
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Μέση Παραγγελία</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Μέση Παραγγελία (Net)</div>
                 <div>
                     <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{formatCurrency(stats.avgOrderValue)}</h3>
                     <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">{stats.avgBasketSize.toFixed(1)} είδη / παραγγελία</p>
@@ -460,12 +465,12 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
                     
                     <div className="space-y-6">
                         <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
-                            <h4 className="font-black text-blue-900 uppercase text-xs mb-2 tracking-widest">Έσοδα (Τζίρος)</h4>
-                            <p className="text-blue-800 text-sm leading-relaxed">Είναι το συνολικό ποσό που εισπράττει η επιχείρηση από τις πωλήσεις της, χωρίς καμία αφαίρεση εξόδων ή φόρων.</p>
+                            <h4 className="font-black text-blue-900 uppercase text-xs mb-2 tracking-widest">Καθαρα Εσοδα (Net Revenue)</h4>
+                            <p className="text-blue-800 text-sm leading-relaxed">Ο συνολικός τζίρος ΧΩΡΙΣ ΦΠΑ. Αυτό το ποσό χρησιμοποιείται για τον υπολογισμό του κέρδους και του περιθωρίου, ώστε να είναι συγκρίσιμο με το καθαρό κόστος.</p>
                         </div>
                         <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
                             <h4 className="font-black text-emerald-900 uppercase text-xs mb-2 tracking-widest">Μεικτό Κέρδος</h4>
-                            <p className="text-emerald-800 text-sm leading-relaxed">Το αποτέλεσμα της αφαίρεσης του <strong>Κόστους Παραγωγής</strong> (Ασήμι + Εργατικά + Υλικά) από τα Έσοδα. Δεν περιλαμβάνει γενικά έξοδα (ενοίκια, ρεύμα).</p>
+                            <p className="text-emerald-800 text-sm leading-relaxed">Το αποτέλεσμα της αφαίρεσης του <strong>Κόστους Παραγωγής</strong> (Ασήμι + Εργατικά + Υλικά) από τα Καθαρά Έσοδα. Δεν περιλαμβάνει γενικά έξοδα (ενοίκια, ρεύμα).</p>
                         </div>
                         <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
                             <h4 className="font-black text-purple-900 uppercase text-xs mb-2 tracking-widest">Δομή Κόστους</h4>
