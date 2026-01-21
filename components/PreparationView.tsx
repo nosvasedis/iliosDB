@@ -85,7 +85,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 )}
 
                                                 {product.molds.length > 0 && (
-                                                    <div className="text-slate-900 truncate">
+                                                    <div className="text-slate-900">
                                                         <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ: </span>
                                                         <span className="font-bold">{product.molds.map((pm) => pm.code).join(', ')}</span>
                                                     </div>
