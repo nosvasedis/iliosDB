@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit } from 'lucide-react';
 import { useUI } from './UIProvider';
+import BatchBuildModal from './BatchBuildModal';
 
 interface Props {
   products: Product[];
@@ -51,9 +52,10 @@ interface BatchCardProps {
     onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onEditNote: (batch: ProductionBatch) => void;
+    onClick: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote }) => {
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onClick }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
@@ -62,10 +64,11 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
     <div 
         draggable={true} // Allow dragging even if ready, to move backwards if needed
         onDragStart={(e) => onDragStart(e, batch.id)}
-        className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation
+        onClick={() => onClick(batch)}
+        className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation cursor-pointer
                     ${batch.isDelayed 
                         ? 'border-red-300 ring-2 ring-red-100 shadow-red-100' 
-                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-slate-300 hover:shadow-md')}
+                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
         `}
     >
@@ -104,7 +107,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
         </div>
         
         {/* Content */}
-        <div className="flex gap-3 items-center mb-3">
+        <div className="flex gap-3 items-center mb-3 pointer-events-none">
             <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative">
                 {batch.product_image ? (
                     <img src={batch.product_image} className="w-full h-full object-cover" alt="prod"/>
@@ -129,14 +132,14 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
         </div>
         
         {batch.notes && (
-            <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2 text-[10px] text-amber-800 italic leading-tight">
+            <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2 text-[10px] text-amber-800 italic leading-tight pointer-events-none">
                 "{batch.notes}"
             </div>
         )}
 
         {/* Action Footer */}
         <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
-            <div className="flex flex-col">
+            <div className="flex flex-col pointer-events-none">
                 {batch.order_id ? (
                     <div className="text-[10px] font-mono font-medium text-slate-400">#{batch.order_id.slice(0,8)}</div>
                 ) : <div/>}
@@ -343,6 +346,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   // Note Editing
   const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  
+  // Build View (New)
+  const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
   
   // Mobile Accordion State
   const [expandedStageId, setExpandedStageId] = useState<string | null>(STAGES[1].id); 
@@ -708,6 +714,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                         onPrint={onPrintBatch} 
                                         onNextStage={handleQuickNext}
                                         onEditNote={() => setEditingNoteBatch(batch)}
+                                        onClick={() => setViewBuildBatch(batch)}
                                     />
                                 ))}
                                 
@@ -739,6 +746,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 onClose={() => setEditingNoteBatch(null)}
                 onSave={handleSaveNote}
                 isProcessing={isSavingNote}
+            />
+        )}
+
+        {viewBuildBatch && (
+            <BatchBuildModal 
+                batch={viewBuildBatch} 
+                allMaterials={materials} 
+                allMolds={molds} 
+                onClose={() => setViewBuildBatch(null)} 
             />
         )}
     </div>
