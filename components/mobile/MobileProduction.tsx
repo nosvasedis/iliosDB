@@ -96,7 +96,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                                  return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                              }) || false;
 
-            return { ...b, requires_setting: hasZircons };
+            return { ...b, requires_setting: hasZircons, product_details: prod };
         });
     }, [batches, products, materials]);
 
