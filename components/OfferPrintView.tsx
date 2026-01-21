@@ -52,7 +52,9 @@ export default function OfferPrintView({ offer }: Props) {
                 </div>
                 
                 <div className="text-right">
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none mb-1">ΠΡΟΣΦΟΡΑ</h1>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none mb-1">
+                        ΠΡΟΣΦΟΡΑ {offer.customer_name ? ` - ${offer.customer_name}` : ''}
+                    </h1>
                     <div className="text-xs text-slate-600 font-medium space-y-0.5">
                         <div className="flex items-center justify-end gap-2">
                              <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Αριθμος</span> 

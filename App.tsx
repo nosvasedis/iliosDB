@@ -312,7 +312,8 @@ function AppContent() {
         } else if (orderToPrint) {
             docTitle = `Order_${orderToPrint.id}_${orderToPrint.customer_name}`;
         } else if (offerToPrint) {
-            docTitle = `Offer_${offerToPrint.id}_${offerToPrint.customer_name}`;
+            // FIX: Use Greek readable title
+            docTitle = `Προσφορά_${offerToPrint.customer_name}_${dateStr}`;
         } else if (batchToPrint) {
             docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id}`;
         } else if (aggregatedPrintData) {
@@ -345,8 +346,9 @@ function AppContent() {
             }
         }
 
-        // Sanitize for filename safety (replace spaces and special chars with underscores)
-        docTitle = docTitle.replace(/[^a-zA-Z0-9\-_]/g, '_').replace(/_+/g, '_');
+        // Sanitize for filename safety but allow Greek (Unicode)
+        // Keep alphanumeric, Greek, spaces, dashes, underscores.
+        docTitle = docTitle.replace(/[^a-zA-Z0-9\-_ \u0370-\u03FF]/g, '_').replace(/_+/g, '_').trim();
 
         const cleanup = () => {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null);
