@@ -43,7 +43,7 @@ import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collect
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
-import { calculateProductCost, estimateVariantCost } from './utils/pricingEngine';
+import { calculateProductCost, estimateVariantCost, transliterateForBarcode } from './utils/pricingEngine';
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
 import EmployeeApp from './components/employee/EmployeeApp';
@@ -310,14 +310,19 @@ function AppContent() {
         } else if (analyticsPrintData) {
             docTitle = `Economics_${dateStr}`;
         } else if (orderToPrint) {
-            docTitle = `Order_${orderToPrint.id}_${orderToPrint.customer_name}`;
+            // Personalized Filename: Order_NAME_DATE_ID
+            const safeName = transliterateForBarcode(orderToPrint.customer_name).replace(/[\s\W]+/g, '_');
+            docTitle = `Order_${safeName}_${dateStr}_${orderToPrint.id.slice(0, 6)}`;
         } else if (offerToPrint) {
-            docTitle = `Offer_${offerToPrint.id}_${offerToPrint.customer_name}`;
+            // Personalized Filename: Offer_NAME_DATE_ID
+            const safeName = transliterateForBarcode(offerToPrint.customer_name).replace(/[\s\W]+/g, '_');
+            docTitle = `Offer_${safeName}_${dateStr}_${offerToPrint.id.slice(0, 6)}`;
         } else if (batchToPrint) {
-            docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id}`;
+            docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
             if (aggregatedPrintData.orderId) {
-                docTitle = `Production_Order_${aggregatedPrintData.orderId}`;
+                const safeName = aggregatedPrintData.customerName ? transliterateForBarcode(aggregatedPrintData.customerName).replace(/[\s\W]+/g, '_') : '';
+                docTitle = `Production_${safeName}_${aggregatedPrintData.orderId.slice(0, 8)}`;
             } else {
                 docTitle = `Production_Summary_${dateStr}`;
             }
