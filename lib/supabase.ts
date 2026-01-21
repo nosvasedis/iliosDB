@@ -657,11 +657,19 @@ export const api = {
         }
 
         if (!order) throw new Error("Order not found.");
+        
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const batches: any[] = [];
+        const missingSkus: string[] = [];
+
         for (const item of order.items) {
             const product = allProducts.find(p => p.sku === item.sku);
-            if (!product) continue;
+            
+            if (!product) {
+                missingSkus.push(item.sku);
+                continue;
+            }
+
             const suffix = item.variant_suffix || '';
             const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              product.recipe.some(r => {
@@ -670,6 +678,7 @@ export const api = {
                                  return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                              });
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+            
             batches.push({
                 id: crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15), 
                 order_id: orderId,
@@ -686,6 +695,11 @@ export const api = {
                 updated_at: new Date().toISOString()
             });
         }
+
+        if (missingSkus.length > 0) {
+            throw new Error(`Production Blocked: Products not found in registry: ${missingSkus.join(', ')}. Try refreshing the page.`);
+        }
+
         if (batches.length > 0) await safeMutate('production_batches', 'UPSERT', batches, { onConflict: 'id' });
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
     },

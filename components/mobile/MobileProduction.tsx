@@ -93,7 +93,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                              prod?.recipe.some(r => {
                                  if (r.type !== 'raw') return false;
                                  const material = materials.find(m => m.id === r.id);
-                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
+                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                              }) || false;
 
             return { ...b, requires_setting: hasZircons };
