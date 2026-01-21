@@ -65,6 +65,8 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
 };
 
+const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
+
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number) => void, isProcessing: boolean }) => {
     const { batch, targetStage } = state;
     const [quantity, setQuantity] = useState(batch.quantity);
@@ -323,6 +325,48 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const [isProcessingMove, setIsProcessingMove] = useState(false);
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
 
+  // --- AUTOSAVE EFFECT ---
+  // Load draft on mount (only if creating a NEW order, not editing existing)
+  useEffect(() => {
+    if (isCreating && !editingOrder) {
+        const savedDraft = localStorage.getItem(DRAFT_ORDER_KEY);
+        if (savedDraft) {
+            try {
+                const draft = JSON.parse(savedDraft);
+                setCustomerName(draft.customerName || '');
+                setCustomerPhone(draft.customerPhone || '');
+                setSelectedCustomerId(draft.selectedCustomerId || null);
+                setOrderNotes(draft.orderNotes || '');
+                setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
+                setSelectedItems(draft.selectedItems || []);
+                showToast("Ανακτήθηκε πρόχειρη παραγγελία.", "info");
+            } catch (e) {
+                console.error("Failed to load draft order", e);
+            }
+        }
+    }
+  }, [isCreating, editingOrder]);
+
+  // Save draft on change (only if creating new order)
+  useEffect(() => {
+    if (isCreating && !editingOrder) {
+        const draftData = {
+            customerName,
+            customerPhone,
+            selectedCustomerId,
+            orderNotes,
+            vatRate,
+            selectedItems,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(draftData));
+    }
+  }, [isCreating, editingOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, selectedItems]);
+
+  const clearDraft = () => {
+      localStorage.removeItem(DRAFT_ORDER_KEY);
+  };
+
   const enrichedBatches = useMemo(() => {
       const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
       return batches?.map(b => {
@@ -408,10 +452,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   };
 
   const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toUpperCase();
-    setScanInput(val);
+    const rawVal = e.target.value.toUpperCase();
+    
+    // Split input by space to detect SKU and Size parts (e.g. "RN100 52")
+    const parts = rawVal.split(/\s+/);
+    const skuPart = parts[0];
+    const sizePart = parts.length > 1 ? parts[1] : '';
 
-    if (val.length < 2) {
+    setScanInput(rawVal); // Keep full visual input including space
+
+    if (skuPart.length < 2) {
         setCandidateProducts([]);
         setActiveMasterProduct(null);
         setFilteredVariants([]);
@@ -422,8 +472,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     let bestMaster: Product | null = null;
     let suffixPart = '';
     
-    const exactMaster = products.find(p => p.sku === val && !p.is_component);
-    const potentialMasters = products.filter(p => val.startsWith(p.sku) && !p.is_component);
+    const exactMaster = products.find(p => p.sku === skuPart && !p.is_component);
+    const potentialMasters = products.filter(p => skuPart.startsWith(p.sku) && !p.is_component);
     const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
 
     if (exactMaster) {
@@ -431,7 +481,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         suffixPart = '';
     } else if (longestPrefixMaster) {
         bestMaster = longestPrefixMaster;
-        suffixPart = val.replace(longestPrefixMaster.sku, '');
+        suffixPart = skuPart.replace(longestPrefixMaster.sku, '');
     }
 
     let candidates: Product[] = [];
@@ -439,17 +489,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         candidates = [bestMaster]; 
     } else {
         candidates = products.filter(p => !p.is_component).filter(p => {
-            if (p.sku.startsWith(val)) return true;
-            if (val.length >= 3 && p.sku.includes(val)) return true;
+            if (p.sku.startsWith(skuPart)) return true;
+            if (skuPart.length >= 3 && p.sku.includes(skuPart)) return true;
             return false;
         }).sort((a, b) => {
-            const aExact = a.sku === val;
-            const bExact = b.sku === val;
+            const aExact = a.sku === skuPart;
+            const bExact = b.sku === skuPart;
             if (aExact && !bExact) return -1;
             if (!aExact && bExact) return 1;
 
-            const aStarts = a.sku.startsWith(val);
-            const bStarts = b.sku.startsWith(val);
+            const aStarts = a.sku.startsWith(skuPart);
+            const bStarts = b.sku.startsWith(skuPart);
             if (aStarts && !bStarts) return -1;
             if (!aStarts && bStarts) return 1;
 
@@ -463,6 +513,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         setActiveMasterProduct(bestMaster);
         const sizing = getSizingInfo(bestMaster);
         setSizeMode(sizing);
+        
+        // AUTO-SELECT SIZE if entered after space
+        if (sizing && sizePart) {
+             const matchedSize = sizing.sizes.find(s => s === sizePart || (sizing.type === 'Μήκος' && s.startsWith(sizePart)));
+             if (matchedSize) {
+                 setSelectedSize(matchedSize);
+             }
+        } else if (!sizePart) {
+             // Reset size if backspaced
+             setSelectedSize('');
+        }
+
         if (bestMaster.variants) {
             const validVariants = bestMaster.variants
                 .filter(v => v.suffix.startsWith(suffixPart))
@@ -475,6 +537,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         setActiveMasterProduct(null);
         setFilteredVariants([]);
         setSizeMode(null);
+        setSelectedSize('');
     }
   };
 
@@ -499,11 +562,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   };
 
   const executeAddItem = () => {
-    if (!scanInput) return;
-    const match = findProductByScannedCode(scanInput, products);
+    // Trim input to ignore size part if typed after space, as we used it to set selectedSize state already
+    const skuCode = scanInput.split(/\s+/)[0]; 
+
+    if (!skuCode) return;
+    const match = findProductByScannedCode(skuCode, products);
     
     if (!match) {
-        showToast(`Ο κωδικός ${scanInput} δεν βρέθηκε.`, "error");
+        showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
         return;
     }
 
@@ -615,6 +681,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
               showToast('Η παραγγελία δημιουργήθηκε.', 'success');
           }
           queryClient.invalidateQueries({ queryKey: ['orders'] });
+          clearDraft(); // Clear autosave on success
           setIsCreating(false);
           setEditingOrder(null);
       } catch (err: any) {
@@ -705,7 +772,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             </h1>
             <p className="text-slate-500 mt-1 ml-14">Διαχείριση λιανικής και χονδρικής.</p>
           </div>
-          <button onClick={() => { setEditingOrder(null); setIsCreating(true); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setSelectedItems([]); setVatRate(VatRegime.Standard); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
+          <button onClick={() => { setEditingOrder(null); setIsCreating(true); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setSelectedItems([]); setVatRate(VatRegime.Standard); clearDraft(); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
               <Plus size={20} /> Νέα Παραγγελία
           </button>
       </div>
@@ -717,7 +784,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                       {editingOrder ? <Edit size={24} className="text-emerald-600"/> : <Plus size={24} className="text-[#060b00]"/>}
                       {editingOrder ? `Επεξεργασία Παραγγελίας #${editingOrder.id}` : 'Δημιουργία Παραγγελίας'}
                   </h2>
-                  <button onClick={() => { setIsCreating(false); setEditingOrder(null); }} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
+                  <button onClick={() => { setIsCreating(false); setEditingOrder(null); clearDraft(); }} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
               </div>
               <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
                   
@@ -785,7 +852,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                   </div>
 
                   <div className="lg:col-span-5 flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar">
-                      {/* ... Smart Entry Section (Same as before) ... */}
+                      {/* ... Smart Entry Section ... */}
                       <div className="flex items-center gap-3 mb-6">
                           <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg"><ScanBarcode size={22} className="animate-pulse" /></div>
                           <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
@@ -807,7 +874,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                               </div>
                               <div className="col-span-3">
                                   <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
-                                  <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
+                                  <input 
+                                    type="number" min="1" value={scanQty} 
+                                    onChange={e => setScanQty(parseInt(e.target.value)||1)} 
+                                    onKeyDown={e => e.key === 'Enter' && executeAddItem()}
+                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                  />
                               </div>
                           </div>
 
@@ -835,7 +907,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                           <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">{activeMasterProduct.image_url ? <img src={activeMasterProduct.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-3 text-slate-300"/>}</div>
                                           <div><h3 className="font-black text-xl text-slate-900 leading-none">{activeMasterProduct.sku}</h3><p className="text-xs text-slate-500 font-bold mt-1 uppercase">{activeMasterProduct.category}</p></div>
                                       </div>
-                                      <button onClick={() => { setActiveMasterProduct(null); setScanInput(''); setFilteredVariants([]); }} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
+                                      <button onClick={() => { setActiveMasterProduct(null); setScanInput(''); setFilteredVariants([]); setSelectedSize(''); }} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
                                   </div>
 
                                   {sizeMode && (
@@ -879,6 +951,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                           type="text" 
                                           value={itemNotes} 
                                           onChange={e => setItemNotes(e.target.value)}
+                                          onKeyDown={e => e.key === 'Enter' && executeAddItem()}
                                           placeholder="π.χ. Αλλαγή κουμπώματος, Μακρύτερη αλυσίδα..."
                                           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
                                       />
