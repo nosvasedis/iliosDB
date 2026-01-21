@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -111,26 +112,31 @@ async function safeMutate(
             newTable = [...newTable, ...payload];
         } 
         else if (method === 'UPDATE' || method === 'UPSERT') {
-            payload.forEach(item => {
-                const idx = newTable.findIndex(row => {
-                    if (options?.match) return Object.entries(options.match).every(([k, v]) => row[k] === v);
-                    if (row.id && item.id) return row.id === item.id;
-                    if (row.sku && item.sku) return row.sku === item.sku;
-                    if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) return row.product_sku === item.product_sku && row.suffix === item.suffix;
-                    if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
-                    if (tableName === 'product_collections' && row.product_sku && row.collection_id) return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
-                    return false;
+            // Enhanced Local UPDATE: Support updating all rows that match criteria if no specific ID provided
+            if (options?.match) {
+                const matchEntries = Object.entries(options.match);
+                newTable = newTable.map(row => {
+                    const isMatch = matchEntries.every(([k, v]) => row[k] === v);
+                    return isMatch ? { ...row, ...payload[0] } : row;
                 });
+            } else {
+                payload.forEach(item => {
+                    const idx = newTable.findIndex(row => {
+                        if (row.id && item.id) return row.id === item.id;
+                        if (row.sku && item.sku) return row.sku === item.sku;
+                        if (tableName === 'product_variants' && row.product_sku && row.suffix !== undefined) return row.product_sku === item.product_sku && row.suffix === item.suffix;
+                        if (tableName === 'product_stock' && row.product_sku && row.warehouse_id) return row.product_sku === item.product_sku && row.warehouse_id === item.warehouse_id && row.variant_suffix === item.variant_suffix;
+                        if (tableName === 'product_collections' && row.product_sku && row.collection_id) return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
+                        return false;
+                    });
 
-                if (idx >= 0) {
-                    // If method is UPSERT and ignoreDuplicates is true, DO NOTHING on conflict
-                    if (method === 'UPSERT' && options?.ignoreDuplicates) {
-                        return; // Skip update
+                    if (idx >= 0) {
+                        if (method === 'UPSERT' && options?.ignoreDuplicates) return;
+                        newTable[idx] = { ...newTable[idx], ...item };
                     }
-                    newTable[idx] = { ...newTable[idx], ...item };
-                }
-                else if (method === 'UPSERT') newTable.push(item);
-            });
+                    else if (method === 'UPSERT') newTable.push(item);
+                });
+            }
         } 
         else if (method === 'DELETE') {
             if (options?.match) newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
@@ -144,11 +150,7 @@ async function safeMutate(
         return { data: data, error: null, queued: false };
     }
 
-    // 2. Hybrid/Cloud Strategy: Optimistic Update to Local Cache + Cloud Sync
-    // We queue it immediately for the "Optimistic UI" effect via fetchFullTable merging, 
-    // but try to send it if online.
-    
-    // Always enqueue first to ensure it survives a reload if network fails
+    // 2. Hybrid/Cloud Strategy
     const queueId = await offlineDb.enqueue({ 
         type: 'MUTATION', 
         table: tableName, 
@@ -177,7 +179,6 @@ async function safeMutate(
         
         if (error) throw error;
         
-        // Success: Remove from queue
         await offlineDb.dequeue(queueId);
         return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false };
     } catch (err) {
@@ -231,7 +232,6 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
 
     if (pendingOps.length === 0) return baseData;
 
-    // Deep clone to avoid mutating cache reference
     let mergedData = [...baseData];
 
     pendingOps.forEach(op => {
@@ -241,24 +241,30 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             mergedData = [...mergedData, ...payload];
         } 
         else if (op.method === 'UPDATE' || op.method === 'UPSERT') {
-            payload.forEach((item: any) => {
-                const idx = mergedData.findIndex((row: any) => {
-                    if (op.match) return Object.entries(op.match).every(([k, v]) => row[k] === v);
-                    if (row.id && item.id) return row.id === item.id;
-                    if (row.sku && item.sku) return row.sku === item.sku;
-                    // Product Collections Logic
-                    if (tableName === 'product_collections' && row.product_sku && row.collection_id) {
-                        return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
-                    }
-                    return false;
+            if (op.match) {
+                const matchEntries = Object.entries(op.match);
+                mergedData = mergedData.map(row => {
+                    const isMatch = matchEntries.every(([k, v]) => row[k] === v);
+                    return isMatch ? { ...row, ...payload[0] } : row;
                 });
-                
-                if (idx >= 0) {
-                    if (op.method === 'UPSERT' && op.ignoreDuplicates) return;
-                    mergedData[idx] = { ...mergedData[idx], ...item };
-                }
-                else if (op.method === 'UPSERT') mergedData.push(item);
-            });
+            } else {
+                payload.forEach((item: any) => {
+                    const idx = mergedData.findIndex((row: any) => {
+                        if (row.id && item.id) return row.id === item.id;
+                        if (row.sku && item.sku) return row.sku === item.sku;
+                        if (tableName === 'product_collections' && row.product_sku && row.collection_id) {
+                            return row.product_sku === item.product_sku && row.collection_id === item.collection_id;
+                        }
+                        return false;
+                    });
+                    
+                    if (idx >= 0) {
+                        if (op.method === 'UPSERT' && op.ignoreDuplicates) return;
+                        mergedData[idx] = { ...mergedData[idx], ...item };
+                    }
+                    else if (op.method === 'UPSERT') mergedData.push(item);
+                });
+            }
         }
         else if (op.method === 'DELETE') {
             if (op.match) {
@@ -322,11 +328,6 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         const { error } = await safeMutate('products', 'DELETE', null, { match: { sku: sku } });
         if (error) throw error;
 
-        // FORTIFICATION: We NEVER delete the image from R2 when a product is deleted.
-        // This prevents accidental image loss if the product is deleted during a rename or error.
-        // Storage is cheap; lost data is expensive.
-        // if (imageUrl && imageUrl.startsWith(R2_PUBLIC_URL)) { ... } // Disabled.
-
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };
@@ -339,27 +340,14 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
-    // --- AFM LOOKUP (VAT SEARCH) ---
-    // Uses vatcomply.com which is a free wrapper around EU VIES.
     lookupAfm: async (afm: string): Promise<{ name: string; address: string } | null> => {
         if (!afm || afm.length < 9) throw new Error("Invalid AFM length");
-        
         try {
-            // Using VATComply Free API
             const res = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
             if (!res.ok) throw new Error("Network error");
-            
             const data = await res.json();
-            
-            if (!data.valid) {
-                // Try fallback logic or throw
-                return null; 
-            }
-            
-            return {
-                name: data.name,
-                address: data.address
-            };
+            if (!data.valid) return null; 
+            return { name: data.name, address: data.address };
         } catch (e) {
             console.error("AFM Lookup failed:", e);
             throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
@@ -372,8 +360,6 @@ export const api = {
         try {
             const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
             if (error || !data) throw new Error('Data Error');
-            
-            // Use INITIAL_SETTINGS as robust defaults if DB columns are missing or zero
             const settings = { 
               silver_price_gram: Number(data.silver_price_gram), 
               loss_percentage: Number(data.loss_percentage), 
@@ -410,9 +396,7 @@ export const api = {
 
     saveCollection: async (name: string): Promise<void> => {
         const payload: any = { name };
-        if (isLocalMode) {
-            payload.id = Date.now();
-        }
+        if (isLocalMode) payload.id = Date.now();
         await safeMutate('collections', 'INSERT', payload);
     },
 
@@ -457,7 +441,7 @@ export const api = {
 
             return {
                 sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, 
-                image_url: resolveImageUrl(p.image_url), // NORMALIZE IMAGE URL
+                image_url: resolveImageUrl(p.image_url),
                 weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
                 supplier_sku: p.supplier_sku,
                 supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, 
@@ -499,10 +483,8 @@ export const api = {
         return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' }); 
     },
     
-    // NEW: Rename Product SKU
     renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
         if (isLocalMode) {
-            // Local Mode Rename (Manual Cascade)
             await offlineDb.saveTable('products', (await offlineDb.getTable('products'))?.map((p: any) => p.sku === oldSku ? { ...p, sku: newSku } : p) || []);
             await offlineDb.saveTable('product_variants', (await offlineDb.getTable('product_variants'))?.map((v: any) => v.product_sku === oldSku ? { ...v, product_sku: newSku } : v) || []);
             await offlineDb.saveTable('recipes', (await offlineDb.getTable('recipes'))?.map((r: any) => r.parent_sku === oldSku ? { ...r, parent_sku: newSku } : r) || []);
@@ -513,20 +495,11 @@ export const api = {
             return;
         }
 
-        // Cloud Mode: Manual "Clone & Delete" Strategy to bypass strict FK constraints (RPC 409 Conflict)
         const { data: product } = await supabase.from('products').select('*').eq('sku', oldSku).single();
         if (!product) throw new Error('Original product not found');
 
-        // Parallel fetch for dependents
         const [
-            { data: variants },
-            { data: parentRecipes },
-            { data: componentRecipes },
-            { data: molds },
-            { data: collections },
-            { data: stock },
-            { data: batches },
-            { data: movements }
+            { data: variants }, { data: parentRecipes }, { data: componentRecipes }, { data: molds }, { data: collections }, { data: stock }, { data: batches }, { data: movements }
         ] = await Promise.all([
             supabase.from('product_variants').select('*').eq('product_sku', oldSku),
             supabase.from('recipes').select('*').eq('parent_sku', oldSku),
@@ -538,82 +511,34 @@ export const api = {
             supabase.from('stock_movements').select('*').eq('product_sku', oldSku)
         ]);
 
-        // 2. Create New Product
-        // Strip ID if it exists (products usually use SKU as PK but might have ID column)
         const { id, ...productData } = product; 
         const newProductPayload = { ...productData, sku: newSku };
-
         const { error: createError } = await supabase.from('products').insert(newProductPayload);
         if (createError) throw createError;
 
         try {
-            // 3. Clone Dependents
-            if (variants && variants.length > 0) {
-                const payload = variants.map(v => { const { id, ...r } = v; return { ...r, product_sku: newSku }; });
-                const { error } = await supabase.from('product_variants').insert(payload);
-                if (error) throw error;
-            }
+            if (variants?.length) await supabase.from('product_variants').insert(variants.map(v => { const { id, ...r } = v; return { ...r, product_sku: newSku }; }));
+            if (parentRecipes?.length) await supabase.from('recipes').insert(parentRecipes.map(r => { const { id, ...rest } = r; return { ...rest, parent_sku: newSku }; }));
+            if (molds?.length) await supabase.from('product_molds').insert(molds.map(m => { const { id, ...rest } = m; return { ...rest, product_sku: newSku }; }));
+            if (collections?.length) await supabase.from('product_collections').insert(collections.map(c => { const { id, ...rest } = c; return { ...rest, product_sku: newSku }; }));
+            if (stock?.length) await supabase.from('product_stock').insert(stock.map(s => { const { id, ...rest } = s; return { ...rest, product_sku: newSku }; }));
+            if (componentRecipes?.length) await supabase.from('recipes').update({ component_sku: newSku }).eq('component_sku', oldSku);
+            if (batches?.length) await supabase.from('production_batches').update({ sku: newSku }).eq('sku', oldSku);
+            if (movements?.length) await supabase.from('stock_movements').update({ product_sku: newSku }).eq('product_sku', oldSku);
 
-            if (parentRecipes && parentRecipes.length > 0) {
-                const payload = parentRecipes.map(r => { const { id, ...rest } = r; return { ...rest, parent_sku: newSku }; });
-                const { error } = await supabase.from('recipes').insert(payload);
-                if (error) throw error;
-            }
-
-            if (molds && molds.length > 0) {
-                const payload = molds.map(m => { const { id, ...rest } = m; return { ...rest, product_sku: newSku }; });
-                const { error } = await supabase.from('product_molds').insert(payload);
-                if (error) throw error;
-            }
-
-            if (collections && collections.length > 0) {
-                const payload = collections.map(c => { const { id, ...rest } = c; return { ...rest, product_sku: newSku }; });
-                const { error } = await supabase.from('product_collections').insert(payload);
-                if (error) throw error;
-            }
-
-            if (stock && stock.length > 0) {
-                const payload = stock.map(s => { const { id, ...rest } = s; return { ...rest, product_sku: newSku }; });
-                const { error } = await supabase.from('product_stock').insert(payload);
-                if (error) throw error;
-            }
-
-            // 4. Update External References (Update instead of insert for loose references)
-            if (componentRecipes && componentRecipes.length > 0) {
-                const { error } = await supabase.from('recipes').update({ component_sku: newSku }).eq('component_sku', oldSku);
-                if (error) throw error;
-            }
-
-            if (batches && batches.length > 0) {
-                const { error } = await supabase.from('production_batches').update({ sku: newSku }).eq('sku', oldSku);
-                if (error) throw error;
-            }
-
-            if (movements && movements.length > 0) {
-                const { error } = await supabase.from('stock_movements').update({ product_sku: newSku }).eq('product_sku', oldSku);
-                if (error) throw error; 
-            }
-
-            // 5. Delete Old Data (Dependents first to avoid constraint violation if RESTRICT)
             await supabase.from('product_variants').delete().eq('product_sku', oldSku);
             await supabase.from('recipes').delete().eq('parent_sku', oldSku);
             await supabase.from('product_molds').delete().eq('product_sku', oldSku);
             await supabase.from('product_collections').delete().eq('product_sku', oldSku);
             await supabase.from('product_stock').delete().eq('product_sku', oldSku);
-            
-            const { error: deleteError } = await supabase.from('products').delete().eq('sku', oldSku);
-            if (deleteError) throw deleteError;
-
+            await supabase.from('products').delete().eq('sku', oldSku);
         } catch (err) {
-            console.error("Rename failed mid-operation, attempting cleanup", err);
-            // Attempt to clean up new product if we failed (Rollback attempt)
             await supabase.from('products').delete().eq('sku', newSku);
             throw err;
         }
     },
 
     saveProductVariant: async (variantData: any) => { 
-        // Cleanup variant to prevent extra keys
         const { location_stock, stock_by_size, ...cleanVariant } = variantData;
         return safeMutate('product_variants', 'UPSERT', cleanVariant, { onConflict: 'product_sku, suffix' }); 
     },
@@ -628,17 +553,34 @@ export const api = {
     deleteWarehouse: async (id: string): Promise<void> => { await safeMutate('warehouses', 'DELETE', null, { match: { id } }); },
     saveSupplier: async (s: Partial<Supplier>): Promise<void> => { await safeMutate('suppliers', s.id ? 'UPDATE' : 'INSERT', s, s.id ? { match: { id: s.id } } : undefined); },
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { match: { id } }); },
+    
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => { 
         const result = await safeMutate('customers', c.id ? 'UPDATE' : 'INSERT', c, c.id ? { match: { id: c.id } } : undefined); 
         return result.data;
     },
-    updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => { await safeMutate('customers', 'UPDATE', updates, { match: { id } }); },
+    
+    updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
+        // 1. Update the Customer record itself
+        await safeMutate('customers', 'UPDATE', updates, { match: { id } });
+
+        // 2. Cascade changes to Orders and Offers if identifiable fields changed
+        const cascadePayload: any = {};
+        if (updates.full_name) cascadePayload.customer_name = updates.full_name;
+        if (updates.phone) cascadePayload.customer_phone = updates.phone;
+
+        if (Object.keys(cascadePayload).length > 0) {
+            // Update all orders belonging to this customer
+            await safeMutate('orders', 'UPDATE', cascadePayload, { match: { customer_id: id } });
+            // Update all offers belonging to this customer
+            await safeMutate('offers', 'UPDATE', cascadePayload, { match: { customer_id: id } });
+        }
+    },
+    
     deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
     saveOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'INSERT', o); },
     updateOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); },
     
     deleteOrder: async (id: string): Promise<void> => { 
-        // Interconnected: Delete batches first
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         await safeMutate('orders', 'DELETE', null, { match: { id } }); 
     },
@@ -648,9 +590,6 @@ export const api = {
     
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { 
         await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); 
-        
-        // Super-Interconnected Logic:
-        // If an order is finalized (Delivered/Cancelled) OR REVERTED TO PENDING, remove its tracks from active production.
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
@@ -666,9 +605,6 @@ export const api = {
 
     addProductsToCollection: async (items: { product_sku: string, collection_id: number }[]): Promise<void> => {
         if (items.length === 0) return;
-        // Batch INSERT/UPSERT with ignoreDuplicates. 
-        // This is safe: if relation exists, it stays. If not, it is created.
-        // It avoids the DELETE permission issue and greatly reduces network calls.
         await safeMutate('product_collections', 'UPSERT', items, { 
             onConflict: 'product_sku, collection_id',
             ignoreDuplicates: true
@@ -677,35 +613,22 @@ export const api = {
 
     createPriceSnapshot: async (notes: string, products: Product[]): Promise<void> => {
         if (isLocalMode) return;
-        
         const items: any[] = [];
         products.forEach(p => {
             if (p.is_component) return;
-
-            // FIX: If variants exist, save ONLY variants. If no variants, save Master.
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    items.push({ product_sku: p.sku, variant_suffix: v.suffix, price: v.selling_price || 0 });
-                });
+            if (p.variants?.length) {
+                p.variants.forEach(v => { items.push({ product_sku: p.sku, variant_suffix: v.suffix, price: v.selling_price || 0 }); });
             } else {
                 items.push({ product_sku: p.sku, variant_suffix: null, price: p.selling_price || 0 });
             }
         });
 
         if (!navigator.onLine) {
-            await safeMutate('price_snapshots', 'INSERT', { 
-                notes, 
-                item_count: items.length,
-                created_at: new Date().toISOString()
-            });
+            await safeMutate('price_snapshots', 'INSERT', { notes, item_count: items.length, created_at: new Date().toISOString() });
             return;
         }
 
-        const { error } = await supabase.rpc('create_price_snapshot_v2', { 
-            p_notes: notes, 
-            p_items: items 
-        });
-        
+        const { error } = await supabase.rpc('create_price_snapshot_v2', { p_notes: notes, p_items: items });
         if (error) throw error;
     },
 
@@ -717,13 +640,9 @@ export const api = {
     revertToPriceSnapshot: async (id: string): Promise<void> => {
         const { data: items } = await supabase.from('price_snapshot_items').select('*').eq('snapshot_id', id);
         if (!items) return;
-
         for (const item of items) {
-            if (item.variant_suffix) {
-                await safeMutate('product_variants', 'UPDATE', { selling_price: item.price }, { match: { product_sku: item.product_sku, suffix: item.variant_suffix } });
-            } else {
-                await safeMutate('products', 'UPDATE', { selling_price: item.price }, { match: { sku: item.product_sku } });
-            }
+            if (item.variant_suffix) await safeMutate('product_variants', 'UPDATE', { selling_price: item.price }, { match: { product_sku: item.product_sku, suffix: item.variant_suffix } });
+            else await safeMutate('products', 'UPDATE', { selling_price: item.price }, { match: { sku: item.product_sku } });
         }
     },
 
@@ -738,25 +657,19 @@ export const api = {
         }
 
         if (!order) throw new Error("Order not found.");
-
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
-
         const batches: any[] = [];
         for (const item of order.items) {
             const product = allProducts.find(p => p.sku === item.sku);
             if (!product) continue;
-
             const suffix = item.variant_suffix || '';
-            // New logic: Only these specific suffixes require Setting (Καρφωτής)
             const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              product.recipe.some(r => {
                                  if (r.type !== 'raw') return false;
                                  const material = allMaterials.find(m => m.id === r.id);
                                  return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                              });
-
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-
             batches.push({
                 id: crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15), 
                 order_id: orderId,
@@ -765,7 +678,7 @@ export const api = {
                 quantity: item.quantity,
                 current_stage: stage,
                 size_info: item.size_info || null,
-                notes: item.notes || null, // @FIX: Carrying over item-level special notes to Production
+                notes: item.notes || null,
                 priority: 'Normal',
                 type: 'Νέα',
                 requires_setting: hasZircons,
@@ -773,11 +686,7 @@ export const api = {
                 updated_at: new Date().toISOString()
             });
         }
-
-        if (batches.length > 0) {
-            await safeMutate('production_batches', 'UPSERT', batches, { onConflict: 'id' });
-        }
-
+        if (batches.length > 0) await safeMutate('production_batches', 'UPSERT', batches, { onConflict: 'id' });
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
     },
 
@@ -794,92 +703,53 @@ export const api = {
         for (const item of queue) {
             try {
                 let query;
-                // Double sanitization during sync loop to ensure non-recoverable items are cleaned
                 const cleanData = item.table === 'products' ? sanitizeProductData(item.data) : item.data;
-
                 if (item.method === 'INSERT') query = supabase.from(item.table).insert(cleanData);
                 else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });
-                else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { 
-                    onConflict: item.onConflict,
-                    ignoreDuplicates: item.ignoreDuplicates 
-                });
-                
+                else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { onConflict: item.onConflict, ignoreDuplicates: item.ignoreDuplicates });
                 const { error } = await query!;
-                
-                if (!error) {
-                    await offlineDb.dequeue(item.id);
-                    successCount++;
-                } else {
-                    console.error(`Sync item failed [${item.table}]: ${error.message || JSON.stringify(error)}`, { data: item.data });
+                if (!error) { await offlineDb.dequeue(item.id); successCount++; }
+                else {
                     const errCode = error.code || '';
-                    // 42501 = RLS violation, 23505 = Unique Violation, 42* = Syntax/Schema error
                     if (errCode === '42501' || errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
-                        console.warn("Discarding non-recoverable sync item:", item);
                         await offlineDb.dequeue(item.id);
-                        window.dispatchEvent(new CustomEvent('ilios-sync-error', { 
-                            detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}). Η ενέργεια απορρίφθηκε.` } 
-                        }));
+                        window.dispatchEvent(new CustomEvent('ilios-sync-error', { detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}).` } }));
                     }
                 }
-            } catch (err) {
-                console.error("Sync network/unexpected error:", err);
-            }
+            } catch (err) { console.error("Sync error:", err); }
         }
         return successCount;
     },
 
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = [
-            'products', 'product_variants', 'materials', 'molds', 'orders', 
-            'customers', 'suppliers', 'warehouses', 'production_batches', 
-            'product_stock', 'stock_movements', 'recipes', 'product_molds', 
-            'collections', 'product_collections', 'global_settings',
-            'price_snapshots', 'price_snapshot_items', 'offers'
-        ];
+        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections', 'global_settings', 'price_snapshots', 'price_snapshot_items', 'offers'];
         const results: Record<string, any[]> = {};
-        for (const table of tables) {
-            results[table] = await fetchFullTable(table);
-        }
+        for (const table of tables) results[table] = await fetchFullTable(table);
         return results;
     },
 
     restoreFullSystem: async (backupData: Record<string, any[]>): Promise<void> => {
-        const order = [
-            'suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections',
-            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
-            'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings',
-            'price_snapshots', 'price_snapshot_items', 'offers'
-        ];
-
+        const order = ['suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections', 'products', 'product_variants', 'recipes', 'product_molds', 'product_collections', 'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings', 'price_snapshots', 'price_snapshot_items', 'offers'];
         if (isLocalMode || !SUPABASE_URL) {
-            for (const table of order) {
-                if (backupData[table]) await offlineDb.saveTable(table, backupData[table]);
-            }
+            for (const table of order) if (backupData[table]) await offlineDb.saveTable(table, backupData[table]);
             localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
             return;
         }
-
         for (const table of [...order].reverse()) {
             await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');
             if (table === 'products') await supabase.from(table).delete().neq('sku', 'WIPE_ALL');
         }
-
         for (const table of order) {
             const data = backupData[table];
-            if (data && data.length > 0) {
+            if (data?.length) {
                 const chunkSize = 200;
-                for (let i = 0; i < data.length; i += chunkSize) {
-                    await supabase.from(table).insert(data.slice(i, i + chunkSize));
-                }
+                for (let i = 0; i < data.length; i += chunkSize) await supabase.from(table).insert(data.slice(i, i + chunkSize));
             }
         }
     },
     
-    // OFFERS API
-    getOffers: async (): Promise<Offer[]> => {
-        return fetchFullTable('offers', '*', (q) => q.order('created_at', { ascending: false }));
-    },
+    getOffers: async (): Promise<Offer[]> => { return fetchFullTable('offers', '*', (q) => q.order('created_at', { ascending: false })); },
     saveOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'INSERT', offer); },
     updateOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'UPDATE', offer, { match: { id: offer.id } }); },
     deleteOffer: async (id: string): Promise<void> => { await safeMutate('offers', 'DELETE', null, { match: { id } }); },

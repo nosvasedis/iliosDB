@@ -128,9 +128,13 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 vat_number: selectedCustomer.vat_number,
                 notes: selectedCustomer.notes
             });
+            // Refresh affected data
             queryClient.invalidateQueries({ queryKey: ['customers'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['offers'] });
+            
             setIsEditing(false);
-            showToast("Τα στοιχεία ενημερώθηκαν.", 'success');
+            showToast("Τα στοιχεία ενημερώθηκαν παντού.", 'success');
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", 'error');
         }
@@ -204,7 +208,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 </button>
             </div>
 
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-w-0">
             {activeTab === 'customers' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
                     {/* Left Column: List */}
