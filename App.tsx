@@ -680,7 +680,7 @@ function AppContent() {
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
-              {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} />}
+              {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}
               {activePage === 'resources' && (
                 <div className="space-y-6">
                     <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
