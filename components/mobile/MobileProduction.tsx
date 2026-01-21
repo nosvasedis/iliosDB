@@ -5,6 +5,7 @@ import { api } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import BatchBuildModal from '../BatchBuildModal';
 
 interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
@@ -32,12 +33,15 @@ const STAGE_COLORS: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
-const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: ProductionBatch) => void }> = ({ batch, onNext }) => {
+const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onClick }) => {
     const isDelayed = batch.isDelayed; 
     const isReady = batch.current_stage === ProductionStage.Ready;
 
     return (
-        <div className={`bg-white p-3 rounded-xl border shadow-sm relative ${isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200'}`}>
+        <div 
+            onClick={() => onClick(batch)}
+            className={`bg-white p-3 rounded-xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200'}`}
+        >
             <div className="flex justify-between items-start mb-2">
                 <div>
                     <div className="font-black text-slate-800 text-lg leading-none">{batch.sku}{batch.variant_suffix}</div>
@@ -48,6 +52,13 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
                 </div>
             </div>
             
+            {batch.notes && (
+                <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2 flex gap-2">
+                    <StickyNote size={14} className="text-amber-500 shrink-0 mt-0.5"/>
+                    <span className="text-xs text-amber-800 italic font-medium leading-snug">{batch.notes}</span>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
                 <div className="flex gap-2">
                     {isDelayed && <div className="text-[10px] font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={10}/> Delayed</div>}
@@ -71,6 +82,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders }); // Needed for finder
     
     const queryClient = useQueryClient();
@@ -78,6 +90,9 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     
     // Accordion State: Keep track of open stage ID
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
+
+    // Build View State
+    const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
 
     // Finder State
     const [finderTerm, setFinderTerm] = useState('');
@@ -193,7 +208,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                  {finderTerm.length >= 2 && (
                     <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar relative z-10">
                         {foundBatches.map(b => (
-                            <div key={b.id} className="bg-white rounded-xl p-3 shadow-md border-l-4 border-emerald-500 animate-in slide-in-from-top-2">
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-white rounded-xl p-3 shadow-md border-l-4 border-emerald-500 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -272,7 +287,12 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
                                     {stageBatches.map(batch => (
-                                        <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} />
+                                        <MobileBatchCard 
+                                            key={batch.id} 
+                                            batch={batch} 
+                                            onNext={handleNextStage}
+                                            onClick={setViewBuildBatch}
+                                        />
                                     ))}
                                     {stageBatches.length === 0 && (
                                         <div className="text-center py-6 text-slate-400 text-xs italic">
@@ -285,6 +305,15 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                     );
                 })}
             </div>
+
+            {viewBuildBatch && molds && (
+                <BatchBuildModal 
+                    batch={viewBuildBatch} 
+                    allMaterials={materials} 
+                    allMolds={molds} 
+                    onClose={() => setViewBuildBatch(null)} 
+                />
+            )}
         </div>
     );
 }
