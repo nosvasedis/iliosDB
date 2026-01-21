@@ -87,7 +87,20 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 {product.molds.length > 0 && (
                                                     <div className="text-slate-900">
                                                         <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ: </span>
-                                                        <span className="font-bold">{product.molds.map((pm) => pm.code).join(', ')}</span>
+                                                        <span className="font-bold">
+                                                            {product.molds.map((pm, idx) => {
+                                                                const details = allMolds.find(m => m.code === pm.code);
+                                                                return (
+                                                                    <span key={idx}>
+                                                                        {pm.code}
+                                                                        {details?.description && (
+                                                                            <span className="font-medium text-[8px] text-slate-600 normal-case italic"> ({details.description})</span>
+                                                                        )}
+                                                                        {idx < product.molds.length - 1 ? ', ' : ''}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
