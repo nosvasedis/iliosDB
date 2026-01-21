@@ -26,7 +26,7 @@ export default function MobileCustomers() {
             return customers.filter(c => 
                 c.full_name.toLowerCase().includes(search.toLowerCase()) || 
                 (c.phone && c.phone.includes(search))
-            );
+            ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
         } else {
             if (!suppliers) return [];
             return suppliers.filter(s => 

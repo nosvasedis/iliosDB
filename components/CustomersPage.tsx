@@ -96,7 +96,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         return customers.filter(c => 
             c.full_name.toLowerCase().includes(lowerSearch) || 
             (c.phone && c.phone.includes(lowerSearch))
-        );
+        ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
     }, [customers, searchTerm]);
 
     const handleCreate = async () => {
