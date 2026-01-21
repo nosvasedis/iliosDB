@@ -68,9 +68,9 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
 };
 
 export default function MobileProduction({ onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
-    const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-    const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-    const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders }); // Needed for finder
     
     const queryClient = useQueryClient();
@@ -83,20 +83,21 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     const [finderTerm, setFinderTerm] = useState('');
 
     const enrichedBatches = useMemo(() => {
+        if (!batches || !products || !materials) return [];
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         
-        return batches?.map(b => {
-            const prod = products?.find(p => p.sku === b.sku);
+        return batches.map(b => {
+            const prod = products.find(p => p.sku === b.sku);
             const suffix = b.variant_suffix || '';
             const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              prod?.recipe.some(r => {
                                  if (r.type !== 'raw') return false;
-                                 const mat = materials?.find(m => m.id === r.id);
-                                 return mat?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
+                                 const material = materials.find(m => m.id === r.id);
+                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => mat.name.includes(code));
                              }) || false;
 
             return { ...b, requires_setting: hasZircons };
-        }) || [];
+        });
     }, [batches, products, materials]);
 
     const foundBatches = useMemo(() => {
@@ -151,7 +152,10 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         }
     };
 
-    if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
+    // CRITICAL FIX: Ensure ALL required data is loaded before rendering to prevent race conditions (requires_setting defaulting to false)
+    if (loadingBatches || loadingProducts || loadingMaterials || !products || !materials || !batches) {
+        return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
+    }
 
     const activeBatches = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready);
 
