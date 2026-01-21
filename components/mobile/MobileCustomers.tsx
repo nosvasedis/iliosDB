@@ -2,9 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit } from 'lucide-react';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2 } from 'lucide-react';
 import { Customer, Supplier } from '../../types';
 import { useUI } from '../UIProvider';
+import { formatCurrency } from '../../utils/pricingEngine';
 
 export default function MobileCustomers() {
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
@@ -19,6 +20,7 @@ export default function MobileCustomers() {
     const [isEditing, setIsEditing] = useState(false);
     const [editType, setEditType] = useState<'customer' | 'supplier'>('customer');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
+    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
 
     const filteredList = useMemo(() => {
         if (tab === 'customers') {
@@ -84,6 +86,28 @@ export default function MobileCustomers() {
         }
     };
 
+    const handleAfmLookup = async () => {
+        const afm = editData.vat_number;
+        if (!afm || afm.length < 9) {
+            showToast("Μη έγκυρο ΑΦΜ.", "error");
+            return;
+        }
+        setIsSearchingAfm(true);
+        try {
+            const result = await api.lookupAfm(afm);
+            if (result) {
+                setEditData(prev => ({ ...prev, full_name: result.name, address: result.address }));
+                showToast("Τα στοιχεία βρέθηκαν!", "success");
+            } else {
+                showToast("Δεν βρέθηκαν στοιχεία.", "info");
+            }
+        } catch (e: any) {
+            showToast(e.message || "Σφάλμα αναζήτησης.", "error");
+        } finally {
+            setIsSearchingAfm(false);
+        }
+    };
+
     if (isEditing) {
         return (
             <div className="flex flex-col h-full bg-slate-50">
@@ -97,6 +121,29 @@ export default function MobileCustomers() {
                 
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4">
+                        {editType === 'customer' && (
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block flex items-center gap-1">
+                                    <Hash size={12}/> ΑΦΜ
+                                </label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        value={editData.vat_number || ''} 
+                                        onChange={e => setEditData({...editData, vat_number: e.target.value})}
+                                        className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-slate-900 font-mono"
+                                        placeholder="9 ψηφία..."
+                                    />
+                                    <button 
+                                        onClick={handleAfmLookup}
+                                        disabled={isSearchingAfm}
+                                        className="p-3 bg-blue-500 text-white rounded-xl shadow-md active:scale-95"
+                                    >
+                                        {isSearchingAfm ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} className="fill-current"/>}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">
                                 {editType === 'customer' ? 'Ονοματεπωνυμο / Επωνυμια *' : 'Επωνυμια *'}
@@ -143,16 +190,6 @@ export default function MobileCustomers() {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                             />
                         </div>
-                        {editType === 'customer' && (
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">ΑΦΜ</label>
-                                <input 
-                                    value={editData.vat_number || ''} 
-                                    onChange={e => setEditData({...editData, vat_number: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                />
-                            </div>
-                        )}
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειωσεις</label>
                             <textarea 

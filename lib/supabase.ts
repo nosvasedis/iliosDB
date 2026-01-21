@@ -1,6 +1,3 @@
-
-
-
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
@@ -342,6 +339,33 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
+    // --- AFM LOOKUP (VAT SEARCH) ---
+    // Uses vatcomply.com which is a free wrapper around EU VIES.
+    lookupAfm: async (afm: string): Promise<{ name: string; address: string } | null> => {
+        if (!afm || afm.length < 9) throw new Error("Invalid AFM length");
+        
+        try {
+            // Using VATComply Free API
+            const res = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
+            if (!res.ok) throw new Error("Network error");
+            
+            const data = await res.json();
+            
+            if (!data.valid) {
+                // Try fallback logic or throw
+                return null; 
+            }
+            
+            return {
+                name: data.name,
+                address: data.address
+            };
+        } catch (e) {
+            console.error("AFM Lookup failed:", e);
+            throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
+        }
+    },
+
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
         if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };

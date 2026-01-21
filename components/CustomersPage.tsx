@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -44,7 +44,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     
     const [isCreating, setIsCreating] = useState(false);
-    const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '' });
+    const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '', vat_number: '' });
+    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
     
     const customerStats = useMemo(() => {
         if (!selectedCustomer || !orders) return null;
@@ -105,12 +106,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             return;
         }
         try {
-            // @FIX: Error in file components/CustomersPage.tsx on line 114: An expression of type 'void' cannot be tested for truthiness. 
-            // Fixed by updating api.saveCustomer in lib/supabase.ts to return Customer | null.
             const created = await api.saveCustomer(newCustomer);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setIsCreating(false);
-            setNewCustomer({ full_name: '', phone: '' });
+            setNewCustomer({ full_name: '', phone: '', vat_number: '' });
             if (created) setSelectedCustomer(created);
             showToast("Ο πελάτης δημιουργήθηκε.", 'success');
         } catch (e) {
@@ -159,6 +158,31 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         }
     };
 
+    const handleAfmLookup = async (afm: string, isUpdate: boolean) => {
+        if (!afm || afm.length < 9) {
+            showToast("Μη έγκυρο ΑΦΜ.", "error");
+            return;
+        }
+        setIsSearchingAfm(true);
+        try {
+            const result = await api.lookupAfm(afm);
+            if (result) {
+                if (isUpdate && selectedCustomer) {
+                    setSelectedCustomer(prev => prev ? ({ ...prev, full_name: result.name, address: result.address }) : null);
+                } else {
+                    setNewCustomer(prev => ({ ...prev, full_name: result.name, address: result.address }));
+                }
+                showToast("Τα στοιχεία βρέθηκαν!", "success");
+            } else {
+                showToast("Δεν βρέθηκαν στοιχεία για αυτό το ΑΦΜ.", "info");
+            }
+        } catch (e: any) {
+            showToast(e.message || "Σφάλμα αναζήτησης.", "error");
+        } finally {
+            setIsSearchingAfm(false);
+        }
+    };
+
     if (loadingCustomers || loadingOrders) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500" /></div>;
 
     return (
@@ -188,7 +212,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         <div className="p-5 border-b border-slate-100 space-y-4">
                             <div className="flex justify-between items-center">
                                 <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-emerald-600"/> Πελάτες</h2>
-                                <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
+                                <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); setNewCustomer({ full_name: '', phone: '', vat_number: '' }); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
                             </div>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -208,12 +232,35 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     <h3 className="font-bold text-emerald-800 text-sm mb-3 flex items-center gap-2"><Plus size={14}/> Νέος Πελάτης</h3>
                                     <div className="space-y-3">
                                         <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">ΑΦΜ (Auto-Fill)</label>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" 
+                                                    value={newCustomer.vat_number || ''} 
+                                                    onChange={e => setNewCustomer({...newCustomer, vat_number: e.target.value})}
+                                                    placeholder="9 ψηφία..."
+                                                />
+                                                <button 
+                                                    onClick={() => handleAfmLookup(newCustomer.vat_number || '', false)} 
+                                                    disabled={isSearchingAfm}
+                                                    className="bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200"
+                                                    title="Αυτόματη Εύρεση"
+                                                >
+                                                    {isSearchingAfm ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} className="fill-current"/>}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Ονοματεπωνυμο / Επωνυμια *</label>
                                             <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.full_name} onChange={e => setNewCustomer({...newCustomer, full_name: e.target.value})}/>
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Τηλεφωνο</label>
                                             <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}/>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Διεύθυνση</label>
+                                            <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.address || ''} onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}/>
                                         </div>
                                         <div className="flex gap-2 pt-2">
                                             <button onClick={handleCreate} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors">Αποθήκευση</button>
@@ -248,20 +295,20 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                 <div className="p-8 border-b border-slate-100 bg-white flex justify-between items-start relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl opacity-50 pointer-events-none"></div>
                                     
-                                    <div className="flex items-center gap-6 relative z-10">
-                                        <div className="w-20 h-20 bg-gradient-to-br from-[#060b00] to-emerald-800 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-black/20 transform rotate-3">
+                                    <div className="flex items-center gap-6 relative z-10 w-full">
+                                        <div className="w-20 h-20 bg-gradient-to-br from-[#060b00] to-emerald-800 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-black/20 transform rotate-3 shrink-0">
                                             <User size={36}/>
                                         </div>
-                                        <div>
+                                        <div className="flex-1 min-w-0">
                                             {isEditing ? (
                                                 <div>
                                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ονοματεπωνυμο / Επωνυμια</label>
                                                     <input className="text-2xl font-black text-slate-800 bg-white border border-slate-200 p-2 rounded-lg outline-none w-full focus:ring-2 focus:ring-emerald-500/20" value={selectedCustomer.full_name} onChange={e => setSelectedCustomer({...selectedCustomer, full_name: e.target.value})}/>
                                                 </div>
                                             ) : (
-                                                <h2 className="text-3xl font-black text-[#060b00] tracking-tight">{selectedCustomer.full_name}</h2>
+                                                <h2 className="text-3xl font-black text-[#060b00] tracking-tight truncate">{selectedCustomer.full_name}</h2>
                                             )}
-                                            <div className="flex items-center gap-4 text-sm text-slate-500 mt-3">
+                                            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 mt-3">
                                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                                     <Phone size={14} className="text-slate-400"/> 
                                                     {isEditing ? <input className="bg-white border-b border-slate-300 outline-none w-32 text-slate-800 font-medium" value={selectedCustomer.phone || ''} onChange={e => setSelectedCustomer({...selectedCustomer, phone: e.target.value})}/> : (selectedCustomer.phone || '-')}
@@ -273,7 +320,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 relative z-10">
+                                    <div className="flex gap-2 relative z-10 ml-4 shrink-0">
                                         <button onClick={() => isEditing ? handleUpdate() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isEditing ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
                                             {isEditing ? <><Save size={18}/> Αποθήκευση</> : <><FileText size={18}/> Επεξεργασία</>}
                                         </button>
@@ -285,7 +332,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30">
+                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30 custom-scrollbar">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
                                             <div className="absolute right-0 top-0 w-20 h-20 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
@@ -315,19 +362,30 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50"><FileText size={20} className="text-slate-400"/> Στοιχεία Τιμολόγησης</h3>
                                             <div className="space-y-5">
                                                 <div>
+                                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
+                                                        <Hash size={14}/> ΑΦΜ
+                                                        {isEditing && (
+                                                            <button 
+                                                                onClick={() => handleAfmLookup(selectedCustomer.vat_number || '', true)} 
+                                                                disabled={isSearchingAfm}
+                                                                className="ml-auto text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold hover:bg-blue-100"
+                                                            >
+                                                                {isSearchingAfm ? <Loader2 size={10} className="animate-spin"/> : <Zap size={10}/>} Auto-Fill
+                                                            </button>
+                                                        )}
+                                                    </label>
+                                                    {isEditing ? (
+                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" value={selectedCustomer.vat_number || ''} onChange={e => setSelectedCustomer({...selectedCustomer, vat_number: e.target.value})} placeholder="9 ψηφία" />
+                                                    ) : (
+                                                        <div className="text-slate-800 font-medium font-mono text-base bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedCustomer.vat_number || '-'}</div>
+                                                    )}
+                                                </div>
+                                                <div>
                                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Διεύθυνση</label>
                                                     {isEditing ? (
                                                         <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={selectedCustomer.address || ''} onChange={e => setSelectedCustomer({...selectedCustomer, address: e.target.value})} />
                                                     ) : (
                                                         <div className="text-slate-800 font-medium text-base">{selectedCustomer.address || '-'}</div>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">ΑΦΜ</label>
-                                                    {isEditing ? (
-                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" value={selectedCustomer.vat_number || ''} onChange={e => setSelectedCustomer({...selectedCustomer, vat_number: e.target.value})} />
-                                                    ) : (
-                                                        <div className="text-slate-800 font-medium font-mono text-base">{selectedCustomer.vat_number || '-'}</div>
                                                     )}
                                                 </div>
                                                 <div>
