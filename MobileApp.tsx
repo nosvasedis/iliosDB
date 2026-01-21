@@ -17,8 +17,10 @@ import MobilePricing from './components/mobile/MobilePricing';
 import MobileBatchPrint from './components/mobile/MobileBatchPrint';
 import MobileCollections from './components/mobile/MobileCollections';
 import MobilePriceList from './components/mobile/MobilePriceList';
+import MobileOffers from './components/mobile/MobileOffers';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 import OrderInvoiceView from './components/OrderInvoiceView';
+import OfferPrintView from './components/OfferPrintView';
 import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
@@ -26,7 +28,7 @@ import BarcodeView from './components/BarcodeView';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData } from './types';
+import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer } from './types';
 import { calculateProductCost } from './utils/pricingEngine';
 
 interface MobileAppProps {
@@ -43,6 +45,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   // Printing State
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -123,7 +126,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   // PRINTING EFFECT
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData;
     
     if (shouldPrint) {
       const timer = setTimeout(() => {
@@ -139,6 +142,8 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
              docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
         } else if (orderToPrint) {
              docTitle = `Order_${orderToPrint.id}`;
+        } else if (offerToPrint) {
+             docTitle = `Offer_${offerToPrint.id}`;
         } else if (aggregatedPrintData) {
              docTitle = `Production_Summary_${new Date().toISOString().split('T')[0]}`;
         }
@@ -192,6 +197,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         const handleAfterPrint = () => {
             setPriceListPrintData(null);
             setOrderToPrint(null);
+            setOfferToPrint(null);
             setBatchToPrint(null);
             setAggregatedPrintData(null);
             setPreparationPrintData(null);
@@ -207,7 +213,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
+  }, [printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
 
   if (!settings || !products || !warehouses || !materials || !molds) {
       return (
@@ -246,6 +252,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     case 'batch-print': content = <MobileBatchPrint />; break;
     case 'collections': content = <MobileCollections />; break;
     case 'pricelist': content = <MobilePriceList onPrint={setPriceListPrintData} />; break;
+    case 'offers': content = <MobileOffers onPrintOffer={setOfferToPrint} />; break;
     
     default: content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />;
   }
@@ -256,6 +263,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
             {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
             {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+            {offerToPrint && <OfferPrintView offer={offerToPrint} />}
             {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
             {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
             {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}

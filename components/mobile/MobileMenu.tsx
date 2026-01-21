@@ -11,9 +11,10 @@ import {
   ScanBarcode, 
   Sparkles,
   FolderKanban,
-  ScrollText
+  ScrollText,
+  FileText
 } from 'lucide-react';
-import { APP_LOGO } from '../../constants';
+import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 
 interface Props {
@@ -31,6 +32,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
 
   const menuItems = [
     { id: 'ai-studio', label: 'AI Studio', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50' },
+    { id: 'offers', label: 'Προσφορές', icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'registry', label: 'Μητρώο Κωδικών', icon: Database, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'collections', label: 'Συλλογές', icon: FolderKanban, color: 'text-pink-500', bg: 'bg-pink-50' },
     { id: 'pricelist', label: 'Τιμοκατάλογος', icon: ScrollText, color: 'text-teal-500', bg: 'bg-teal-50' },
@@ -42,7 +44,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   ];
 
   return (
-    <div className="p-6 animate-in slide-in-from-bottom-10 duration-300">
+    <div className="p-6 animate-in slide-in-from-bottom-10 duration-300 pb-24">
       <div className="flex items-center gap-4 mb-8">
         <div className="w-16 h-16 bg-white rounded-full shadow-lg p-2 flex items-center justify-center">
             <img src={APP_LOGO} alt="Ilios" className="w-full h-full object-contain"/>
@@ -78,7 +80,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
         >
             <LogOut size={18} /> Αποσύνδεση
         </button>
-        <p className="text-center text-[10px] text-slate-300 mt-4 font-mono">v1.2.0-mobile</p>
+        <p className="text-center text-[10px] text-slate-300 mt-4 font-mono">v1.2.1-mobile</p>
       </div>
     </div>
   );
