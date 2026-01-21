@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
-import { User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box } from 'lucide-react';
+import { User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -73,6 +73,9 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     const [selectedSize, setSelectedSize] = useState('');
     const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος', sizes: string[] } | null>(null);
     const [showScanner, setShowScanner] = useState(false);
+    
+    // Sort State
+    const [sortOrder, setSortOrder] = useState<'input' | 'alpha'>('input');
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -135,6 +138,24 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setCustomerSearch('');
         setShowCustomerResults(false);
     };
+
+    // --- SORTED ITEMS MEMO ---
+    const displayItems = useMemo(() => {
+        // We clone to avoid mutating state directly during sort
+        const items = [...selectedItems];
+        
+        if (sortOrder === 'alpha') {
+            return items.sort((a, b) => {
+                const skuA = a.sku + (a.variant_suffix || '');
+                const skuB = b.sku + (b.variant_suffix || '');
+                return skuA.localeCompare(skuB, undefined, { numeric: true });
+            });
+        }
+        
+        // Default: 'input' (Chronological, newest on top usually, but state is array. 
+        // Our Add logic uses [newItem, ...prev], so index 0 is newest)
+        return items;
+    }, [selectedItems, sortOrder]);
 
     // --- SMART SEARCH & SKU VISUALIZATION ---
     const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
@@ -315,6 +336,24 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
             return;
         }
+
+        // STRICT VARIANT VALIDATION
+        if (!variant) {
+            const hasVariants = product.variants && product.variants.length > 0;
+            // Exception: If the product has exactly 1 variant and it is "Lustre" (empty suffix), treat master as that variant.
+            const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+
+            if (hasVariants && !isSingleLustre) {
+                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
+                // Expand variants view if needed or just return to force selection
+                setActiveMaster(product); 
+                setCandidateProducts([product]);
+                if (product.variants) {
+                    setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+                }
+                return;
+            }
+        }
     
         const unitPrice = variant?.selling_price || product.selling_price || 0;
     
@@ -353,6 +392,60 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setSizeMode(null);
         inputRef.current?.focus();
         showToast("Το προϊόν προστέθηκε.", "success");
+    };
+
+    const handleAddItem = (variant: ProductVariant | null) => {
+        if (!activeMaster) return;
+
+        // STRICT VARIANT VALIDATION ON CLICK
+        if (!variant) {
+            const hasVariants = activeMaster.variants && activeMaster.variants.length > 0;
+            const isSingleLustre = hasVariants && activeMaster.variants!.length === 1 && activeMaster.variants![0].suffix === '';
+            
+            if (hasVariants && !isSingleLustre) {
+                 showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
+                 return;
+            }
+        }
+
+        const unitPrice = variant?.selling_price || activeMaster.selling_price || 0;
+        
+        const newItem: OrderItem = {
+            sku: activeMaster.sku,
+            variant_suffix: variant?.suffix,
+            quantity: scanQty,
+            price_at_order: unitPrice,
+            product_details: activeMaster,
+            size_info: selectedSize || undefined,
+            notes: itemNotes || undefined
+        };
+
+        setSelectedItems(prev => {
+            const existingIdx = prev.findIndex(i => 
+                i.sku === newItem.sku && 
+                i.variant_suffix === newItem.variant_suffix && 
+                i.size_info === newItem.size_info &&
+                i.notes === newItem.notes
+            );
+
+            if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx].quantity += scanQty;
+                return updated;
+            }
+            return [newItem, ...prev];
+        });
+
+        if (navigator.vibrate) navigator.vibrate(50);
+        showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
+
+        setActiveMaster(null);
+        setScanQty(1);
+        setSelectedSize('');
+        setItemNotes('');
+        setSizeMode(null);
+        setScanInput('');
+        setTimeout(() => inputRef.current?.focus(), 100);
     };
 
     // --- TOTALS & SAVING ---
@@ -413,24 +506,37 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         }
     };
 
-    const updateQuantity = (index: number, qty: number) => {
+    const updateQuantity = (item: OrderItem, qty: number) => {
+        const idx = selectedItems.indexOf(item);
+        if (idx === -1) return;
+        
         if (qty <= 0) {
-            setSelectedItems(selectedItems.filter((_, i) => i !== index));
+            setSelectedItems(prev => prev.filter((_, i) => i !== idx));
         } else {
-            const updated = [...selectedItems];
-            updated[index].quantity = qty;
-            setSelectedItems(updated);
+            setSelectedItems(prev => {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], quantity: qty };
+                return updated;
+            });
         }
     };
 
-    const updateItemNotes = (index: number, notes: string) => {
-        const updated = [...selectedItems];
-        updated[index].notes = notes || undefined;
-        setSelectedItems(updated);
+    const updateItemNotes = (item: OrderItem, notes: string) => {
+        const idx = selectedItems.indexOf(item);
+        if (idx === -1) return;
+        
+        setSelectedItems(prev => {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], notes: notes || undefined };
+            return updated;
+        });
     };
 
-    const handleRemoveItem = (index: number) => {
-        setSelectedItems(prev => prev.filter((_, i) => i !== index));
+    const handleRemoveItem = (item: OrderItem) => {
+        const idx = selectedItems.indexOf(item);
+        if (idx !== -1) {
+            setSelectedItems(prev => prev.filter((_, i) => i !== idx));
+        }
     };
 
     const handleScanInOrder = (code: string) => {
@@ -440,6 +546,17 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
             } else {
                 const { product, variant } = match;
+
+                // VARIANT VALIDATION ON SCAN
+                if (!variant) {
+                    const hasVariants = product.variants && product.variants.length > 0;
+                    const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+                    if (hasVariants && !isSingleLustre) {
+                        showToast(`Ο κωδικός ${code} είναι Master. Παρακαλώ σκανάρετε την παραλλαγή.`, "error");
+                        return;
+                    }
+                }
+
                 const unitPrice = variant?.selling_price || product.selling_price || 0;
                 
                 const newItem: OrderItem = {
@@ -599,7 +716,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
 
                         {/* Active Master Details */}
                         {activeMaster && (
-                            <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 space-y-6">
+                            <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 duration-200 space-y-6">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-center gap-3">
                                         <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">{activeMaster.image_url ? <img src={activeMaster.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-3 text-slate-300"/>}</div>
@@ -628,7 +745,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                             {filteredVariants.map(v => {
                                                 const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
                                                 return (
-                                                    <button key={v.suffix} onClick={() => selectVariant(v.variant)} className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 bg-white border-slate-100 hover:border-emerald-500`}>
+                                                    <button key={v.suffix} onClick={() => handleAddItem(v.variant)} className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 bg-white border-slate-100 hover:border-emerald-500`}>
                                                         <span className={`text-sm font-black flex items-center gap-0.5`}>
                                                             <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'BAS'}</span>
                                                             <span className={STONE_TEXT_COLORS[stone.code] || 'text-emerald-500'}>{stone.code}</span>
@@ -654,10 +771,15 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
                                     />
                                 </div>
-
-                                <button onClick={() => executeAddItem()} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700">
-                                    <Plus size={24}/> Προσθήκη στην Εντολή
-                                </button>
+                                
+                                {/* Only show manual Add button if there are NO variants, or if a specific variant selection isn't enforced by UI logic above (e.g. Master doesn't show variant buttons). 
+                                   But we render variant buttons above. 
+                                   If product has no variants, show "Add Master" button. */}
+                                {(!activeMaster.variants || activeMaster.variants.length === 0) && (
+                                    <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700">
+                                        <Plus size={24}/> Προσθήκη Βασικού
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -667,11 +789,18 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 <div className="lg:col-span-4 flex flex-col h-full overflow-hidden">
                     <div className="flex justify-between items-center mb-3 px-2 shrink-0">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα Εντολής ({selectedItems.length})</label>
-                        <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95"><Camera size={14}/> Camera Scan</button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setSortOrder(prev => prev === 'input' ? 'alpha' : 'input')} className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                <ArrowDownAZ size={12}/> {sortOrder === 'input' ? 'Χρον.' : 'Αλφ.'}
+                            </button>
+                            <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95">
+                                <Camera size={14}/> Σάρωση
+                            </button>
+                        </div>
                     </div>
                     <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar bg-white rounded-3xl border border-slate-100 p-2 shadow-inner">
-                        {selectedItems.map((item, idx) => (
-                            <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md">
+                        {displayItems.map((item) => (
+                            <div key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes}`} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group">
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover"/>}</div>
@@ -682,11 +811,11 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-                                            <button onClick={() => updateQuantity(idx, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
+                                            <button onClick={() => updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
                                             <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(idx, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
+                                            <button onClick={() => updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
                                         </div>
-                                        <button onClick={() => handleRemoveItem(idx)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                        <button onClick={() => handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
                                 
@@ -694,7 +823,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                     <input 
                                         type="text" 
                                         value={item.notes || ''} 
-                                        onChange={e => updateItemNotes(idx, e.target.value)}
+                                        onChange={e => updateItemNotes(item, e.target.value)}
                                         placeholder="Προσθήκη παρατήρησης είδους..."
                                         className="w-full pl-7 py-1.5 text-[10px] bg-slate-50/50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-lg outline-none font-medium text-slate-600 transition-all placeholder:italic"
                                     />
