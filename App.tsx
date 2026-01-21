@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -47,7 +48,7 @@ import { calculateProductCost, estimateVariantCost, transliterateForBarcode } fr
 import { useIsMobile } from './hooks/useIsMobile';
 import MobileApp from './MobileApp';
 import EmployeeApp from './components/employee/EmployeeApp';
-import SellerApp from './components/seller/SellerApp'; // Import Seller App
+import SellerApp from './components/seller/SellerApp';
 
 // Pages
 import Dashboard from './components/Dashboard';
@@ -76,6 +77,7 @@ import AnalyticsView, { calculateBusinessStats } from './components/AnalyticsVie
 import AnalyticsPrintReport from './components/AnalyticsPrintReport';
 import OffersPage from './components/OffersPage';
 import OfferPrintView from './components/OfferPrintView';
+import OrderFinancialReport from './components/OrderFinancialReport';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
@@ -221,6 +223,7 @@ function AppContent() {
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [analyticsPrintData, setAnalyticsPrintData] = useState<any>(null);
+  const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any, order: Order } | null>(null);
 
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
@@ -291,7 +294,7 @@ function AppContent() {
 
   // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData;
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -307,6 +310,8 @@ function AppContent() {
 
         if (priceListPrintData) {
             docTitle = priceListPrintData.title; 
+        } else if (orderAnalyticsData) {
+             docTitle = `Analytics_Order_${orderAnalyticsData.order.id.slice(0,6)}`;
         } else if (analyticsPrintData) {
             docTitle = `Economics_${dateStr}`;
         } else if (orderToPrint) {
@@ -357,7 +362,7 @@ function AppContent() {
             setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null);
             setAggregatedPrintData(null); setPreparationPrintData(null); 
             setTechnicianPrintData(null); setPriceListPrintData(null);
-            setAnalyticsPrintData(null);
+            setAnalyticsPrintData(null); setOrderAnalyticsData(null);
         };
 
         iframeDoc.open();
@@ -419,7 +424,7 @@ function AppContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData]);
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
@@ -566,9 +571,15 @@ function AppContent() {
   
   const handlePrintOrderAnalytics = (order: Order) => {
       if (!products || !materials || !settings) return;
+      
+      // Calculate Stats Specifically for this order
       const stats = calculateBusinessStats([order], products, materials, settings);
+      
       if (stats) {
-        setAnalyticsPrintData({ ...stats, title: `Οικονομική Ανάλυση Παραγγελίας #${order.id}` });
+          // Use the specific Order Analytics Component
+          setOrderAnalyticsData({ stats, order });
+      } else {
+          showToast("Δεν ήταν δυνατός ο υπολογισμός των οικονομικών στοιχείων.", "error");
       }
   };
 
@@ -589,6 +600,7 @@ function AppContent() {
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
         {analyticsPrintData && <AnalyticsPrintReport stats={analyticsPrintData} title={analyticsPrintData.title} />}
+        {orderAnalyticsData && <OrderFinancialReport stats={orderAnalyticsData.stats} orderId={orderAnalyticsData.order.id} customerName={orderAnalyticsData.order.customer_name} date={new Date().toLocaleDateString('el-GR')} />}
         {printItems.length > 0 && (
             <div className="print-area">
             {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (

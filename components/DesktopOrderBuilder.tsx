@@ -355,23 +355,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         showToast("Το προϊόν προστέθηκε.", "success");
     };
 
-    const handleScanInOrder = (code: string) => {
-        const match = findProductByScannedCode(code, products);
-        if (match) {
-            if (match.product.is_component) {
-                showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
-            } else {
-                const targetCode = match.product.sku + (match.variant?.suffix || '');
-                setScanInput(targetCode);
-                showToast(`Σάρωση: ${targetCode}`, 'success');
-                setShowScanner(false);
-                executeAddItem();
-            }
-        } else {
-            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
-        }
-    };
-
     // --- TOTALS & SAVING ---
     const calculateTotal = () => selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const vatAmount = calculateTotal() * vatRate;
@@ -444,6 +427,48 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         const updated = [...selectedItems];
         updated[index].notes = notes || undefined;
         setSelectedItems(updated);
+    };
+
+    const handleRemoveItem = (index: number) => {
+        setSelectedItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleScanInOrder = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            if (match.product.is_component) {
+                showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
+            } else {
+                const { product, variant } = match;
+                const unitPrice = variant?.selling_price || product.selling_price || 0;
+                
+                const newItem: OrderItem = {
+                    sku: product.sku,
+                    variant_suffix: variant?.suffix,
+                    quantity: 1,
+                    price_at_order: unitPrice,
+                    product_details: product
+                };
+            
+                setSelectedItems(prev => {
+                    const existingIdx = prev.findIndex(i => 
+                        i.sku === newItem.sku && 
+                        i.variant_suffix === newItem.variant_suffix && 
+                        !i.size_info
+                    );
+                    if (existingIdx >= 0) {
+                        const updated = [...prev];
+                        updated[existingIdx].quantity += 1;
+                        return updated;
+                    }
+                    return [newItem, ...prev];
+                });
+                showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
+                setShowScanner(false);
+            }
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
     };
 
     return (
