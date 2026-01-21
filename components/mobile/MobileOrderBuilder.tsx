@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -50,7 +50,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
     const [items, setItems] = useState<OrderItem[]>(initialOrder?.items || []);
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
+    const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
+    const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
 
     // --- INPUT STATE ---
     const [input, setInput] = useState('');
@@ -63,7 +65,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [showScanner, setShowScanner] = useState(false);
     
     // Suggestion List Ref for scrolling
-    const suggestionsRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // --- SMART SEARCH LOGIC ---
@@ -212,9 +213,83 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         }
     };
 
+    const executeAddItem = () => {
+        // Trim input to ignore size part if typed after space
+        const skuCode = input.split(/\s+/)[0]; 
+    
+        if (!skuCode) return;
+        const match = findProductByScannedCode(skuCode, products);
+        
+        if (!match) {
+            showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
+            return;
+        }
+    
+        const { product, variant } = match;
+    
+        if (product.is_component) {
+            showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
+            return;
+        }
+
+        // STRICT VARIANT VALIDATION
+        if (!variant) {
+            const hasVariants = product.variants && product.variants.length > 0;
+            // Exception: If the product has exactly 1 variant and it is "Lustre" (empty suffix), treat master as that variant.
+            const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+
+            if (hasVariants && !isSingleLustre) {
+                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
+                // Expand variants view if needed or just return to force selection
+                setActiveMaster(product); 
+                return;
+            }
+        }
+    
+        const unitPrice = variant?.selling_price || product.selling_price || 0;
+    
+        const newItem: OrderItem = {
+            sku: product.sku,
+            variant_suffix: variant?.suffix,
+            quantity: qty,
+            price_at_order: unitPrice,
+            product_details: product,
+            size_info: selectedSize || undefined,
+            notes: itemNotes || undefined
+        };
+    
+        setItems(prev => {
+            const existingIdx = prev.findIndex(i => 
+                i.sku === newItem.sku && 
+                i.variant_suffix === newItem.variant_suffix && 
+                i.size_info === newItem.size_info &&
+                i.notes === newItem.notes
+            );
+            if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx].quantity += qty;
+                return updated;
+            }
+            return [newItem, ...prev];
+        });
+    
+        setInput('');
+        setQty(1);
+        setItemNotes('');
+        setSelectedSize('');
+        setSuggestions([]);
+        setActiveMaster(null);
+        setSizeMode(null);
+        inputRef.current?.focus();
+        showToast("Το προϊόν προστέθηκε.", "success");
+    };
+
+    // Calculate Totals
     const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-    const vatAmount = subtotal * vatRate;
-    const grandTotal = subtotal + vatAmount;
+    const discountAmount = subtotal * (discountPercent / 100);
+    const netAmount = subtotal - discountAmount;
+    const vatAmount = netAmount * vatRate;
+    const grandTotal = netAmount + vatAmount;
 
     const handleSaveOrder = async () => {
         if (!customerName) { showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error'); return; }
@@ -240,9 +315,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 items: items,
                 total_price: grandTotal,
                 vat_rate: vatRate,
+                discount_percent: discountPercent,
                 status: initialOrder?.status || OrderStatus.Pending,
                 created_at: initialOrder?.created_at || new Date().toISOString(),
-                notes: initialOrder?.notes
+                notes: orderNotes
             };
             if (initialOrder) await api.updateOrder(orderPayload);
             else await api.saveOrder(orderPayload);
@@ -253,10 +329,19 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     };
 
     const handleRemoveItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+    
     const updateItemQty = (index: number, delta: number) => {
         setItems(prev => {
             const next = [...prev];
             next[index].quantity = Math.max(1, next[index].quantity + delta);
+            return next;
+        });
+    };
+
+    const updateItemNotes = (index: number, notes: string) => {
+        setItems(prev => {
+            const next = [...prev];
+            next[index].notes = notes || undefined;
             return next;
         });
     };
@@ -307,6 +392,20 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                         <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
                     </select>
                 </div>
+
+                <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                    <Percent size={14} className="text-amber-500"/>
+                    <label className="text-xs font-bold text-amber-700 uppercase shrink-0">Έκπτωση (%):</label>
+                    <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        value={discountPercent} 
+                        onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                        className="flex-1 bg-transparent text-sm font-black text-amber-800 outline-none"
+                        placeholder="0"
+                    />
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4">
@@ -348,7 +447,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                         
                         <div className="mb-6">
                             <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><StickyNote size={12}/> Παρατηρήσεις Είδους</label>
-                            <input value={itemNotes} onChange={e => setItemNotes(e.target.value)} placeholder="π.χ. Αλλαγή πέτρας, Ειδικό μέγεθος..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"/>
+                            <input value={itemNotes} onChange={e => setItemNotes(e.target.value)} onKeyDown={e => e.key === 'Enter' && executeAddItem()} placeholder="π.χ. Αλλαγή κουμπώματος..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"/>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -369,6 +468,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                              <span>Καθαρή Αξία:</span>
                              <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
                         </div>
+                        {discountPercent > 0 && (
+                            <div className="flex justify-between items-center text-xs text-red-500">
+                                <span>Έκπτωση ({discountPercent}%):</span>
+                                <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between items-center text-xs text-slate-500">
                              <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
                              <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
@@ -384,7 +489,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
                                 <div className="flex justify-between items-center">
                                     <div>
-                                        <div className="font-black text-slate-800 text-base">{item.sku}<span className="text-slate-400">{item.variant_suffix}</span></div>
+                                        <div className="font-black text-slate-800 text-base">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
                                         <div className="text-[10px] text-slate-500 font-medium flex gap-2"><span>{formatCurrency(item.price_at_order)}</span>{item.size_info && <span className="bg-slate-100 px-1 rounded border border-slate-200">Size: {item.size_info}</span>}</div>
                                     </div>
                                     <div className="flex items-center gap-3">

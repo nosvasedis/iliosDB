@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
-import { User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle } from 'lucide-react';
+import { User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -57,6 +57,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
+    const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(initialOrder?.items || []);
     
     const [customerSearch, setCustomerSearch] = useState('');
@@ -93,6 +94,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         setSelectedCustomerId(draft.selectedCustomerId || null);
                         setOrderNotes(draft.orderNotes || '');
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
+                        setDiscountPercent(draft.discountPercent || 0);
                         setSelectedItems(draft.selectedItems || []);
                         showToast("Ανακτήθηκε πρόχειρη παραγγελία.", "info");
                     }
@@ -111,12 +113,13 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 selectedCustomerId,
                 orderNotes,
                 vatRate,
+                discountPercent,
                 selectedItems,
                 timestamp: Date.now()
             };
             localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(draftData));
         }
-    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, selectedItems]);
+    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, discountPercent, selectedItems]);
 
     const clearDraft = () => {
         localStorage.removeItem(DRAFT_ORDER_KEY);
@@ -449,9 +452,11 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     };
 
     // --- TOTALS & SAVING ---
-    const calculateTotal = () => selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-    const vatAmount = calculateTotal() * vatRate;
-    const grandTotal = calculateTotal() + vatAmount;
+    const subtotal = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+    const discountAmount = subtotal * (discountPercent / 100);
+    const netAfterDiscount = subtotal - discountAmount;
+    const vatAmount = netAfterDiscount * vatRate;
+    const grandTotal = netAfterDiscount + vatAmount;
 
     const handleSaveOrder = async () => {
         if (!customerName) { showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error'); return; }
@@ -468,6 +473,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     items: selectedItems,
                     total_price: grandTotal,
                     vat_rate: vatRate,
+                    discount_percent: discountPercent,
                     notes: orderNotes
                 };
                 await api.updateOrder(updatedOrder);
@@ -491,6 +497,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     items: selectedItems,
                     total_price: grandTotal,
                     vat_rate: vatRate,
+                    discount_percent: discountPercent,
                     notes: orderNotes
                 };
                 await api.saveOrder(newOrder);
@@ -628,6 +635,22 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                             <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"/>
                         </div>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Έκπτωση (%)</label>
+                            <div className="relative">
+                                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" size={16}/>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="100"
+                                    value={discountPercent} 
+                                    onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                                    className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900"
+                                />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Καθεστώς ΦΠΑ</label>
                             <select 
@@ -647,9 +670,15 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     </div>
                     <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm sticky bottom-0 space-y-2">
                         <div className="flex justify-between items-center text-emerald-800/70 text-sm">
-                           <span className="font-bold">Καθαρή Αξία</span>
-                           <span className="font-bold font-mono">{calculateTotal().toFixed(2)}€</span>
+                           <span className="font-bold">Αρχική Αξία</span>
+                           <span className="font-bold font-mono">{subtotal.toFixed(2)}€</span>
                         </div>
+                        {discountPercent > 0 && (
+                            <div className="flex justify-between items-center text-rose-600 text-sm">
+                               <span className="font-bold">Έκπτωση ({discountPercent}%)</span>
+                               <span className="font-bold font-mono">-{discountAmount.toFixed(2)}€</span>
+                            </div>
+                        )}
                         <div className="flex justify-between items-center text-emerald-800/70 text-sm border-b border-emerald-200 pb-2">
                            <span className="font-bold">Φ.Π.Α. ({(vatRate*100).toFixed(0)}%)</span>
                            <span className="font-bold font-mono">{vatAmount.toFixed(2)}€</span>
@@ -772,9 +801,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                     />
                                 </div>
                                 
-                                {/* Only show manual Add button if there are NO variants, or if a specific variant selection isn't enforced by UI logic above (e.g. Master doesn't show variant buttons). 
-                                   But we render variant buttons above. 
-                                   If product has no variants, show "Add Master" button. */}
                                 {(!activeMaster.variants || activeMaster.variants.length === 0) && (
                                     <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700">
                                         <Plus size={24}/> Προσθήκη Βασικού

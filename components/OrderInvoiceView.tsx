@@ -53,8 +53,11 @@ export default function OrderInvoiceView({ order }: Props) {
     // Dynamic VAT Calculation based on stored rate or default 24%
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const subtotal = order.items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-    const vatAmount = subtotal * vatRate;
-    const grandTotal = subtotal + vatAmount;
+    const discountPercent = order.discount_percent || 0;
+    const discountAmount = subtotal * (discountPercent / 100);
+    const netAmount = subtotal - discountAmount;
+    const vatAmount = netAmount * vatRate;
+    const grandTotal = netAmount + vatAmount;
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -189,6 +192,12 @@ export default function OrderInvoiceView({ order }: Props) {
                         <span>Καθαρή Αξία:</span>
                         <span className="font-mono font-bold">{subtotal.toFixed(2).replace('.', ',')}€</span>
                     </div>
+                    {discountAmount > 0 && (
+                        <div className="flex justify-between items-center text-rose-600 mb-0.5">
+                            <span>Έκπτωση ({discountPercent}%):</span>
+                            <span className="font-mono font-bold">-{discountAmount.toFixed(2).replace('.', ',')}€</span>
+                        </div>
+                    )}
                     <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
                         <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
                         <span className="font-mono font-bold">{vatAmount.toFixed(2).replace('.', ',')}€</span>
