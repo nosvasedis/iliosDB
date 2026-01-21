@@ -32,6 +32,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
     const [expanded, setExpanded] = useState(false);
     // Can edit only if Pending
     const canEdit = order.status === OrderStatus.Pending;
+    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200">
@@ -48,7 +49,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
                 <div className="flex justify-between items-end">
                     <div className="text-xs text-slate-500">{order.items.length} είδη • {new Date(order.created_at).toLocaleDateString('el-GR')}</div>
                     <div className="flex items-center gap-2">
-                        <span className="text-lg font-black text-slate-900">{formatCurrency(order.total_price)}</span>
+                        <span className="text-lg font-black text-slate-900">{formatCurrency(netValue)}</span>
                         {expanded ? <ChevronUp size={16} className="text-slate-300"/> : <ChevronDown size={16} className="text-slate-300"/>}
                     </div>
                 </div>

@@ -1019,27 +1019,30 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             <th className="p-4 pl-6">ID</th>
                             <th className="p-4">Πελάτης</th>
                             <th className="p-4">Ημερομηνία</th>
-                            <th className="p-4 text-right">Ποσό</th>
+                            <th className="p-4 text-right">Ποσό (Net)</th>
                             <th className="p-4">Κατάσταση</th>
                             <th className="p-4"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                        {orders?.map(order => (
-                            <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                                <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
-                                <td className="p-4 text-slate-800 font-medium">{order.customer_name}</td>
-                                <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
-                                <td className="p-4 text-right font-bold text-slate-800">{order.total_price.toFixed(2)}€</td>
-                                <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
-                                <td className="p-4 text-right">
-                                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
-                                        <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                        {orders?.map(order => {
+                            const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                            return (
+                                <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                                    <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
+                                    <td className="p-4 text-slate-800 font-medium">{order.customer_name}</td>
+                                    <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
+                                    <td className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</td>
+                                    <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span></td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16}/></button>
+                                            <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16}/></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

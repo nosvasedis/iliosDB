@@ -341,8 +341,8 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
                      {/* Unit Economics - Fill Empty Space */}
                      <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
                          <div className="flex justify-between items-center text-xs">
-                             <span className="text-white/60 font-bold uppercase tracking-wider flex items-center gap-2"><Target size={14}/> Unit Economics</span>
-                             <span className="bg-white/10 px-3 py-1 rounded-full text-[10px] font-black text-amber-400">AVERAGES</span>
+                             <span className="text-white/60 font-bold uppercase tracking-wider flex items-center gap-2"><Target size={14}/> Οικονομικά Μονάδας</span>
+                             <span className="bg-white/10 px-3 py-1 rounded-full text-[10px] font-black text-amber-400">ΜΕΣΟΙ ΟΡΟΙ</span>
                          </div>
                          <div className="grid grid-cols-2 gap-4 mt-4">
                              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
@@ -350,8 +350,8 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
                                  <p className="text-lg font-black text-white">{formatCurrency(avgCostPerItem)}</p>
                              </div>
                              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                                 <p className="text-[9px] text-white/50 font-bold uppercase">Silver Efficiency</p>
-                                 <p className="text-lg font-black text-slate-300">{silverEfficiency.toFixed(1)}% <span className="text-[9px] font-normal opacity-50">of Cost</span></p>
+                                 <p className="text-[9px] text-white/50 font-bold uppercase">Απόδοση Ασημιού</p>
+                                 <p className="text-lg font-black text-slate-300">{silverEfficiency.toFixed(1)}% <span className="text-[9px] font-normal opacity-50">του Κόστους</span></p>
                              </div>
                          </div>
                      </div>

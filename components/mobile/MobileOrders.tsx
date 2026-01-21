@@ -65,6 +65,7 @@ const OrderCard: React.FC<{
 
     const isCancelled = order.status === OrderStatus.Cancelled;
     const isDelivered = order.status === OrderStatus.Delivered;
+    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200 active:scale-[0.99]">
@@ -91,7 +92,7 @@ const OrderCard: React.FC<{
                         {order.items.length} είδη
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-lg font-black text-slate-900">{formatCurrency(order.total_price)}</span>
+                        <span className="text-lg font-black text-slate-900">{formatCurrency(netValue)}</span>
                         {expanded ? <ChevronUp size={18} className="text-slate-300"/> : <ChevronDown size={18} className="text-slate-300"/>}
                     </div>
                 </div>
