@@ -77,7 +77,9 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
     
     // Active Orders
     const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready) || [];
-    const pendingRevenue = activeOrders.reduce((acc, o) => acc + o.total_price, 0);
+    
+    // Calculate Net Revenue for Pending orders
+    const pendingRevenue = activeOrders.reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate || 0.24))), 0);
     
     // Production
     const activeBatches = batches?.filter(b => b.current_stage !== 'Ready') || [];
@@ -122,7 +124,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
       <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
               <StatCard 
-                title="Εκκρεμης Τζιρος" 
+                title="Εκκρεμης Τζιρος (Net)" 
                 value={formatCurrency(stats.pendingRevenue)} 
                 sub={`${stats.activeOrdersCount} Ενεργές Παραγγελίες`}
                 icon={<Activity />} 
