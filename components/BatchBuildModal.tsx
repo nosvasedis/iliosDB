@@ -208,7 +208,12 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                                             {buildData.molds.map(m => (
                                                 <div key={m.code} className="flex justify-between items-center p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                                     <div className="flex flex-col">
-                                                        <span className="font-black text-slate-800 text-lg">{m.code}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-slate-800 text-lg">{m.code}</span>
+                                                            <span className="text-xs font-bold bg-white text-orange-600 px-2 py-0.5 rounded-md border border-orange-200">
+                                                                x{m.quantity}
+                                                            </span>
+                                                        </div>
                                                         <span className="text-xs text-slate-500">{m.description}</span>
                                                     </div>
                                                     <div className="text-right">
