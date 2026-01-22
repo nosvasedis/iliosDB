@@ -48,6 +48,8 @@ export interface Material {
   cost_per_unit: number;
   unit: string;
   variant_prices?: Record<string, number>; 
+  supplier_id?: string; // New: Link to Supplier
+  stock_qty?: number;   // New: Track raw material stock
 }
 
 export interface Mold {
@@ -311,6 +313,33 @@ export interface AggregatedData {
   totalSubcontractCost: number;
   orderId?: string;
   customerName?: string;
+}
+
+// --- NEW SUPPLIER ORDER TYPES ---
+
+export type SupplierOrderType = 'Product' | 'Material';
+
+export interface SupplierOrderItem {
+    id: string;
+    item_type: SupplierOrderType;
+    item_id: string; // SKU for Product, ID for Material
+    item_name: string;
+    quantity: number;
+    unit_cost: number;
+    total_cost: number;
+    notes?: string;
+}
+
+export interface SupplierOrder {
+    id: string;
+    supplier_id: string;
+    supplier_name: string;
+    created_at: string;
+    status: 'Pending' | 'Received' | 'Cancelled';
+    total_amount: number;
+    items: SupplierOrderItem[];
+    notes?: string;
+    received_at?: string;
 }
 
 declare global {

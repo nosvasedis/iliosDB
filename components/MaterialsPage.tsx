@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, Box, Activity, Puzzle, List, Palette, Layers, Search, Scroll, User, X } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, Box, Activity, Puzzle, List, Palette, Layers, Search, Scroll, User, X, Globe, Package } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -25,6 +26,7 @@ export default function MaterialsPage({ settings }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: materials, isLoading } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
 
   const [editableMaterials, setEditableMaterials] = useState<Material[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
@@ -41,17 +43,10 @@ export default function MaterialsPage({ settings }: Props) {
     }
   }, [materials]);
 
-  /**
-   * Refined Multi-Tier Gender Detection
-   * Priority 1: Title Keywords (αντρική, γυναικεία, etc)
-   * Priority 2: Exclusive Stone Suffixes (KR, QN vs PAX, BST)
-   * Priority 3: General Dictionary matches
-   */
   const detectGender = (m: Material) => {
       const nameLower = m.name.toLowerCase();
       const variantCodes = Object.keys(m.variant_prices || {});
       
-      // Tier 1: High-Priority Keywords in Title
       const menKeywords = ['ανδρ', 'αντρ', 'άντρας'];
       const womenKeywords = ['γυναικ', 'γυναίκα'];
 
@@ -61,8 +56,6 @@ export default function MaterialsPage({ settings }: Props) {
       if (hasMenKw && !hasWomenKw) return { isMen: true, isWomen: false };
       if (hasWomenKw && !hasMenKw) return { isMen: false, isWomen: true };
 
-      // Tier 2: Exclusive Stone Codes in variants (Suffixes)
-      // These codes are distinctively used for one gender or the other
       const menExclusiveCodes = ['KR', 'GSU', 'RSU', 'QN', 'TG', 'TY', 'IA', 'BSU', 'MA', 'OP', 'NF'];
       const womenExclusiveCodes = ['BST', 'PAX', 'MAX', 'KAX', 'PCO', 'MCO', 'CO', 'AI', 'AP', 'AM', 'LR', 'TPR', 'TKO', 'TMP', 'MP', 'PR', 'KO', 'MV', 'RZ', 'AK', 'XAL'];
 
@@ -72,18 +65,15 @@ export default function MaterialsPage({ settings }: Props) {
       if (hasMenExCode && !hasWomenExCode) return { isMen: true, isWomen: false };
       if (hasWomenExCode && !hasMenExCode) return { isMen: false, isWomen: true };
 
-      // Tier 3: Fallback - Dictionary stone names matching in title
       const menStoneNames = Object.values(STONE_CODES_MEN).map(v => v.toLowerCase());
       const womenStoneNames = Object.values(STONE_CODES_WOMEN).map(v => v.toLowerCase());
 
       const matchesMenName = menStoneNames.some(sn => nameLower.includes(sn));
       const matchesWomenName = womenStoneNames.some(sn => nameLower.includes(sn));
 
-      // If it matches both (like "Λάπις" with no keywords), it shows in both
       return { isMen: matchesMenName, isWomen: matchesWomenName };
   };
 
-  // Derived filtered list with smart stone grouping
   const filteredMaterials = useMemo(() => {
       return editableMaterials.filter(m => {
           const matchesTab = activeTab === 'ALL' || m.type === activeTab;
@@ -91,7 +81,6 @@ export default function MaterialsPage({ settings }: Props) {
           
           if (!matchesTab || !matchesSearch) return false;
 
-          // Apply stone sub-filtering
           if (activeTab === MaterialType.Stone && stoneGroup !== 'all') {
               const { isMen, isWomen } = detectGender(m);
               if (stoneGroup === 'men') return isMen;
@@ -102,7 +91,6 @@ export default function MaterialsPage({ settings }: Props) {
       });
   }, [editableMaterials, activeTab, searchTerm, stoneGroup]);
 
-  // Calculate counts for tabs
   const counts = useMemo(() => {
       const c: Record<string, number> = { 'ALL': editableMaterials.length };
       Object.values(MaterialType).forEach(t => c[t] = 0);
@@ -115,10 +103,10 @@ export default function MaterialsPage({ settings }: Props) {
   const handleAddMaterial = async () => {
     try {
         const defaultType = activeTab !== 'ALL' ? (activeTab as MaterialType) : MaterialType.Component;
-        const { error } = await supabase.from('materials').insert({
-            name: 'Νέο Υλικό', type: defaultType, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}
-        });
-        if (error) throw error;
+        const newMat: Partial<Material> = {
+            name: 'Νέο Υλικό', type: defaultType, cost_per_unit: 0, unit: 'Τεμ', variant_prices: {}, stock_qty: 0
+        };
+        await api.saveMaterial(newMat as Material);
         queryClient.invalidateQueries({ queryKey: ['materials'] });
         showToast('Το υλικό δημιουργήθηκε.', 'success');
     } catch(e) {
@@ -134,10 +122,7 @@ export default function MaterialsPage({ settings }: Props) {
       const material = editableMaterials.find(m => m.id === materialId);
       if (!material) return;
       try {
-          const { error } = await supabase.from('materials').update({
-              name: material.name, type: material.type, cost_per_unit: material.cost_per_unit, unit: material.unit
-          }).eq('id', material.id);
-          if (error) throw error;
+          await api.saveMaterial(material);
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           showToast("Αποθηκεύτηκε επιτυχώς!", 'success');
       } catch(e) {
@@ -297,6 +282,8 @@ export default function MaterialsPage({ settings }: Props) {
                       <th className="p-5 w-16 text-center">#</th>
                       <th className="p-5">Όνομα</th>
                       <th className="p-5">Τύπος</th>
+                      <th className="p-5">Προμηθευτής</th>
+                      <th className="p-5 w-24 text-center">Στοκ</th>
                       <th className="p-5 text-right">Κόστος (€)</th>
                       <th className="p-5 w-24 text-center">Μονάδα</th>
                       <th className="p-5 text-center w-32">Ενέργειες</th>
@@ -304,7 +291,6 @@ export default function MaterialsPage({ settings }: Props) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredMaterials.map((m, idx) => {
-                    // Detect gender for UI badge using our Tiered logic
                     const isStone = m.type === MaterialType.Stone;
                     const { isMen, isWomen } = isStone ? detectGender(m) : { isMen: false, isWomen: false };
 
@@ -346,6 +332,31 @@ export default function MaterialsPage({ settings }: Props) {
                                 </select>
                             </div>
                         </td>
+                        <td className="p-4">
+                            <div className="flex items-center gap-2 text-xs">
+                                <Globe size={14} className="text-slate-400"/>
+                                <select 
+                                    value={m.supplier_id || ''} 
+                                    onChange={(e) => updateMaterial(m.id, 'supplier_id', e.target.value || null)}
+                                    className="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 py-1 text-slate-600 outline-none cursor-pointer"
+                                >
+                                    <option value="">-</option>
+                                    {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        </td>
+                        <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-1 bg-slate-100 rounded-lg px-2 py-1">
+                                <Package size={12} className="text-slate-400"/>
+                                <input 
+                                    type="number"
+                                    min="0"
+                                    value={m.stock_qty || 0}
+                                    onChange={e => updateMaterial(m.id, 'stock_qty', parseInt(e.target.value) || 0)}
+                                    className="w-12 bg-transparent text-center font-bold text-slate-700 outline-none text-xs"
+                                />
+                            </div>
+                        </td>
                         <td className="p-4 text-right">
                             <input 
                                 type="number" 
@@ -374,7 +385,7 @@ export default function MaterialsPage({ settings }: Props) {
                     );
                   })}
                   {filteredMaterials.length === 0 && (
-                    <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά.</span></td></tr>
+                    <tr><td colSpan={8} className="p-16 text-center text-slate-400 flex flex-col items-center"><Box className="mb-2 opacity-50" size={32}/><span>Δεν βρέθηκαν υλικά.</span></td></tr>
                   )}
                 </tbody>
               </table>
