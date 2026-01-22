@@ -1,9 +1,8 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -63,6 +62,31 @@ const FINISH_STYLES: Record<string, { style: string, label: string }> = {
     '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
 };
 
+// Time Aging Helper
+const getTimeInStage = (dateStr: string) => {
+    const start = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHrs / 24);
+
+    let label = '';
+    let colorClass = '';
+
+    if (diffDays > 0) {
+        label = `${diffDays}d ${diffHrs % 24}h`;
+        if (diffDays >= 3) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical
+        else if (diffDays >= 1) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning
+        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
+    } else {
+        label = `${diffHrs}h`;
+        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200'; // Fresh
+        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
+    }
+
+    return { label, colorClass };
+};
+
 interface BatchCardProps {
     batch: ProductionBatch & { customer_name?: string };
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
@@ -70,7 +94,7 @@ interface BatchCardProps {
     onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onEditNote: (batch: ProductionBatch) => void;
-    onToggleHold: (batch: ProductionBatch) => void; // New prop
+    onToggleHold: (batch: ProductionBatch) => void; 
     onClick: (batch: ProductionBatch) => void;
 }
 
@@ -82,6 +106,8 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
     // Calculate finish for styling
     const { finish } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
     const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
+    
+    const timeInfo = getTimeInStage(batch.updated_at);
 
     return (
     <div 
@@ -91,9 +117,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
         className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation cursor-pointer
                     ${batch.on_hold 
                         ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
-                        : (batch.isDelayed 
-                            ? 'border-red-300 ring-2 ring-red-100 shadow-red-100' 
-                            : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'))}
+                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
         `}
     >
@@ -106,12 +130,10 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
                         <span>ΣΕ ΑΝΑΜΟΝΗ</span>
                     </div>
                 ) : (
-                    batch.isDelayed && !isReady && (
-                        <div className="animate-pulse bg-red-50 text-red-600 border border-red-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                            <AlertTriangle size={10} className="fill-current" />
-                            <span>+{batch.diffHours}h Καθυστέρηση</span>
-                        </div>
-                    )
+                    <div className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 border ${timeInfo.colorClass}`}>
+                        <Clock size={10} />
+                        <span>{timeInfo.label}</span>
+                    </div>
                 )}
                 {isRefurbish && (
                     <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
@@ -209,6 +231,156 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
             )}
         </div>
     </div>
+    );
+};
+
+const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: { 
+    isOpen: boolean, 
+    onClose: () => void, 
+    onConfirm: (selected: ProductionBatch[]) => void, 
+    batches: (ProductionBatch & { customer_name?: string })[],
+    title: string
+}) => {
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(batches.map(b => b.id)));
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        if (isOpen) setSelectedIds(new Set(batches.map(b => b.id)));
+    }, [isOpen, batches]);
+
+    const groupedBatches = useMemo(() => {
+        const groups: Record<string, { name: string, items: typeof batches }> = {};
+        
+        batches.forEach(b => {
+            const key = b.order_id || 'no_order';
+            if (!groups[key]) {
+                groups[key] = { 
+                    name: b.customer_name ? `${b.customer_name} (#${b.order_id?.slice(0,6)})` : (b.order_id ? `Order #${b.order_id.slice(0,6)}` : 'Χωρίς Εντολή'), 
+                    items: [] 
+                };
+            }
+            groups[key].items.push(b);
+        });
+
+        return Object.entries(groups)
+            .sort((a, b) => b[1].items.length - a[1].items.length)
+            .filter(([_, group]) => group.name.toLowerCase().includes(searchTerm.toLowerCase()) || group.items.some(i => i.sku.toLowerCase().includes(searchTerm.toLowerCase())));
+    }, [batches, searchTerm]);
+
+    const toggleBatch = (id: string) => {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
+
+    const toggleGroup = (batchIds: string[]) => {
+        const allSelected = batchIds.every(id => selectedIds.has(id));
+        const next = new Set(selectedIds);
+        if (allSelected) {
+            batchIds.forEach(id => next.delete(id));
+        } else {
+            batchIds.forEach(id => next.add(id));
+        }
+        setSelectedIds(next);
+    };
+
+    const handleConfirm = () => {
+        const selected = batches.filter(b => selectedIds.has(b.id));
+        onConfirm(selected);
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <Printer size={20} className="text-blue-600"/> {title}
+                        </h3>
+                        <p className="text-sm text-slate-500">Επιλέξτε παρτίδες για εκτύπωση ({selectedIds.size} επιλεγμένα)</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20}/></button>
+                </div>
+
+                <div className="p-4 border-b border-slate-100 bg-white">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                        <input 
+                            type="text" 
+                            placeholder="Αναζήτηση εντολής, πελάτη ή SKU..." 
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-9 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-medium"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-50/30">
+                    {groupedBatches.map(([key, group]) => {
+                        const allSelected = group.items.every(b => selectedIds.has(b.id));
+                        const someSelected = group.items.some(b => selectedIds.has(b.id));
+                        
+                        return (
+                            <div key={key} className={`bg-white rounded-xl border transition-all ${allSelected ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'}`}>
+                                <div 
+                                    className="p-3 border-b border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-t-xl"
+                                    onClick={() => toggleGroup(group.items.map(b => b.id))}
+                                >
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allSelected ? 'bg-blue-600 border-blue-600' : (someSelected ? 'bg-blue-100 border-blue-300' : 'bg-white border-slate-300')}`}>
+                                        {allSelected && <Check size={14} className="text-white"/>}
+                                        {someSelected && !allSelected && <div className="w-2 h-2 bg-blue-600 rounded-sm"/>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-slate-800 text-sm">{group.name}</div>
+                                        <div className="text-[10px] text-slate-500">{group.items.length} είδη</div>
+                                    </div>
+                                </div>
+                                <div className="p-2 space-y-1">
+                                    {group.items.map(item => (
+                                        <div 
+                                            key={item.id} 
+                                            onClick={() => toggleBatch(item.id)}
+                                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                                        >
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(item.id) ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
+                                                {selectedIds.has(item.id) && <Check size={12} className="text-white"/>}
+                                            </div>
+                                            <div className="flex-1 flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-bold text-sm text-slate-700">{item.sku}{item.variant_suffix}</span>
+                                                    {item.size_info && <span className="text-[9px] bg-slate-100 px-1.5 rounded border border-slate-200 font-bold text-slate-500">{item.size_info}</span>}
+                                                </div>
+                                                <div className="text-xs font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                                    {item.quantity} τμχ
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {groupedBatches.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν παρτίδες.</div>}
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 rounded-b-3xl">
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                        Ακύρωση
+                    </button>
+                    <button 
+                        onClick={handleConfirm}
+                        disabled={selectedIds.size === 0}
+                        className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <Printer size={18}/> Εκτύπωση ({selectedIds.size})
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -455,6 +627,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   
   // Finder State
   const [finderTerm, setFinderTerm] = useState('');
+
+  // PRINT SELECTOR MODAL STATE
+  const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
 
   const [splitModalState, setSplitModalState] = useState<{
       batch: ProductionBatch;
@@ -733,6 +908,30 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   // Sort Order for Genders
   const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
+  // Handle Print Request with Modal (New Logic)
+  const handlePrintRequest = (batchesToPrint: ProductionBatch[], type: 'technician' | 'preparation' | 'aggregated') => {
+      // Filter out completed if needed, but usually we print whatever is passed
+      const validBatches = batchesToPrint.filter(b => !b.on_hold);
+      
+      if (validBatches.length === 0) {
+          showToast("Δεν υπάρχουν επιλέξιμες παρτίδες για εκτύπωση.", "info");
+          return;
+      }
+
+      setPrintSelectorState({
+          isOpen: true,
+          type: type,
+          batches: validBatches
+      });
+  };
+
+  const executePrint = (selected: ProductionBatch[]) => {
+      const type = printSelectorState.type;
+      if (type === 'technician') onPrintTechnician(selected);
+      else if (type === 'preparation') onPrintPreparation(selected);
+      else if (type === 'aggregated') onPrintAggregated(selected);
+  };
+
   if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
 
   return (
@@ -819,22 +1018,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             
             <div className="flex items-center gap-2 flex-wrap">
                 <button 
-                    onClick={() => onPrintPreparation(enhancedBatches)}
-                    disabled={enhancedBatches.length === 0}
+                    onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.current_stage === ProductionStage.Waxing || b.current_stage === ProductionStage.Casting), 'preparation')}
                     className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-xs"
                 >
                     <BookOpen size={14} /> Προετοιμασία
                 </button>
                  <button 
-                    onClick={() => onPrintTechnician(enhancedBatches)}
-                    disabled={enhancedBatches.length === 0}
+                    onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.current_stage === ProductionStage.Polishing), 'technician')}
                     className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-100 font-bold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-xs"
                 >
                     <Hammer size={14} /> Τεχνίτης
                 </button>
                 <button 
-                    onClick={() => onPrintAggregated(enhancedBatches)}
-                    disabled={enhancedBatches.length === 0}
+                    onClick={() => handlePrintRequest(enhancedBatches, 'aggregated')}
                     className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-xs"
                 >
                     <FileText size={14} /> Συγκεντρωτική
@@ -994,6 +1190,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 allMolds={molds} 
                 onClose={() => setViewBuildBatch(null)} 
                 onMove={handleMoveBatch}
+            />
+        )}
+
+        {printSelectorState.isOpen && (
+            <PrintSelectorModal 
+                isOpen={printSelectorState.isOpen}
+                onClose={() => setPrintSelectorState({...printSelectorState, isOpen: false})}
+                onConfirm={executePrint}
+                batches={printSelectorState.batches}
+                title={
+                    printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
+                    printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' : 'Συγκεντρωτική Εκτύπωση'
+                }
             />
         )}
     </div>
