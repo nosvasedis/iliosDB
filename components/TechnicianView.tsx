@@ -106,8 +106,9 @@ export default function TechnicianView({ batches }: Props) {
                             {Object.keys(item.sizes).length > 0 && (
                                 <div className="flex flex-wrap gap-1 mb-1">
                                     {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
-                                        <div key={size} className="bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[9px]">
-                                            <span className="font-black text-slate-800">{size}</span>: <span className="font-bold text-slate-600">{qty}</span>
+                                        <div key={size} className="bg-slate-100 border border-slate-300 rounded px-2 py-1 flex items-baseline gap-1 shadow-sm">
+                                            <span className="font-black text-slate-900 text-xs">{size}</span>
+                                            <span className="font-bold text-slate-500 text-[8px] whitespace-nowrap">({qty} τμχ)</span>
                                         </div>
                                     ))}
                                 </div>
