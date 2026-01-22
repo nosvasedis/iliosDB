@@ -3,9 +3,10 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
+import { getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -53,6 +54,15 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
 
+// Finish/Plating Visuals
+const FINISH_STYLES: Record<string, { style: string, label: string }> = {
+    'X': { style: 'bg-amber-100 text-amber-900 border-amber-200', label: 'Επίχρυσο' },
+    'P': { style: 'bg-stone-200 text-stone-800 border-stone-300', label: 'Πατίνα' },
+    'D': { style: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Δίχρωμο' },
+    'H': { style: 'bg-cyan-100 text-cyan-900 border-cyan-200', label: 'Πλατίνα' },
+    '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
+};
+
 interface BatchCardProps {
     batch: ProductionBatch & { customer_name?: string };
     onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
@@ -68,6 +78,10 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
     
+    // Calculate finish for styling
+    const { finish } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
+    const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
+
     return (
     <div 
         draggable={true} // Allow dragging even if ready, to move backwards if needed
@@ -131,9 +145,13 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
                 )}
             </div>
             <div className="min-w-0 flex-1">
-                <div className="font-black text-slate-800 text-base leading-none truncate mb-1">{batch.sku}</div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                    {batch.variant_suffix && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.variant_suffix}</span>}
+                {/* SKU Badge with Finish Color */}
+                <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border mb-1 ${finishConfig.style}`}>
+                     <span className="font-black text-sm leading-none">{batch.sku}{batch.variant_suffix}</span>
+                     <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block">| {finishConfig.label}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap mt-1">
                     {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.size_info}</span>}
                 </div>
             </div>
@@ -564,7 +582,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       if (nextStage) attemptMove(batch, nextStage);
   };
   
-  // NEW: GROUPING LOGIC (Gender -> Collection -> Batches)
+  // NEW: GROUPING LOGIC (Gender -> Collection -> Finish -> Batches)
   const groupBatches = (batches: ProductionBatch[]) => {
       // Structure: Record<Gender, Record<CollectionName, ProductionBatch[]>>
       const groups: Record<string, Record<string, ProductionBatch[]>> = {};
@@ -586,10 +604,22 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
          groups[gender][collName].push(b);
       });
       
-      // Sort batches within groups alphabetically by SKU
+      // Sort batches within groups by Finish Priority then SKU
+      const FINISH_PRIORITY: Record<string, number> = { '': 0, 'P': 1, 'X': 2, 'D': 3, 'H': 4 };
+      
       Object.keys(groups).forEach(genderKey => {
           Object.keys(groups[genderKey]).forEach(collKey => {
-              groups[genderKey][collKey].sort((a, b) => (a.sku + (a.variant_suffix || '')).localeCompare(b.sku + (b.variant_suffix || '')));
+              groups[genderKey][collKey].sort((a, b) => {
+                  const finishA = getVariantComponents(a.variant_suffix || '', a.product_details?.gender).finish.code;
+                  const finishB = getVariantComponents(b.variant_suffix || '', b.product_details?.gender).finish.code;
+                  
+                  const prioA = FINISH_PRIORITY[finishA] ?? 9;
+                  const prioB = FINISH_PRIORITY[finishB] ?? 9;
+                  
+                  if (prioA !== prioB) return prioA - prioB;
+                  
+                  return (a.sku + (a.variant_suffix || '')).localeCompare(b.sku + (b.variant_suffix || ''));
+              });
           });
       });
       
