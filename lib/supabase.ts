@@ -575,7 +575,16 @@ export const api = {
     
     deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
     saveOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'INSERT', o); },
-    updateOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); },
+    
+    // NEW: Modified updateOrder to check for production batch sync
+    updateOrder: async (o: Order): Promise<void> => { 
+        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); 
+        
+        // Smart Reconciliation: If order is in production, sync new items to batches
+        if (o.status === OrderStatus.InProduction) {
+            await api.reconcileOrderBatches(o);
+        }
+    },
     
     deleteOrder: async (id: string): Promise<void> => { 
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
@@ -640,6 +649,84 @@ export const api = {
         for (const item of items) {
             if (item.variant_suffix) await safeMutate('product_variants', 'UPDATE', { selling_price: item.price }, { match: { product_sku: item.product_sku, suffix: item.variant_suffix } });
             else await safeMutate('products', 'UPDATE', { selling_price: item.price }, { match: { sku: item.product_sku } });
+        }
+    },
+
+    // NEW: Reconciliation Function
+    reconcileOrderBatches: async (order: Order): Promise<void> => {
+        try {
+            // 1. Fetch existing batches
+            const { data: existingBatches } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
+            const batches = existingBatches || [];
+
+            // 2. Fetch products & materials for config
+            const allProducts = await api.getProducts();
+            const allMaterials = await api.getMaterials();
+            const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+
+            // 3. Map Supply (Existing Batches)
+            const supplyMap: Record<string, number> = {};
+            batches.forEach((b: any) => {
+                // Key format: SKU::SUFFIX
+                const key = `${b.sku}::${b.variant_suffix || ''}`;
+                supplyMap[key] = (supplyMap[key] || 0) + b.quantity;
+            });
+
+            // 4. Map Demand (Current Order Items)
+            const newBatches: any[] = [];
+            const demandMap: Record<string, { qty: number, item: any }> = {};
+
+            order.items.forEach(item => {
+                 const key = `${item.sku}::${item.variant_suffix || ''}`;
+                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
+                 demandMap[key].qty += item.quantity;
+            });
+
+            // 5. Calculate Diff & Prepare New Batches
+            Object.entries(demandMap).forEach(([key, data]) => {
+                const supply = supplyMap[key] || 0;
+                const demand = data.qty;
+                
+                if (demand > supply) {
+                    const diff = demand - supply;
+                    const { item } = data;
+                    const product = allProducts.find(p => p.sku === item.sku);
+                    
+                    if (product) {
+                         const suffix = item.variant_suffix || '';
+                         const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                                 product.recipe.some((r: any) => {
+                                     if (r.type !== 'raw') return false;
+                                     const material = allMaterials.find(m => m.id === r.id);
+                                     return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                                 });
+                         
+                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+
+                         newBatches.push({
+                            id: crypto.randomUUID(),
+                            order_id: order.id,
+                            sku: item.sku,
+                            variant_suffix: item.variant_suffix || null,
+                            quantity: diff,
+                            current_stage: stage,
+                            size_info: item.size_info || null,
+                            notes: item.notes || null,
+                            priority: 'Normal',
+                            type: 'Νέα',
+                            requires_setting: hasZircons,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                         });
+                    }
+                }
+            });
+
+            if (newBatches.length > 0) {
+                await safeMutate('production_batches', 'UPSERT', newBatches);
+            }
+        } catch (err) {
+            console.error("Batch Reconciliation Failed:", err);
         }
     },
 
