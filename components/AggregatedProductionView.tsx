@@ -1,8 +1,8 @@
 
-import React from 'react';
-import { AggregatedData } from '../types';
+import React, { useMemo } from 'react';
+import { AggregatedData, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
-import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote } from 'lucide-react';
+import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote, Hammer } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { GlobalSettings } from '../types';
 
@@ -19,6 +19,59 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
         });
     };
+
+    // Calculate Technician Metal Breakdown (Excluding STX)
+    const techMetal = useMemo(() => {
+        const acc = { P: 0, X: 0, H: 0 };
+        
+        data.batches.forEach(batch => {
+            const p = batch.product_details;
+            // 1. Exclude STX (Components) and Imported items (if they don't go to technician)
+            // Usually Imported items don't need metal calculation for casting, but request specifically mentioned STX.
+            if (!p || p.is_component) return; 
+
+            const qty = batch.quantity;
+            const wMain = p.weight_g;
+            const wSec = p.secondary_weight_g || 0;
+            const suffix = batch.variant_suffix || '';
+
+            // Detect Finish Type
+            let type = 'P'; // Default
+            
+            if (suffix.includes('X')) type = 'X';
+            else if (suffix.includes('H')) type = 'H';
+            else if (suffix.includes('D')) type = 'D';
+            else if (suffix.includes('P')) type = 'P';
+            else {
+                // Fallback to master plating type if suffix doesn't specify
+                if (p.plating_type === 'Gold-Plated') type = 'X';
+                else if (p.plating_type === 'Platinum') type = 'H';
+                else if (p.plating_type === 'Two-Tone') type = 'D';
+            }
+
+            // Calculation Logic
+            if (type === 'D') {
+                // Two-Tone: Smart Split
+                // Primary Weight -> Silver (P)
+                // Secondary Weight -> Gold Plated (X)
+                acc.P += wMain * qty;
+                acc.X += wSec * qty;
+            } else if (type === 'X') {
+                // Full Gold Plated: Total Weight
+                acc.X += (wMain + wSec) * qty;
+            } else if (type === 'H') {
+                // Full Platinum Plated: Total Weight
+                acc.H += (wMain + wSec) * qty;
+            } else {
+                // Standard Silver/Patina: Total Weight
+                acc.P += (wMain + wSec) * qty;
+            }
+        });
+
+        return acc;
+    }, [data.batches]);
+
+    const totalTechnicianSilver = techMetal.P + techMetal.X + techMetal.H;
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full h-auto min-h-0">
@@ -55,7 +108,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     </div>
                     <div className="flex items-center gap-1.5">
                         <Weight size={14} className="text-slate-400"/>
-                        <span className="font-bold text-slate-700">{formatDecimal(data.totalSilverWeight, 1)}g Ag</span>
+                        <span className="font-bold text-slate-700">{formatDecimal(data.totalSilverWeight, 1)}g Ag (Total)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <Coins size={14} className="text-slate-400"/>
@@ -65,6 +118,32 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-500 uppercase text-[10px]">Κοστος:</span>
                     <span className="font-black text-slate-900 text-sm">{formatCurrency(data.totalProductionCost)}</span>
+                </div>
+            </div>
+
+            {/* NEW: TECHNICIAN METAL BREAKDOWN (P/X/H) */}
+            <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden">
+                <div className="bg-slate-100 px-3 py-1 border-b border-slate-200 flex justify-between items-center">
+                     <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                        <Hammer size={10}/> Παράδοση Μετάλλου στον Τεχνίτη
+                     </span>
+                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                        (Εκτός STX) • Σύνολο: {formatDecimal(totalTechnicianSilver, 1)}g
+                     </span>
+                </div>
+                <div className="grid grid-cols-3 divide-x divide-slate-200">
+                    <div className="p-2 bg-slate-50 text-center">
+                        <div className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">Λευκο / Πατινα (P)</div>
+                        <div className="text-lg font-black text-slate-700 leading-none">{formatDecimal(techMetal.P, 1)} <span className="text-[10px] font-medium text-slate-400">g</span></div>
+                    </div>
+                    <div className="p-2 bg-amber-50 text-center">
+                        <div className="text-[8px] font-bold text-amber-600/70 uppercase mb-0.5">Για Επιχρυσωση (X)</div>
+                        <div className="text-lg font-black text-amber-700 leading-none">{formatDecimal(techMetal.X, 1)} <span className="text-[10px] font-medium text-amber-500">g</span></div>
+                    </div>
+                    <div className="p-2 bg-cyan-50 text-center">
+                        <div className="text-[8px] font-bold text-cyan-600/70 uppercase mb-0.5">Για Επιπλατινωση (H)</div>
+                        <div className="text-lg font-black text-cyan-700 leading-none">{formatDecimal(techMetal.H, 1)} <span className="text-[10px] font-medium text-cyan-500">g</span></div>
+                    </div>
                 </div>
             </div>
             
@@ -105,6 +184,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 <div className="flex items-baseline gap-1">
                                     <span className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</span>
                                     {batch.size_info && <span className="text-[9px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200">{batch.size_info}</span>}
+                                    {batch.product_details?.is_component && <span className="text-[8px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
                                 </div>
                                 {(batch.product_details?.supplier_sku || batch.notes) && (
                                     <div className="flex flex-wrap gap-2 text-[9px] mt-0.5">
