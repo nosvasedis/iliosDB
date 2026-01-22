@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -70,10 +70,11 @@ interface BatchCardProps {
     onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onEditNote: (batch: ProductionBatch) => void;
+    onToggleHold: (batch: ProductionBatch) => void; // New prop
     onClick: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onClick }) => {
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onToggleHold, onClick }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
@@ -88,20 +89,29 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
         onDragStart={(e) => onDragStart(e, batch.id)}
         onClick={() => onClick(batch)}
         className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation cursor-pointer
-                    ${batch.isDelayed 
-                        ? 'border-red-300 ring-2 ring-red-100 shadow-red-100' 
-                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
+                    ${batch.on_hold 
+                        ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
+                        : (batch.isDelayed 
+                            ? 'border-red-300 ring-2 ring-red-100 shadow-red-100' 
+                            : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'))}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
         `}
     >
         {/* Header Badges */}
         <div className="flex justify-between items-start mb-3">
             <div className="flex flex-wrap gap-2">
-                {batch.isDelayed && !isReady && (
-                    <div className="animate-pulse bg-red-50 text-red-600 border border-red-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                        <AlertTriangle size={10} className="fill-current" />
-                        <span>+{batch.diffHours}h Καθυστέρηση</span>
+                {batch.on_hold ? (
+                    <div className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                        <PauseCircle size={10} className="fill-current" />
+                        <span>ON HOLD</span>
                     </div>
+                ) : (
+                    batch.isDelayed && !isReady && (
+                        <div className="animate-pulse bg-red-50 text-red-600 border border-red-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                            <AlertTriangle size={10} className="fill-current" />
+                            <span>+{batch.diffHours}h Καθυστέρηση</span>
+                        </div>
+                    )
                 )}
                 {isRefurbish && (
                     <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
@@ -111,6 +121,13 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
             </div>
             
             <div className="flex gap-1">
+                 <button
+                    onClick={(e) => { e.stopPropagation(); onToggleHold(batch); }}
+                    className={`p-1.5 rounded-lg transition-colors ${batch.on_hold ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                    title={batch.on_hold ? "Συνέχιση Παραγωγής" : "Θέση σε Αναμονή"}
+                >
+                    {batch.on_hold ? <PlayCircle size={16} className="fill-current"/> : <PauseCircle size={16}/>}
+                </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
                     className={`p-1.5 rounded-lg transition-colors ${batch.notes ? 'bg-amber-100 text-amber-700' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
@@ -157,8 +174,16 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
             </div>
         </div>
         
-        {batch.notes && (
-            <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2 text-[10px] text-amber-800 italic leading-tight pointer-events-none">
+        {/* Hold Reason Display */}
+        {batch.on_hold && batch.on_hold_reason && (
+             <div className="mb-3 bg-amber-100 border border-amber-200 rounded-lg p-2 flex gap-2">
+                <AlertTriangle size={12} className="text-amber-600 shrink-0 mt-0.5"/>
+                <span className="text-[10px] text-amber-800 font-bold leading-tight">{batch.on_hold_reason}</span>
+            </div>
+        )}
+
+        {batch.notes && !batch.on_hold && (
+            <div className="mb-3 bg-yellow-50 border border-yellow-100 rounded-lg p-2 text-[10px] text-yellow-800 italic leading-tight pointer-events-none">
                 "{batch.notes}"
             </div>
         )}
@@ -174,7 +199,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
                 )}
             </div>
 
-            {!isReady && onNextStage && (
+            {!isReady && onNextStage && !batch.on_hold && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onNextStage(batch); }}
                     className="flex items-center gap-1 bg-slate-100 hover:bg-emerald-500 hover:text-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
@@ -189,11 +214,13 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
 
 const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
     const total = batches.length;
-    const delayed = batches.filter(b => b.isDelayed).length;
+    const delayed = batches.filter(b => b.isDelayed && !b.on_hold).length; // Exclude held batches from delay stats
     const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
-    const inProgress = total - ready;
+    const onHold = batches.filter(b => b.on_hold).length;
+    const inProgress = total - ready - onHold;
     
-    const healthScore = total > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
+    // Adjusted health score: Exclude on-hold from penalty
+    const healthScore = (inProgress + ready) > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
     
     return (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
@@ -208,6 +235,10 @@ const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
             </div>
 
             <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                 <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px]">
+                    <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> On Hold</div>
+                    <div className="text-2xl font-black text-amber-700">{onHold}</div>
+                </div>
                 <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px]">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12}/> Ενεργά</div>
                     <div className="text-2xl font-black text-slate-800">{inProgress}</div>
@@ -259,6 +290,45 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
                         className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors flex items-center gap-2 shadow-lg"
                     >
                         {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Αποθήκευση
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: ProductionBatch, onClose: () => void, onConfirm: (reason: string) => void, isProcessing: boolean }) => {
+    const [reason, setReason] = useState('');
+
+    return (
+        <div className="fixed inset-0 z-[160] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 border border-amber-200">
+                <div className="p-6 border-b border-amber-100 flex justify-between items-center bg-amber-50">
+                    <h3 className="text-lg font-black text-amber-800 flex items-center gap-2">
+                        <PauseCircle size={18}/> Θέση σε Αναμονή
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-amber-100 rounded-full text-amber-500"><X size={20}/></button>
+                </div>
+                <div className="p-6">
+                    <p className="mb-4 text-sm text-slate-600 font-bold">
+                        Γιατί σταματάει η παραγωγή του {batch.sku};
+                    </p>
+                    <textarea 
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        className="w-full p-4 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-32 resize-none text-sm font-bold text-slate-800"
+                        placeholder="π.χ. Έλλειψη εξαρτήματος, Σπασμένο λάστιχο..."
+                        autoFocus
+                    />
+                </div>
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-200 transition-colors">Άκυρο</button>
+                    <button 
+                        onClick={() => onConfirm(reason)} 
+                        disabled={isProcessing || !reason.trim()}
+                        className="px-6 py-2.5 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition-colors flex items-center gap-2 shadow-lg disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <PauseCircle size={16}/>} ON HOLD
                     </button>
                 </div>
             </div>
@@ -373,6 +443,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   // Note Editing
   const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // Hold Batch
+  const [holdingBatch, setHoldingBatch] = useState<ProductionBatch | null>(null);
   
   // Build View (New)
   const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
@@ -445,6 +518,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   };
 
   const attemptMove = (batch: ProductionBatch, targetStage: ProductionStage) => {
+    if (batch.on_hold) {
+        showToast("Η παρτίδα είναι σε αναμονή. Ξεμπλοκάρετε την πρώτα.", "error");
+        return;
+    }
     if (batch.current_stage === targetStage) return;
 
     if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
@@ -553,6 +630,33 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       }
   };
   
+  const handleToggleHold = async (batch: ProductionBatch) => {
+      if (batch.on_hold) {
+          // Resume directly
+          await api.toggleBatchHold(batch.id, false);
+          queryClient.invalidateQueries({ queryKey: ['batches'] });
+          showToast("Η παρτίδα συνεχίζει την παραγωγή.", "success");
+      } else {
+          // Open Modal
+          setHoldingBatch(batch);
+      }
+  };
+
+  const confirmHold = async (reason: string) => {
+      if (!holdingBatch) return;
+      setIsSavingNote(true);
+      try {
+          await api.toggleBatchHold(holdingBatch.id, true, reason);
+          queryClient.invalidateQueries({ queryKey: ['batches'] });
+          showToast("Η παρτίδα τέθηκε σε αναμονή.", "warning");
+          setHoldingBatch(null);
+      } catch (e) {
+          showToast("Σφάλμα.", "error");
+      } finally {
+          setIsSavingNote(false);
+      }
+  };
+
   const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
       attemptMove(batch, stage);
   }
@@ -833,6 +937,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                             onPrint={onPrintBatch} 
                                                             onNextStage={handleQuickNext}
                                                             onEditNote={() => setEditingNoteBatch(batch)}
+                                                            onToggleHold={() => handleToggleHold(batch)}
                                                             onClick={() => setViewBuildBatch(batch)}
                                                         />
                                                     ))}
@@ -869,6 +974,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 batch={editingNoteBatch}
                 onClose={() => setEditingNoteBatch(null)}
                 onSave={handleSaveNote}
+                isProcessing={isSavingNote}
+            />
+        )}
+
+        {holdingBatch && (
+            <HoldBatchModal 
+                batch={holdingBatch}
+                onClose={() => setHoldingBatch(null)}
+                onConfirm={confirmHold}
                 isProcessing={isSavingNote}
             />
         )}

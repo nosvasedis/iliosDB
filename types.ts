@@ -275,6 +275,9 @@ export interface ProductionBatch {
   
   diffHours?: number;
   isDelayed?: boolean;
+
+  on_hold?: boolean; // New: Batch is paused
+  on_hold_reason?: string; // New: Reason for hold
 }
 
 export interface ChatMessage {

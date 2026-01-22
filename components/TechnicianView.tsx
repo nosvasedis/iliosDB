@@ -25,6 +25,7 @@ export default function TechnicianView({ batches }: Props) {
 
         batches
             .filter(batch => batch.product_details?.production_type !== ProductionType.Imported) // Filter out imported products
+            .filter(batch => !batch.on_hold) // NEW: Filter out batches on hold
             .forEach(batch => {
                 const product = batch.product_details;
                 if (!product) return;
@@ -77,7 +78,7 @@ export default function TechnicianView({ batches }: Props) {
                      <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
                 <div className="text-right">
-                    <h1 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer size={18}/> Φύλλο Τεχνίτη</h1>
+                    <h1 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center justify-end gap-2"><Hammer size={18}/> Φύλλο Τεχνίτη</h1>
                     <p className="text-slate-600 text-xs font-bold mt-1">Ημ: {new Date().toLocaleDateString('el-GR')}</p>
                 </div>
             </div>

@@ -593,6 +593,15 @@ export const api = {
     
     updateBatchStage: async (id: string, stage: ProductionStage): Promise<void> => { await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } }); },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
+
+    // NEW: Toggle Hold Status
+    toggleBatchHold: async (id: string, isHeld: boolean, reason?: string): Promise<void> => {
+        await safeMutate('production_batches', 'UPDATE', { 
+            on_hold: isHeld, 
+            on_hold_reason: reason || null, 
+            updated_at: new Date().toISOString() 
+        }, { match: { id } });
+    },
     
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { 
         await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); 
