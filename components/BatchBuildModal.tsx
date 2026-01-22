@@ -35,7 +35,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
             return {
                 code: pm.code,
                 quantity: pm.quantity,
-                location: details?.location || 'Unknown',
+                location: details?.location || '-',
                 description: details?.description
             };
         });
@@ -119,7 +119,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                             <div className="flex gap-2 mt-2">
                                 {batch.size_info && (
                                     <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-100">
-                                        <Scale size={12}/> Size: {batch.size_info}
+                                        <Scale size={12}/> Μέγεθος: {batch.size_info}
                                     </div>
                                 )}
                                 {batch.on_hold && (
