@@ -1,9 +1,9 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 
@@ -43,6 +43,14 @@ const STAGE_COLORS = {
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', ring: 'ring-blue-100', header: 'bg-blue-100/50' },
     yellow: { bg: 'bg-yellow-50', text: 'text-yellow-600', border: 'border-yellow-200', ring: 'ring-yellow-100', header: 'bg-yellow-100/50' },
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', ring: 'ring-emerald-100', header: 'bg-emerald-100/50' },
+};
+
+// Gender Display Config
+const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
+    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 ring-pink-100' },
+    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
+    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
+    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
 
 interface BatchCardProps {
@@ -338,6 +346,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   const { showToast, confirm } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
   const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders }); 
+  const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
   
   const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
@@ -525,6 +534,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
           setIsSavingNote(false);
       }
   };
+  
+  const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
+      attemptMove(batch, stage);
+  }
 
   // Determines next logical stage for "Quick Move" button
   const getNextStage = (currentStage: ProductionStage, batch: ProductionBatch): ProductionStage | null => {
@@ -550,6 +563,41 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       const nextStage = getNextStage(batch.current_stage, batch);
       if (nextStage) attemptMove(batch, nextStage);
   };
+  
+  // NEW: GROUPING LOGIC (Gender -> Collection -> Batches)
+  const groupBatches = (batches: ProductionBatch[]) => {
+      // Structure: Record<Gender, Record<CollectionName, ProductionBatch[]>>
+      const groups: Record<string, Record<string, ProductionBatch[]>> = {};
+      
+      batches.forEach(b => {
+         // Level 1: Gender (Use Gender Enum)
+         const gender = b.product_details?.gender || 'Unknown';
+
+         // Level 2: Collection
+         let collName = 'Γενικά';
+         if (b.product_details && b.product_details.collections && b.product_details.collections.length > 0 && collections) {
+             const c = collections.find(col => col.id === b.product_details!.collections![0]);
+             if (c) collName = c.name;
+         }
+         
+         if (!groups[gender]) groups[gender] = {};
+         if (!groups[gender][collName]) groups[gender][collName] = [];
+         
+         groups[gender][collName].push(b);
+      });
+      
+      // Sort batches within groups alphabetically by SKU
+      Object.keys(groups).forEach(genderKey => {
+          Object.keys(groups[genderKey]).forEach(collKey => {
+              groups[genderKey][collKey].sort((a, b) => (a.sku + (a.variant_suffix || '')).localeCompare(b.sku + (b.variant_suffix || '')));
+          });
+      });
+      
+      return groups;
+  };
+
+  // Sort Order for Genders
+  const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
   if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
 
@@ -587,7 +635,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                      {finderTerm.length >= 2 && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-96 overflow-y-auto custom-scrollbar p-2 space-y-2">
                              {foundBatches.map(b => (
-                                 <div key={b.id} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group">
+                                 <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
                                      <div className="flex justify-between items-start">
                                          <div>
                                              <div className="flex items-center gap-2">
@@ -606,12 +654,27 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                              </span>
                                          </div>
                                      </div>
-                                     {b.notes && (
-                                         <div className="mt-2 bg-amber-50 text-amber-800 text-xs font-bold p-2 rounded-lg flex items-start gap-2 border border-amber-100">
-                                             <StickyNote size={14} className="shrink-0 mt-0.5"/>
-                                             <span>{b.notes}</span>
+                                     <div className="mt-2 flex justify-between items-center pt-2 border-t border-slate-200/50">
+                                         {b.notes ? (
+                                             <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1 px-2 rounded-lg flex items-center gap-1 border border-amber-100 max-w-[70%] truncate">
+                                                 <StickyNote size={10} className="shrink-0"/>
+                                                 <span>{b.notes}</span>
+                                             </div>
+                                         ) : <div/>}
+                                         
+                                         {/* Direct Move Dropdown in Finder */}
+                                         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                             <span className="text-[9px] font-bold text-slate-400 uppercase">Move:</span>
+                                             <select 
+                                                value="" 
+                                                onChange={(e) => attemptMove(b, e.target.value as ProductionStage)}
+                                                className="text-xs bg-white border border-slate-300 rounded px-1 py-0.5 font-bold outline-none cursor-pointer hover:border-emerald-500"
+                                             >
+                                                <option value="" disabled>-</option>
+                                                {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                             </select>
                                          </div>
-                                     )}
+                                     </div>
                                  </div>
                              ))}
                              {foundBatches.length === 0 && <div className="p-4 text-center text-slate-400 text-xs italic">Δεν βρέθηκαν ενεργές παρτίδες.</div>}
@@ -654,6 +717,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
                     const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);
+                    const groupedBatches = groupBatches(stageBatches);
+                    
                     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                     const isTarget = dropTarget === stage.id;
                     const isExpanded = expandedStageId === stage.id;
@@ -695,7 +760,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                             
                             {/* Stage Body - Responsive Visibility */}
                             <div className={`
-                                flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar
+                                flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar
                                 ${!isExpanded ? 'hidden lg:block' : 'block'}
                                 min-h-[100px] lg:min-h-0
                             `}>
@@ -706,17 +771,46 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     </div>
                                 )}
 
-                                {stageBatches.map(batch => (
-                                    <BatchCard 
-                                        key={batch.id} 
-                                        batch={batch} 
-                                        onDragStart={handleDragStart} 
-                                        onPrint={onPrintBatch} 
-                                        onNextStage={handleQuickNext}
-                                        onEditNote={() => setEditingNoteBatch(batch)}
-                                        onClick={() => setViewBuildBatch(batch)}
-                                    />
-                                ))}
+                                {SORTED_GENDERS.map(genderKey => {
+                                    const genderBatches = groupedBatches[genderKey];
+                                    if (!genderBatches || Object.keys(genderBatches).length === 0) return null;
+                                    
+                                    const gConfig = GENDER_CONFIG[genderKey] || GENDER_CONFIG['Unknown'];
+                                    const collectionKeys = Object.keys(genderBatches).sort();
+
+                                    return (
+                                        <div key={genderKey} className="space-y-3">
+                                            {/* Level 1: Gender Header */}
+                                            <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig.style} flex justify-between items-center`}>
+                                                <span>{gConfig.label}</span>
+                                                <span className="opacity-60 text-[9px]">{Object.values(genderBatches).flat().length}</span>
+                                            </div>
+
+                                            {/* Level 2: Collection Groups */}
+                                            {collectionKeys.map(collName => (
+                                                <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
+                                                    <div className="flex items-center gap-2 px-1">
+                                                        <FolderKanban size={10} className="text-slate-400"/>
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
+                                                    </div>
+                                                    
+                                                    {/* Level 3: Batches */}
+                                                    {genderBatches[collName].map(batch => (
+                                                        <BatchCard 
+                                                            key={batch.id} 
+                                                            batch={batch} 
+                                                            onDragStart={handleDragStart} 
+                                                            onPrint={onPrintBatch} 
+                                                            onNextStage={handleQuickNext}
+                                                            onEditNote={() => setEditingNoteBatch(batch)}
+                                                            onClick={() => setViewBuildBatch(batch)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
                                 
                                 {stageBatches.length === 0 && (
                                     <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
@@ -749,12 +843,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             />
         )}
 
-        {viewBuildBatch && (
+        {viewBuildBatch && molds && (
             <BatchBuildModal 
                 batch={viewBuildBatch} 
                 allMaterials={materials} 
                 allMolds={molds} 
                 onClose={() => setViewBuildBatch(null)} 
+                onMove={handleMoveBatch}
             />
         )}
     </div>

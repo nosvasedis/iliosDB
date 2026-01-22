@@ -1,7 +1,7 @@
 
-import React, { useMemo } from 'react';
-import { ProductionBatch, Product, Material, Mold, ProductionType } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -9,10 +9,22 @@ interface Props {
     allMaterials: Material[];
     allMolds: Mold[];
     onClose: () => void;
+    onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
 }
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose }: Props) {
+const STAGES = [
+    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
+    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά' },
+    { id: ProductionStage.Casting, label: 'Χυτήριο' },
+    { id: ProductionStage.Setting, label: 'Καρφωτής' },
+    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
+    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
+    { id: ProductionStage.Ready, label: 'Έτοιμα' }
+];
+
+export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose, onMove }: Props) {
     const product = batch.product_details;
+    const [isMoving, setIsMoving] = useState(false);
 
     const buildData = useMemo(() => {
         if (!product) return null;
@@ -71,6 +83,17 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
 
     }, [product, batch, allMaterials, allMolds]);
 
+    const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (onMove) {
+            setIsMoving(true);
+            onMove(batch, e.target.value as ProductionStage);
+            setTimeout(() => {
+                setIsMoving(false);
+                onClose();
+            }, 500);
+        }
+    };
+
     if (!product || !buildData) return null;
 
     return (
@@ -106,6 +129,31 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                     </div>
                     
                     <div className="flex items-center gap-4">
+                        {/* Stage Mover */}
+                        {onMove && (
+                            <div className="hidden md:flex flex-col items-end mr-4">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">Στάδιο Παραγωγής</label>
+                                <div className="relative group">
+                                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all ${isMoving ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'}`}>
+                                        {isMoving ? <Check size={16} className="animate-bounce"/> : <MoveRight size={16}/>}
+                                        <span className="font-bold text-sm">
+                                            {isMoving ? 'Μετακίνηση...' : (STAGES.find(s => s.id === batch.current_stage)?.label || batch.current_stage)}
+                                        </span>
+                                    </div>
+                                    <select 
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        value={batch.current_stage}
+                                        onChange={handleStageChange}
+                                        disabled={isMoving}
+                                    >
+                                        {STAGES.map(s => (
+                                            <option key={s.id} value={s.id}>{s.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="text-right bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100">
                             <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Ποσοτητα Παρτιδας</div>
                             <div className="text-4xl font-black text-emerald-700 leading-none">{batch.quantity}</div>
@@ -117,6 +165,20 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    {/* Mobile Stage Mover (Visible only on small screens) */}
+                    {onMove && (
+                        <div className="md:hidden mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
+                             <select 
+                                className="w-full p-3 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                                value={batch.current_stage}
+                                onChange={handleStageChange}
+                             >
+                                 {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                             </select>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         
                         {/* LEFT COLUMN: RESOURCES */}
