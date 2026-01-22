@@ -103,7 +103,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
                 {batch.on_hold ? (
                     <div className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
                         <PauseCircle size={10} className="fill-current" />
-                        <span>ON HOLD</span>
+                        <span>ΣΕ ΑΝΑΜΟΝΗ</span>
                     </div>
                 ) : (
                     batch.isDelayed && !isReady && (
@@ -236,7 +236,7 @@ const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
 
             <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                  <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px]">
-                    <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> On Hold</div>
+                    <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{onHold}</div>
                 </div>
                 <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px]">
@@ -314,8 +314,8 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
                         Γιατί σταματάει η παραγωγή του {batch.sku};
                     </p>
                     <textarea 
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
+                        value={reason} 
+                        onChange={(e) => setReason(e.target.value)} 
                         className="w-full p-4 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-32 resize-none text-sm font-bold text-slate-800"
                         placeholder="π.χ. Έλλειψη εξαρτήματος, Σπασμένο λάστιχο..."
                         autoFocus
@@ -328,7 +328,7 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
                         disabled={isProcessing || !reason.trim()}
                         className="px-6 py-2.5 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition-colors flex items-center gap-2 shadow-lg disabled:opacity-50"
                     >
-                        {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <PauseCircle size={16}/>} ON HOLD
+                        {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <PauseCircle size={16}/>} ΣΕ ΑΝΑΜΟΝΗ
                     </button>
                 </div>
             </div>

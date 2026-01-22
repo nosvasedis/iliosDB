@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { ProductionBatch, ProductionType } from '../types';
+import { ProductionBatch, ProductionType, ProductionStage } from '../types';
 import { APP_LOGO } from '../constants';
 import { Hammer, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -24,8 +24,10 @@ export default function TechnicianView({ batches }: Props) {
         const map = new Map<string, GroupedItem>();
 
         batches
-            .filter(batch => batch.product_details?.production_type !== ProductionType.Imported) // Filter out imported products
-            .filter(batch => !batch.on_hold) // NEW: Filter out batches on hold
+            // INTELLIGENT FILTER: Only items currently in the Technician (Polishing) stage
+            .filter(batch => batch.current_stage === ProductionStage.Polishing)
+            .filter(batch => batch.product_details?.production_type !== ProductionType.Imported) 
+            .filter(batch => !batch.on_hold) 
             .forEach(batch => {
                 const product = batch.product_details;
                 if (!product) return;
@@ -136,7 +138,7 @@ export default function TechnicianView({ batches }: Props) {
                 ))}
                  {groupedItems.length === 0 && (
                     <div className="col-span-3 text-center text-slate-400 py-20">
-                        <p className="font-medium">Δεν υπάρχουν προϊόντα για παραγωγή σε αυτή την επιλογή.</p>
+                        <p className="font-medium">Δεν υπάρχουν προϊόντα στο στάδιο Τεχνίτη για εκτύπωση.</p>
                     </div>
                 )}
             </main>

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -44,17 +44,13 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
         const recipeItems = product.recipe.map(item => {
             let name = '';
             let unit = 'τεμ';
-            let cost = 0;
 
             if (item.type === 'raw') {
                 const mat = allMaterials.find(m => m.id === item.id);
                 name = mat?.name || `Material #${item.id}`;
                 unit = mat?.unit || 'τεμ';
-                cost = mat?.cost_per_unit || 0;
             } else {
                 name = item.sku; // Component SKU
-                // We don't have deep access to component details here easily without passing allProducts, 
-                // but SKU is usually sufficient for picking.
             }
 
             return {
@@ -120,11 +116,19 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                                 )}
                             </div>
                             <p className="text-sm text-slate-500 font-medium mt-1">{buildData.description}</p>
-                            {batch.size_info && (
-                                <div className="mt-2 inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-100">
-                                    <Scale size={12}/> Size: {batch.size_info}
-                                </div>
-                            )}
+                            <div className="flex gap-2 mt-2">
+                                {batch.size_info && (
+                                    <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-100">
+                                        <Scale size={12}/> Size: {batch.size_info}
+                                    </div>
+                                )}
+                                {batch.on_hold && (
+                                    <div className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 animate-pulse">
+                                        <PauseCircle size={12} className="fill-current" />
+                                        <span>ΣΕ ΑΝΑΜΟΝΗ</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     

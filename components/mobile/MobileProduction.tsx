@@ -40,7 +40,7 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
     return (
         <div 
             onClick={() => onClick(batch)}
-            className={`bg-white p-3 rounded-xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${batch.on_hold ? 'border-amber-400 bg-amber-50/20' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200')}`}
+            className={`bg-white p-3 rounded-xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200')}`}
         >
             <div className="flex justify-between items-start mb-2">
                 <div>
@@ -53,7 +53,7 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: Production
                     </div>
                     {batch.on_hold && (
                         <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse">
-                            <PauseCircle size={8} className="fill-current"/> HOLD
+                            <PauseCircle size={8} className="fill-current"/> ΑΝΑΜΟΝΗ
                         </span>
                     )}
                 </div>
@@ -133,7 +133,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-    const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+    const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     
     const queryClient = useQueryClient();
