@@ -311,16 +311,13 @@ export default function MaterialsPage({ settings }: Props) {
   // Floating Action Button State
   const [showFab, setShowFab] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
     const handleScroll = () => {
-      if (headerRef.current) {
-        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
-        setShowFab(headerBottomPosition < 20);
-      }
+      // Logic: Show FAB if scrolled down more than 50px
+      setShowFab(scrollContainer.scrollTop > 50);
     };
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
@@ -450,7 +447,7 @@ export default function MaterialsPage({ settings }: Props) {
   return (
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS */}
-        <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">

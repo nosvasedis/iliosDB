@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
-import { Search, Gem, Box, MapPin, Layers } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, supabase } from '../../lib/supabase';
+import { Search, Gem, Box, MapPin, Layers, Plus, X, Save, Check } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { Material, MaterialType, Mold } from '../../types';
+import { useUI } from '../UIProvider';
 
 const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -14,9 +15,18 @@ const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Leather]: 'Δέρμα'
 };
 
+const MAT_TYPE_OPTIONS = Object.entries(MAT_TYPE_LABELS).map(([value, label]) => ({ value, label }));
+
 export default function MobileResources() {
+    const queryClient = useQueryClient();
+    const { showToast } = useUI();
     const [tab, setTab] = useState<'materials' | 'molds'>('materials');
     const [search, setSearch] = useState('');
+    
+    // Create/Edit State
+    const [isCreating, setIsCreating] = useState(false);
+    const [newMaterial, setNewMaterial] = useState<Partial<Material>>({ name: '', type: MaterialType.Stone, cost_per_unit: 0, unit: 'Τεμ' });
+    const [newMold, setNewMold] = useState<Partial<Mold>>({ code: '', description: '', location: '' });
 
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -34,8 +44,34 @@ export default function MobileResources() {
         );
     }, [molds, search]);
 
+    const handleCreateMaterial = async () => {
+        if (!newMaterial.name) { showToast("Το όνομα είναι υποχρεωτικό.", "error"); return; }
+        try {
+            await api.saveMaterial(newMaterial as Material);
+            queryClient.invalidateQueries({ queryKey: ['materials'] });
+            setIsCreating(false);
+            setNewMaterial({ name: '', type: MaterialType.Stone, cost_per_unit: 0, unit: 'Τεμ' });
+            showToast("Υλικό δημιουργήθηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα δημιουργίας.", "error");
+        }
+    };
+
+    const handleCreateMold = async () => {
+        if (!newMold.code) { showToast("Ο κωδικός είναι υποχρεωτικός.", "error"); return; }
+        try {
+            await supabase.from('molds').insert(newMold);
+            queryClient.invalidateQueries({ queryKey: ['molds'] });
+            setIsCreating(false);
+            setNewMold({ code: '', description: '', location: '' });
+            showToast("Λάστιχο δημιουργήθηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα δημιουργίας.", "error");
+        }
+    };
+
     return (
-        <div className="p-4 h-full flex flex-col">
+        <div className="p-4 h-full flex flex-col relative">
             <h1 className="text-2xl font-black text-slate-900 mb-4">Πόροι</h1>
 
             {/* Tabs */}
@@ -106,6 +142,74 @@ export default function MobileResources() {
                     </div>
                 )}
             </div>
+
+            {/* FLOATING ACTION BUTTON */}
+            <div className="fixed bottom-24 right-4 z-50">
+                <button 
+                    onClick={() => setIsCreating(true)}
+                    className="flex items-center justify-center bg-[#060b00] text-white rounded-full w-14 h-14 shadow-xl active:scale-95 transition-transform border-4 border-white"
+                >
+                    <Plus size={24}/>
+                </button>
+            </div>
+
+            {/* CREATE MODAL */}
+            {isCreating && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 className="text-lg font-black text-slate-900">{tab === 'materials' ? 'Νέο Υλικό' : 'Νέο Λάστιχο'}</h3>
+                            <button onClick={() => setIsCreating(false)}><X size={20} className="text-slate-400"/></button>
+                        </div>
+                        
+                        {tab === 'materials' ? (
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Τύπος</label>
+                                    <select 
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800"
+                                        value={newMaterial.type}
+                                        onChange={e => setNewMaterial({...newMaterial, type: e.target.value as MaterialType})}
+                                    >
+                                        {MAT_TYPE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Όνομα</label>
+                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="π.χ. Ζιργκόν Λευκό..."/>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Κόστος</label>
+                                        <input type="number" step="0.001" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMaterial.cost_per_unit} onChange={e => setNewMaterial({...newMaterial, cost_per_unit: parseFloat(e.target.value)||0})}/>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Μονάδα</label>
+                                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMaterial.unit} onChange={e => setNewMaterial({...newMaterial, unit: e.target.value})}/>
+                                    </div>
+                                </div>
+                                <button onClick={handleCreateMaterial} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-lg mt-2">Αποθήκευση</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Κωδικός</label>
+                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. L-12"/>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Τοποθεσία</label>
+                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMold.location} onChange={e => setNewMold({...newMold, location: e.target.value})} placeholder="π.χ. Συρτάρι 1"/>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Περιγραφή</label>
+                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800" value={newMold.description} onChange={e => setNewMold({...newMold, description: e.target.value})} placeholder="π.χ. Κορμός..."/>
+                                </div>
+                                <button onClick={handleCreateMold} className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold shadow-lg mt-2">Αποθήκευση</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
