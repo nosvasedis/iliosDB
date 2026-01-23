@@ -13,6 +13,74 @@ const getClient = () => {
 };
 
 /**
+ * Performs a deep audit of business health.
+ */
+export const analyzeBusinessHealth = async (data: {
+    products: any[],
+    orders: any[],
+    silverPrice: number
+}): Promise<string> => {
+    try {
+        const ai = getClient();
+        
+        const productSummary = data.products.map(p => {
+            let effectivePrice = p.selling_price || 0;
+            let effectiveCost = p.active_price || 0;
+
+            if (effectivePrice <= 0 && p.variants && p.variants.length > 0) {
+                const pricedVariant = p.variants.find((v: any) => (v.selling_price || 0) > 0) || p.variants[0];
+                effectivePrice = pricedVariant.selling_price || 0;
+                effectiveCost = pricedVariant.active_price || p.active_price;
+            }
+
+            return {
+                sku: p.sku,
+                cat: p.category,
+                w: p.weight_g,
+                cost: effectiveCost,
+                price: effectivePrice,
+                stock: p.stock_qty,
+                margin: effectivePrice > 0 ? ((effectivePrice - effectiveCost) / effectivePrice * 100).toFixed(1) : 0
+            };
+        });
+
+        const prompt = `
+            Είσαι ένας έμπειρος Business Analyst στον κλάδο της αργυροχοΐας (Jewelry Industry).
+            Ανάλυσε τα παρακάτω δεδομένα του εργαστηρίου "Ilios Kosmima".
+            
+            Τρέχουσα Τιμή Ασημιού: ${data.silverPrice}€/g
+            Σύνολο Προϊόντων: ${productSummary.length}
+            
+            Δεδομένα Προϊόντων (Condensed):
+            ${JSON.stringify(productSummary)}
+
+            Στόχοι Ανάλυσης:
+            1. [TITLE]Έλεγχος Κερδοφορίας[/TITLE]: Εντόπισε κωδικούς με margin < 40% που έχουν υψηλό βάρος ή εργατικά.
+            2. [TITLE]Ανάλυση Αποθέματος[/TITLE]: Βρες προϊόντα με υψηλό στοκ αλλά χαμηλή κερδοφορία.
+            3. [TITLE]Ευπάθεια Μετάλλου[/TITLE]: Ποια προϊόντα θα πληγούν περισσότερο αν ανέβει η τιμή του ασημιού;
+            4. [TITLE]Στρατηγικές Προτάσεις[/TITLE]: Δώσε 3 συγκεκριμένες στρατηγικές κινήσεις για αύξηση κερδοφορίας.
+
+            ΠΕΡΙΟΡΙΣΜΟΙ ΜΟΡΦΟΠΟΙΗΣΗΣ:
+            - ΜΗΝ χρησιμοποιείς σύμβολα Markdown όπως *** ή ## ή #.
+            - ΜΗΝ χρησιμοποιείς έντονα γράμματα με αστεράκια.
+            - Χρησιμοποίησε ΑΥΣΤΗΡΑ το format [TITLE]Τίτλος Ενότητας[/TITLE] για επικεφαλίδες.
+            - Γράψε τις λεπτομέρειες σε απλές γραμμές με παύλες κάτω από κάθε τίτλο.
+            - Γράψε στα Ελληνικά με επαγγελματικό αλλά άμεσο ύφος.
+        `;
+
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+        });
+
+        return response.text || "Δεν στάθηκε δυνατή η ανάλυση.";
+    } catch (error: any) {
+        console.error("Gemini Audit Error:", error);
+        throw new Error(`AI Analysis failed: ${error.message}`);
+    }
+};
+
+/**
  * Generates marketing text description.
  */
 export const generateMarketingCopy = async (

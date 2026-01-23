@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage, Gender } from '../types';
+import { Product, GlobalSettings, Order, ProductionBatch, OrderStatus, ProductionStage, Gender, MaterialType } from '../types';
 import { 
   TrendingUp, 
   Package, 
@@ -13,12 +13,25 @@ import {
   PieChart, 
   BarChart3, 
   Coins, 
+  Clock, 
+  CheckCircle, 
   Wallet, 
   Scale, 
+  BrainCircuit, 
+  Sparkles, 
+  ArrowDownRight, 
   Target, 
+  Zap, 
+  Loader2, 
+  FileText, 
+  Lightbulb, 
+  ShieldCheck, 
+  Rocket, 
   Filter,
+  Trophy,
   Crown,
   Gem,
+  Hammer,
   HelpCircle
 } from 'lucide-react';
 import { 
@@ -32,10 +45,14 @@ import {
   PieChart as RePieChart, 
   Pie, 
   Cell, 
+  AreaChart, 
+  Area, 
+  Legend 
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { analyzeBusinessHealth } from '../lib/gemini';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -64,8 +81,64 @@ const STAGE_LABELS: Record<string, string> = {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
+const SmartReportRenderer = ({ text }: { text: string }) => {
+    const parts = text.split(/\[TITLE\]|\[\/TITLE\]/).filter(p => p.trim());
+    if (parts.length < 2) {
+        return (
+            <div className="p-8 bg-slate-50 rounded-[2rem] text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-100">
+                {text.replace(/\*/g, '').replace(/#/g, '')}
+            </div>
+        );
+    }
+
+    const sections: { title: string; content: string[] }[] = [];
+    for (let i = 0; i < parts.length; i += 2) {
+        if (parts[i] && parts[i+1]) {
+            sections.push({
+                title: parts[i].trim(),
+                content: parts[i+1].trim().split('\n').filter(l => l.trim())
+            });
+        }
+    }
+
+    const getIcon = (title: string) => {
+        const t = title.toLowerCase();
+        if (t.includes('κερδ') || t.includes('τιμ')) return <Target className="text-rose-500" size={18}/>;
+        if (t.includes('αποθ') || t.includes('risk') || t.includes('κίνδ')) return <Scale className="text-amber-500" size={18}/>;
+        if (t.includes('στρατ') || t.includes('πρότ') || t.includes('growth')) return <Rocket className="text-emerald-500" size={18}/>;
+        return <Activity className="text-blue-500" size={18}/>;
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {sections.map((sec, idx) => (
+                <div key={idx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center gap-3 mb-5 border-b border-slate-50 pb-3">
+                        <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                            {getIcon(sec.title)}
+                        </div>
+                        <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">{sec.title}</h4>
+                    </div>
+                    <ul className="space-y-3.5">
+                        {sec.content.map((line, lidx) => (
+                            <li key={lidx} className="flex gap-3 items-start">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-200 shrink-0 group-hover:bg-emerald-400 transition-colors" />
+                                <p className="text-slate-600 text-sm leading-relaxed">
+                                    {line.replace(/^- |^\* /g, '').replace(/\*\*/g, '')}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export default function Dashboard({ products, settings, onNavigate }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory' | 'smart'>('overview');
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const { showToast } = useUI();
 
@@ -158,6 +231,23 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     };
   }, [products, orders, batches]);
 
+  const handleRunAiAudit = async () => {
+      setIsAnalyzing(true);
+      try {
+          const report = await analyzeBusinessHealth({
+              products: products.filter(p => !p.is_component),
+              orders: orders || [],
+              silverPrice: settings.silver_price_gram
+          });
+          setAiReport(report);
+          showToast("Η ανάλυση ολοκληρώθηκε!", "success");
+      } catch (err: any) {
+          showToast(err.message, "error");
+      } finally {
+          setIsAnalyzing(false);
+      }
+  };
+
   const categoryData = useMemo(() => {
       const counts: Record<string, number> = {};
       products.filter(p => !p.is_component).forEach(p => {
@@ -219,6 +309,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                 { id: 'financials', label: 'Οικονομικά', icon: DollarSign },
                 { id: 'production', label: 'Παραγωγή', icon: Factory },
                 { id: 'inventory', label: 'Αποθήκη', icon: Package },
+                { id: 'smart', label: 'Ilios AI', icon: BrainCircuit },
             ].map(tab => (
                 <button
                     key={tab.id}
@@ -226,11 +317,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                     className={`
                         flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap
                         ${activeTab === tab.id 
-                            ? 'bg-[#060b00] text-white shadow-md' 
+                            ? (tab.id === 'smart' ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-[#060b00] text-white shadow-md') 
                             : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}
                     `}
                 >
-                    <tab.icon size={16} />
+                    <tab.icon size={16} className={activeTab === tab.id && tab.id === 'smart' ? 'animate-pulse' : ''} />
                     {tab.label}
                 </button>
             ))}
@@ -465,6 +556,51 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </table>
                   </div>
               </div>
+          </div>
+      )}
+
+      {activeTab === 'smart' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12">
+                      <BrainCircuit size={200} />
+                  </div>
+                  
+                  <div className="max-w-2xl relative z-10">
+                      <div className="flex items-center gap-3 mb-4">
+                          <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                              <Sparkles className="text-yellow-300" size={28} />
+                          </div>
+                          <h2 className="text-3xl font-black tracking-tight">Ilios Business Intelligence</h2>
+                      </div>
+                      <p className="text-emerald-50 text-lg leading-relaxed mb-8 opacity-90">
+                          Το Ilios AI αναλύει το μητρώο σας, τις τιμές του ασημιού και το ιστορικό πωλήσεων για να εντοπίσει ευκαιρίες κέρδους και ρίσκα.
+                      </p>
+                      <button 
+                        onClick={handleRunAiAudit}
+                        disabled={isAnalyzing}
+                        className="bg-white text-emerald-800 px-8 py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-emerald-50 transition-all flex items-center gap-3 disabled:opacity-50"
+                      >
+                          {isAnalyzing ? <Loader2 size={24} className="animate-spin" /> : <Zap size={24} className="fill-current" />}
+                          {isAnalyzing ? 'Ανάλυση σε εξέλιξη...' : 'Δημιουργία Έξυπνης Αναφοράς'}
+                      </button>
+                  </div>
+              </div>
+
+              {aiReport && (
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm animate-in zoom-in-95 duration-500">
+                      <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-6">
+                          <FileText size={24} className="text-slate-400" />
+                          <h3 className="text-xl font-black text-slate-800">Αποτελέσματα Επιχειρησιακού Ελέγχου</h3>
+                      </div>
+                      
+                      <SmartReportRenderer text={aiReport} />
+
+                      <div className="mt-12 pt-8 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                          <ShieldCheck size={14} className="text-emerald-500" /> Επαληθεύτηκε από Gemini AI Intelligence
+                      </div>
+                  </div>
+              )}
           </div>
       )}
     </div>
