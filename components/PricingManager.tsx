@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem, ProductVariant } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle, Play } from 'lucide-react';
 import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, calculateSuggestedWholesalePrice, estimateVariantCost } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
@@ -51,6 +51,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   // Update state for batching
   const [isCommitting, setIsCommitting] = useState(false);
   const [progress, setProgress] = useState<{ current: number, total: number, failed: number } | null>(null);
+  const [processingSingleId, setProcessingSingleId] = useState<string | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -187,7 +188,14 @@ export default function PricingManager({ products, settings, materials }: Props)
         return productItems;
     });
 
-    const sortedItems = items.sort((a,b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+    // SORT: Changed items FIRST, then Alphanumeric
+    const sortedItems = items.sort((a,b) => {
+        if (a.hasChange !== b.hasChange) {
+            return a.hasChange ? -1 : 1;
+        }
+        return a.sku.localeCompare(b.sku, undefined, { numeric: true });
+    });
+
     setCalculatedData(sortedItems);
     setIsCalculated(true);
     
@@ -197,6 +205,90 @@ export default function PricingManager({ products, settings, materials }: Props)
         const msg = markupMode === 'formula' ? 'Υπολογίστηκαν τιμές Formula (Ilios).' : `Υπολογίστηκαν νέες τιμές (${markupPercent}%).`;
         showToast(msg, 'info');
     }
+  };
+
+  // --- SINGLE ITEM UPDATE HANDLER ---
+  const handleSingleUpdate = async (item: PricingItem) => {
+      // Find original product to recalculate fresh (ensure we are not using stale list data)
+      const product = products.find(p => p.sku === item.masterSku);
+      if (!product) return;
+
+      setProcessingSingleId(item.id);
+      
+      try {
+          // 1. Recalculate Specific Cost
+          const isVariantRow = item.isVariant;
+          const variantSuffix = item.variantSuffix;
+
+          const costCalc = isVariantRow && variantSuffix !== null
+              ? estimateVariantCost(product, variantSuffix, settings, materials, products)
+              : calculateProductCost(product, settings, materials, products);
+          
+          const freshCost = costCalc.total;
+          const weight = (costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0)));
+
+          // 2. Determine New Price based on current Mode Settings
+          let newVal = 0;
+          if (mode === 'cost') {
+              newVal = freshCost;
+          } else {
+              const currentVal = item.currentPrice;
+              if (markupMode === 'adjust') {
+                  newVal = roundPrice(currentVal * (1 + markupPercent / 100));
+              } else if (markupMode === 'target') {
+                  const margin = markupPercent / 100;
+                  if (margin >= 1) newVal = 0; 
+                  else newVal = roundPrice(freshCost / (1 - margin));
+              } else if (markupMode === 'formula') {
+                  newVal = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+              }
+          }
+
+          // 3. Confirm only if meaningful change or forced
+          if (Math.abs(newVal - item.currentPrice) < 0.01) {
+              const yes = await confirm({
+                  title: 'Καμία Αλλαγή',
+                  message: 'Η νέα τιμή είναι ίδια με την τρέχουσα. Θέλετε να την ενημερώσετε ούτως ή άλλως;',
+                  confirmText: 'Ναι, Ενημέρωση'
+              });
+              if (!yes) {
+                  setProcessingSingleId(null);
+                  return;
+              }
+          }
+
+          // 4. Update Database
+          const updates: any = {};
+          if (mode === 'cost') {
+              updates.active_price = newVal;
+              if (!item.isVariant) updates.draft_price = newVal;
+          } else {
+              updates.selling_price = newVal;
+          }
+
+          if (item.isVariant) {
+              await supabase.from('product_variants')
+                  .update(updates)
+                  .match({ 
+                      product_sku: item.masterSku, 
+                      suffix: item.variantSuffix || "" 
+                  });
+          } else {
+              await supabase.from('products')
+                  .update(updates)
+                  .eq('sku', item.masterSku);
+          }
+
+          // 5. Success
+          await queryClient.invalidateQueries({ queryKey: ['products'] });
+          showToast(`${item.sku}: Ενημερώθηκε σε ${formatCurrency(newVal)}`, 'success');
+
+      } catch (error) {
+          console.error(error);
+          showToast("Σφάλμα ενημέρωσης.", 'error');
+      } finally {
+          setProcessingSingleId(null);
+      }
   };
 
   const activeList = isCalculated ? calculatedData : flattenedInventory;
@@ -625,6 +717,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                             const item = filteredList[virtualRow.index];
                             const diff = item.newPrice - item.currentPrice;
+                            const isProcessing = processingSingleId === item.id;
                             
                             // Calculate margin dynamically based on updated values
                             let margin = 0;
@@ -668,10 +761,19 @@ export default function PricingManager({ products, settings, materials }: Props)
                                             </div>
                                         )}
                                     </div>
-                                    <div className="w-1/6 px-4 pr-8 text-right flex flex-col justify-center">
+                                    <div className="w-28 px-4 pr-8 text-right flex items-center justify-end gap-3">
                                         {mode === 'selling' && (
                                             <span className={`font-black text-xs ${margin < 30 ? 'text-rose-500' : 'text-emerald-600'}`}>{formatDecimal(margin, 1)}%</span>
                                         )}
+                                        
+                                        <button 
+                                            onClick={() => handleSingleUpdate(item)}
+                                            disabled={isProcessing}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                            title="Update Single"
+                                        >
+                                            {isProcessing ? <Loader2 size={16} className="animate-spin text-emerald-500"/> : <RefreshCw size={16}/>}
+                                        </button>
                                     </div>
                                 </div>
                             );
