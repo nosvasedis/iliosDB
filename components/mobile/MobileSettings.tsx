@@ -121,13 +121,30 @@ export default function MobileSettings() {
         try {
             const data = await api.getFullSystemExport();
             const timestamp = new Date().toISOString().split('T')[0];
-            const tablesToExport = [{ key: 'products', name: 'Products' }, { key: 'orders', name: 'Orders' }];
+            
+            const tablesToExport = [
+                { key: 'products', name: 'Products' },
+                { key: 'product_variants', name: 'Product_Variants' },
+                { key: 'product_stock', name: 'Product_Stock' },
+                { key: 'orders', name: 'Orders' },
+                { key: 'production_batches', name: 'Production_Batches' },
+                { key: 'offers', name: 'Offers' },
+                { key: 'customers', name: 'Customers' },
+                { key: 'suppliers', name: 'Suppliers' },
+                { key: 'supplier_orders', name: 'Supplier_Orders' },
+                { key: 'materials', name: 'Materials' },
+                { key: 'molds', name: 'Molds' },
+                { key: 'collections', name: 'Collections' },
+                { key: 'stock_movements', name: 'Stock_Movements' }
+            ];
+
             for (const table of tablesToExport) {
                 const tableData = data[table.key] || [];
                 if (tableData.length > 0) {
                     const flattened = flattenForCSV(tableData);
                     const csv = convertToCSV(flattened);
                     downloadFile(csv, `ilios_${table.name.toLowerCase()}_${timestamp}.csv`, 'text/csv');
+                    await new Promise(r => setTimeout(r, 200));
                 }
             }
             showToast("CSV λήφθηκαν.", "success");
@@ -191,7 +208,7 @@ export default function MobileSettings() {
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                     <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Database size={14}/> Backup & Δεδομένα</h3>
                     <button onClick={handleJsonBackup} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin"/> : <Download size={18}/>} Full Backup (JSON)</button>
-                    <button onClick={handleCsvExport} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin"/> : <FileText size={18}/>} Export CSV</button>
+                    <button onClick={handleCsvExport} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin"/> : <FileText size={18}/>} Export CSV (All Tables)</button>
                     
                     <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestore}/>
                     <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-3 p-3 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors border border-slate-200 mt-2"><Upload size={18}/> Επαναφορά από Backup</button>
