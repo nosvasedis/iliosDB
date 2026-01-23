@@ -11,6 +11,14 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { FINISH_CODES } from '../constants';
 
+const MAT_TYPE_LABELS: Record<string, string> = {
+    'Stone': 'Πέτρα',
+    'Cord': 'Κορδόνι',
+    'Component': 'Εξάρτημα',
+    'Enamel': 'Σμάλτο',
+    'Leather': 'Δέρμα'
+};
+
 // --- NEW RECIPE ITEM SELECTOR MODAL ---
 const RecipeItemSelectorModal = ({
     type, productCategory, allMaterials, allProducts, onClose, onSelect
@@ -80,7 +88,7 @@ const RecipeItemSelectorModal = ({
     const renderListItem = (item: any) => {
         const isComponent = type === 'component';
         const name = isComponent ? item.sku : item.name;
-        const description = isComponent ? item.description : null;
+        const description = item.description; 
         const imageUrl = isComponent ? item.image_url : null;
         const cost = isComponent 
             ? `${item.active_price.toFixed(2)}€` 
@@ -112,7 +120,7 @@ const RecipeItemSelectorModal = ({
                         )}
                         {!isComponent && item.stones_per_strand && (
                             <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold whitespace-nowrap">
-                                {item.stones_per_strand} πέτρες/strand
+                                {item.stones_per_strand} πέτρες/σειρά
                             </span>
                         )}
                     </div>
@@ -120,7 +128,7 @@ const RecipeItemSelectorModal = ({
                     {description ? (
                         <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
                     ) : (
-                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : item.type}</div>
+                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : (MAT_TYPE_LABELS[item.type] || item.type)}</div>
                     )}
                     
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>

@@ -26,18 +26,20 @@ type StoneSubFilter = 'standard' | 'strand';
 
 // -- HELPER COMPONENTS --
 
-const MaterialCard = ({ 
+interface MaterialCardProps {
+    material: Material;
+    suppliers: any[];
+    onSave: (m: Material) => Promise<void> | void;
+    onDelete: (id: string) => Promise<void> | void;
+    onEditVariants: (m: Material) => void;
+}
+
+const MaterialCard: React.FC<MaterialCardProps> = ({ 
     material, 
     suppliers, 
     onSave, 
     onDelete, 
     onEditVariants 
-}: { 
-    material: Material, 
-    suppliers: any[], 
-    onSave: (m: Material) => void, 
-    onDelete: (id: string) => void,
-    onEditVariants: (m: Material) => void
 }) => {
     const [isEditing, setIsEditing] = useState(!material.id.includes('-') && material.name.includes('Νέο')); // Auto-edit if new
     const [editForm, setEditForm] = useState<Material>(material);
