@@ -6,6 +6,7 @@ import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, 
 import { Customer, Supplier } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
+import MobileSupplierDetails from './MobileSupplierDetails';
 
 export default function MobileCustomers() {
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
@@ -22,6 +23,9 @@ export default function MobileCustomers() {
     const [editType, setEditType] = useState<'customer' | 'supplier'>('customer');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+    
+    // Supplier Detail View
+    const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
 
     // Calculate customer stats (Total Spent Net, etc.)
     const customerStats = useMemo(() => {
@@ -60,10 +64,14 @@ export default function MobileCustomers() {
         setIsEditing(true);
     };
 
-    const handleEdit = (item: any) => {
-        setEditType(tab === 'customers' ? 'customer' : 'supplier');
-        setEditData({ ...item });
-        setIsEditing(true);
+    const handleItemClick = (item: any) => {
+        if (tab === 'suppliers') {
+            setViewSupplier(item);
+        } else {
+            setEditType('customer');
+            setEditData({ ...item });
+            setIsEditing(true);
+        }
     };
 
     const handleSave = async () => {
@@ -123,6 +131,11 @@ export default function MobileCustomers() {
             setIsSearchingAfm(false);
         }
     };
+    
+    // If viewing a supplier, render the detail component
+    if (viewSupplier) {
+        return <MobileSupplierDetails supplier={viewSupplier} onClose={() => setViewSupplier(null)} />;
+    }
 
     if (isEditing) {
         return (
@@ -244,13 +257,13 @@ export default function MobileCustomers() {
             <div className="flex p-1 bg-slate-100 rounded-xl mb-4 shrink-0">
                 <button 
                     onClick={() => setTab('customers')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'customers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'customers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Πελάτες
                 </button>
                 <button 
                     onClick={() => setTab('suppliers')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'suppliers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'suppliers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Προμηθευτές
                 </button>
@@ -275,50 +288,41 @@ export default function MobileCustomers() {
                     return (
                         <div 
                             key={item.id} 
-                            onClick={() => handleEdit(item)}
-                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform cursor-pointer"
+                            onClick={() => handleItemClick(item)}
+                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all cursor-pointer group"
                         >
                             <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
-                                        {tab === 'customers' ? <User size={20}/> : <Globe size={20}/>}
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                                        {tab === 'customers' ? <User size={24}/> : <Globe size={24}/>}
                                     </div>
                                     <div>
-                                        <div className="font-bold text-slate-800 text-sm">{item.full_name || item.name}</div>
-                                        {item.address && <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={10}/> {item.address}</div>}
-                                        {tab === 'suppliers' && item.contact_person && <div className="text-[10px] text-slate-500 font-medium">{item.contact_person}</div>}
+                                        <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
+                                        {tab === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
                                     </div>
                                 </div>
-                                <Edit size={16} className="text-slate-300"/>
+                                <button className="p-2 bg-slate-50 text-slate-400 rounded-lg group-hover:bg-slate-100 group-hover:text-blue-500 transition-colors">
+                                    <Edit size={16}/>
+                                </button>
                             </div>
                             
-                            <div className="flex gap-2 mb-2">
+                            <div className="space-y-2 pt-2 border-t border-slate-50">
                                 {item.phone && (
-                                    <a 
-                                        href={`tel:${item.phone}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="flex-1 bg-slate-50 text-slate-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-slate-100 active:scale-95 transition-transform"
-                                    >
-                                        <Phone size={14} className="fill-current"/> Κλήση
-                                    </a>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Phone size={14} className="text-slate-400"/> {item.phone}
+                                    </div>
                                 )}
                                 {item.email && (
-                                    <a 
-                                        href={`mailto:${item.email}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-blue-100 active:scale-95 transition-transform"
-                                    >
-                                        <Mail size={14}/> Email
-                                    </a>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Mail size={14} className="text-slate-400"/> {item.email}
+                                    </div>
+                                )}
+                                {item.address && (
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <MapPin size={14} className="text-slate-400"/> {item.address}
+                                    </div>
                                 )}
                             </div>
-                            
-                            {tab === 'customers' && totalSpent > 0 && (
-                                <div className="pt-2 border-t border-slate-50 flex justify-between items-center text-xs">
-                                    <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Συνολικος Τζιρος (Net)</span>
-                                    <span className="font-black text-emerald-600">{formatCurrency(totalSpent)}</span>
-                                </div>
-                            )}
                         </div>
                     );
                 })}
