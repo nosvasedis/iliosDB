@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, ProductionType, Material, SupplierOrder, SupplierOrderItem, MaterialType, SupplierOrderType } from '../types';
 import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText } from 'lucide-react';
@@ -124,7 +123,7 @@ export default function SuppliersPage() {
   const handleAddToOrder = (item: any, type: SupplierOrderType) => {
       const id = type === 'Product' ? item.sku : item.id;
       const name = type === 'Product' ? item.sku : item.name;
-      const cost = type === 'Product' ? (item.supplier_cost || 0) : item.cost_per_unit;
+      const cost = type === 'Product' ? (item.active_price || item.supplier_cost || 0) : item.cost_per_unit;
       
       setOrderItems(prev => {
           const existingIdx = prev.findIndex(i => i.item_id === id && i.item_type === type);
@@ -310,7 +309,7 @@ export default function SuppliersPage() {
                                                 </div>
                                                 <div>
                                                     <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
-                                                    <div className="text-[10px] text-slate-500 font-mono">Κόστος: {formatCurrency(p.supplier_cost || 0)}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">Κόστος: {formatCurrency(p.active_price || p.supplier_cost || 0)}</div>
                                                 </div>
                                             </div>
                                             <button onClick={() => handleUnlinkProduct(p.sku)} className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"><X size={16}/></button>
