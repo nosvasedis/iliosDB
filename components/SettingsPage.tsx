@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, AlertCircle, Tag, ImageOff, CheckCircle, Activity } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,11 +23,6 @@ export default function SettingsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isMaintenanceAction, setIsMaintenanceAction] = useState(false);
 
-  // Image Audit State
-  const [isAuditingImages, setIsAuditingImages] = useState(false);
-  const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0 });
-  const [brokenImages, setBrokenImages] = useState<{ sku: string, url: string }[]>([]);
-  
   if (!settings) {
     return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
   }
@@ -99,17 +94,33 @@ export default function SettingsPage() {
       try {
           const data = await api.getFullSystemExport();
           const timestamp = new Date().toISOString().split('T')[0];
-          const tablesToExport = [{ key: 'products', name: 'Products' }, { key: 'orders', name: 'Orders' }, { key: 'customers', name: 'Customers' }, { key: 'materials', name: 'Materials' }, { key: 'suppliers', name: 'Suppliers' }];
+          
+          const tablesToExport = [
+              { key: 'products', name: 'Products' },
+              { key: 'product_variants', name: 'Product_Variants' },
+              { key: 'product_stock', name: 'Product_Stock' },
+              { key: 'orders', name: 'Orders' },
+              { key: 'production_batches', name: 'Production_Batches' },
+              { key: 'offers', name: 'Offers' },
+              { key: 'customers', name: 'Customers' },
+              { key: 'suppliers', name: 'Suppliers' },
+              { key: 'supplier_orders', name: 'Supplier_Orders' },
+              { key: 'materials', name: 'Materials' },
+              { key: 'molds', name: 'Molds' },
+              { key: 'collections', name: 'Collections' },
+              { key: 'stock_movements', name: 'Stock_Movements' }
+          ];
+
           for (const table of tablesToExport) {
               const tableData = data[table.key] || [];
               if (tableData.length > 0) {
                   const flattened = flattenForCSV(tableData);
                   const csv = convertToCSV(flattened);
                   downloadFile(csv, `ilios_${table.name.toLowerCase()}_${timestamp}.csv`, 'text/csv');
-                  await new Promise(r => setTimeout(r, 300));
+                  await new Promise(r => setTimeout(r, 200));
               }
           }
-          showToast("Τα αρχεία CSV λήφθηκαν. Έτοιμα για Excel/Access!", "success");
+          showToast("Όλα τα αρχεία CSV λήφθηκαν.", "success");
       } catch (err) {
           showToast("Σφάλμα κατά την εξαγωγή CSV.", "error");
       } finally {
@@ -187,70 +198,6 @@ export default function SettingsPage() {
       }
   };
 
-  const handleRunImageAudit = async () => {
-      if (isAuditingImages) return;
-      setIsAuditingImages(true);
-      setBrokenImages([]);
-      
-      try {
-          const products = await api.getProducts();
-          const productsWithImages = products.filter(p => p.image_url);
-          
-          setAuditProgress({ current: 0, total: productsWithImages.length });
-          
-          const broken: { sku: string, url: string }[] = [];
-          
-          // Batch process to avoid browser lockup
-          const BATCH_SIZE = 10;
-          
-          for (let i = 0; i < productsWithImages.length; i += BATCH_SIZE) {
-              const batch = productsWithImages.slice(i, i + BATCH_SIZE);
-              
-              await Promise.all(batch.map(async (p) => {
-                  if (!p.image_url) return;
-                  try {
-                      // HEAD request to check existence without downloading
-                      // Note: We use the direct worker URL if possible to avoid some CORS issues on redirects
-                      const response = await fetch(p.image_url, { method: 'HEAD', mode: 'cors' });
-                      if (!response.ok) {
-                          broken.push({ sku: p.sku, url: p.image_url });
-                      }
-                  } catch (e) {
-                      // Network error usually means CORS blocked or DNS fail (broken link)
-                      broken.push({ sku: p.sku, url: p.image_url });
-                  }
-              }));
-              
-              setAuditProgress(prev => ({ ...prev, current: Math.min(prev.current + BATCH_SIZE, productsWithImages.length) }));
-              // Small delay to breathe
-              await new Promise(r => setTimeout(r, 50));
-          }
-          
-          setBrokenImages(broken);
-          if (broken.length === 0) {
-              showToast("Όλες οι εικόνες είναι εντάξει!", "success");
-          } else {
-              showToast(`Βρέθηκαν ${broken.length} προβληματικές εικόνες.`, "warning");
-          }
-          
-      } catch (err) {
-          showToast("Σφάλμα κατά τον έλεγχο.", "error");
-      } finally {
-          setIsAuditingImages(false);
-      }
-  };
-
-  const handleFixBrokenImage = async (sku: string) => {
-      // Remove image_url from DB for this SKU
-      try {
-          await api.saveProduct({ sku, image_url: null });
-          setBrokenImages(prev => prev.filter(p => p.sku !== sku));
-          showToast(`Ο σύνδεσμος αφαιρέθηκε για το ${sku}.`, "success");
-      } catch (e) {
-          showToast("Σφάλμα διόρθωσης.", "error");
-      }
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex justify-between items-center">
@@ -311,66 +258,6 @@ export default function SettingsPage() {
                     {isExporting ? <Loader2 size={18} className="animate-spin text-emerald-500"/> : <Download size={18} className="text-slate-300 group-hover:text-emerald-500"/>}
                 </button>
             </div>
-          </div>
-      </div>
-      
-      {/* DIAGNOSTICS & IMAGE AUDIT */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-              <Activity className="text-red-500" size={20}/>
-              Διαγνωστικά Συστήματος
-          </h2>
-
-          <div className="space-y-6">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div className="flex justify-between items-center mb-4">
-                      <div>
-                          <h3 className="font-bold text-slate-700 text-sm">Έλεγχος Ακεραιότητας Εικόνων (Cloudflare R2)</h3>
-                          <p className="text-xs text-slate-500">Ελέγχει αν οι φωτογραφίες των προϊόντων υπάρχουν πραγματικά στον server.</p>
-                      </div>
-                      <button 
-                        onClick={handleRunImageAudit} 
-                        disabled={isAuditingImages}
-                        className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-black transition-colors flex items-center gap-2 shadow-md"
-                      >
-                          {isAuditingImages ? <Loader2 size={14} className="animate-spin"/> : <ShieldAlert size={14}/>}
-                          {isAuditingImages ? 'Έλεγχος...' : 'Εκκίνηση Ελέγχου'}
-                      </button>
-                  </div>
-                  
-                  {isAuditingImages && (
-                      <div className="w-full bg-slate-200 rounded-full h-2 mb-2 overflow-hidden">
-                          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(auditProgress.current / auditProgress.total) * 100}%` }}></div>
-                      </div>
-                  )}
-
-                  {brokenImages.length > 0 && (
-                      <div className="mt-4 bg-red-50 border border-red-100 rounded-xl p-4">
-                          <div className="flex items-center gap-2 text-red-700 font-bold text-sm mb-3">
-                              <ImageOff size={16}/> Βρέθηκαν {brokenImages.length} σπασμένοι σύνδεσμοι
-                          </div>
-                          <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                              {brokenImages.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between items-center bg-white p-2 rounded-lg border border-red-100 shadow-sm text-xs">
-                                      <span className="font-mono font-bold text-slate-700">{item.sku}</span>
-                                      <button 
-                                        onClick={() => handleFixBrokenImage(item.sku)}
-                                        className="text-red-500 hover:text-red-700 font-bold underline px-2"
-                                      >
-                                          Καθαρισμός
-                                      </button>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  )}
-                  
-                  {!isAuditingImages && brokenImages.length === 0 && auditProgress.total > 0 && (
-                      <div className="mt-4 flex items-center gap-2 text-emerald-600 font-bold text-sm bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                          <CheckCircle size={16}/> Ο έλεγχος ολοκληρώθηκε. Όλες οι εικόνες είναι εντάξει.
-                      </div>
-                  )}
-              </div>
           </div>
       </div>
       

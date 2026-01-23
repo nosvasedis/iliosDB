@@ -832,14 +832,28 @@ export const api = {
     },
 
     getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = ['products', 'product_variants', 'materials', 'molds', 'orders', 'customers', 'suppliers', 'warehouses', 'production_batches', 'product_stock', 'stock_movements', 'recipes', 'product_molds', 'collections', 'product_collections', 'global_settings', 'price_snapshots', 'price_snapshot_items', 'offers'];
+        const tables = [
+            'global_settings',
+            'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
+            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
+            'product_stock', 'stock_movements',
+            'orders', 'production_batches', 'offers', 'supplier_orders',
+            'price_snapshots', 'price_snapshot_items'
+        ];
         const results: Record<string, any[]> = {};
         for (const table of tables) results[table] = await fetchFullTable(table);
         return results;
     },
 
     restoreFullSystem: async (backupData: Record<string, any[]>): Promise<void> => {
-        const order = ['suppliers', 'warehouses', 'customers', 'materials', 'molds', 'collections', 'products', 'product_variants', 'recipes', 'product_molds', 'product_collections', 'orders', 'production_batches', 'product_stock', 'stock_movements', 'global_settings', 'price_snapshots', 'price_snapshot_items', 'offers'];
+        const order = [
+            'global_settings',
+            'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
+            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
+            'product_stock', 'stock_movements',
+            'orders', 'production_batches', 'offers', 'supplier_orders',
+            'price_snapshots', 'price_snapshot_items'
+        ];
         if (isLocalMode || !SUPABASE_URL) {
             for (const table of order) if (backupData[table]) await offlineDb.saveTable(table, backupData[table]);
             localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
