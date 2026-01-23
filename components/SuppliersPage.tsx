@@ -310,7 +310,7 @@ export default function SuppliersPage() {
                                                 </div>
                                                 <div>
                                                     <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
-                                                    <div className="text-[10px] text-slate-500 font-mono">Κόστος: {formatCurrency(p.supplier_cost || p.active_price || 0)}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">Κόστος: {formatCurrency(p.supplier_cost || 0)}</div>
                                                 </div>
                                             </div>
                                             <button onClick={() => handleUnlinkProduct(p.sku)} className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"><X size={16}/></button>
@@ -516,5 +516,6 @@ export default function SuppliersPage() {
             )}
         </div>
         
-    );
+    </div>
+  );
 }
