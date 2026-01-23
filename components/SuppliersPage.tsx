@@ -33,7 +33,6 @@ export default function SuppliersPage() {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderItems, setOrderItems] = useState<SupplierOrderItem[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
-  const [viewOrderId, setViewOrderId] = useState<string | null>(null);
   
   // PO Item Selection
   const [poSearch, setPoSearch] = useState('');
@@ -198,7 +197,7 @@ export default function SuppliersPage() {
     <div className="h-[calc(100vh-100px)] flex gap-6">
         
         {/* LEFT COLUMN: SUPPLIER LIST */}
-        <div className="w-1/3 bg-white rounded-3xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
+        <div className="w-1/3 bg-white rounded-3xl border border-slate-100 flex flex-col overflow-hidden shadow-sm shrink-0">
             <div className="p-4 border-b border-slate-100 space-y-3">
                 <div className="flex justify-between items-center">
                     <h2 className="font-bold text-slate-800 flex items-center gap-2"><Globe className="text-blue-500"/> Προμηθευτές</h2>
@@ -346,7 +345,6 @@ export default function SuppliersPage() {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setViewOrderId(viewOrderId === o.id ? null : o.id)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors">Λεπτομέρειες</button>
                                                 {o.status === 'Pending' && <button onClick={() => handleReceiveOrder(o)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-md">Παραλαβή</button>}
                                             </div>
                                         </div>
@@ -365,7 +363,7 @@ export default function SuppliersPage() {
             
             {isEditing && (
                 <div className="absolute inset-0 bg-white z-50 flex flex-col animate-in slide-in-from-bottom-4">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                         <h2 className="text-xl font-black text-slate-800">{supplierForm.id ? 'Επεξεργασία Προμηθευτή' : 'Νέος Προμηθευτής'}</h2>
                         <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full"><X size={20}/></button>
                     </div>
@@ -385,7 +383,7 @@ export default function SuppliersPage() {
             
             {isCreatingOrder && selectedSupplier && (
                 <div className="absolute inset-0 bg-white z-50 flex flex-col animate-in slide-in-from-right-4">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                         <div><h2 className="text-xl font-black text-slate-800">Νέα Εντολή Αγοράς</h2><p className="text-sm text-slate-500">Προμηθευτής: {selectedSupplier.name}</p></div>
                         <button onClick={() => setIsCreatingOrder(false)} className="p-2 bg-white rounded-full text-slate-500"><X size={20}/></button>
                     </div>
@@ -422,7 +420,7 @@ export default function SuppliersPage() {
                                     </div>
                                 ))}
                             </div>
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 flex justify-between items-center shadow-xl">
+                            <div className="bg-white p-6 rounded-2xl border border-slate-200 flex justify-between items-center shadow-xl shrink-0">
                                 <div><div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Συνολικη Αξια Εντολης</div><div className="text-3xl font-black text-emerald-600">{formatCurrency(orderItems.reduce((s,i) => s + i.total_cost, 0))}</div></div>
                                 <button onClick={saveOrder} disabled={orderItems.length === 0} className="bg-[#060b00] text-white px-10 py-4 rounded-xl font-bold hover:bg-black transition-colors shadow-lg active:scale-95 disabled:opacity-50">Οριστικοποίηση Εντολής</button>
                             </div>
