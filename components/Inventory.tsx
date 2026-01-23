@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold, Gender } from '../types';
-import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin, Layers, Box, Activity } from 'lucide-react';
+import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin, Layers, Box, Activity, Eye, EyeOff } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -340,6 +340,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   
+  // New state for hiding empty stock items
+  const [showEmpty, setShowEmpty] = useState(false);
+  
   // Replaced selectedProduct logic with selectedMaster for the new modal
   const [selectedMaster, setSelectedMaster] = useState<Product | null>(null);
   
@@ -425,13 +428,16 @@ export default function Inventory({ products, setPrintItems, settings, collectio
   const filteredMasterInventory = useMemo(() => {
       const term = searchTerm.toUpperCase();
       return masterInventory.filter(item => {
+          // Hide items with 0 stock unless 'showEmpty' is true
+          if (!showEmpty && item.totalStock <= 0) return false;
+          
           if (viewWarehouseId !== 'ALL') {
               // Warehouse filter logic is tricky for aggregated view. 
               // Simplification: Allow all in Master view, detailed breakdown shows specifics.
           }
           return !term || item.product.sku.includes(term) || item.product.category.toUpperCase().includes(term);
       });
-  }, [masterInventory, searchTerm, viewWarehouseId]);
+  }, [masterInventory, searchTerm, viewWarehouseId, showEmpty]);
 
   const rowVirtualizer = useVirtualizer({ count: filteredMasterInventory.length, getScrollElement: () => listParentRef.current, estimateSize: () => 100, overscan: 10 });
 
@@ -788,6 +794,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                  <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                     <input type="text" placeholder="Φίλτρο λίστας..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl outline-none w-full bg-white shadow-sm"/>
+                    {/* TOGGLE FOR EMPTY STOCK */}
+                    <button 
+                        onClick={() => setShowEmpty(!showEmpty)}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${showEmpty ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                        title={showEmpty ? 'Απόκρυψη μηδενικών' : 'Εμφάνιση μηδενικών'}
+                    >
+                        {showEmpty ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </button>
                  </div>
               </div>
               
