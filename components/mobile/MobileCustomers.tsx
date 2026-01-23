@@ -10,6 +10,7 @@ import { formatCurrency } from '../../utils/pricingEngine';
 export default function MobileCustomers() {
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
+    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     
@@ -21,6 +22,21 @@ export default function MobileCustomers() {
     const [editType, setEditType] = useState<'customer' | 'supplier'>('customer');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+
+    // Calculate customer stats (Total Spent Net, etc.)
+    const customerStats = useMemo(() => {
+        if (!orders) return {};
+        const stats: Record<string, number> = {};
+        orders.forEach(o => {
+            // Net Value = Total / (1 + VAT)
+            const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+            const cid = o.customer_id;
+            if (cid) {
+                stats[cid] = (stats[cid] || 0) + netValue;
+            }
+        });
+        return stats;
+    }, [orders]);
 
     const filteredList = useMemo(() => {
         if (tab === 'customers') {
@@ -252,49 +268,60 @@ export default function MobileCustomers() {
                 />
             </div>
 
+            {/* Content List */}
             <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                {filteredList.map((item: any) => (
-                    <div 
-                        key={item.id} 
-                        onClick={() => handleEdit(item)}
-                        className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform cursor-pointer"
-                    >
-                        <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
-                                    {tab === 'customers' ? <User size={20}/> : <Globe size={20}/>}
+                {filteredList.map((item: any) => {
+                    const totalSpent = tab === 'customers' ? (customerStats[item.id] || 0) : 0;
+                    return (
+                        <div 
+                            key={item.id} 
+                            onClick={() => handleEdit(item)}
+                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform cursor-pointer"
+                        >
+                            <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                                        {tab === 'customers' ? <User size={20}/> : <Globe size={20}/>}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 text-sm">{item.full_name || item.name}</div>
+                                        {item.address && <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={10}/> {item.address}</div>}
+                                        {tab === 'suppliers' && item.contact_person && <div className="text-[10px] text-slate-500 font-medium">{item.contact_person}</div>}
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-bold text-slate-800 text-sm">{item.full_name || item.name}</div>
-                                    {item.address && <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={10}/> {item.address}</div>}
-                                    {tab === 'suppliers' && item.contact_person && <div className="text-[10px] text-slate-500 font-medium">{item.contact_person}</div>}
-                                </div>
+                                <Edit size={16} className="text-slate-300"/>
                             </div>
-                            <Edit size={16} className="text-slate-300"/>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                            {item.phone && (
-                                <a 
-                                    href={`tel:${item.phone}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex-1 bg-slate-50 text-slate-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-slate-100 active:scale-95 transition-transform"
-                                >
-                                    <Phone size={14} className="fill-current"/> Κλήση
-                                </a>
+                            
+                            <div className="flex gap-2 mb-2">
+                                {item.phone && (
+                                    <a 
+                                        href={`tel:${item.phone}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 bg-slate-50 text-slate-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-slate-100 active:scale-95 transition-transform"
+                                    >
+                                        <Phone size={14} className="fill-current"/> Κλήση
+                                    </a>
+                                )}
+                                {item.email && (
+                                    <a 
+                                        href={`mailto:${item.email}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-blue-100 active:scale-95 transition-transform"
+                                    >
+                                        <Mail size={14}/> Email
+                                    </a>
+                                )}
+                            </div>
+                            
+                            {tab === 'customers' && totalSpent > 0 && (
+                                <div className="pt-2 border-t border-slate-50 flex justify-between items-center text-xs">
+                                    <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Συνολικος Τζιρος (Net)</span>
+                                    <span className="font-black text-emerald-600">{formatCurrency(totalSpent)}</span>
+                                </div>
                             )}
-                            {item.email && (
-                                <a 
-                                    href={`mailto:${item.email}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex-1 bg-blue-50 text-blue-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-blue-100 active:scale-95 transition-transform"
-                                >
-                                    <Mail size={14}/> Email
-                                </a>
-                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 
                 {filteredList.length === 0 && (
                     <div className="text-center py-10 text-slate-400 text-sm font-medium">

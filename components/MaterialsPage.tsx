@@ -310,14 +310,16 @@ export default function MaterialsPage({ settings }: Props) {
 
   // Floating Action Button State
   const [showFab, setShowFab] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
+  const headerRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
+    const scrollContainer = document.querySelector('main > div.overflow-y-auto');
     if (!scrollContainer) return;
     const handleScroll = () => {
-      // Logic: Show FAB if scrolled down more than 50px
-      setShowFab(scrollContainer.scrollTop > 50);
+      if (headerRef.current) {
+        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
+        setShowFab(headerBottomPosition < 20);
+      }
     };
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
@@ -447,7 +449,7 @@ export default function MaterialsPage({ settings }: Props) {
   return (
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
+        <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -523,10 +525,10 @@ export default function MaterialsPage({ settings }: Props) {
                 </button>
             </div>
 
-            {/* GRID */}
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            {/* GRID - NOTE: removed local overflow-y-auto to allow parent scroll detection, OR rely on window scroll if structure allows */}
+            <div className="flex-1 pr-2 pb-20">
                 {filteredMaterials.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredMaterials.map(material => (
                             <MaterialCard 
                                 key={material.id}
@@ -607,7 +609,7 @@ export default function MaterialsPage({ settings }: Props) {
         )}
 
         {/* FLOATING ACTION BUTTON */}
-        <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+        <div className={`fixed bottom-8 right-8 z-[100] transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
             <button
                 onClick={handleCreate}
                 className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
