@@ -49,9 +49,14 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     
     const customerStats = useMemo(() => {
         if (!selectedCustomer || !orders) return null;
-        const customerOrders = orders.filter(o => o.customer_id === selectedCustomer.id || o.customer_name === selectedCustomer.full_name);
+        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === selectedCustomer.id || o.customer_name === selectedCustomer.full_name));
         
-        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price, 0);
+        // Fix: Calculate Net Total Spent (Gross / (1 + VAT))
+        const totalSpent = customerOrders.reduce((acc, o) => {
+            const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+            return acc + netValue;
+        }, 0);
+
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
         
@@ -60,13 +65,16 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         let totalItems = 0;
 
         customerOrders.forEach(o => {
+            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
+            
             o.items.forEach(item => {
                 const cat = item.product_details?.category || 'Άλλο';
                 if (!catStats[cat]) {
                     catStats[cat] = { count: 0, value: 0 };
                 }
                 catStats[cat].count += item.quantity;
-                catStats[cat].value += (item.price_at_order * item.quantity);
+                // Net item value adjusted by order discount
+                catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
                 totalItems += item.quantity;
             });
         });
@@ -341,7 +349,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                         <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
                                             <div className="absolute right-0 top-0 w-20 h-20 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                                             <div className="relative z-10">
-                                                <div className="text-emerald-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><TrendingUp size={14}/> Συνολικός Τζίρος</div>
+                                                <div className="text-emerald-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><TrendingUp size={14}/> Συνολικός Τζίρος (Net)</div>
                                                 <div className="text-3xl font-black text-emerald-700">{formatCurrency(customerStats?.totalSpent)}</div>
                                             </div>
                                         </div>
@@ -470,37 +478,40 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                                     <tr>
                                                         <th className="p-4 pl-6">ID</th>
                                                         <th className="p-4">Ημερομηνία</th>
-                                                        <th className="p-4 text-right">Ποσό</th>
+                                                        <th className="p-4 text-right">Ποσό (Net)</th>
                                                         <th className="p-4">Κατάσταση</th>
                                                         <th className="p-4 text-center">Είδη</th>
                                                         <th className="p-4 text-center"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
-                                                    {customerStats?.history.map(o => (
-                                                        <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="p-4 pl-6 font-mono font-bold text-slate-700">{o.id}</td>
-                                                            <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
-                                                            <td className="p-4 text-right font-black text-slate-800">{formatCurrency(o.total_price)}</td>
-                                                            <td className="p-4">
-                                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(o.status)}`}>
-                                                                    {STATUS_TRANSLATIONS[o.status]}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 text-center text-xs font-bold text-slate-500">{o.items.length}</td>
-                                                            <td className="p-4 text-center">
-                                                                {onPrintOrder && (
-                                                                    <button 
-                                                                        onClick={() => onPrintOrder(o)}
-                                                                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
-                                                                        title="Προβολή/Εκτύπωση"
-                                                                    >
-                                                                        <Printer size={16} />
-                                                                    </button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                    {customerStats?.history.map(o => {
+                                                        const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+                                                        return (
+                                                            <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="p-4 pl-6 font-mono font-bold text-slate-700">{o.id}</td>
+                                                                <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
+                                                                <td className="p-4 text-right font-black text-slate-800">{formatCurrency(netValue)}</td>
+                                                                <td className="p-4">
+                                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(o.status)}`}>
+                                                                        {STATUS_TRANSLATIONS[o.status]}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4 text-center text-xs font-bold text-slate-500">{o.items.length}</td>
+                                                                <td className="p-4 text-center">
+                                                                    {onPrintOrder && (
+                                                                        <button 
+                                                                            onClick={() => onPrintOrder(o)}
+                                                                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                                                                            title="Προβολή/Εκτύπωση"
+                                                                        >
+                                                                            <Printer size={16} />
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                     {customerStats?.history.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Καμία παραγγελία μέχρι στιγμής.</td></tr>}
                                                 </tbody>
                                             </table>
