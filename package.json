@@ -1,33 +1,48 @@
 {
-  "name": "ilios-kosmima-erp",
+  "name": "ilios-erp",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "recharts": "2.12.0",
-    "lucide-react": "0.344.0",
-    "@supabase/supabase-js": "2.39.7",
-    "@tanstack/react-query": "5.22.2",
-    "@tanstack/react-virtual": "3.0.1",
-    "appwrite": "14.0.0",
-    "jsbarcode": "3.11.5",
-    "qrcode": "1.5.3",
-    "@google/genai": "1.30.0",
-    "react-zxing": "2.0.0",
-    "pdfjs-dist": "4.4.168",
-    "html2canvas": "1.4.1"
+    "@google/genai": "^1.30.0",
+    "@supabase/supabase-js": "^2.39.7",
+    "@tanstack/react-query": "^5.22.2",
+    "@tanstack/react-virtual": "^3.0.1",
+    "appwrite": "^14.0.0",
+    "html2canvas": "^1.4.1",
+    "jsbarcode": "^3.11.5",
+    "lucide-react": "^0.344.0",
+    "pdfjs-dist": "^4.4.168",
+    "qrcode": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-zxing": "^2.0.0",
+    "recharts": "^2.12.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  },
+  "overrides": {
+    "rimraf": "^5.0.0",
+    "glob": "^10.0.0",
+    "inflight": "^1.0.6",
+    "npmlog": "^6.0.0",
+    "gauge": "^4.0.0",
+    "are-we-there-yet": "^3.0.0"
   }
 }
