@@ -12,3 +12,9 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent numeric DEFAULT 0;
 -- NEW: Production Hold Status
 ALTER TABLE production_batches ADD COLUMN IF NOT EXISTS on_hold BOOLEAN DEFAULT FALSE;
 ALTER TABLE production_batches ADD COLUMN IF NOT EXISTS on_hold_reason TEXT;
+
+-- NEW: Stones per Strand (Unisex/Strand Stone Type)
+ALTER TABLE materials ADD COLUMN IF NOT EXISTS stones_per_strand numeric DEFAULT NULL;
+
+-- NEW: Description field for Materials (e.g. Stone details)
+ALTER TABLE materials ADD COLUMN IF NOT EXISTS description TEXT;

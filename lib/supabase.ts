@@ -349,12 +349,14 @@ export const api = {
         return data.map((m: any) => ({ 
             id: m.id, 
             name: m.name, 
+            description: m.description || '', // Map description
             type: m.type, 
             cost_per_unit: Number(m.cost_per_unit), 
             unit: m.unit, 
             variant_prices: m.variant_prices || {},
             supplier_id: m.supplier_id || null,
-            stock_qty: Number(m.stock_qty || 0)
+            stock_qty: Number(m.stock_qty || 0),
+            stones_per_strand: m.stones_per_strand ? Number(m.stones_per_strand) : undefined
         }));
     },
     

@@ -44,12 +44,14 @@ export interface Supplier {
 export interface Material {
   id: string;
   name: string;
+  description?: string; // NEW: Specific description (e.g. "8mm Matte", "Faceted")
   type: MaterialType;
   cost_per_unit: number;
   unit: string;
   variant_prices?: Record<string, number>; 
-  supplier_id?: string; // New: Link to Supplier
-  stock_qty?: number;   // New: Track raw material stock
+  supplier_id?: string; // Link to Supplier
+  stock_qty?: number;   // Track raw material stock
+  stones_per_strand?: number; // If sold as strand, how many stones per strand
 }
 
 export interface Mold {

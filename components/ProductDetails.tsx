@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants'; 
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -33,6 +33,70 @@ interface Props {
   allMolds: Mold[];
   viewMode?: 'registry' | 'warehouse';
 }
+
+const SmartQuantityInput = ({ 
+    value, 
+    onChange, 
+    stonesPerStrand 
+}: { 
+    value: number, 
+    onChange: (val: number) => void, 
+    stonesPerStrand?: number 
+}) => {
+    const [strandInput, setStrandInput] = useState<string>('');
+    const [showStrandInput, setShowStrandInput] = useState(false);
+
+    const applyStrands = () => {
+        const strands = parseFloat(strandInput);
+        if (!isNaN(strands) && stonesPerStrand) {
+            onChange(Math.round(strands * stonesPerStrand));
+        }
+        setShowStrandInput(false);
+        setStrandInput('');
+    };
+
+    return (
+        <div className="flex items-center gap-2 relative">
+            <input 
+                type="number" 
+                value={value} 
+                onChange={(e) => onChange(parseFloat(e.target.value))} 
+                className="w-16 p-1 text-center font-bold bg-white rounded border border-slate-200 outline-none focus:border-blue-400"
+            />
+            {stonesPerStrand && stonesPerStrand > 1 && (
+                <div className="relative">
+                    <button 
+                        onClick={() => setShowStrandInput(!showStrandInput)}
+                        className="p-1 bg-blue-50 text-blue-600 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
+                        title="Εισαγωγή ως Κορδόνια"
+                    >
+                        <RefreshCcw size={14}/>
+                    </button>
+                    {showStrandInput && (
+                        <div className="absolute top-full right-0 mt-2 z-50 bg-white p-3 rounded-xl shadow-xl border border-slate-100 w-48 animate-in zoom-in-95">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({stonesPerStrand} πέτρες)</div>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="number" 
+                                    step="0.1" 
+                                    placeholder="1.5" 
+                                    value={strandInput}
+                                    onChange={e => setStrandInput(e.target.value)}
+                                    className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && applyStrands()}
+                                />
+                                <button onClick={applyStrands} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700">
+                                    <Check size={14}/>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- RECIPE ITEM SELECTOR MODAL ---
 const RecipeItemSelectorModal = ({
@@ -133,6 +197,11 @@ const RecipeItemSelectorModal = ({
                         <div className="font-bold text-slate-800 text-sm truncate">{name}</div>
                         {isComponent && item.category && (
                             <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[100px]">{item.category}</span>
+                        )}
+                        {!isComponent && item.stones_per_strand && (
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold whitespace-nowrap">
+                                {item.stones_per_strand} πέτρες/strand
+                            </span>
                         )}
                     </div>
                     
@@ -1850,6 +1919,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             }
                                         }
 
+                                       const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
+
                                        return (
                                            <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                                                <div className="p-2 bg-white rounded-lg border border-slate-100">
@@ -1876,7 +1947,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                </div>
                                                 <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
                                                <div className="flex items-center gap-2">
-                                                   <input type="number" className="w-16 p-1 text-center font-bold bg-white rounded border border-slate-200 outline-none" value={item.quantity} onChange={e => updateRecipeItem(idx, 'quantity', e.target.value)}/>
+                                                   <SmartQuantityInput 
+                                                       value={item.quantity} 
+                                                       onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
+                                                       stonesPerStrand={stonesPerStrand}
+                                                   />
                                                    <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
                                                </div>
                                                <button onClick={() => removeRecipeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={18}/></button>
