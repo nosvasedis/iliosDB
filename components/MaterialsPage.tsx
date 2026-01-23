@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
 import { Trash2, Plus, Save, Loader2, Gem, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -308,6 +308,24 @@ export default function MaterialsPage({ settings }: Props) {
   const [activeMaterialForVariants, setActiveMaterialForVariants] = useState<Material | null>(null);
   const [variantPrices, setVariantPrices] = useState<{code: string, price: number}[]>([]);
 
+  // Floating Action Button State
+  const [showFab, setShowFab] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+    const handleScroll = () => {
+      if (headerRef.current) {
+        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
+        setShowFab(headerBottomPosition < 20);
+      }
+    };
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Filtering Logic
   const filteredMaterials = useMemo(() => {
       if (!materials) return [];
@@ -432,7 +450,7 @@ export default function MaterialsPage({ settings }: Props) {
   return (
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
+        <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -509,7 +527,7 @@ export default function MaterialsPage({ settings }: Props) {
             </div>
 
             {/* GRID */}
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                 {filteredMaterials.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
                         {filteredMaterials.map(material => (
@@ -590,6 +608,16 @@ export default function MaterialsPage({ settings }: Props) {
                  </div>
              </div>
         )}
+
+        {/* FLOATING ACTION BUTTON */}
+        <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            <button
+                onClick={handleCreate}
+                className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
+            >
+                <Plus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Υλικό</span>
+            </button>
+        </div>
     </div>
   );
 }
