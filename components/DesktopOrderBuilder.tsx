@@ -672,7 +672,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 </div>
             </div>
 
-            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 min-h-0">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6">
                 
                 {/* LEFT COLUMN: CUSTOMER INFO */}
                 <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-y-auto custom-scrollbar h-full">
@@ -879,7 +879,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50 min-h-0">
+                    <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50">
                         {displayItems.map((item) => (
                             <div key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes}`} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group">
                                 <div className="flex items-center justify-between gap-4">

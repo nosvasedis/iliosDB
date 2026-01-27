@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -52,7 +52,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
-    const [showCustDetails, setShowCustDetails] = useState(true);
 
     // --- INPUT STATE ---
     const [input, setInput] = useState('');
@@ -83,19 +82,28 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
         const results = products.filter(p => {
             if (p.is_component) return false;
+            // Case 1: SKU starts with term
             if (p.sku.startsWith(term)) return true;
+            // Case 2: SKU contains the numeric part (e.g. searching "602" matches "PN602")
             if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
             return false;
         }).sort((a, b) => {
+            // Priority 1: Exact Match
             const aExact = a.sku === term;
             const bExact = b.sku === term;
             if (aExact && !bExact) return -1;
             if (!aExact && bExact) return 1;
+
+            // Priority 2: Starts With Match (e.g. "PN" puts "PN602" before "RN602" even if RN has "PN" somewhere else or via numeric match)
             const aStarts = a.sku.startsWith(term);
             const bStarts = b.sku.startsWith(term);
             if (aStarts && !bStarts) return -1;
             if (!aStarts && bStarts) return 1;
+
+            // Priority 3: Shorter length (e.g. "A100" before "A1005")
             if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
+            
+            // Priority 4: Alphabetical
             return a.sku.localeCompare(b.sku);
         }).slice(0, 10);
 
@@ -149,6 +157,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         if (navigator.vibrate) navigator.vibrate(50);
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
         
+        // Reset diffs on new add
         setPriceDiffs(null);
 
         setActiveMaster(null);
@@ -165,8 +174,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         if (match) {
             const { product, variant } = match;
 
+            // @FIX: Block adding components (STX) via Barcode Scanner in Order workflow
             if (product.is_component) {
-                showToast(`Ο κωδικός ${product.sku} είναι εξάρτημα.`, "error");
+                showToast(`Ο κωδικός ${product.sku} είναι εξάρτημα και δεν πωλείται.`, "error");
                 return;
             }
 
@@ -210,7 +220,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     };
 
     const executeAddItem = () => {
+        // Trim input to ignore size part if typed after space
         const skuCode = input.split(/\s+/)[0]; 
+    
         if (!skuCode) return;
         const match = findProductByScannedCode(skuCode, products);
         
@@ -218,22 +230,30 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
             return;
         }
+    
         const { product, variant } = match;
+    
         if (product.is_component) {
-            showToast(`Το ${product.sku} είναι εξάρτημα.`, "error");
+            showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
             return;
         }
 
+        // STRICT VARIANT VALIDATION
         if (!variant) {
             const hasVariants = product.variants && product.variants.length > 0;
+            // Exception: If the product has exactly 1 variant and it is "Lustre" (empty suffix), treat master as that variant.
             const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+
             if (hasVariants && !isSingleLustre) {
+                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
+                // Expand variants view if needed or just return to force selection
                 setActiveMaster(product); 
                 return;
             }
         }
     
         const unitPrice = variant?.selling_price || product.selling_price || 0;
+    
         const newItem: OrderItem = {
             sku: product.sku,
             variant_suffix: variant?.suffix,
@@ -260,6 +280,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         });
         
         setPriceDiffs(null);
+    
         setInput('');
         setQty(1);
         setItemNotes('');
@@ -271,6 +292,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         showToast("Το προϊόν προστέθηκε.", "success");
     };
 
+    // Calculate Totals
     const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
     const discountAmount = subtotal * (discountPercent / 100);
     const netAmount = subtotal - discountAmount;
@@ -328,13 +350,25 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setPriceDiffs(null);
     };
 
+    const updateItemNotes = (index: number, notes: string) => {
+        setItems(prev => {
+            const next = [...prev];
+            next[index].notes = notes || undefined;
+            return next;
+        });
+    };
+
     const [showCustSearch, setShowCustSearch] = useState(false);
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
         return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
     }, [customers, customerName]);
+
+    const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
     
+    // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
     const handleRecalculatePrices = () => {
+        // 1. Calculate Old Totals
         const oldSub = items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
         const oldNet = oldSub * (1 - discountPercent / 100);
         const oldVat = oldNet * vatRate;
@@ -344,6 +378,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         const newItems = items.map(item => {
             const product = products.find(p => p.sku === item.sku);
             if (!product) return item;
+
             let currentRegistryPrice = 0;
             if (item.variant_suffix) {
                 const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
@@ -351,6 +386,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             } else {
                 currentRegistryPrice = product.selling_price;
             }
+
+            // If price differs, update it
             if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
                 updatedCount++;
                 return { ...item, price_at_order: currentRegistryPrice };
@@ -358,6 +395,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             return item;
         });
 
+        // 2. Calculate New Totals
         const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
         const newNet = newSub * (1 - discountPercent / 100);
         const newVat = newNet * vatRate;
@@ -378,148 +416,162 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
-            {/* 1. HEADER (Fixed) */}
-            <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-30">
+        <div className="flex flex-col h-full bg-slate-50 relative">
+            <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
                 <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800"><ArrowLeft size={24}/></button>
                 <div className="font-black text-slate-800 text-lg">{initialOrder ? `Edit #${initialOrder.id.slice(0,6)}` : 'Νέα Παραγγελία'}</div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50"><Save size={20}/></button>
             </div>
 
-            {/* 2. MAIN SCROLLING CONTENT AREA - Split into Customer/Input (Shrinkable) and List (Flex Grow) */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-                
-                {/* 2A. Top Section: Customer Info & Input - Can scroll if needed but usually compact */}
-                <div className="shrink-0 bg-slate-50 z-20 shadow-sm transition-all border-b border-slate-200 max-h-[45vh] overflow-y-auto custom-scrollbar">
-                    {/* Collapsible Customer Header */}
-                    <div 
-                        className="p-3 bg-white border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => setShowCustDetails(!showCustDetails)}
-                    >
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                            <User size={14}/> {customerName || 'Πελάτης'}
-                        </div>
-                        {showCustDetails ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+            <div className="p-4 bg-white border-b border-slate-100 shrink-0 z-10 space-y-3">
+                <div className="relative">
+                    <div className="flex items-center gap-2 mb-2">
+                        <User size={16} className="text-slate-400"/>
+                        <input className="flex-1 outline-none font-bold text-slate-800 placeholder-slate-300" placeholder="Όνομα Πελάτη..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSearch(true); if(!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustSearch(true)}/>
+                        {customerId && <Check size={16} className="text-emerald-500"/>}
                     </div>
-
-                    {showCustDetails && (
-                        <div className="p-4 space-y-3 bg-white animate-in slide-in-from-top-2">
-                             <div className="relative">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <input className="flex-1 outline-none font-bold text-slate-800 placeholder-slate-300 border-b border-slate-200 pb-1" placeholder="Όνομα..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSearch(true); if(!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustDetails(true)}/>
-                                    {customerId && <Check size={16} className="text-emerald-500"/>}
-                                </div>
-                                {showCustSearch && customerName && !customerId && filteredCustomers.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
-                                        {filteredCustomers.map(c => (
-                                            <div key={c.id} onClick={() => { setCustomerName(c.full_name); setCustomerPhone(c.phone||''); setCustomerId(c.id); setShowCustSearch(false); }} className="p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 font-medium text-sm flex justify-between"><span>{c.full_name}</span></div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div className="flex gap-2">
-                                     <div className="flex items-center gap-2 flex-1 bg-slate-50 p-2 rounded-lg border border-slate-100"><Phone size={14} className="text-slate-400"/><input className="flex-1 bg-transparent outline-none text-xs font-medium" placeholder="Τηλ" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/></div>
-                                     <div className="flex items-center gap-2 flex-1 bg-amber-50 p-2 rounded-lg border border-amber-100"><Percent size={14} className="text-amber-500"/><input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} className="flex-1 bg-transparent text-xs font-black text-amber-800 outline-none" placeholder="Έκπτ."/></div>
-                                </div>
-                            </div>
+                    {showCustSearch && customerName && !customerId && filteredCustomers.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
+                            {filteredCustomers.map(c => (
+                                <div key={c.id} onClick={() => { setCustomerName(c.full_name); setCustomerPhone(c.phone||''); setCustomerId(c.id); setShowCustSearch(false); }} className="p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 font-medium text-sm flex justify-between"><span>{c.full_name}</span>{c.phone && <span className="text-slate-400 text-xs">{c.phone}</span>}</div>
+                            ))}
                         </div>
                     )}
-
-                    {/* PRODUCT INPUT AREA (Always Visible in Top Section unless collapsed explicitly, but here we keep it) */}
-                    <div className="p-4 bg-slate-50">
-                        {/* Master Selection Input */}
-                        {!activeMaster && (
-                            <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Προσθήκη Κωδικού</label>
-                                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                                    <Search size={18} className="text-slate-400"/>
-                                    <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="SKU..." className="flex-1 bg-transparent outline-none font-mono font-bold text-slate-800 uppercase placeholder-slate-300"/>
-                                    <button onClick={() => setShowScanner(true)} className="p-1.5 bg-white rounded-md shadow-sm text-slate-500"><Camera size={16}/></button>
-                                </div>
-                                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                                    {suggestions.map(p => (
-                                        <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-2 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs border-b border-slate-50 last:border-0">
-                                            <span className="font-black text-slate-700">{p.sku}</span>
-                                            <span className="text-[10px] text-slate-400">{p.category}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Variant Selection Panel */}
-                        {activeMaster && (
-                            <div className="bg-white p-4 rounded-2xl shadow-lg border border-emerald-100 animate-in zoom-in-95">
-                                <div className="flex justify-between items-center mb-3">
-                                    <div><h3 className="text-lg font-black text-slate-900">{activeMaster.sku}</h3><p className="text-[10px] text-slate-500 uppercase font-bold">{activeMaster.category}</p></div>
-                                    <button onClick={() => setActiveMaster(null)} className="p-1.5 bg-slate-100 rounded-full text-slate-500"><X size={16}/></button>
-                                </div>
-                                
-                                {sizeMode && (
-                                    <div className="mb-3">
-                                        <div className="grid grid-cols-5 gap-1">{sizeMode.sizes.map(s => (<button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-1.5 rounded-md text-xs font-bold border ${selectedSize === s ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>{s}</button>))}</div>
-                                    </div>
-                                )}
-                                
-                                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg mb-3">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase ml-1">Ποσ.</span>
-                                    <div className="flex items-center gap-3"><button onClick={() => setQty(Math.max(1, qty - 1))} className="w-6 h-6 bg-white rounded border border-slate-200 font-bold">-</button><span className="w-4 text-center font-black text-sm">{qty}</span><button onClick={() => setQty(qty + 1)} className="w-6 h-6 bg-white rounded border border-slate-200 font-bold">+</button></div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                    {(!activeMaster.variants || activeMaster.variants.length === 0) && (<button onClick={() => handleAddItem(null)} className="p-3 rounded-xl bg-slate-100 border border-slate-200 font-bold text-slate-700 text-xs col-span-2">Βασικό</button>)}
-                                    {activeMaster.variants?.map(v => {
-                                        const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
-                                        const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
-                                        return (<button key={v.suffix} onClick={() => handleAddItem(v)} className={`p-3 rounded-xl border flex flex-col items-center gap-0.5 active:scale-95 shadow-sm ${finishColor}`}><span className="text-xs font-black flex items-center gap-0.5">{finish.code}{stone.code && <span className={STONE_TEXT_COLORS[stone.code] || 'text-emerald-600'}>{stone.code}</span>}{!finish.code && !stone.code && (v.suffix || 'BAS')}</span></button>);
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <div className="flex items-center gap-2 border-t border-slate-50 pt-2"><Phone size={16} className="text-slate-400"/><input className="flex-1 outline-none text-sm text-slate-600 placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/></div>
                 </div>
 
-                {/* 2B. Bottom Section: List - INDEPENDENT SCROLL */}
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/30 shadow-inner min-h-0 relative">
-                     <div className="flex justify-between items-center mb-2 sticky top-0 bg-slate-50/95 backdrop-blur-sm py-1 z-10">
-                         <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide">Καλάθι ({items.length})</h3>
-                         <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
-                             <RefreshCw size={10}/> Sync
+                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <Coins size={14} className="text-slate-400"/>
+                    <label className="text-xs font-bold text-slate-500 uppercase shrink-0">ΦΠΑ:</label>
+                    <select 
+                        value={vatRate} 
+                        onChange={(e) => setVatRate(parseFloat(e.target.value))} 
+                        className="flex-1 bg-transparent text-sm font-bold text-slate-800 outline-none"
+                    >
+                        <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                        <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                        <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                    <Percent size={14} className="text-amber-500"/>
+                    <label className="text-xs font-bold text-amber-700 uppercase shrink-0">Έκπτωση (%):</label>
+                    <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        value={discountPercent} 
+                        onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                        className="flex-1 bg-transparent text-sm font-black text-amber-800 outline-none"
+                        placeholder="0"
+                    />
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4">
+                {/* Product Input Section */}
+                {!activeMaster && (
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
+                        <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
+                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+                            <Search size={20} className="text-slate-400 ml-1"/><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="π.χ. DA100 ή 1005..." className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-slate-900 uppercase placeholder-slate-300"/><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800"><Camera size={20}/></button>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                            {suggestions.map(p => (
+                                <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-2 rounded-xl bg-white border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex items-center justify-between group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300"/>}</div>
+                                        <div><div className="font-black text-slate-800 text-lg leading-none">{p.sku}</div><div className="text-xs text-slate-500 font-medium">{p.category}</div></div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-slate-300"/>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Variant/Options Selection */}
+                {activeMaster && (
+                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-emerald-100 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-start mb-4"><div><h3 className="text-2xl font-black text-slate-900">{activeMaster.sku}</h3><p className="text-xs text-slate-500 font-bold uppercase">{activeMaster.category}</p></div><button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button></div>
+
+                        {sizeMode && (
+                            <div className="mb-6">
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block flex items-center gap-1"><Hash size={12}/> Επιλογή {sizeMode.type} <span className="font-normal text-slate-300 lowercase">(προαιρετικό)</span></label>
+                                <div className="grid grid-cols-5 gap-2">{sizeMode.sizes.map(s => (<button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-2 rounded-lg text-sm font-bold border ${selectedSize === s ? 'bg-slate-800 text-white border-slate-800 shadow-md transform scale-105' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{s}</button>))}</div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl mb-4 border border-slate-100">
+                            <span className="text-xs font-bold text-slate-500 uppercase ml-1">Ποσότητα</span>
+                            <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-sm"><button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 bg-slate-100 rounded text-slate-600 font-bold">-</button><span className="w-8 text-center font-black text-lg">{qty}</span><button onClick={() => setQty(qty + 1)} className="w-8 h-8 bg-slate-100 rounded text-slate-600 font-bold">+</button></div>
+                        </div>
+                        
+                        <div className="mb-6">
+                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><StickyNote size={12}/> Παρατηρήσεις Είδους</label>
+                            <input value={itemNotes} onChange={e => setItemNotes(e.target.value)} onKeyDown={e => e.key === 'Enter' && executeAddItem()} placeholder="π.χ. Αλλαγή κουμπώματος..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"/>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            {!hasVariants && (<button onClick={() => handleAddItem(null)} className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 col-span-2"><span className="text-lg font-black text-slate-700">Βασικό</span><span className="text-[10px] uppercase font-bold text-slate-400">Master</span></button>)}
+                            {activeMaster.variants?.map(v => {
+                                const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
+                                const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
+                                const stoneColorClass = stone.code ? (STONE_TEXT_COLORS[stone.code] || 'text-emerald-600') : '';
+                                return (<button key={v.suffix} onClick={() => handleAddItem(v)} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm bg-white ${finishColor}`}><span className="text-lg font-black flex items-center gap-0.5">{finish.code}{stone.code && <span className={stoneColorClass}>{stone.code}</span>}{!finish.code && !stone.code && v.suffix}</span><span className="text-[10px] uppercase font-bold opacity-80 truncate w-full text-center">{v.description || 'Var'}</span></button>);
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Items List */}
+                <div className="mt-4 pb-20">
+                    <div className="flex justify-between items-center mb-2 px-2 pb-2 border-b border-slate-100">
+                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3>
+                         <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all">
+                             <RefreshCw size={12}/> Sync Prices
                          </button>
                     </div>
 
-                    <div className="space-y-2 pb-4">
+                    <div className="space-y-2">
                         {items.map((item, idx) => (
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
                                 <div className="flex justify-between items-center">
                                     <div>
-                                        <div className="font-black text-slate-800 text-sm">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
+                                        <div className="font-black text-slate-800 text-base">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
                                         <div className="text-[10px] text-slate-500 font-medium flex gap-2"><span>{formatCurrency(item.price_at_order)}</span>{item.size_info && <span className="bg-slate-100 px-1 rounded border border-slate-200">Size: {item.size_info}</span>}</div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-0.5 border border-slate-100">
-                                            <button onClick={() => updateItemQty(idx, -1)} className="p-1 text-slate-400 hover:bg-white rounded"><Minus size={12}/></button>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1 border border-slate-100">
+                                            <button onClick={() => updateItemQty(idx, -1)} className="p-1 text-slate-400"><Minus size={12}/></button>
                                             <span className="text-xs font-bold text-slate-700 w-4 text-center">{item.quantity}</span>
-                                            <button onClick={() => updateItemQty(idx, 1)} className="p-1 text-slate-400 hover:bg-white rounded"><Plus size={12}/></button>
+                                            <button onClick={() => updateItemQty(idx, 1)} className="p-1 text-slate-400"><Plus size={12}/></button>
                                         </div>
-                                        <button onClick={() => handleRemoveItem(idx)} className="p-1.5 text-slate-300 hover:text-red-500 bg-slate-50 rounded-lg"><Trash2 size={16}/></button>
+                                        <button onClick={() => handleRemoveItem(idx)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
                                     </div>
                                 </div>
-                                {item.notes && <div className="text-[10px] text-emerald-700 italic bg-emerald-50 p-1.5 rounded">{item.notes}</div>}
+                                {item.notes && (
+                                    <div className="bg-emerald-50/50 p-2 rounded-lg border border-emerald-100 flex items-start gap-2">
+                                        <StickyNote size={12} className="text-emerald-500 shrink-0 mt-0.5"/>
+                                        <span className="text-[10px] text-emerald-800 font-bold italic line-clamp-1">{item.notes}</span>
+                                    </div>
+                                )}
                             </div>
                         ))}
-                        {items.length === 0 && (<div className="text-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50"><p className="text-xs font-bold">Το καλάθι είναι άδειο</p></div>)}
+                        {items.length === 0 && (<div className="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50"><p className="text-sm font-bold">Το καλάθι είναι άδειο</p><p className="text-xs">Ξεκινήστε την πληκτρολόγηση...</p></div>)}
                     </div>
                 </div>
             </div>
 
-            {/* 3. FOOTER (Fixed) */}
-            <div className="p-4 bg-white border-t border-slate-200 shrink-0 shadow-lg z-30">
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-lg">
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
-                     <span>Καθαρή:</span>
+                     <span>Καθαρή Αξία:</span>
                      <div className="flex items-center gap-1">
                         <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
                         {priceDiffs && priceDiffs.net !== 0 && (
-                            <span className={`text-[9px] font-bold ${priceDiffs.net > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            <span className={`text-[10px] font-bold ${priceDiffs.net > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                 ({priceDiffs.net > 0 ? '+' : ''}{formatCurrency(priceDiffs.net)})
                             </span>
                         )}
@@ -536,7 +588,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                      <div className="flex items-center gap-1">
                         <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
                         {priceDiffs && priceDiffs.vat !== 0 && (
-                            <span className={`text-[9px] font-bold ${priceDiffs.vat > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            <span className={`text-[10px] font-bold ${priceDiffs.vat > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                 ({priceDiffs.vat > 0 ? '+' : ''}{formatCurrency(priceDiffs.vat)})
                             </span>
                         )}
