@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
-import { User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent } from 'lucide-react';
+import { ArrowLeft, User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent, RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -29,7 +29,7 @@ const FINISH_COLORS: Record<string, string> = {
 
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
     'NF': 'text-green-700', 
     
@@ -538,6 +538,37 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             return updated;
         });
     };
+    
+    // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
+    const handleRecalculatePrices = () => {
+        let updatedCount = 0;
+        const newItems = selectedItems.map(item => {
+            const product = products.find(p => p.sku === item.sku);
+            if (!product) return item;
+
+            let currentRegistryPrice = 0;
+            if (item.variant_suffix) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                currentRegistryPrice = variant?.selling_price || 0;
+            } else {
+                currentRegistryPrice = product.selling_price;
+            }
+
+            // If price differs, update it
+            if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
+                updatedCount++;
+                return { ...item, price_at_order: currentRegistryPrice };
+            }
+            return item;
+        });
+
+        if (updatedCount > 0) {
+            setSelectedItems(newItems);
+            showToast(`Ενημερώθηκαν οι τιμές σε ${updatedCount} είδη.`, 'success');
+        } else {
+            showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
+        }
+    };
 
     const handleRemoveItem = (item: OrderItem) => {
         const idx = selectedItems.indexOf(item);
@@ -596,100 +627,92 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden h-full">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    {initialOrder ? <Edit size={24} className="text-emerald-600"/> : <Plus size={24} className="text-[#060b00]"/>}
-                    {initialOrder ? `Επεξεργασία Παραγγελίας #${initialOrder.id.slice(0,8)}` : 'Δημιουργία Παραγγελίας'}
-                </h2>
-                <button onClick={() => { clearDraft(); onBack(); }} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
+        <div className="flex flex-col h-full bg-slate-50 relative">
+            {/* Header */}
+            <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => { clearDraft(); onBack(); }} className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+                        <ArrowLeft size={24}/>
+                    </button>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-800">{initialOrder ? `Επεξεργασία #${initialOrder.id.slice(0,8)}` : 'Νέα Παραγγελία'}</h2>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50">
+                        <Save size={18}/> Αποθήκευση
+                    </button>
+                </div>
             </div>
 
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6">
                 
-                {/* LEFT: CUSTOMER INFO */}
-                <div className="lg:col-span-3 space-y-6 overflow-y-auto pr-2 custom-scrollbar border-r border-slate-50">
+                {/* LEFT COLUMN: CUSTOMER INFO */}
+                <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-y-auto custom-scrollbar h-full">
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-50 pb-2">
+                        <User size={16}/> Στοιχεία Πελάτη
+                    </h3>
+                    
                     <div className="space-y-4">
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Στοιχεία Πελάτη</label>
                         <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
                             <input 
-                              type="text" 
-                              placeholder="Αναζήτηση Πελάτη..." 
-                              value={customerName || customerSearch} 
-                              onChange={e => { setCustomerSearch(e.target.value); setCustomerName(e.target.value); setShowCustomerResults(true); if (!e.target.value) setSelectedCustomerId(null); }}
-                              onFocus={() => setShowCustomerResults(true)}
-                              className={`w-full pl-10 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all ${selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50 text-emerald-900 font-bold' : 'border-slate-200'}`}
+                                className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 transition-all ${selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200'}`}
+                                placeholder="Αναζήτηση..."
+                                value={customerName}
+                                onChange={e => { setCustomerName(e.target.value); setCustomerSearch(e.target.value); setShowCustomerResults(true); if(!e.target.value) setSelectedCustomerId(null); }}
+                                onFocus={() => setShowCustomerResults(true)}
                             />
+                            {selectedCustomerId && <Check size={16} className="absolute right-3 top-9 text-emerald-500"/>}
+                            
                             {showCustomerResults && customerSearch && !selectedCustomerId && (
-                                <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 max-h-40 overflow-y-auto">
+                                <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
                                     {filteredCustomers.map(c => (
-                                        <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 text-sm font-bold text-slate-800">
+                                        <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
                                             {c.full_name}
                                         </div>
                                     ))}
+                                    {filteredCustomers.length === 0 && <div className="p-3 text-xs text-slate-400 italic">Δεν βρέθηκαν αποτελέσματα.</div>}
                                 </div>
                             )}
                         </div>
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                            <input type="text" placeholder="Τηλέφωνο" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all"/>
-                        </div>
-                        
+
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Έκπτωση (%)</label>
-                            <div className="relative">
-                                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" size={16}/>
-                                <input 
-                                    type="number" 
-                                    min="0" 
-                                    max="100"
-                                    value={discountPercent} 
-                                    onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
-                                    className="w-full pl-10 p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900"
-                                />
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τηλέφωνο</label>
+                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500/20" placeholder="-" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-50 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" min="0" max="100" 
+                                        value={discountPercent} 
+                                        onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                                        className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900 pr-8"
+                                    />
+                                    <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500"/>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Καθεστώς ΦΠΑ</label>
+                                <select 
+                                    value={vatRate} 
+                                    onChange={(e) => setVatRate(parseFloat(e.target.value))} 
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 cursor-pointer"
+                                >
+                                    <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                                    <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                                    <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                                </select>
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Καθεστώς ΦΠΑ</label>
-                            <select 
-                                value={vatRate} 
-                                onChange={(e) => setVatRate(parseFloat(e.target.value))} 
-                                className="w-full p-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700"
-                            >
-                                <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                                <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                                <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                            </select>
+                        <div className="pt-4 border-t border-slate-50">
+                           <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Σημειώσεις Παραγγελίας</label>
+                           <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm h-32 resize-none outline-none focus:ring-2 focus:ring-emerald-500/20" placeholder="Ειδικές οδηγίες..."/>
                         </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">Σημειώσεις Παραγγελίας</label>
-                        <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Ειδικές οδηγίες για όλη την παραγγελία..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-24 resize-none transition-all"/>
-                    </div>
-                    <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm sticky bottom-0 space-y-2">
-                        <div className="flex justify-between items-center text-emerald-800/70 text-sm">
-                           <span className="font-bold">Αρχική Αξία</span>
-                           <span className="font-bold font-mono">{subtotal.toFixed(2)}€</span>
-                        </div>
-                        {discountPercent > 0 && (
-                            <div className="flex justify-between items-center text-rose-600 text-sm">
-                               <span className="font-bold">Έκπτωση ({discountPercent}%)</span>
-                               <span className="font-bold font-mono">-{discountAmount.toFixed(2)}€</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between items-center text-emerald-800/70 text-sm border-b border-emerald-200 pb-2">
-                           <span className="font-bold">Φ.Π.Α. ({(vatRate*100).toFixed(0)}%)</span>
-                           <span className="font-bold font-mono">{vatAmount.toFixed(2)}€</span>
-                        </div>
-                        <div className="flex justify-between items-center mb-4">
-                           <span className="font-bold text-emerald-900 text-sm uppercase">Γενικο Συνολο</span>
-                           <span className="font-black text-3xl text-emerald-700">{grandTotal.toFixed(2)}€</span>
-                        </div>
-                        <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-3.5 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
-                            {initialOrder ? <><Save size={18}/> Ενημέρωση</> : <><Plus size={18}/> Καταχώρηση</>}
-                        </button>
                     </div>
                 </div>
 
@@ -711,6 +734,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                         onKeyDown={e => e.key === 'Enter' && executeAddItem()}
                                         placeholder="Πληκτρολογήστε..."
                                         className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest shadow-sm relative z-10"
+                                        autoFocus
                                     />
                                 </div>
                             </div>
@@ -720,7 +744,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                   type="number" min="1" value={scanQty} 
                                   onChange={e => setScanQty(parseInt(e.target.value)||1)} 
                                   onKeyDown={e => e.key === 'Enter' && executeAddItem()}
-                                  className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                  className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
                                 />
                             </div>
                         </div>
@@ -731,11 +755,11 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                 <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
                                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                                     {candidateProducts.map(p => (
-                                        <div key={p.sku} onClick={() => handleSelectMaster(p)} className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 min-w-[160px] shadow-sm transition-all group">
-                                            <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}</div>
+                                        <div key={p.sku} onClick={() => handleSelectMaster(p)} className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 min-w-[160px] shadow-sm transition-all group active:scale-95">
+                                            <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}</div>
                                             <div className="min-w-0">
                                                 <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors">{p.sku}</div>
-                                                <div className="text-[10px] text-slate-400 truncate">{p.category}</div>
+                                                <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[100px]">{p.category}</div>
                                             </div>
                                         </div>
                                     ))}
@@ -812,21 +836,25 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 </div>
 
                 {/* RIGHT: ORDER LIST */}
-                <div className="lg:col-span-4 flex flex-col h-full overflow-hidden">
-                    <div className="flex justify-between items-center mb-3 px-2 shrink-0">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα Εντολής ({selectedItems.length})</label>
+                <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα ({selectedItems.length})</label>
                         <div className="flex items-center gap-2">
+                            <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all">
+                                <RefreshCw size={14}/> Συγχρονισμός Τιμών
+                            </button>
                             <button onClick={() => setSortOrder(prev => prev === 'input' ? 'alpha' : 'input')} className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
                                 <ArrowDownAZ size={12}/> {sortOrder === 'input' ? 'Χρον.' : 'Αλφ.'}
                             </button>
                             <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95">
-                                <Camera size={14}/> Σάρωση
+                                <Camera size={14}/>
                             </button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar bg-white rounded-3xl border border-slate-100 p-2 shadow-inner">
+
+                    <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50">
                         {displayItems.map((item) => (
-                            <div key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes}`} className="bg-white p-3 rounded-2xl border border-slate-50 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group">
+                            <div key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes}`} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group">
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">{item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover"/>}</div>
@@ -836,7 +864,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
                                             <button onClick={() => updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12}/></button>
                                             <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
                                             <button onClick={() => updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12}/></button>
@@ -851,7 +879,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                         value={item.notes || ''} 
                                         onChange={e => updateItemNotes(item, e.target.value)}
                                         placeholder="Προσθήκη παρατήρησης είδους..."
-                                        className="w-full pl-7 py-1.5 text-[10px] bg-slate-50/50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-lg outline-none font-medium text-slate-600 transition-all placeholder:italic"
+                                        className="w-full pl-7 py-1.5 text-[10px] bg-slate-50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-lg outline-none font-medium text-slate-600 transition-all placeholder:italic"
                                     />
                                     <StickyNote size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 group-hover/note:text-emerald-400" />
                                 </div>
@@ -860,6 +888,28 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         {selectedItems.length === 0 && (
                           <div className="flex flex-col items-center justify-center h-full text-slate-300 italic py-10"><Box size={48} className="opacity-20 mb-4"/><p className="text-sm font-bold">Το καλάθι είναι άδειο.</p></div>
                         )}
+                    </div>
+                    
+                    {/* Summary Footer */}
+                    <div className="p-5 bg-slate-50 border-t border-slate-200">
+                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+                             <span>Καθαρή Αξία:</span>
+                             <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                        </div>
+                        {discountPercent > 0 && (
+                            <div className="flex justify-between items-center text-xs text-red-500 mb-1">
+                                <span>Έκπτωση ({discountPercent}%):</span>
+                                <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200 pb-2 mb-2">
+                             <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                             <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                             <span className="font-black text-slate-800 uppercase text-sm">Συνολο</span>
+                             <span className="font-black text-2xl text-emerald-700">{formatCurrency(grandTotal)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
