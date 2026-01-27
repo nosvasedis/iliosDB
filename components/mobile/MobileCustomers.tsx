@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Percent } from 'lucide-react';
-import { Customer, Supplier, VatRegime } from '../../types';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2 } from 'lucide-react';
+import { Customer, Supplier } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobileSupplierDetails from './MobileSupplierDetails';
@@ -60,11 +60,7 @@ export default function MobileCustomers() {
 
     const handleCreate = () => {
         setEditType(tab === 'customers' ? 'customer' : 'supplier');
-        // Initialize with default VAT for customers
-        setEditData(tab === 'customers' 
-            ? { full_name: '', phone: '', email: '', address: '', vat_number: '', notes: '', vat_rate: VatRegime.Standard } 
-            : { name: '', contact_person: '', phone: '', email: '', address: '', notes: '' }
-        );
+        setEditData(tab === 'customers' ? { full_name: '', phone: '', email: '', address: '', vat_number: '', notes: '' } : { name: '', contact_person: '', phone: '', email: '', address: '', notes: '' });
         setIsEditing(true);
     };
 
@@ -84,13 +80,8 @@ export default function MobileCustomers() {
 
         try {
             if (editType === 'customer') {
-                // Ensure vat_rate is present
-                const customerPayload = {
-                    ...editData,
-                    vat_rate: editData.vat_rate !== undefined ? editData.vat_rate : VatRegime.Standard
-                };
-                if (editData.id) await api.updateCustomer(editData.id, customerPayload);
-                else await api.saveCustomer(customerPayload);
+                if (editData.id) await api.updateCustomer(editData.id, editData);
+                else await api.saveCustomer(editData);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
             } else {
                 await api.saveSupplier(editData);
@@ -220,22 +211,6 @@ export default function MobileCustomers() {
                                 />
                             </div>
                         </div>
-                        
-                        {editType === 'customer' && (
-                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block flex items-center gap-1"><Percent size={12}/> Καθεστώς ΦΠΑ</label>
-                                <select
-                                    value={editData.vat_rate !== undefined ? editData.vat_rate : VatRegime.Standard}
-                                    onChange={e => setEditData({...editData, vat_rate: parseFloat(e.target.value)})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-900 cursor-pointer"
-                                >
-                                    <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                                    <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                                    <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                                </select>
-                             </div>
-                        )}
-
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Διευθυνση</label>
                             <input 
@@ -260,7 +235,7 @@ export default function MobileCustomers() {
                                 <Trash2 size={20}/> Διαγραφή
                             </button>
                         )}
-                        <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-[2] flex items-center justify-center gap-2 hover:bg-black transition-colors">
+                        <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-[2] flex items-center justify-center gap-2">
                             <Save size={20}/> Αποθήκευση
                         </button>
                     </div>
@@ -271,36 +246,31 @@ export default function MobileCustomers() {
 
     return (
         <div className="p-4 h-full flex flex-col">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <User className="text-blue-600"/> Επαφές
-                </h1>
-                
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    {/* Tabs */}
-                    <div className="flex p-1 bg-slate-100 rounded-xl shrink-0">
-                        <button 
-                            onClick={() => setTab('customers')}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'customers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Πελάτες
-                        </button>
-                        <button 
-                            onClick={() => setTab('suppliers')}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'suppliers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Προμηθευτές
-                        </button>
-                    </div>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-black text-slate-900">Επαφές</h1>
+                <button onClick={handleCreate} className="bg-slate-900 text-white p-2 rounded-xl shadow-md active:scale-95">
+                    <Plus size={24}/>
+                </button>
+            </div>
 
-                    <button onClick={handleCreate} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl hover:bg-slate-800 font-bold transition-all shadow-md active:scale-95">
-                        <Plus size={18} /> <span className="hidden sm:inline">Νέα Εγγραφή</span>
-                    </button>
-                </div>
+            {/* Tabs */}
+            <div className="flex p-1 bg-slate-100 rounded-xl mb-4 shrink-0">
+                <button 
+                    onClick={() => setTab('customers')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'customers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Πελάτες
+                </button>
+                <button 
+                    onClick={() => setTab('suppliers')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'suppliers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Προμηθευτές
+                </button>
             </div>
 
             {/* Search */}
-            <div className="relative shrink-0">
+            <div className="relative mb-4 shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                     type="text" 
@@ -312,50 +282,53 @@ export default function MobileCustomers() {
             </div>
 
             {/* Content List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-24">
-                {filteredList.map((item: any) => (
-                    <div 
-                        key={item.id} 
-                        onClick={() => handleItemClick(item)}
-                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
-                    >
-                        <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
-                                    {tab === 'customers' ? <User size={24}/> : <Globe size={24}/>}
+            <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
+                {filteredList.map((item: any) => {
+                    const totalSpent = tab === 'customers' ? (customerStats[item.id] || 0) : 0;
+                    return (
+                        <div 
+                            key={item.id} 
+                            onClick={() => handleItemClick(item)}
+                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all cursor-pointer group"
+                        >
+                            <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${tab === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                                        {tab === 'customers' ? <User size={24}/> : <Globe size={24}/>}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
+                                        {tab === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
-                                    {tab === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
-                                </div>
+                                <button className="p-2 bg-slate-50 text-slate-400 rounded-lg group-hover:bg-slate-100 group-hover:text-blue-500 transition-colors">
+                                    <Edit size={16}/>
+                                </button>
                             </div>
-                            <button className="p-2 bg-slate-50 text-slate-400 rounded-lg group-hover:bg-slate-100 group-hover:text-blue-500 transition-colors">
-                                <Edit size={16}/>
-                            </button>
+                            
+                            <div className="space-y-2 pt-2 border-t border-slate-50">
+                                {item.phone && (
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Phone size={14} className="text-slate-400"/> {item.phone}
+                                    </div>
+                                )}
+                                {item.email && (
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Mail size={14} className="text-slate-400"/> {item.email}
+                                    </div>
+                                )}
+                                {item.address && (
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <MapPin size={14} className="text-slate-400"/> {item.address}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        
-                        <div className="space-y-2 pt-2 border-t border-slate-50">
-                            {item.phone && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <Phone size={14} className="text-slate-400"/> {item.phone}
-                                </div>
-                            )}
-                            {item.email && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <Mail size={14} className="text-slate-400"/> {item.email}
-                                </div>
-                            )}
-                            {item.address && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <MapPin size={14} className="text-slate-400"/> {item.address}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
                 
                 {filteredList.length === 0 && (
-                    <div className="col-span-full text-center py-10 text-slate-400 text-sm font-medium">
+                    <div className="text-center py-10 text-slate-400 text-sm font-medium">
                         Δεν βρέθηκαν αποτελέσματα.
                     </div>
                 )}
