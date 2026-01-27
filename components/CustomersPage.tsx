@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Customer, Order, OrderStatus } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash } from 'lucide-react';
+import { Customer, Order, OrderStatus, VatRegime } from '../types';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash, Percent } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -44,7 +44,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     
     const [isCreating, setIsCreating] = useState(false);
-    const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '', vat_number: '' });
+    const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard });
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
     
     const customerStats = useMemo(() => {
@@ -114,10 +114,13 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             return;
         }
         try {
-            const created = await api.saveCustomer(newCustomer);
+            const created = await api.saveCustomer({
+                ...newCustomer,
+                vat_rate: newCustomer.vat_rate !== undefined ? newCustomer.vat_rate : VatRegime.Standard
+            });
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setIsCreating(false);
-            setNewCustomer({ full_name: '', phone: '', vat_number: '' });
+            setNewCustomer({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard });
             if (created) setSelectedCustomer(created);
             showToast("Ο πελάτης δημιουργήθηκε.", 'success');
         } catch (e) {
@@ -134,7 +137,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 email: selectedCustomer.email,
                 address: selectedCustomer.address,
                 vat_number: selectedCustomer.vat_number,
-                notes: selectedCustomer.notes
+                notes: selectedCustomer.notes,
+                vat_rate: selectedCustomer.vat_rate
             });
             // Refresh affected data
             queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -224,7 +228,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         <div className="p-5 border-b border-slate-100 space-y-4">
                             <div className="flex justify-between items-center">
                                 <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-emerald-600"/> Πελάτες</h2>
-                                <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); setNewCustomer({ full_name: '', phone: '', vat_number: '' }); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
+                                <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); setNewCustomer({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard }); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
                             </div>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -273,6 +277,18 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                         <div>
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Διεύθυνση</label>
                                             <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.address || ''} onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}/>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Καθεστώς ΦΠΑ</label>
+                                            <select 
+                                                value={newCustomer.vat_rate} 
+                                                onChange={(e) => setNewCustomer({...newCustomer, vat_rate: parseFloat(e.target.value)})} 
+                                                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 cursor-pointer"
+                                            >
+                                                <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                                                <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                                                <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                                            </select>
                                         </div>
                                         <div className="flex gap-2 pt-2">
                                             <button onClick={handleCreate} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors">Αποθήκευση</button>
@@ -328,6 +344,22 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                                     <Mail size={14} className="text-slate-400"/> 
                                                     {isEditing ? <input className="bg-white border-b border-slate-300 outline-none w-48 text-slate-800 font-medium" value={selectedCustomer.email || ''} onChange={e => setSelectedCustomer({...selectedCustomer, email: e.target.value})}/> : (selectedCustomer.email || '-')}
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 text-blue-800">
+                                                    <Percent size={14} className="text-blue-500"/> 
+                                                    {isEditing ? (
+                                                        <select 
+                                                            value={selectedCustomer.vat_rate !== undefined ? selectedCustomer.vat_rate : VatRegime.Standard} 
+                                                            onChange={e => setSelectedCustomer({...selectedCustomer, vat_rate: parseFloat(e.target.value)})}
+                                                            className="bg-transparent border-b border-blue-300 outline-none font-bold text-blue-900 cursor-pointer text-xs"
+                                                        >
+                                                            <option value={VatRegime.Standard}>24%</option>
+                                                            <option value={VatRegime.Reduced}>17%</option>
+                                                            <option value={VatRegime.Zero}>0%</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className="text-xs font-bold">ΦΠΑ: {((selectedCustomer.vat_rate !== undefined ? selectedCustomer.vat_rate : VatRegime.Standard) * 100).toFixed(0)}%</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

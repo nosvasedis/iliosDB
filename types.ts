@@ -240,6 +240,7 @@ export interface Customer {
   email?: string;
   address?: string;
   vat_number?: string;
+  vat_rate?: number; // New: 0.24, 0.17, 0.00
   notes?: string;
   created_at: string;
 }

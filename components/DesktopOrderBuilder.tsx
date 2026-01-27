@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
 import { ArrowLeft, User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent, RefreshCw } from 'lucide-react';
@@ -140,6 +141,14 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setSelectedCustomerId(c.id);
         setCustomerName(c.full_name);
         setCustomerPhone(c.phone || '');
+        
+        // Auto-set VAT Rate if defined in customer profile
+        if (c.vat_rate !== undefined && c.vat_rate !== null) {
+            setVatRate(c.vat_rate);
+        } else {
+            setVatRate(VatRegime.Standard);
+        }
+
         setCustomerSearch('');
         setShowCustomerResults(false);
     };
@@ -387,7 +396,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             return [newItem, ...prev];
         });
         
-        // Reset diffs on new add since base changes
         setPriceDiffs(null);
     
         setScanInput('');
