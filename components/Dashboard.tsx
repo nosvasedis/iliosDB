@@ -40,7 +40,7 @@ import { api } from '../lib/supabase';
 interface Props {
   products: Product[];
   settings: GlobalSettings;
-  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics') => void;
+  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers') => void;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -125,7 +125,43 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-    const calculateNet = (o: Order) => o.total_price / (1 + (o.vat_rate || 0.24));
+    // LIVE REVENUE CALCULATION (Net, Discounted, Current Prices)
+    const calculateLiveNetRevenue = (orderList: Order[]) => {
+        return orderList.reduce((totalAcc, o) => {
+            // Calculate raw item value based on CURRENT Registry prices
+            const orderRawValue = o.items.reduce((itemAcc, item) => {
+                const product = products.find(p => p.sku === item.sku);
+                let currentPrice = 0;
+                
+                if (product) {
+                     if (item.variant_suffix) {
+                         const v = product.variants?.find(v => v.suffix === item.variant_suffix);
+                         currentPrice = v?.selling_price || 0;
+                     } else {
+                         currentPrice = product.selling_price;
+                     }
+                }
+                
+                // Fallback to order price if product not found (deleted?)
+                if (currentPrice === 0) currentPrice = item.price_at_order;
+                
+                return itemAcc + (currentPrice * item.quantity);
+            }, 0);
+
+            // Apply Discount
+            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
+            return totalAcc + (orderRawValue * discountFactor);
+        }, 0);
+    };
+
+    // Historical Revenue (Completed Orders - Use saved price)
+    const calculateHistoricalRevenue = (orderList: Order[]) => {
+        return orderList.reduce((acc, o) => {
+             // Net = Total / (1 + VAT)
+             const net = o.total_price / (1 + (o.vat_rate || 0.24));
+             return acc + net;
+        }, 0);
+    };
 
     return {
         totalStockQty,
@@ -135,8 +171,10 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         potentialMargin,
         marginPercent,
         activeOrdersCount: activeOrders.length,
-        pendingRevenue: activeOrders.reduce((acc, o) => acc + calculateNet(o), 0),
-        totalRevenue: completedOrders.reduce((acc, o) => acc + calculateNet(o), 0),
+        // Use LIVE calculation for Pending to reflect price hikes
+        pendingRevenue: calculateLiveNetRevenue(activeOrders), 
+        // Use Historical calculation for Delivered to reflect actual invoices
+        totalRevenue: calculateHistoricalRevenue(completedOrders),
         activeBatchesCount: activeBatches.length,
         totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
         topStockValue: stockValueBySku,
@@ -228,7 +266,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" hint="Η συνολική αξία κόστους των προϊόντων που βρίσκονται στην αποθήκη." />
-                  <KPICard title="Εκκρεμής Τζίρος (Net)" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" hint="Τα αναμενόμενα καθαρά έσοδα (χωρίς ΦΠΑ) από παραγγελίες που δεν έχουν ακόμη παραδοθεί." />
+                  <KPICard title="Εκκρεμής Τζίρος (Live)" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" hint="Τρέχουσα αξία (Net) των ανοιχτών παραγγελιών βάσει σημερινών τιμών." />
                   <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" hint="Συνολικά τεμάχια που βρίσκονται αυτή τη στιγμή στα διάφορα στάδια της παραγωγής." />
                   <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" hint="Η τρέχουσα τιμή αγοράς του ασημιού ανά γραμμάριο." />
               </div>

@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
 import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle } from 'lucide-react';
@@ -78,8 +77,29 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
     // Active Orders
     const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready) || [];
     
-    // Calculate Net Revenue for Pending orders
-    const pendingRevenue = activeOrders.reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate || 0.24))), 0);
+    // Calculate Net Revenue for Pending orders using LIVE registry prices
+    const pendingRevenue = activeOrders.reduce((totalAcc, o) => {
+        // Calculate raw value from CURRENT Product Prices
+        const rawOrderValue = o.items.reduce((itemAcc, item) => {
+            const product = products.find(p => p.sku === item.sku);
+            let currentPrice = 0;
+            if (product) {
+                 if (item.variant_suffix) {
+                     const v = product.variants?.find(v => v.suffix === item.variant_suffix);
+                     currentPrice = v?.selling_price || 0;
+                 } else {
+                     currentPrice = product.selling_price;
+                 }
+            }
+            if (currentPrice === 0) currentPrice = item.price_at_order; // Fallback
+            return itemAcc + (currentPrice * item.quantity);
+        }, 0);
+
+        // Apply discount and strip VAT (implicitly stripped because we sum base prices)
+        // Wait, base prices in registry ARE Wholesale (Net). So we just need to apply discount.
+        const discountFactor = 1 - ((o.discount_percent || 0) / 100);
+        return totalAcc + (rawOrderValue * discountFactor);
+    }, 0);
     
     // Production
     const activeBatches = batches?.filter(b => b.current_stage !== 'Ready') || [];
@@ -124,7 +144,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
       <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
               <StatCard 
-                title="Εκκρεμης Τζιρος (Net)" 
+                title="Εκκρεμης Τζιρος (Live)" 
                 value={formatCurrency(stats.pendingRevenue)} 
                 sub={`${stats.activeOrdersCount} Ενεργές Παραγγελίες`}
                 icon={<Activity />} 

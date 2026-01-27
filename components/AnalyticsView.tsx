@@ -57,10 +57,6 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
         const orderSilverPrice = order.custom_silver_rate || globalSettings.silver_price_gram;
         const effectiveSettings = { ...globalSettings, silver_price_gram: orderSilverPrice };
         
-        // Use Net Value for Revenue calculation to align with Cost/Profit math
-        // order.total_price is Gross (inc VAT). We need Net.
-        // We calculate Net Revenue by summing item lines below.
-        
         const cKey = order.customer_id || order.customer_name;
         if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
         customerRanking[cKey].orders += 1;
@@ -70,17 +66,19 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
         const monthKey = date.toLocaleDateString('el-GR', { month: 'short', year: '2-digit' }); // e.g. "Ιαν 25"
         if (!salesOverTime[monthKey]) salesOverTime[monthKey] = { revenue: 0, profit: 0 };
 
+        // Discount Factor
+        const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+
         order.items.forEach(item => {
             totalItemsSold += item.quantity;
             const product = products.find(p => p.sku === item.sku);
             if (!product) return;
 
-            const revenue = item.price_at_order * item.quantity;
-            totalRevenue += revenue; // Accumulate Net Revenue
+            // Revenue = (Unit Price * Qty) * Discount
+            const revenue = (item.price_at_order * item.quantity) * discountFactor;
+            totalRevenue += revenue; 
             
-            // ACCURATE COST CALCULATION
-            // We must recalculate the cost of the product using the EFFECTIVE settings (historical silver price)
-            // instead of using product.active_price which is always current.
+            // ACCURATE COST CALCULATION (Using Effective Silver Price)
             const costResult = calculateProductCost(product, effectiveSettings, materials, products);
             const unitCost = costResult.total;
             
