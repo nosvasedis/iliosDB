@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
 import { ArrowLeft, User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent, RefreshCw } from 'lucide-react';
@@ -77,6 +76,9 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     
     // Sort State
     const [sortOrder, setSortOrder] = useState<'input' | 'alpha'>('input');
+    
+    // Price Sync Indicators
+    const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number } | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -384,6 +386,9 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             }
             return [newItem, ...prev];
         });
+        
+        // Reset diffs on new add since base changes
+        setPriceDiffs(null);
     
         setScanInput('');
         setScanQty(1);
@@ -438,6 +443,8 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             }
             return [newItem, ...prev];
         });
+        
+        setPriceDiffs(null);
 
         if (navigator.vibrate) navigator.vibrate(50);
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
@@ -526,6 +533,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 return updated;
             });
         }
+        setPriceDiffs(null);
     };
 
     const updateItemNotes = (item: OrderItem, notes: string) => {
@@ -541,6 +549,12 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     
     // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
     const handleRecalculatePrices = () => {
+        // 1. Calculate Old Totals
+        const oldSub = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+        const oldNet = oldSub * (1 - discountPercent / 100);
+        const oldVat = oldNet * vatRate;
+        const oldTotal = oldNet + oldVat;
+
         let updatedCount = 0;
         const newItems = selectedItems.map(item => {
             const product = products.find(p => p.sku === item.sku);
@@ -562,6 +576,18 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             return item;
         });
 
+        // 2. Calculate New Totals
+        const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+        const newNet = newSub * (1 - discountPercent / 100);
+        const newVat = newNet * vatRate;
+        const newTotal = newNet + newVat;
+        
+        setPriceDiffs({
+            net: newNet - oldNet,
+            vat: newVat - oldVat,
+            total: newTotal - oldTotal
+        });
+
         if (updatedCount > 0) {
             setSelectedItems(newItems);
             showToast(`Ενημερώθηκαν οι τιμές σε ${updatedCount} είδη.`, 'success');
@@ -575,6 +601,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         if (idx !== -1) {
             setSelectedItems(prev => prev.filter((_, i) => i !== idx));
         }
+        setPriceDiffs(null);
     };
 
     const handleScanInOrder = (code: string) => {
@@ -665,7 +692,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                             />
                             {selectedCustomerId && <Check size={16} className="absolute right-3 top-9 text-emerald-500"/>}
                             
-                            {showCustomerResults && customerSearch && !selectedCustomerId && (
+                            {showCustomerResults && customerSearch && !selectedCustomerId && filteredCustomers.length > 0 && (
                                 <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
                                     {filteredCustomers.map(c => (
                                         <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
@@ -689,7 +716,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                     <input 
                                         type="number" min="0" max="100" 
                                         value={discountPercent} 
-                                        onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
+                                        onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} 
                                         className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900 pr-8"
                                     />
                                     <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500"/>
@@ -781,7 +808,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                 {sizeMode && (
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
-                                            <Hash size={12}/> Επιλογή {sizeMode.type} <span className="font-normal text-slate-300 normal-case">(Προαιρετικό)</span>
+                                            <Hash size={12}/> Επιλογή {sizeMode.type} <span className="font-normal text-slate-300 lowercase">(Προαιρετικό)</span>
                                         </label>
                                         <div className="flex flex-wrap gap-2">
                                             {sizeMode.sizes.map(s => (
@@ -894,7 +921,14 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     <div className="p-5 bg-slate-50 border-t border-slate-200">
                         <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
                              <span>Καθαρή Αξία:</span>
-                             <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                             <div className="flex items-center gap-1">
+                                <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                                {priceDiffs && priceDiffs.net !== 0 && (
+                                    <span className={`text-[10px] font-bold ${priceDiffs.net > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        ({priceDiffs.net > 0 ? '+' : ''}{formatCurrency(priceDiffs.net)})
+                                    </span>
+                                )}
+                             </div>
                         </div>
                         {discountPercent > 0 && (
                             <div className="flex justify-between items-center text-xs text-red-500 mb-1">
@@ -904,11 +938,25 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         )}
                         <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200 pb-2 mb-2">
                              <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
-                             <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
+                             <div className="flex items-center gap-1">
+                                <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
+                                {priceDiffs && priceDiffs.vat !== 0 && (
+                                    <span className={`text-[10px] font-bold ${priceDiffs.vat > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        ({priceDiffs.vat > 0 ? '+' : ''}{formatCurrency(priceDiffs.vat)})
+                                    </span>
+                                )}
+                             </div>
                         </div>
                         <div className="flex justify-between items-center">
                              <span className="font-black text-slate-800 uppercase text-sm">Συνολο</span>
-                             <span className="font-black text-2xl text-emerald-700">{formatCurrency(grandTotal)}</span>
+                             <div className="flex flex-col items-end">
+                                 <span className="font-black text-2xl text-emerald-700">{formatCurrency(grandTotal)}</span>
+                                 {priceDiffs && priceDiffs.total !== 0 && (
+                                    <span className={`text-xs font-bold ${priceDiffs.total > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        {priceDiffs.total > 0 ? '+' : ''}{formatCurrency(priceDiffs.total)}
+                                    </span>
+                                )}
+                             </div>
                         </div>
                     </div>
                 </div>

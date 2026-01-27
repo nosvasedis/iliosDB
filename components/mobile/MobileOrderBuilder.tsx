@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -63,6 +62,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [itemNotes, setItemNotes] = useState('');
     const [qty, setQty] = useState(1);
     const [showScanner, setShowScanner] = useState(false);
+    
+    // Price Sync Indicators
+    const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number } | null>(null);
     
     // Suggestion List Ref for scrolling
     const inputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +156,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
         if (navigator.vibrate) navigator.vibrate(50);
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
+        
+        // Reset diffs on new add
+        setPriceDiffs(null);
 
         setActiveMaster(null);
         setQty(1);
@@ -201,6 +206,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     }
                     return [newItem, ...prev];
                 });
+                setPriceDiffs(null);
                 showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
                 setShowScanner(false);
             } else {
@@ -272,6 +278,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             }
             return [newItem, ...prev];
         });
+        
+        setPriceDiffs(null);
     
         setInput('');
         setQty(1);
@@ -328,7 +336,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         finally { setIsSaving(false); }
     };
 
-    const handleRemoveItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+    const handleRemoveItem = (index: number) => {
+        setItems(prev => prev.filter((_, i) => i !== index));
+        setPriceDiffs(null);
+    };
     
     const updateItemQty = (index: number, delta: number) => {
         setItems(prev => {
@@ -336,6 +347,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             next[index].quantity = Math.max(1, next[index].quantity + delta);
             return next;
         });
+        setPriceDiffs(null);
     };
 
     const updateItemNotes = (index: number, notes: string) => {
@@ -353,6 +365,55 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     }, [customers, customerName]);
 
     const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
+    
+    // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
+    const handleRecalculatePrices = () => {
+        // 1. Calculate Old Totals
+        const oldSub = items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+        const oldNet = oldSub * (1 - discountPercent / 100);
+        const oldVat = oldNet * vatRate;
+        const oldTotal = oldNet + oldVat;
+
+        let updatedCount = 0;
+        const newItems = items.map(item => {
+            const product = products.find(p => p.sku === item.sku);
+            if (!product) return item;
+
+            let currentRegistryPrice = 0;
+            if (item.variant_suffix) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                currentRegistryPrice = variant?.selling_price || 0;
+            } else {
+                currentRegistryPrice = product.selling_price;
+            }
+
+            // If price differs, update it
+            if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
+                updatedCount++;
+                return { ...item, price_at_order: currentRegistryPrice };
+            }
+            return item;
+        });
+
+        // 2. Calculate New Totals
+        const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+        const newNet = newSub * (1 - discountPercent / 100);
+        const newVat = newNet * vatRate;
+        const newTotal = newNet + newVat;
+        
+        setPriceDiffs({
+            net: newNet - oldNet,
+            vat: newVat - oldVat,
+            total: newTotal - oldTotal
+        });
+
+        if (updatedCount > 0) {
+            setItems(newItems);
+            showToast(`Ενημερώθηκαν οι τιμές σε ${updatedCount} είδη.`, 'success');
+        } else {
+            showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -409,6 +470,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4">
+                {/* Product Input Section */}
                 {!activeMaster && (
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
                         <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
@@ -429,6 +491,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     </div>
                 )}
 
+                {/* Variant/Options Selection */}
                 {activeMaster && (
                     <div className="bg-white p-5 rounded-3xl shadow-lg border border-emerald-100 animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-start mb-4"><div><h3 className="text-2xl font-black text-slate-900">{activeMaster.sku}</h3><p className="text-xs text-slate-500 font-bold uppercase">{activeMaster.category}</p></div><button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button></div>
@@ -462,28 +525,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     </div>
                 )}
 
+                {/* Items List */}
                 <div className="mt-4 pb-20">
-                    <div className="flex flex-col gap-1 mb-2 px-2 border-b border-slate-100 pb-2">
-                        <div className="flex justify-between items-center text-xs text-slate-500">
-                             <span>Καθαρή Αξία:</span>
-                             <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
-                        </div>
-                        {discountPercent > 0 && (
-                            <div className="flex justify-between items-center text-xs text-red-500">
-                                <span>Έκπτωση ({discountPercent}%):</span>
-                                <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between items-center text-xs text-slate-500">
-                             <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
-                             <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
-                        </div>
-                        <div className="flex justify-between items-end mt-1">
-                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3>
-                            <span className="text-emerald-600 font-black text-xl">{formatCurrency(grandTotal)}</span>
-                        </div>
+                    <div className="flex justify-between items-center mb-2 px-2 pb-2 border-b border-slate-100">
+                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3>
+                         <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all">
+                             <RefreshCw size={12}/> Sync Prices
+                         </button>
                     </div>
-                    
+
                     <div className="space-y-2">
                         {items.map((item, idx) => (
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
@@ -513,6 +563,53 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     </div>
                 </div>
             </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-lg">
+                <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+                     <span>Καθαρή Αξία:</span>
+                     <div className="flex items-center gap-1">
+                        <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                        {priceDiffs && priceDiffs.net !== 0 && (
+                            <span className={`text-[10px] font-bold ${priceDiffs.net > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                ({priceDiffs.net > 0 ? '+' : ''}{formatCurrency(priceDiffs.net)})
+                            </span>
+                        )}
+                     </div>
+                </div>
+                {discountPercent > 0 && (
+                    <div className="flex justify-between items-center text-xs text-red-500 mb-1">
+                        <span>Έκπτωση ({discountPercent}%):</span>
+                        <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
+                    </div>
+                )}
+                <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200 pb-2 mb-2">
+                     <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                     <div className="flex items-center gap-1">
+                        <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
+                        {priceDiffs && priceDiffs.vat !== 0 && (
+                            <span className={`text-[10px] font-bold ${priceDiffs.vat > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                ({priceDiffs.vat > 0 ? '+' : ''}{formatCurrency(priceDiffs.vat)})
+                            </span>
+                        )}
+                     </div>
+                </div>
+                <div className="flex justify-between items-center mb-3">
+                     <span className="font-black text-slate-800 uppercase text-sm">Συνολο</span>
+                     <div className="flex flex-col items-end">
+                         <span className="font-black text-2xl text-emerald-700">{formatCurrency(grandTotal)}</span>
+                         {priceDiffs && priceDiffs.total !== 0 && (
+                            <span className={`text-xs font-bold ${priceDiffs.total > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                {priceDiffs.total > 0 ? '+' : ''}{formatCurrency(priceDiffs.total)}
+                            </span>
+                        )}
+                     </div>
+                </div>
+                <button onClick={handleSaveOrder} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
+                    <Save size={20}/> Αποθήκευση Εντολής
+                </button>
+            </div>
+            
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
     );
