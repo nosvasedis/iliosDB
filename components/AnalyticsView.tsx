@@ -68,18 +68,35 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
 
         // Discount Factor
         const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+        
+        // Is this an active/pending order? If so, we use Live Prices to match Dashboard Overview
+        const isActiveOrder = order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled;
 
         order.items.forEach(item => {
             totalItemsSold += item.quantity;
             const product = products.find(p => p.sku === item.sku);
-            if (!product) return;
+            
+            // --- REVENUE CALCULATION LOGIC ---
+            // If active order: Use Current Registry Price (Simulate current value)
+            // If delivered: Use Frozen Order Price (Historical accuracy)
+            let unitPrice = item.price_at_order;
+
+            if (isActiveOrder && product) {
+                 if (item.variant_suffix) {
+                     const v = product.variants?.find(v => v.suffix === item.variant_suffix);
+                     if (v && (v.selling_price || 0) > 0) unitPrice = v.selling_price!;
+                 } else {
+                     if (product.selling_price > 0) unitPrice = product.selling_price;
+                 }
+            }
 
             // Revenue = (Unit Price * Qty) * Discount
-            const revenue = (item.price_at_order * item.quantity) * discountFactor;
+            const revenue = (unitPrice * item.quantity) * discountFactor;
             totalRevenue += revenue; 
             
             // ACCURATE COST CALCULATION (Using Effective Silver Price)
-            const costResult = calculateProductCost(product, effectiveSettings, materials, products);
+            // Note: Cost is calculated live based on current materials/silver for analysis purposes
+            const costResult = product ? calculateProductCost(product, effectiveSettings, materials, products) : { total: 0, breakdown: { silver: 0, labor: 0, materials: 0 } };
             const unitCost = costResult.total;
             
             const lineCost = unitCost * item.quantity;
@@ -114,26 +131,28 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             materialCostSum += (costResult.breakdown.materials * item.quantity);
             laborCostSum += (costResult.breakdown.labor * item.quantity);
             
-            const w = product.weight_g + (product.secondary_weight_g || 0);
-            silverSoldWeight += (w * item.quantity);
+            if (product) {
+                const w = product.weight_g + (product.secondary_weight_g || 0);
+                silverSoldWeight += (w * item.quantity);
 
-            product.recipe.forEach(ri => {
-                if (ri.type === 'raw') {
-                    const mat = materials.find(m => m.id === ri.id);
-                    if (mat?.type === MaterialType.Stone) stonesSold += (ri.quantity * item.quantity);
-                }
-            });
+                product.recipe.forEach(ri => {
+                    if (ri.type === 'raw') {
+                        const mat = materials.find(m => m.id === ri.id);
+                        if (mat?.type === MaterialType.Stone) stonesSold += (ri.quantity * item.quantity);
+                    }
+                });
 
-            const mainCat = product.category.split(' ')[0];
-            if (!categoryStats[mainCat]) categoryStats[mainCat] = { name: mainCat, revenue: 0, profit: 0, cost: 0 };
-            categoryStats[mainCat].revenue += revenue;
-            categoryStats[mainCat].profit += profit;
-            categoryStats[mainCat].cost += lineCost;
+                const mainCat = product.category.split(' ')[0];
+                if (!categoryStats[mainCat]) categoryStats[mainCat] = { name: mainCat, revenue: 0, profit: 0, cost: 0 };
+                categoryStats[mainCat].revenue += revenue;
+                categoryStats[mainCat].profit += profit;
+                categoryStats[mainCat].cost += lineCost;
 
-            const sKey = item.sku + (item.variant_suffix || '');
-            if (!skuRanking[sKey]) skuRanking[sKey] = { sku: sKey, qty: 0, revenue: 0, img: product.image_url };
-            skuRanking[sKey].qty += item.quantity;
-            skuRanking[sKey].revenue += revenue;
+                const sKey = item.sku + (item.variant_suffix || '');
+                if (!skuRanking[sKey]) skuRanking[sKey] = { sku: sKey, qty: 0, revenue: 0, img: product.image_url };
+                skuRanking[sKey].qty += item.quantity;
+                skuRanking[sKey].revenue += revenue;
+            }
         });
     });
 
@@ -233,7 +252,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group" title="Καθαρός τζίρος (χωρίς ΦΠΑ).">
                 <div className="absolute right-0 top-0 p-6 opacity-5 text-blue-600 scale-150 group-hover:scale-110 transition-transform"><DollarSign size={80}/></div>
                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-help">
-                    Καθαρα Εσοδα (Net Revenue) <HelpCircle size={10} className="text-slate-300 pointer-events-none"/>
+                    Καθαρα Εσοδα <HelpCircle size={10} className="text-slate-300 pointer-events-none"/>
                 </div>
                 <div>
                     <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{formatCurrency(stats.totalRevenue)}</h3>
@@ -254,7 +273,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
                 <div className="absolute right-0 top-0 p-6 opacity-5 text-amber-600 scale-150 group-hover:scale-110 transition-transform"><Calculator size={80}/></div>
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Μέση Παραγγελία (Net)</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Μέση Παραγγελία</div>
                 <div>
                     <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{formatCurrency(stats.avgOrderValue)}</h3>
                     <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">{stats.avgBasketSize.toFixed(1)} είδη / παραγγελία</p>
