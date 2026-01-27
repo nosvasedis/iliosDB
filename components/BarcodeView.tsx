@@ -163,15 +163,19 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                          </div>
                     </div>
 
-                    {/* Right Section (Stone + Size Only - Price Hidden) */}
+                    {/* Right Section (Stone + Brand + Size) */}
                     <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm' }}>
                         {stoneName && (
                             <div style={stoneStyle}>
                                 {stoneName}
                             </div>
                         )}
+                        {/* Brand name displayed where price used to be */}
+                        <div className="font-black tracking-[0.05em] text-black uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.0mm' }}>
+                            ILIOS
+                        </div>
                         {size && (
-                            <div className="mt-[1mm] bg-black text-white px-1 rounded-[1px] text-[2mm] font-bold leading-none">
+                            <div className="mt-[0.5mm] bg-black text-white px-1 rounded-[1px] text-[1.8mm] font-bold leading-none">
                                 {size}
                             </div>
                         )}
