@@ -5,7 +5,7 @@ import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import QRCode from 'qrcode';
-import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User } from 'lucide-react';
+import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User, Weight } from 'lucide-react';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface Props {
@@ -58,6 +58,13 @@ export default function OrderInvoiceView({ order }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+
+    // Calculate Total Silver Weight
+    const totalSilverWeight = order.items.reduce((acc, item) => {
+        const product = allProducts?.find(p => p.sku === item.sku);
+        const weightPerItem = product ? (product.weight_g + (product.secondary_weight_g || 0)) : 0;
+        return acc + (weightPerItem * item.quantity);
+    }, 0);
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -202,6 +209,15 @@ export default function OrderInvoiceView({ order }: Props) {
                         <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
                         <span className="font-mono font-bold">{vatAmount.toFixed(2).replace('.', ',')}€</span>
                     </div>
+                    
+                    {/* SILVER WEIGHT INDICATOR */}
+                    {totalSilverWeight > 0 && (
+                        <div className="flex justify-between items-center text-slate-500 mb-1 pb-1 border-b border-slate-200">
+                            <span className="flex items-center gap-1"><Weight size={10}/> Βάρος (Ag):</span>
+                            <span className="font-mono font-bold">{totalSilverWeight.toFixed(1)}g</span>
+                        </div>
+                    )}
+
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
                         <span className="uppercase">Γενικο Συνολο:</span>
                         <span className="font-mono">{grandTotal.toFixed(2).replace('.', ',')}€</span>
