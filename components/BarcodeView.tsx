@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
-import { transliterateForBarcode, codifyPrice, getVariantComponents } from '../utils/pricingEngine';
+import { transliterateForBarcode, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     product: Product;
@@ -20,7 +20,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const baseSku = product?.sku || '';
     const suffix = variant?.suffix || '';
     const finalSku = `${baseSku}${suffix}`;
-    const wholesalePrice = variant?.selling_price ?? product.selling_price;
 
     // Safety fallback for retail width if settings are missing/old
     const activeWidth = format === 'retail' && width < 50 ? INITIAL_SETTINGS.retail_barcode_width_mm : width;
@@ -62,7 +61,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
             QRCode.toDataURL(valueToEncode, {
                 errorCorrectionLevel: 'H',
                 margin: 0,
-                scale: 12, // Even higher scale for crispness
+                scale: 12, 
                 color: {
                     dark: '#000000',
                     light: '#ffffff'
@@ -83,9 +82,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
     const stoneFontSize = Math.min(activeHeight * 0.10, activeWidth * 0.13, 2.2);
     
-    const priceDisplay = wholesalePrice > 0 ? `${wholesalePrice.toFixed(2).replace('.', ',')}€` : '';
-    const codifiedPrice = wholesalePrice > 0 ? codifyPrice(wholesalePrice) : '';
-
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
         height: `${activeHeight}mm`,
@@ -118,7 +114,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }
 
     if (format === 'retail') {
-        // Smart Stone Font Sizing & Wrapping
         const stoneNameLen = stoneName ? stoneName.length : 0;
         let stoneStyle: React.CSSProperties = {
             width: '100%',
@@ -137,9 +132,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
              stoneStyle = { ...stoneStyle, fontSize: '2.2mm', whiteSpace: 'nowrap' };
         }
 
-        // Split Sku Logic for Layout: Master on Top, Suffix on Bottom
         const skuMaster = product.sku;
-        // Use logic to isolate visual suffix components
         const suffixStr = variant?.suffix || '';
         
         return (
@@ -156,7 +149,6 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     {/* Left Section (QR + SKU) */}
                     <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
                          <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
-                            {/* Stretched QR Height slightly by 1mm extra logic if needed, fitting to container */}
                             {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block', imageRendering: 'pixelated', marginTop: '1.5mm' }} alt="QR" />}
                          </div>
                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
@@ -171,18 +163,15 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                          </div>
                     </div>
 
-                    {/* Right Section (Codified Price + Stone) */}
+                    {/* Right Section (Stone + Size Only - Price Hidden) */}
                     <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm' }}>
-                        <span className="font-black leading-none truncate w-full text-center" style={{ fontSize: '2.6mm' }}>
-                            {codifiedPrice}
-                        </span>
                         {stoneName && (
                             <div style={stoneStyle}>
                                 {stoneName}
                             </div>
                         )}
                         {size && (
-                            <div className="mt-[0.5mm] bg-black text-white px-1 rounded-[1px] text-[1.8mm] font-bold leading-none">
+                            <div className="mt-[1mm] bg-black text-white px-1 rounded-[1px] text-[2mm] font-bold leading-none">
                                 {size}
                             </div>
                         )}
@@ -192,7 +181,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         );
     }
 
-    // Standard Wholesale Format
+    // Standard Wholesale Format (Wholesale Price Hidden)
     return (
         <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
             <div className="w-full text-center leading-none">
@@ -213,8 +202,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     ILIOS
                 </span>
             </div>
-            <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
-                 <span className="font-black text-black" style={{ fontSize: `${detailsFontSize}mm` }}>{priceDisplay}</span>
+            <div className="w-full flex justify-end items-center border-t border-black pt-0.5 leading-none">
                  {size ? (
                      <span className="font-black text-black bg-black text-white px-0.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 0.9}mm`, lineHeight: '1.1' }}>{size}</span>
                  ) : (
