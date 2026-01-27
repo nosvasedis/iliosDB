@@ -81,7 +81,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setDiscountPercent(offer.discount_percent);
             setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
             setNotes(offer.notes || '');
-            setItems(JSON.parse(JSON.stringify(offer.items))); // Deep copy
+            setItems(offer.items ? JSON.parse(JSON.stringify(offer.items)) : []); // Deep copy, safety check
         } else {
             setEditingId(null);
             setCustomerName('');
@@ -123,6 +123,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         } else {
             setVatRate(VatRegime.Standard);
         }
+        setShowCustSuggestions(false);
     };
 
     const fetchLivePrice = async () => {
@@ -262,10 +263,11 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         setItems(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Calculate totals for rendering (prevent crash)
     const subtotal = items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-    const discountAmt = subtotal * (discountPercent / 100);
-    const vatAmt = (subtotal - discountAmt) * vatRate;
-    const grandTotal = (subtotal - discountAmt) + vatAmt;
+    const discountAmount = subtotal * (discountPercent / 100);
+    const vatAmount = (subtotal - discountAmount) * vatRate;
+    const grandTotal = (subtotal - discountAmount) + vatAmount;
 
     const handleSave = async () => {
         if (!customerName) { showToast("Εισάγετε όνομα πελάτη.", "error"); return; }
@@ -273,10 +275,6 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         
         setIsSaving(true);
         
-        const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-        const discountAmt = subtotal * (discountPercent / 100);
-        const total = (subtotal - discountAmt) * (1 + vatRate);
-
         const payload: Offer = {
             id: editingId || crypto.randomUUID(),
             customer_name: customerName,
@@ -286,7 +284,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             custom_silver_price: customSilverPrice,
             discount_percent: discountPercent,
             vat_rate: vatRate,
-            total_price: total,
+            total_price: grandTotal,
             status: editingId ? (offers?.find(o => o.id === editingId)?.status || 'Pending') : 'Pending',
             created_at: editingId ? (offers?.find(o => o.id === editingId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
             notes: notes
@@ -388,7 +386,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                             {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
                                 <div className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 overflow-hidden z-30">
                                     {filteredCustomers.map(c => (
-                                        <div key={c.id} onClick={() => { handleSelectCustomer(c); setShowCustSuggestions(false); }} className="p-3 hover:bg-slate-50 border-b border-slate-50 font-medium text-sm">
+                                        <div key={c.id} onClick={() => { handleSelectCustomer(c); }} className="p-3 hover:bg-slate-50 border-b border-slate-50 font-medium text-sm cursor-pointer">
                                             {c.full_name}
                                         </div>
                                     ))}
@@ -506,8 +504,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 </div>
                                 <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα:</span>
-                                        <span className="font-black text-sm">{item.quantity}</span>
+                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">-</button>
+                                        <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
+                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity += 1; return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">+</button>
                                     </div>
                                     <div className="font-black text-slate-900">{formatCurrency(item.price_at_order * item.quantity)}</div>
                                 </div>
