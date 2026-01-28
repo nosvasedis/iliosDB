@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check } from 'lucide-react';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 
@@ -11,6 +10,7 @@ interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 const STAGES = [
@@ -150,7 +150,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
             const key = b.order_id || 'no_order';
             if (!groups[key]) {
                 groups[key] = { 
-                    name: b.customer_name ? `${b.customer_name}` : (b.order_id ? `Order #${b.order_id.slice(0,6)}` : 'Χωρίς Εντολή'), 
+                    name: b.customer_name ? `${b.customer_name} (#${b.order_id?.slice(0,6)})` : (b.order_id ? `Order #${b.order_id.slice(0,6)}` : 'Χωρίς Εντολή'), 
                     items: [] 
                 };
             }
@@ -307,7 +307,7 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
     );
 };
 
-export default function MobileProduction({ onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
+export default function MobileProduction({ onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -419,6 +419,32 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         });
     };
 
+    const handlePrintStageLabels = () => {
+        // Filter for Labeling stage specifically
+        const stageBatches = enrichedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
+        if (stageBatches.length === 0) {
+            showToast("Δεν υπάρχουν παρτίδες στη Συσκευασία.", "info");
+            return;
+        }
+  
+        const printQueue = stageBatches.map(b => {
+            const product = products?.find(p => p.sku === b.sku);
+            if (!product) return null;
+            const variant = product.variants?.find(v => v.suffix === b.variant_suffix);
+            return {
+                product,
+                variant,
+                quantity: b.quantity,
+                format: 'standard' // Wholesale format default for production flow
+            };
+        }).filter(item => item !== null);
+  
+        if (printQueue.length > 0 && onPrintLabels) {
+            onPrintLabels(printQueue as any);
+            showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση.`, "success");
+        }
+    };
+
     const executePrint = (selected: ProductionBatch[]) => {
         const type = printSelectorState.type;
         if (type === 'technician') onPrintTechnician(selected);
@@ -486,6 +512,12 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                     className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
                 >
                     <FileText size={14} /> Συγκεντρωτική
+                </button>
+                <button 
+                    onClick={handlePrintStageLabels}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-yellow-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
+                >
+                    <Tag size={14} /> Ετικέτες
                 </button>
             </div>
 
