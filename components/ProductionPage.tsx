@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -747,7 +748,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     if (!splitModalState) return;
 
     const { batch } = splitModalState;
-    // Use the stage selected in the modal, not the original drop target
     const targetStage = finalTargetStage; 
 
     setIsProcessingSplit(true);
@@ -759,14 +759,27 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         } else {
             // Split the batch
             const originalNewQty = batch.quantity - quantityToMove;
-            const { product_details, product_image, diffHours, isDelayed, customer_name, id, ...dbBatch } = batch as any;
+            
+            // Strictly sanitize the object for DB insertion to avoid column errors
+            const { 
+                product_details, 
+                product_image, 
+                diffHours, 
+                isDelayed, 
+                customer_name, 
+                id, 
+                requires_setting, // Computed or logic-only property
+                ...dbBatch 
+            } = batch as any;
             
             const newBatchData = {
                 ...dbBatch,
+                id: crypto.randomUUID(), // Explicitly generate new ID for the split
                 quantity: quantityToMove,
                 current_stage: targetStage,
                 created_at: batch.created_at,
                 updated_at: new Date().toISOString(),
+                requires_setting: !!requires_setting // DB now supports this column
             };
 
             await api.splitBatch(batch.id, originalNewQty, newBatchData);
@@ -778,6 +791,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         setSplitModalState(null);
 
     } catch (e: any) {
+        console.error("Split failure:", e);
         showToast(`Σφάλμα: ${e.message}`, 'error');
     } finally {
         setIsProcessingSplit(false);
@@ -800,7 +814,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
           showToast("Η σημείωση αποθηκεύτηκε.", "success");
           setEditingNoteBatch(null);
       } catch (e) {
-          showToast("Σφάλμα αποθήκευσης σημείωσης.", "error");
+          showToast("Σφάλμα αποθήκευσης σημειώσεις.", "error");
       } finally {
           setIsSavingNote(false);
       }
@@ -951,7 +965,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
       if (printQueue.length > 0 && onPrintLabels) {
           onPrintLabels(printQueue);
-          showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση.`, "success");
+          showToast(`Στάλθηκαν ${printQueue.length} είδη ετικετών για εκτύπωση.`, "success");
       } else if (printQueue.length === 0) {
           showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
       }
@@ -1072,10 +1086,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
         {/* RESPONSIVE LAYOUT CONTAINER */}
         <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
-            {/* 
-                Desktop: Horizontal Flex (Kanban)
-                Mobile: Vertical Flex (Stack/Accordion)
-            */}
             <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
                     const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);

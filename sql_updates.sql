@@ -19,5 +19,8 @@ ALTER TABLE materials ADD COLUMN IF NOT EXISTS description TEXT;
 -- NEW: Customer VAT Profile
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS vat_rate numeric DEFAULT 0.24;
 
+-- NEW: Support for Production Tracking column
+ALTER TABLE production_batches ADD COLUMN IF NOT EXISTS requires_setting BOOLEAN DEFAULT FALSE;
+
 -- PERFORMANCE: Index for faster Partial Batch calculations
 CREATE INDEX IF NOT EXISTS idx_production_batches_order_id ON production_batches(order_id);
