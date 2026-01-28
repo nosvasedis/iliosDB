@@ -72,11 +72,26 @@ const sanitizeProductData = (data: any) => {
         if (data.labor.setter_cost !== undefined) sanitized.labor_setter = data.labor.setter_cost;
         if (data.labor.technician_cost !== undefined) sanitized.labor_technician = data.labor.technician_cost;
         if (data.labor.plating_cost_x !== undefined) sanitized.labor_plating_x = data.labor.plating_cost_x;
+        if (data.labor.with_gold_plating !== undefined) sanitized.labor_plating_x = data.labor.with_gold_plating;
         if (data.labor.plating_cost_d !== undefined) sanitized.labor_plating_d = data.labor.plating_cost_d;
         if (data.labor.subcontract_cost !== undefined) sanitized.labor_subcontract = data.labor.subcontract_cost;
         if (data.labor.stone_setting_cost !== undefined) sanitized.labor_stone_setting = data.labor.stone_setting_cost;
     }
     
+    return sanitized;
+};
+
+// Batch Sanitizer for Production
+const sanitizeBatchData = (data: any) => {
+    const validColumns = [
+        'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
+        'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting',
+        'size_info', 'on_hold', 'on_hold_reason'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (data[col] !== undefined) sanitized[col] = data[col];
+    });
     return sanitized;
 };
 
@@ -847,9 +862,19 @@ export const api = {
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
     },
 
+    // NEW: REVERT FROM PRODUCTION
+    revertOrderFromProduction: async (orderId: string): Promise<void> => {
+        // 1. Delete all batches
+        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: orderId } });
+        // 2. Set order status back to Pending
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId } });
+    },
+
     splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any): Promise<void> => {
+        // Sanitize the split data to avoid blockages
+        const sanitizedNew = sanitizeBatchData(newBatchData);
         await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: new Date().toISOString() }, { match: { id: originalBatchId } });
-        await safeMutate('production_batches', 'INSERT', newBatchData);
+        await safeMutate('production_batches', 'INSERT', sanitizedNew);
     },
 
     syncOfflineData: async (): Promise<number> => {
@@ -860,7 +885,7 @@ export const api = {
         for (const item of queue) {
             try {
                 let query;
-                const cleanData = item.table === 'products' ? sanitizeProductData(item.data) : item.data;
+                const cleanData = item.table === 'products' ? sanitizeProductData(item.data) : (item.table === 'production_batches' ? sanitizeBatchData(item.data) : item.data);
                 if (item.method === 'INSERT') query = supabase.from(item.table).insert(cleanData);
                 else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });

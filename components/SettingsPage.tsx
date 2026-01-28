@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
@@ -83,7 +83,7 @@ export default function SettingsPage() {
           downloadFile(JSON.stringify(data, null, 2), `ilios_erp_full_backup_${timestamp}.json`, 'application/json');
           showToast("Το πλήρες αντίγραφο JSON λήφθηκε.", "success");
       } catch (err) {
-          showToast("Σφάλμα κατά την εξαγωγή.", "error");
+          showToast("Σφάλμα κατά τη εξαγωγή.", "error");
       } finally {
           setIsExporting(false);
       }
@@ -178,6 +178,32 @@ export default function SettingsPage() {
       }
   };
 
+  const handleClearSyncQueue = async () => {
+      const yes = await confirm({
+          title: 'Εκκαθάριση Ουράς Συγχρονισμού',
+          message: 'Αυτό θα διαγράψει ΟΛΕΣ τις εκκρεμείς αλλαγές που δεν έχουν ανέβει στο cloud. Χρησιμοποιήστε το μόνο αν ο συγχρονισμός έχει κολλήσει μόνιμα.',
+          isDestructive: true,
+          confirmText: 'Εκκαθάριση'
+      });
+      if (yes) {
+          setIsMaintenanceAction(true);
+          try {
+              const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                  const req = indexedDB.open('IliosERP_Offline_Mirror');
+                  req.onsuccess = () => resolve(req.result);
+                  req.onerror = () => reject(req.error);
+              });
+              const tx = db.transaction('sync_queue', 'readwrite');
+              tx.objectStore('sync_queue').clear();
+              showToast("Η ουρά εκκαθαρίστηκε. Ο συγχρονισμός θα σταματήσει.", "success");
+              setTimeout(() => window.location.reload(), 1500);
+          } catch (err) {
+              showToast("Σφάλμα εκκαθάρισης.", "error");
+              setIsMaintenanceAction(false);
+          }
+      }
+  };
+
   const handleWipeCache = async () => {
       const yes = await confirm({
           title: 'Εκκαθάριση Τοπικής Μνήμης',
@@ -263,7 +289,7 @@ export default function SettingsPage() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
                     <Tag className="text-purple-500" size={20}/>
                     Διαστάσεις Ετικετών (mm)
                 </h2>
@@ -298,7 +324,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
                     <Shield className="text-emerald-500" size={20}/>
                     Τοπική Ρύθμιση & Συντήρηση
                 </h2>
@@ -314,6 +340,10 @@ export default function SettingsPage() {
                         <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''}/> Συγχρονισμός Εκκρεμοτήτων
                     </button>
                     
+                    <button onClick={handleClearSyncQueue} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-bold text-amber-700 text-sm">
+                        <AlertTriangle size={16}/> Εκκαθάριση Ουράς (Rescue)
+                    </button>
+
                     <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
                     <button onClick={() => fileInputRef.current?.click()} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors font-bold text-blue-700 text-sm">
                         <Upload size={16}/> Επαναφορά από Backup

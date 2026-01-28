@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -241,6 +241,27 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
       queryClient.invalidateQueries({ queryKey: ['batches'] });
   };
 
+  const handleRevertFromProduction = async (orderId: string) => {
+    const yes = await confirm({
+        title: 'Επαναφορά από Παραγωγή',
+        message: 'Αυτή η ενέργεια θα ΔΙΑΓΡΑΨΕΙ όλες τις παρτίδες παραγωγής για αυτή την εντολή και θα την επαναφέρει σε κατάσταση "Εκκρεμεί". Συνέχεια;',
+        isDestructive: true,
+        confirmText: 'Επαναφορά'
+    });
+
+    if (yes) {
+        try {
+            await api.revertOrderFromProduction(orderId);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            setManagingOrder(null);
+            showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
+        }
+    }
+  };
+
   const handleCancelOrder = async (orderId: string) => {
     const yes = await confirm({
         title: 'Ακύρωση Παραγγελίας',
@@ -362,6 +383,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction) && (
                         <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
                             <Factory size={18}/> Αποστολή στην Παραγωγή (Μερική/Ολική)
+                        </button>
+                    )}
+                    {managingOrder.status === OrderStatus.InProduction && (
+                        <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+                            <RotateCcw size={18}/> Επαναφορά από Παραγωγή (Rescue)
                         </button>
                     )}
                     {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
