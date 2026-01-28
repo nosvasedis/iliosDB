@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -7,6 +8,7 @@ import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 
 interface Props {
+    allProducts: Product[];
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
@@ -307,9 +309,8 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
     );
 };
 
-export default function MobileProduction({ onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
+export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-    const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -326,11 +327,11 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
 
     const enrichedBatches = useMemo(() => {
-        if (!batches || !products || !materials || !orders) return [];
+        if (!batches || !allProducts || !materials || !orders) return [];
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         
         return batches.map(b => {
-            const prod = products.find(p => p.sku === b.sku);
+            const prod = allProducts.find(p => p.sku === b.sku);
             const suffix = b.variant_suffix || '';
             const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
                              prod?.recipe.some(r => {
@@ -348,7 +349,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
                 customer_name: order?.customer_name || ''
             };
         });
-    }, [batches, products, materials, orders]);
+    }, [batches, allProducts, materials, orders]);
 
     const foundBatches = useMemo(() => {
         if (!finderTerm || finderTerm.length < 2) return [];
@@ -403,6 +404,16 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         } catch (e) { showToast("Error.", "error"); }
     };
 
+    const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage) => {
+        try {
+            await api.updateBatchStage(batch.id, stage);
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast(`Η παρτίδα μετακινήθηκε στο στάδιο: ${stage}`, "success");
+        } catch (error) {
+            showToast("Σφάλμα μετακίνησης.", "error");
+        }
+    };
+
     // Print Handlers
     const handlePrintRequest = (batchesToPrint: ProductionBatch[], type: 'technician' | 'preparation' | 'aggregated') => {
         const validBatches = batchesToPrint.filter(b => !b.on_hold);
@@ -428,7 +439,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         }
   
         const printQueue = stageBatches.map(b => {
-            const product = products?.find(p => p.sku === b.sku);
+            const product = allProducts?.find(p => p.sku === b.sku);
             if (!product) return null;
             const variant = product.variants?.find(v => v.suffix === b.variant_suffix);
             return {
@@ -452,7 +463,7 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
         else if (type === 'aggregated') onPrintAggregated(selected);
     };
 
-    if (loadingBatches || loadingProducts || loadingMaterials || !products || !materials || !batches) {
+    if (loadingBatches || loadingMaterials || !allProducts || !materials || !batches) {
         return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
     }
     
@@ -544,7 +555,16 @@ export default function MobileProduction({ onPrintAggregated, onPrintPreparation
             </div>
 
             {holdBatch && <MobileHoldModal batch={holdBatch} onClose={() => setHoldBatch(null)} onConfirm={confirmHold} />}
-            {viewBuildBatch && molds && <BatchBuildModal batch={viewBuildBatch} allMaterials={materials} allMolds={molds} onClose={() => setViewBuildBatch(null)} />}
+            {viewBuildBatch && molds && (
+                <BatchBuildModal 
+                    batch={viewBuildBatch} 
+                    allMaterials={materials} 
+                    allMolds={molds} 
+                    allProducts={allProducts}
+                    onClose={() => setViewBuildBatch(null)} 
+                    onMove={handleMoveBatch}
+                />
+            )}
             
             {printSelectorState.isOpen && (
                 <PrintSelectorModal 

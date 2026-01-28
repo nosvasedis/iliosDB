@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import MobileLayout from './components/mobile/MobileLayout';
 import MobileDashboard from './components/mobile/MobileDashboard';
@@ -239,7 +240,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
     case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintLabels={setPrintItems} products={products} />; break;
     case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
-    case 'production': content = <MobileProduction onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
+    case 'production': content = <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
     
