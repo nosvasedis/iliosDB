@@ -116,7 +116,7 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
         draggable={true} // Allow dragging even if ready, to move backwards if needed
         onDragStart={(e) => onDragStart(e, batch.id)}
         onClick={() => onClick(batch)}
-        className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border transition-all relative flex flex-col group touch-manipulation cursor-pointer
+        className={`bg-white p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
                     ${batch.on_hold 
                         ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
                         : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
@@ -1112,7 +1112,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                             {/* Stage Header */}
                             <div 
                                 className={`
-                                    p-4 rounded-t-3xl lg:rounded-t-3xl border-b ${colors.border} flex justify-between items-center shrink-0 cursor-pointer lg:cursor-default transition-colors ${colors.header}
+                                    p-4 rounded-t-3xl lg:rounded-t-3xl border-b ${colors.border} flex justify-between items-center cursor-pointer lg:cursor-default transition-colors ${colors.header}
                                     ${!isExpanded ? 'rounded-b-3xl lg:rounded-b-none border-b-0 lg:border-b' : ''}
                                 `}
                                 onClick={() => setExpandedStageId(isExpanded ? null : stage.id)}
@@ -1239,6 +1239,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 batch={viewBuildBatch} 
                 allMaterials={materials} 
                 allMolds={molds} 
+                allProducts={products}
                 onClose={() => setViewBuildBatch(null)} 
                 onMove={handleMoveBatch}
             />

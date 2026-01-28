@@ -8,6 +8,7 @@ interface Props {
     batch: ProductionBatch;
     allMaterials: Material[];
     allMolds: Mold[];
+    allProducts: Product[];
     onClose: () => void;
     onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
 }
@@ -22,7 +23,7 @@ const STAGES = [
     { id: ProductionStage.Ready, label: 'Έτοιμα' }
 ];
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose, onMove }: Props) {
+export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
 
@@ -40,22 +41,27 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
             };
         });
 
-        // 2. Recipe (With Totals)
+        // 2. Recipe (With Totals and Descriptions)
         const recipeItems = product.recipe.map(item => {
             let name = '';
+            let description = '';
             let unit = 'τεμ';
 
             if (item.type === 'raw') {
                 const mat = allMaterials.find(m => m.id === item.id);
                 name = mat?.name || `Material #${item.id}`;
+                description = mat?.description || '';
                 unit = mat?.unit || 'τεμ';
             } else {
-                name = item.sku; // Component SKU
+                const comp = allProducts.find(p => p.sku === item.sku);
+                name = item.sku; 
+                description = comp?.description || comp?.category || '';
             }
 
             return {
                 type: item.type,
                 name,
+                description,
                 unit,
                 qtyPerUnit: item.quantity,
                 totalQtyRequired: item.quantity * batch.quantity
@@ -77,7 +83,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
             totalSilverWeight: (product.weight_g + (product.secondary_weight_g || 0)) * batch.quantity
         };
 
-    }, [product, batch, allMaterials, allMolds]);
+    }, [product, batch, allMaterials, allMolds, allProducts]);
 
     const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         if (onMove) {
@@ -271,6 +277,11 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, onClose
                                                         {item.name}
                                                     </span>
                                                     {item.type === 'component' && <span className="ml-2 text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-bold">STX</span>}
+                                                    {item.description && (
+                                                        <div className="text-[10px] text-slate-500 font-medium mt-0.5 italic leading-tight">
+                                                            {item.description}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="p-4 text-center font-mono text-slate-500">
                                                     {formatDecimal(item.qtyPerUnit, 2)}
