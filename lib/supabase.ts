@@ -799,6 +799,54 @@ export const api = {
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
     },
 
+    // NEW: PARTIAL SEND TO PRODUCTION
+    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[]): Promise<void> => {
+        if (itemsToSend.length === 0) return;
+        
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const batches: any[] = [];
+        
+        for (const item of itemsToSend) {
+            if (item.qty <= 0) continue;
+
+            const product = allProducts.find(p => p.sku === item.sku);
+            if (!product) continue;
+            
+            const suffix = item.variant || '';
+            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
+                               product.recipe.some(r => {
+                                   if (r.type !== 'raw') return false;
+                                   const material = allMaterials.find(m => m.id === r.id);
+                                   return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                               });
+            
+            const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+            
+            batches.push({
+                id: crypto.randomUUID(), 
+                order_id: orderId,
+                sku: item.sku,
+                variant_suffix: item.variant || null,
+                quantity: item.qty,
+                current_stage: stage,
+                size_info: item.size_info || null,
+                notes: item.notes || null,
+                priority: 'Normal',
+                type: 'Νέα',
+                requires_setting: hasZircons,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        }
+        
+        if (batches.length > 0) {
+            await safeMutate('production_batches', 'UPSERT', batches);
+        }
+
+        // Always ensure order is marked In Production if we send something
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
+    },
+
     splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any): Promise<void> => {
         await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: new Date().toISOString() }, { match: { id: originalBatchId } });
         await safeMutate('production_batches', 'INSERT', newBatchData);

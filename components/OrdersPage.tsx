@@ -1,12 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
+import ProductionSendModal from './ProductionSendModal';
 
 interface Props {
   products: Product[];
@@ -198,6 +199,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   
   const [managingOrder, setManagingOrder] = useState<Order | null>(null);
   const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
+  
+  // New State for Production Modal
+  const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
 
   const enrichedBatches = useMemo(() => {
       const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -221,15 +225,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   };
 
   const handleSendToProduction = async (orderId: string) => {
-      try {
-          await api.sendOrderToProduction(orderId, products, materials);
-          queryClient.invalidateQueries({ queryKey: ['orders'] });
-          queryClient.invalidateQueries({ queryKey: ['batches'] });
+      // Find the full order object
+      const order = orders?.find(o => o.id === orderId);
+      if (order) {
+          setProductionModalOrder(order);
           setManagingOrder(null);
-          showToast('Η παραγγελία στάλθηκε στην παραγωγή.', 'success');
-      } catch (err: any) {
-          showToast(`Σφάλμα: ${err.message}`, 'error');
+      } else {
+          showToast("Σφάλμα εύρεσης παραγγελίας", "error");
       }
+  };
+
+  const onProductionSuccess = () => {
+      setProductionModalOrder(null);
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
   };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -350,8 +359,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto">
                     <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18}/> Επεξεργασία</button>
-                    {managingOrder.status === OrderStatus.Pending && (
-                        <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"><Factory size={18}/> Αποστολή στην Παραγωγή</button>
+                    {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction) && (
+                        <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+                            <Factory size={18}/> Αποστολή στην Παραγωγή (Μερική/Ολική)
+                        </button>
                     )}
                     {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
                         <button onClick={() => handleCancelOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors">
@@ -374,6 +385,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             onPrintAnalytics={onPrintAnalytics}
             products={products} allBatches={enrichedBatches} showToast={showToast}
         />
+      )}
+
+      {productionModalOrder && (
+          <ProductionSendModal 
+              order={productionModalOrder} 
+              products={products}
+              materials={materials}
+              existingBatches={enrichedBatches.filter(b => b.order_id === productionModalOrder.id)}
+              onClose={() => setProductionModalOrder(null)}
+              onSuccess={onProductionSuccess}
+          />
       )}
     </div>
   );
