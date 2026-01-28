@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -639,12 +638,6 @@ function AppContent() {
           </div>
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => handleNav('dashboard')} />
-            <div className="my-2 mx-2">
-                <button onClick={() => handleNav('ai-studio')} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-300 group relative ${activePage === 'ai-studio' ? 'bg-gradient-to-r from-[#060b00] to-emerald-900 text-white shadow-lg ring-1 ring-emerald-800' : 'text-emerald-200 hover:bg-white/5 hover:text-white border border-emerald-900/30 bg-[#0a1200]/50'}`}>
-                    <div className={`${activePage === 'ai-studio' ? 'text-white' : 'text-emerald-300 group-hover:text-white'}`}><Sparkles size={22} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} /></div>
-                    {!isCollapsed && <span className="font-bold truncate text-sm">AI Studio</span>}
-                </button>
-            </div>
             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} />
             {!isLocalMode && (
@@ -666,9 +659,17 @@ function AppContent() {
             <NavItem icon={<ScrollText size={22} />} label="Τιμοκατάλογος" isActive={activePage === 'pricelist'} isCollapsed={isCollapsed} onClick={() => handleNav('pricelist')} />
             <div className="mt-auto pt-6">
               <NavItem icon={<SettingsIcon size={22} />} label="Ρυθμίσεις" isActive={activePage === 'settings'} isCollapsed={isCollapsed} onClick={() => handleNav('settings')} />
-              <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center' : 'px-4'}`}>
-                  <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg flex items-center gap-2">
-                      <LogOut size={18} /> {!isCollapsed && <span className="text-sm font-medium">{profile?.full_name || 'User'}</span>}
+              <div className={`mt-4 pt-4 border-t border-white/10 w-full ${isCollapsed ? 'flex flex-col items-center gap-4' : 'px-4 flex items-center justify-between'}`}>
+                  <button onClick={handleLogout} className="flex-1 flex items-center gap-2 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg min-w-0">
+                      <LogOut size={18} className="shrink-0" /> 
+                      {!isCollapsed && <span className="text-sm font-medium truncate">{profile?.full_name || 'User'}</span>}
+                  </button>
+                  <button 
+                    onClick={() => handleNav('ai-studio')}
+                    title="AI Studio"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === 'ai-studio' ? 'bg-emerald-500 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
+                  >
+                    <Sparkles size={14} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} />
                   </button>
               </div>
             </div>
@@ -690,7 +691,7 @@ function AppContent() {
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} />}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}
               {activePage === 'resources' && (

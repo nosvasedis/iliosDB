@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check } from 'lucide-react';
@@ -15,6 +15,7 @@ interface Props {
   onPrintAggregated: (batches: ProductionBatch[]) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
   onPrintTechnician: (batches: ProductionBatch[]) => void;
+  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 const STAGES = [
@@ -601,7 +602,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 };
 
 
-export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician }: Props) {
+export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -925,6 +926,31 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       });
   };
 
+  const handlePrintStageLabels = (stageId: string) => {
+      const stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
+      if (stageBatches.length === 0) {
+          showToast("Δεν υπάρχουν παρτίδες για εκτύπωση.", "info");
+          return;
+      }
+
+      const printQueue = stageBatches.map(b => {
+          const product = products.find(p => p.sku === b.sku);
+          if (!product) return null;
+          const variant = product.variants?.find(v => v.suffix === b.variant_suffix);
+          return {
+              product,
+              variant,
+              quantity: b.quantity,
+              format: 'standard' // Wholesale
+          };
+      }).filter(item => item !== null);
+
+      if (printQueue.length > 0 && onPrintLabels) {
+          onPrintLabels(printQueue as any);
+          showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση.`, "success");
+      }
+  };
+
   const executePrint = (selected: ProductionBatch[]) => {
       const type = printSelectorState.type;
       if (type === 'technician') onPrintTechnician(selected);
@@ -1080,6 +1106,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     <h3 className={`font-bold ${colors.text} text-sm`}>{stage.label}</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    {stage.id === ProductionStage.Labeling && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}
+                                            className="p-1.5 bg-white rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-sm"
+                                            title="Εκτύπωση Ετικετών Σταδίου"
+                                        >
+                                            <Tag size={14}/>
+                                        </button>
+                                    )}
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
                                     {/* Mobile Accordion Icon */}
                                     <div className="lg:hidden text-slate-400">
