@@ -936,18 +936,24 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       const printQueue = stageBatches.map(b => {
           const product = products.find(p => p.sku === b.sku);
           if (!product) return null;
-          const variant = product.variants?.find(v => v.suffix === b.variant_suffix);
+          
+          // Normalized matching for variants to handle null vs empty string
+          const batchSuffix = b.variant_suffix || '';
+          const variant = product.variants?.find(v => (v.suffix || '') === batchSuffix);
+          
           return {
               product,
               variant,
               quantity: b.quantity,
-              format: 'standard' // Wholesale
+              format: 'standard' as const // Wholesale
           };
-      }).filter(item => item !== null);
+      }).filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (printQueue.length > 0 && onPrintLabels) {
-          onPrintLabels(printQueue as any);
+          onPrintLabels(printQueue);
           showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση.`, "success");
+      } else if (printQueue.length === 0) {
+          showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
       }
   };
 
