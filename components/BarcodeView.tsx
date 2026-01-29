@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
@@ -77,10 +76,12 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [finalSku]);
 
     // FONT CALCULATIONS (in mm)
-    const skuFontSize = Math.min(activeHeight * 0.15, activeWidth * 0.14, 3.8);
+    // Sku font size slightly increased from 0.15/0.14/3.8 to 0.16/0.15/4.0
+    const skuFontSize = Math.min(activeHeight * 0.16, activeWidth * 0.15, 4.0);
     const detailsFontSize = Math.min(activeHeight * 0.12, activeWidth * 0.12, 3.0);
     const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
-    const stoneFontSize = Math.min(activeHeight * 0.10, activeWidth * 0.13, 2.2);
+    // Stone font size slightly increased from 0.10/0.13/2.2 to 0.13/0.15/2.5
+    const stoneFontSize = Math.min(activeHeight * 0.13, activeWidth * 0.15, 2.5);
     
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
@@ -106,7 +107,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                         {finalSku}
                     </span>
                 </div>
-                <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0">
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
                     {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', width: 'auto', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
                 </div>
             </div>
@@ -202,11 +203,11 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                         {stoneName}
                     </span>
                 )}
-                <span className="font-black tracking-[0.1em] text-black block uppercase leading-none" style={{ fontSize: `${brandFontSize}mm`, marginTop: '0.2mm' }}>
+            </div>
+            <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
+                 <span className="font-black tracking-[0.1em] text-black uppercase" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     ILIOS
                 </span>
-            </div>
-            <div className="w-full flex justify-end items-center border-t border-black pt-0.5 leading-none">
                  {size ? (
                      <span className="font-black text-black bg-black text-white px-0.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 0.9}mm`, lineHeight: '1.1' }}>{size}</span>
                  ) : (
