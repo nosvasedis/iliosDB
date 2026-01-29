@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -97,10 +97,11 @@ interface BatchCardProps {
     onNextStage?: (batch: ProductionBatch) => void;
     onEditNote: (batch: ProductionBatch) => void;
     onToggleHold: (batch: ProductionBatch) => void; 
+    onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
 }
 
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onToggleHold, onClick }) => {
+const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onToggleHold, onDelete, onClick }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
@@ -158,6 +159,13 @@ const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMo
                     title={batch.notes || "Προσθήκη Σημείωσης"}
                 >
                     <StickyNote size={16} className={batch.notes ? "fill-current" : ""} />
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(batch); }}
+                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Διαγραφή Παρτίδας"
+                >
+                    <Trash2 size={16} />
                 </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
@@ -798,6 +806,26 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }
   };
 
+  const handleDeleteBatch = async (batch: ProductionBatch) => {
+      const yes = await confirm({
+          title: 'Διαγραφή Παρτίδας',
+          message: `Είστε σίγουροι ότι θέλετε να διαγράψετε την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ);`,
+          isDestructive: true,
+          confirmText: 'Διαγραφή'
+      });
+
+      if (yes) {
+          try {
+              await api.deleteProductionBatch(batch.id);
+              queryClient.invalidateQueries({ queryKey: ['batches'] });
+              queryClient.invalidateQueries({ queryKey: ['orders'] });
+              showToast("Η παρτίδα διαγράφηκε.", "success");
+          } catch (e) {
+              showToast("Σφάλμα κατά τη διαγραφή.", "error");
+          }
+      }
+  };
+
   const handleSaveNote = async (newNote: string) => {
       if (!editingNoteBatch) return;
       setIsSavingNote(true);
@@ -1022,12 +1050,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                 {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
                                              </div>
                                              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                                 <User size={12}/> <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
+                                                 <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
                                              </div>
                                          </div>
                                          <div className="text-right">
                                              <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
-                                             {/* FIX: Localized Stage Label */}
                                              <span className="text-[10px] uppercase font-bold bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">
                                                  {STAGES.find(s => s.id === b.current_stage)?.label || b.current_stage}
                                              </span>
@@ -1041,7 +1068,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                              </div>
                                          ) : <div/>}
                                          
-                                         {/* Direct Move Dropdown in Finder */}
                                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                                              <span className="text-[9px] font-bold text-slate-400 uppercase">Move:</span>
                                              <select 
@@ -1084,7 +1110,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             </div>
         </div>
 
-        {/* RESPONSIVE LAYOUT CONTAINER */}
         <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
             <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
@@ -1109,7 +1134,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                 ${isTarget ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.02]' : `${colors.bg} border-slate-200`}
                             `}
                         >
-                            {/* Stage Header */}
                             <div 
                                 className={`
                                     p-4 rounded-t-3xl lg:rounded-t-3xl border-b ${colors.border} flex justify-between items-center cursor-pointer lg:cursor-default transition-colors ${colors.header}
@@ -1132,20 +1156,17 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                         </button>
                                     )}
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
-                                    {/* Mobile Accordion Icon */}
                                     <div className="lg:hidden text-slate-400">
                                         {isExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
                                     </div>
                                 </div>
                             </div>
                             
-                            {/* Stage Body - Responsive Visibility */}
                             <div className={`
                                 flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar
                                 ${!isExpanded ? 'hidden lg:block' : 'block'}
                                 min-h-[100px] lg:min-h-0
                             `}>
-                                {/* Progress Bar Concept for Header */}
                                 {stageBatches.length > 0 && (
                                     <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mb-2 opacity-50 lg:hidden">
                                         <div className={`h-full bg-${stage.color}-500`} style={{ width: '100%' }}></div>
@@ -1161,13 +1182,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
                                     return (
                                         <div key={genderKey} className="space-y-3">
-                                            {/* Level 1: Gender Header */}
                                             <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig.style} flex justify-between items-center`}>
                                                 <span>{gConfig.label}</span>
                                                 <span className="opacity-60 text-[9px]">{Object.values(genderBatches).flat().length}</span>
                                             </div>
 
-                                            {/* Level 2: Collection Groups */}
                                             {collectionKeys.map(collName => (
                                                 <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
                                                     <div className="flex items-center gap-2 px-1">
@@ -1175,7 +1194,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
                                                     </div>
                                                     
-                                                    {/* Level 3: Batches */}
                                                     {genderBatches[collName].map(batch => (
                                                         <BatchCard 
                                                             key={batch.id} 
@@ -1185,6 +1203,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                             onNextStage={handleQuickNext}
                                                             onEditNote={() => setEditingNoteBatch(batch)}
                                                             onToggleHold={() => handleToggleHold(batch)}
+                                                            onDelete={() => handleDeleteBatch(batch)}
                                                             onClick={() => setViewBuildBatch(batch)}
                                                         />
                                                     ))}

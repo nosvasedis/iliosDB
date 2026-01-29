@@ -690,15 +690,7 @@ export const api = {
             const allMaterials = await api.getMaterials();
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
 
-            // 3. Map Supply (Existing Batches)
-            const supplyMap: Record<string, number> = {};
-            batches.forEach((b: any) => {
-                // Key format: SKU::SUFFIX
-                const key = `${b.sku}::${b.variant_suffix || ''}`;
-                supplyMap[key] = (supplyMap[key] || 0) + b.quantity;
-            });
-
-            // 4. Map Demand (Current Order Items)
+            // 3. Map Demand (Current Order Items)
             const newBatches: any[] = [];
             const demandMap: Record<string, { qty: number, item: any }> = {};
 
@@ -708,7 +700,25 @@ export const api = {
                  demandMap[key].qty += item.quantity;
             });
 
-            // 5. Calculate Diff & Prepare New Batches
+            // 4. CLEANUP: Delete batches for SKUs no longer in the order or missing
+            for (const b of batches) {
+                const key = `${b.sku}::${b.variant_suffix || ''}`;
+                if (!demandMap[key]) {
+                    await api.deleteProductionBatch(b.id);
+                }
+            }
+
+            // 5. Map Supply (Remaining Batches)
+            const supplyMap: Record<string, number> = {};
+            // Re-map after identifying which ones stay
+            batches.forEach((b: any) => {
+                const key = `${b.sku}::${b.variant_suffix || ''}`;
+                if (demandMap[key]) {
+                    supplyMap[key] = (supplyMap[key] || 0) + b.quantity;
+                }
+            });
+
+            // 6. Calculate Diff & Prepare New Batches
             Object.entries(demandMap).forEach(([key, data]) => {
                 const supply = supplyMap[key] || 0;
                 const demand = data.qty;
