@@ -20,18 +20,28 @@ const STAGE_LABELS: Record<string, string> = {
     [ProductionStage.Casting]: 'Χυτήριο',
     [ProductionStage.Setting]: 'Καρφωτής',
     [ProductionStage.Polishing]: 'Τεχνίτης',
-    [ProductionStage.Labeling]: 'Labeling',
+    [ProductionStage.Labeling]: 'Συσκευασία',
     [ProductionStage.Ready]: 'Έτοιμα'
 };
 
+const STAGE_INITIALS: Record<string, string> = {
+    [ProductionStage.AwaitingDelivery]: 'Α',
+    [ProductionStage.Waxing]: 'Κ',
+    [ProductionStage.Casting]: 'Χ',
+    [ProductionStage.Setting]: 'Σ',
+    [ProductionStage.Polishing]: 'Τ',
+    [ProductionStage.Labeling]: 'Π',
+    [ProductionStage.Ready]: 'Ε'
+};
+
 const STAGE_COLORS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'bg-indigo-100 text-indigo-700',
-    [ProductionStage.Waxing]: 'bg-slate-100 text-slate-700',
-    [ProductionStage.Casting]: 'bg-orange-100 text-orange-700',
-    [ProductionStage.Setting]: 'bg-purple-100 text-purple-700',
-    [ProductionStage.Polishing]: 'bg-blue-100 text-blue-700',
-    [ProductionStage.Labeling]: 'bg-yellow-100 text-yellow-700',
-    [ProductionStage.Ready]: 'bg-emerald-100 text-emerald-700'
+    [ProductionStage.AwaitingDelivery]: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    [ProductionStage.Waxing]: 'bg-slate-100 text-slate-700 border-slate-200',
+    [ProductionStage.Casting]: 'bg-orange-100 text-orange-700 border-orange-200',
+    [ProductionStage.Setting]: 'bg-purple-100 text-purple-700 border-purple-200',
+    [ProductionStage.Polishing]: 'bg-blue-100 text-blue-700 border-blue-200',
+    [ProductionStage.Labeling]: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    [ProductionStage.Ready]: 'bg-emerald-100 text-emerald-700 border-emerald-200'
 };
 
 interface RowItem extends OrderItem {
@@ -47,14 +57,9 @@ export default function ProductionSendModal({ order, products, materials, existi
     
     // Initial calculation of rows
     const initialRows = useMemo(() => {
-        // Map existing batches by SKU+Variant+Size+Notes
-        // Note: For simplicity, we primarily key by SKU+Variant. 
-        // Size info matches are best effort or handled if stored in batches.
         const rows: RowItem[] = [];
 
         order.items.forEach(item => {
-            const key = item.sku + (item.variant_suffix || '');
-            
             // Find batches matching this item
             const relevantBatches = existingBatches.filter(b => 
                 b.sku === item.sku && 
@@ -65,7 +70,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const sentQty = relevantBatches.reduce((sum, b) => sum + b.quantity, 0);
             const remainingQty = Math.max(0, item.quantity - sentQty);
             
-            // Group status for tooltip/display
+            // Group status for inline display
             const batchStatus: { stage: string, qty: number }[] = [];
             relevantBatches.forEach(b => {
                 const existing = batchStatus.find(s => s.stage === b.current_stage);
@@ -78,7 +83,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                 sentQty,
                 remainingQty,
                 toSendQty: remainingQty, // Default to sending all remaining
-                batchStatus
+                batchStatus: batchStatus.sort((a, b) => {
+                    const stagesOrder = Object.values(ProductionStage);
+                    return stagesOrder.indexOf(a.stage as any) - stagesOrder.indexOf(b.stage as any);
+                })
             });
         });
         return rows;
@@ -89,7 +97,6 @@ export default function ProductionSendModal({ order, products, materials, existi
     const updateQuantity = (index: number, val: number) => {
         setRows(prev => {
             const next = [...prev];
-            // Clamp between 0 and remaining
             const max = next[index].remainingQty;
             next[index].toSendQty = Math.min(max, Math.max(0, val));
             return next;
@@ -127,10 +134,11 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     const totalToSend = rows.reduce((sum, r) => sum + r.toSendQty, 0);
     const totalRemaining = rows.reduce((sum, r) => sum + r.remainingQty, 0);
+    const totalOrdered = order.items.reduce((s,i)=>s+i.quantity,0);
 
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
                 
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -139,39 +147,39 @@ export default function ProductionSendModal({ order, products, materials, existi
                             <Factory className="text-blue-600"/> Αποστολή στην Παραγωγή
                         </h2>
                         <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
-                            <span className="font-bold">Order #{order.id.slice(0,8)}</span>
+                            <span className="font-bold">Εντολή #{order.id.slice(0,12)}</span>
                             <span>•</span>
                             <span>{order.customer_name}</span>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20}/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><X size={20}/></button>
                 </div>
 
                 {/* Progress Summary */}
-                <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex gap-6 text-sm">
+                <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex flex-col sm:flex-row gap-6 text-sm">
                     <div className="flex-1">
                         <div className="flex justify-between mb-1 font-bold text-slate-600">
                             <span>Πρόοδος Παραγγελίας</span>
-                            <span>{Math.round(((order.items.reduce((s,i)=>s+i.quantity,0) - totalRemaining) / order.items.reduce((s,i)=>s+i.quantity,0)) * 100)}%</span>
+                            <span>{Math.round(((totalOrdered - totalRemaining) / totalOrdered) * 100)}%</span>
                         </div>
                         <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                              <div 
                                 className="h-full bg-blue-500 transition-all duration-500" 
-                                style={{ width: `${((order.items.reduce((s,i)=>s+i.quantity,0) - totalRemaining) / order.items.reduce((s,i)=>s+i.quantity,0)) * 100}%` }}
+                                style={{ width: `${((totalOrdered - totalRemaining) / totalOrdered) * 100}%` }}
                              />
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 justify-center">
                         <div className="text-center">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">ΣΥΝΟΛΟ</div>
-                            <div className="font-black text-slate-800">{order.items.reduce((s,i)=>s+i.quantity,0)}</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ΣΥΝΟΛΟ</div>
+                            <div className="font-black text-slate-800">{totalOrdered}</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">ΕΣΤΑΛΗΣΑΝ</div>
-                            <div className="font-black text-blue-600">{order.items.reduce((s,i)=>s+i.quantity,0) - totalRemaining}</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ΣΕ ΠΟΡΕΙΑ</div>
+                            <div className="font-black text-blue-600">{totalOrdered - totalRemaining}</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">ΕΚΚΡΕΜΟΥΝ</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ΕΚΚΡΕΜΟΥΝ</div>
                             <div className="font-black text-amber-600">{totalRemaining}</div>
                         </div>
                     </div>
@@ -179,56 +187,56 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                 {/* Table */}
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 shadow-sm z-10">
+                    <table className="w-full text-left text-sm border-separate border-spacing-y-2">
+                        <thead className="bg-white text-slate-500 font-bold uppercase text-[10px] tracking-widest sticky top-0 z-10">
                             <tr>
-                                <th className="p-3 rounded-l-lg">Προϊόν</th>
-                                <th className="p-3 text-center">Παραγγελία</th>
-                                <th className="p-3 text-center">Σε Παραγωγή</th>
-                                <th className="p-3 text-center">Υπόλοιπο</th>
-                                <th className="p-3 text-right bg-blue-50/50 text-blue-700 w-32 rounded-r-lg">Αποστολή Τώρα</th>
+                                <th className="px-3 py-2 border-b border-slate-100">Προϊόν</th>
+                                <th className="px-3 py-2 border-b border-slate-100 text-center">Εντολή</th>
+                                <th className="px-3 py-2 border-b border-slate-100">Κατάσταση Παραγωγής</th>
+                                <th className="px-3 py-2 border-b border-slate-100 text-center">Υπόλοιπο</th>
+                                <th className="px-3 py-2 border-b border-slate-100 text-right bg-blue-50/30 text-blue-700 w-32 rounded-tr-xl">Αποστολή</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="before:block before:h-2">
                             {rows.map((row, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-3">
-                                        <div className="font-bold text-slate-800">{row.sku}{row.variant_suffix}</div>
-                                        {row.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded inline-block text-slate-600 font-bold mt-1">{row.size_info}</div>}
+                                <tr key={idx} className="bg-white border border-slate-100 group">
+                                    <td className="px-3 py-4 border-y border-l border-slate-100 rounded-l-2xl group-hover:bg-slate-50/50 transition-colors">
+                                        <div className="font-black text-slate-800 text-sm">{row.sku}{row.variant_suffix}</div>
+                                        {row.size_info && <div className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded inline-block text-slate-500 font-bold mt-1 border border-slate-200 uppercase">{row.size_info}</div>}
                                     </td>
-                                    <td className="p-3 text-center font-bold text-slate-700">{row.quantity}</td>
-                                    <td className="p-3 text-center">
-                                        {row.sentQty > 0 ? (
-                                            <div className="group relative inline-block cursor-help">
-                                                <span className="font-bold text-blue-600 border-b border-dashed border-blue-300">{row.sentQty}</span>
-                                                {/* Tooltip for status */}
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 hidden group-hover:block z-50 animate-in fade-in zoom-in-95">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 border-b border-slate-100 pb-1">Status Breakdown</p>
-                                                    <div className="space-y-1">
-                                                        {row.batchStatus.map((s, i) => (
-                                                            <div key={i} className="flex justify-between items-center text-xs">
-                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${STAGE_COLORS[s.stage] || 'bg-slate-100'}`}>
-                                                                    {STAGE_LABELS[s.stage] || s.stage}
-                                                                </span>
-                                                                <span className="font-bold">{s.qty}</span>
-                                                            </div>
-                                                        ))}
+                                    <td className="px-3 py-4 text-center font-bold text-slate-500 border-y border-slate-100 group-hover:bg-slate-50/50 transition-colors">{row.quantity}</td>
+                                    <td className="px-3 py-4 border-y border-slate-100 group-hover:bg-slate-50/50 transition-colors">
+                                        <div className="flex flex-wrap gap-1.5 items-center">
+                                            {row.sentQty > 0 ? (
+                                                row.batchStatus.map((status, sIdx) => (
+                                                    <div 
+                                                        key={sIdx} 
+                                                        title={STAGE_LABELS[status.stage]}
+                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border shadow-sm transition-transform hover:scale-105 ${STAGE_COLORS[status.stage] || 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                                                    >
+                                                        <span className="font-black text-xs">{STAGE_INITIALS[status.stage]}</span>
+                                                        <div className="w-px h-3 bg-current opacity-20"/>
+                                                        <span className="font-bold text-xs">{status.qty}</span>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ) : <span className="text-slate-300">-</span>}
+                                                ))
+                                            ) : (
+                                                <span className="text-slate-300 italic text-[10px] uppercase font-bold tracking-widest">Χωρίς Παρτίδες</span>
+                                            )}
+                                        </div>
                                     </td>
-                                    <td className="p-3 text-center font-bold text-amber-600">
-                                        {row.remainingQty}
+                                    <td className="px-3 py-4 text-center border-y border-slate-100 group-hover:bg-slate-50/50 transition-colors">
+                                        <span className={`inline-block min-w-[2rem] px-2 py-1 rounded-lg font-black text-sm ${row.remainingQty > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-50 text-slate-300'}`}>
+                                            {row.remainingQty > 0 ? row.remainingQty : '-'}
+                                        </span>
                                     </td>
-                                    <td className="p-3 text-right bg-blue-50/10">
+                                    <td className="px-3 py-4 text-right bg-blue-50/10 border-y border-r border-slate-100 rounded-r-2xl">
                                         <input 
                                             type="number" 
                                             min="0" 
                                             max={row.remainingQty}
                                             value={row.toSendQty}
                                             onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
-                                            className={`w-20 text-center p-2 rounded-lg border-2 font-bold outline-none transition-all ${row.toSendQty > 0 ? 'border-blue-500 bg-white text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-400'}`}
+                                            className={`w-20 text-center p-2 rounded-xl border-2 font-black outline-none transition-all ${row.toSendQty > 0 ? 'border-blue-500 bg-white text-blue-700 shadow-md' : 'border-slate-200 bg-slate-50 text-slate-400'}`}
                                             disabled={row.remainingQty === 0}
                                         />
                                     </td>
@@ -239,22 +247,32 @@ export default function ProductionSendModal({ order, products, materials, existi
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end items-center gap-4">
-                    <div className="text-right mr-4">
-                        <div className="text-xs font-bold text-slate-500 uppercase">Σύνολο προς Αποστολή</div>
-                        <div className="text-2xl font-black text-blue-600">{totalToSend} <span className="text-sm font-medium text-slate-400">τεμ.</span></div>
+                <div className="p-6 border-t border-slate-100 bg-white flex flex-col sm:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-6 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+                        <div className="text-left">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Προς Αποστολή</div>
+                            <div className="text-3xl font-black text-blue-600">{totalToSend} <span className="text-xs font-bold text-slate-400">ΤΜΧ</span></div>
+                        </div>
+                        <div className="w-px h-10 bg-slate-200"/>
+                        <div className="text-left">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Παραμένουν</div>
+                            <div className="text-2xl font-black text-slate-400">{totalRemaining - totalToSend}</div>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">
-                        Ακύρωση
-                    </button>
-                    <button 
-                        onClick={handleSend}
-                        disabled={isSending || totalToSend === 0}
-                        className="px-8 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {isSending ? <Loader2 size={20} className="animate-spin"/> : <ArrowRight size={20}/>}
-                        {isSending ? 'Αποστολή...' : 'Αποστολή στην Παραγωγή'}
-                    </button>
+
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        <button onClick={onClose} className="flex-1 sm:flex-none px-8 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">
+                            Άκυρο
+                        </button>
+                        <button 
+                            onClick={handleSend}
+                            disabled={isSending || totalToSend === 0}
+                            className="flex-[2] sm:flex-none px-10 py-3 rounded-2xl bg-blue-600 text-white font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                        >
+                            {isSending ? <Loader2 size={24} className="animate-spin"/> : <ArrowRight size={24}/>}
+                            Αποστολή Τώρα
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
