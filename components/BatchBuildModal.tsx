@@ -1,11 +1,10 @@
-
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
-    batch: ProductionBatch;
+    batch: ProductionBatch & { customer_name?: string };
     allMaterials: Material[];
     allMolds: Mold[];
     allProducts: Product[];
@@ -121,7 +120,16 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     </span>
                                 )}
                             </div>
-                            <p className="text-sm text-slate-500 font-medium mt-1">{buildData.description}</p>
+                            
+                            {/* NEW: CLIENT NAME DISPLAY */}
+                            {batch.customer_name && (
+                                <div className="flex items-center gap-1.5 text-blue-700 font-bold text-sm mt-0.5">
+                                    <User size={14} className="fill-blue-100"/>
+                                    <span>{batch.customer_name}</span>
+                                </div>
+                            )}
+
+                            <p className="text-sm text-slate-500 font-medium mt-0.5">{buildData.description}</p>
                             <div className="flex gap-2 mt-2">
                                 {batch.size_info && (
                                     <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-100">
