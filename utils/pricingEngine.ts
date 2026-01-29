@@ -1,4 +1,3 @@
-
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 
@@ -569,6 +568,8 @@ export const parseSku = (sku: string) => {
   const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
   if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
   
+  if (prefix === 'RZ') return { gender: Gender.Unisex, category: 'Ροζάριο' };
+
   if (prefix === 'XR' && !isNaN(numPart)) {
     // Specific high-priority ranges for stone bracelets as requested
     if ((numPart >= 1 && numPart <= 35) || (numPart >= 750 && numPart <= 763)) {
