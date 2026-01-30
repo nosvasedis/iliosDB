@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -39,7 +40,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder } from './types';
 import { useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
@@ -77,6 +78,7 @@ import AnalyticsPrintReport from './components/AnalyticsPrintReport';
 import OffersPage from './components/OffersPage';
 import OfferPrintView from './components/OfferPrintView';
 import OrderFinancialReport from './components/OrderFinancialReport';
+import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
@@ -223,6 +225,7 @@ function AppContent() {
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [analyticsPrintData, setAnalyticsPrintData] = useState<any>(null);
   const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any, order: Order } | null>(null);
+  const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
 
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
@@ -293,7 +296,7 @@ function AppContent() {
 
   // Intelligent Iframe Bridge Printing Effect
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint;
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -321,6 +324,8 @@ function AppContent() {
             // Personalized Filename: Offer_NAME_DATE_ID
             const safeName = transliterateForBarcode(offerToPrint.customer_name).replace(/[\s\W]+/g, '_');
             docTitle = `Offer_${safeName}_${dateStr}_${offerToPrint.id.slice(0, 6)}`;
+        } else if (supplierOrderToPrint) {
+            docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
         } else if (batchToPrint) {
             docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
@@ -362,6 +367,7 @@ function AppContent() {
             setAggregatedPrintData(null); setPreparationPrintData(null); 
             setTechnicianPrintData(null); setPriceListPrintData(null);
             setAnalyticsPrintData(null); setOrderAnalyticsData(null);
+            setSupplierOrderToPrint(null);
         };
 
         iframeDoc.open();
@@ -423,7 +429,7 @@ function AppContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData]);
+  }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint]);
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
@@ -593,6 +599,7 @@ function AppContent() {
       <div ref={printContainerRef} className="print-view" aria-hidden="true">
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {offerToPrint && <OfferPrintView offer={offerToPrint} />}
+        {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
         {batchToPrint && <ProductionWorkerView batch={batchToPrint} allMolds={molds} allProducts={products} allMaterials={materials} />}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
@@ -667,7 +674,7 @@ function AppContent() {
                   <button 
                     onClick={() => handleNav('ai-studio')}
                     title="AI Studio"
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === 'ai-studio' ? 'bg-emerald-500 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === 'ai-studio' ? 'bg-emerald-50 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
                   >
                     <Sparkles size={14} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} />
                   </button>

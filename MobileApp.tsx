@@ -25,10 +25,11 @@ import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
 import BarcodeView from './components/BarcodeView';
+import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer } from './types';
+import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder } from './types';
 import { calculateProductCost } from './utils/pricingEngine';
 
 interface MobileAppProps {
@@ -51,6 +52,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail'}[]>([]);
+  const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
 
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -126,7 +128,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   // PRINTING EFFECT
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
     
     if (shouldPrint) {
       const timer = setTimeout(() => {
@@ -144,6 +146,8 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
              docTitle = `Order_${orderToPrint.id}`;
         } else if (offerToPrint) {
              docTitle = `Offer_${offerToPrint.id}`;
+        } else if (supplierOrderToPrint) {
+             docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
              docTitle = `Production_Summary_${new Date().toISOString().split('T')[0]}`;
         } else if (printItems.length > 0) {
@@ -204,6 +208,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
             setAggregatedPrintData(null);
             setPreparationPrintData(null);
             setTechnicianPrintData(null);
+            setSupplierOrderToPrint(null);
             setPrintItems([]);
             window.removeEventListener('focus', handleAfterPrint);
         };
@@ -215,7 +220,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData]);
+  }, [printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
 
   if (!settings || !products || !warehouses || !materials || !molds) {
       return (
@@ -266,6 +271,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
             {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
             {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
             {offerToPrint && <OfferPrintView offer={offerToPrint} />}
+            {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
             {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
             {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
             {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}

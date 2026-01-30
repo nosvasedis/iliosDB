@@ -1,10 +1,12 @@
+
 import React, { useState, useMemo } from 'react';
-import { Supplier, Product, ProductionType, Material, SupplierOrder, SupplierOrderItem, MaterialType, SupplierOrderType } from '../types';
-import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText } from 'lucide-react';
+import { Supplier, Product, ProductionType, Material, SupplierOrder, SupplierOrderItem, MaterialType, SupplierOrderType, ProductionStage } from '../types';
+import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText, Factory, Printer } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
+import SupplierOrderPrintView from './SupplierOrderPrintView';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -23,6 +25,7 @@ export default function SuppliersPage() {
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: supplierOrders } = useQuery({ queryKey: ['supplier_orders'], queryFn: api.getSupplierOrders });
+  const { data: productionBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
 
   // UI State
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -41,10 +44,12 @@ export default function SuppliersPage() {
   const [orderItems, setOrderItems] = useState<SupplierOrderItem[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [viewOrderId, setViewOrderId] = useState<string | null>(null);
+  const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
   
   // PO Item Selection
   const [poSearch, setPoSearch] = useState('');
   const [poType, setPoType] = useState<SupplierOrderType>('Material');
+  const [showAllProducts, setShowAllProducts] = useState(false); // New Toggle for Exception ordering
 
   const filteredSuppliers = useMemo(() => {
       if (!suppliers) return [];
@@ -53,6 +58,41 @@ export default function SuppliersPage() {
           s.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
       ).sort((a, b) => a.name.localeCompare(b.name));
   }, [suppliers, searchTerm]);
+
+  // Production Needs Intelligence
+  const productionNeeds = useMemo(() => {
+      if (!productionBatches || !products) return [];
+      
+      const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
+      
+      // Group by SKU + Variant to sum quantities
+      const groupedNeeds: Record<string, { sku: string, variant?: string, totalQty: number, orders: string[], product?: Product }> = {};
+
+      awaiting.forEach(b => {
+          const key = `${b.sku}-${b.variant_suffix || ''}`;
+          if (!groupedNeeds[key]) {
+              const product = products.find(p => p.sku === b.sku);
+              groupedNeeds[key] = {
+                  sku: b.sku,
+                  variant: b.variant_suffix || undefined,
+                  totalQty: 0,
+                  orders: [],
+                  product
+              };
+          }
+          groupedNeeds[key].totalQty += b.quantity;
+          if (b.order_id) groupedNeeds[key].orders.push(b.order_id.slice(0,6));
+      });
+
+      // Filter by supplier (optional, but good default)
+      const needsList = Object.values(groupedNeeds);
+      
+      // Split into "Linked" vs "Other"
+      const linked = needsList.filter(n => n.product?.supplier_id === selectedSupplier?.id);
+      const other = needsList.filter(n => n.product?.supplier_id !== selectedSupplier?.id);
+
+      return { linked, other };
+  }, [productionBatches, products, selectedSupplier]);
 
   // Supplier Actions
   const handleSaveSupplier = async () => {
@@ -120,7 +160,7 @@ export default function SuppliersPage() {
   };
 
   // Purchase Order Logic
-  const handleAddToOrder = (item: any, type: SupplierOrderType) => {
+  const handleAddToOrder = (item: any, type: SupplierOrderType, qty: number = 1) => {
       const id = type === 'Product' ? item.sku : item.id;
       const name = type === 'Product' ? item.sku : item.name;
       const cost = type === 'Product' ? (item.active_price || item.supplier_cost || 0) : item.cost_per_unit;
@@ -129,7 +169,7 @@ export default function SuppliersPage() {
           const existingIdx = prev.findIndex(i => i.item_id === id && i.item_type === type);
           if (existingIdx >= 0) {
               const updated = [...prev];
-              updated[existingIdx].quantity += 1;
+              updated[existingIdx].quantity += qty;
               updated[existingIdx].total_cost = updated[existingIdx].quantity * updated[existingIdx].unit_cost;
               return updated;
           }
@@ -138,9 +178,9 @@ export default function SuppliersPage() {
               item_type: type,
               item_id: id,
               item_name: name,
-              quantity: 1,
+              quantity: qty,
               unit_cost: cost,
-              total_cost: cost
+              total_cost: cost * qty
           }];
       });
   };
@@ -198,6 +238,25 @@ export default function SuppliersPage() {
   return (
     <div className="h-[calc(100vh-100px)] flex gap-6">
         
+        {orderToPrint && products && (
+             <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+                 <div className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                     <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                         <h3 className="font-bold text-slate-800 flex items-center gap-2"><Printer size={18}/> Προεπισκόπηση Εκτύπωσης</h3>
+                         <button onClick={() => setOrderToPrint(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20}/></button>
+                     </div>
+                     <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center">
+                         <div className="scale-[0.8] origin-top">
+                            <SupplierOrderPrintView order={orderToPrint} products={products} />
+                         </div>
+                     </div>
+                     <div className="p-4 border-t border-slate-100 flex justify-end gap-3 bg-white">
+                         <button onClick={() => window.print()} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg">Εκτύπωση</button>
+                     </div>
+                 </div>
+             </div>
+        )}
+
         {/* LEFT COLUMN: SUPPLIER LIST */}
         <div className="w-1/3 bg-white rounded-3xl border border-slate-100 flex flex-col overflow-hidden shadow-sm">
             <div className="p-4 border-b border-slate-100 space-y-3">
@@ -365,6 +424,7 @@ export default function SuppliersPage() {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
+                                                <button onClick={() => setOrderToPrint(o)} className="p-2 text-slate-400 hover:text-slate-800"><Printer size={18}/></button>
                                                 <button onClick={() => setViewOrderId(viewOrderId === o.id ? null : o.id)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors">Λεπτομέρειες</button>
                                                 {o.status === 'Pending' && (
                                                     <button onClick={() => handleReceiveOrder(o)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-md">Παραλαβή</button>
@@ -448,10 +508,80 @@ export default function SuppliersPage() {
                     <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
                         {/* Builder Controls */}
                         <div className="lg:w-1/3 p-6 border-r border-slate-100 overflow-y-auto space-y-6">
+                            
+                            {/* Production Needs Logic */}
+                            {productionNeeds.linked.length > 0 || productionNeeds.other.length > 0 ? (
+                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-bold text-indigo-900 text-xs uppercase flex items-center gap-2">
+                                            <Factory size={14}/> Ανάγκες Παραγωγής
+                                        </h3>
+                                        <span className="bg-white text-indigo-600 px-2 py-0.5 rounded-full text-xs font-black shadow-sm">
+                                            {productionNeeds.linked.length} Linked / {productionNeeds.other.length} Other
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="max-h-48 overflow-y-auto custom-scrollbar pr-1 space-y-2">
+                                        {/* Linked Needs */}
+                                        {productionNeeds.linked.map((n, idx) => (
+                                            <div key={idx} className="bg-white p-2 rounded-lg border border-indigo-200 flex justify-between items-center shadow-sm">
+                                                <div>
+                                                    <div className="font-black text-slate-800 text-xs">{n.sku}{n.variant}</div>
+                                                    <div className="text-[9px] text-slate-400">Orders: {n.orders.join(', ')}</div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
+                                                    className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold hover:bg-indigo-200"
+                                                >
+                                                    +{n.totalQty}
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {/* Others Section (Collapsed by default logic handled implicitly by render) */}
+                                        {productionNeeds.other.length > 0 && (
+                                            <div className="pt-2 border-t border-indigo-200/50 mt-2">
+                                                <p className="text-[9px] font-bold text-indigo-400 uppercase mb-2">Άλλοι Προμηθευτές (Εξαιρέσεις)</p>
+                                                {productionNeeds.other.map((n, idx) => (
+                                                    <div key={`other-${idx}`} className="bg-white/50 p-2 rounded-lg border border-slate-200 flex justify-between items-center mb-1">
+                                                        <div>
+                                                            <div className="font-bold text-slate-600 text-xs">{n.sku}{n.variant}</div>
+                                                            <div className="text-[9px] text-slate-400">Original Supplier: {suppliers?.find(s => s.id === n.product?.supplier_id)?.name || 'N/A'}</div>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
+                                                            className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold hover:bg-slate-200"
+                                                        >
+                                                            Add {n.totalQty}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : null}
+
                             <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                                 <button onClick={() => setPoType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${poType === 'Material' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500'}`}>Υλικά</button>
                                 <button onClick={() => setPoType('Product')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${poType === 'Product' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>Προϊόντα</button>
                             </div>
+                            
+                            {/* Toggle for All Products */}
+                            {poType === 'Product' && (
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={showAllProducts} 
+                                        onChange={e => setShowAllProducts(e.target.checked)} 
+                                        id="showAllProducts"
+                                        className="w-4 h-4 text-blue-600 rounded"
+                                    />
+                                    <label htmlFor="showAllProducts" className="text-xs font-bold text-slate-600 cursor-pointer">
+                                        Εμφάνιση όλων των προϊόντων (όχι μόνο συνδεδεμένων)
+                                    </label>
+                                </div>
+                            )}
 
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -463,7 +593,14 @@ export default function SuppliersPage() {
                                 />
                                 {poSearch && (
                                     <div className="absolute top-full left-0 right-0 bg-white border border-slate-100 rounded-xl shadow-xl mt-2 z-50 max-h-60 overflow-y-auto">
-                                        {(poType === 'Material' ? materials : products)?.filter((i: any) => (i.name || i.sku).toLowerCase().includes(poSearch.toLowerCase())).slice(0, 10).map((item: any) => (
+                                        {(poType === 'Material' ? materials : products)?.filter((i: any) => {
+                                            // Apply filtering logic
+                                            const matchesSearch = (i.name || i.sku).toLowerCase().includes(poSearch.toLowerCase());
+                                            if (poType === 'Product' && !showAllProducts) {
+                                                return matchesSearch && i.supplier_id === selectedSupplier.id;
+                                            }
+                                            return matchesSearch;
+                                        }).slice(0, 10).map((item: any) => (
                                             <button key={item.id || item.sku} onClick={() => { handleAddToOrder(item, poType); setPoSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex justify-between items-center text-sm">
                                                 <span className="font-bold text-slate-700">{item.name || item.sku}</span>
                                                 <Plus size={14} className="text-emerald-500"/>
