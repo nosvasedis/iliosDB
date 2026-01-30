@@ -88,7 +88,8 @@ export default function EmployeeOrders() {
                     {/* MOBILE VIEW (CARDS) */}
                     <div className="md:hidden p-3 space-y-3">
                         {filteredOrders.map(order => {
-                            const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                            const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+                            const netValue = order.total_price / (1 + activeVat);
                             return (
                                 <div 
                                     key={order.id} 
@@ -134,7 +135,8 @@ export default function EmployeeOrders() {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {filteredOrders.map(order => {
-                                const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                                const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+                                const netValue = order.total_price / (1 + activeVat);
                                 return (
                                     <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setEditingOrder(order)}>
                                         <td className="p-4 font-mono font-bold text-slate-600">#{order.id}</td>

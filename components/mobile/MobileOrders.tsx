@@ -65,7 +65,10 @@ const OrderCard: React.FC<{
 
     const isCancelled = order.status === OrderStatus.Cancelled;
     const isDelivered = order.status === OrderStatus.Delivered;
-    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+    
+    // Correct VAT check for 0% rates
+    const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const netValue = order.total_price / (1 + activeVat);
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200 active:scale-[0.99]">

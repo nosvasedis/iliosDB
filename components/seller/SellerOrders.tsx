@@ -32,7 +32,10 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
     const [expanded, setExpanded] = useState(false);
     // Can edit only if Pending
     const canEdit = order.status === OrderStatus.Pending;
-    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+    
+    // Correct VAT check for 0% rates
+    const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const netValue = order.total_price / (1 + activeVat);
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200">
