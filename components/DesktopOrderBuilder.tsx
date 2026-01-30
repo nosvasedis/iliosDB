@@ -569,10 +569,16 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             if (!product) return item;
 
             let currentRegistryPrice = 0;
-            if (item.variant_suffix) {
+            // FIX: Explicitly check for undefined/null to allow empty string suffix (Lustre) to be matched in variants
+            const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
+            
+            if (hasSuffix) {
                 const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
                 currentRegistryPrice = variant?.selling_price || 0;
-            } else {
+            } 
+            
+            // Fallback to master selling price if no variant price found
+            if (currentRegistryPrice === 0) {
                 currentRegistryPrice = product.selling_price;
             }
 

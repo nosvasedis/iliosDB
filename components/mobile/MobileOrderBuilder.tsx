@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
 import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw } from 'lucide-react';
@@ -28,7 +29,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
     'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
+    'NF': 'text-green-500', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
     'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
     'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
     'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
@@ -380,10 +381,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             if (!product) return item;
 
             let currentRegistryPrice = 0;
-            if (item.variant_suffix) {
+            // FIX: Explicitly check for undefined/null to allow empty string suffix (Lustre) to be matched in variants
+            const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
+            
+            if (hasSuffix) {
                 const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
                 currentRegistryPrice = variant?.selling_price || 0;
-            } else {
+            } 
+            
+            // Fallback to master selling price if no variant price found
+            if (currentRegistryPrice === 0) {
                 currentRegistryPrice = product.selling_price;
             }
 
@@ -474,7 +481,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 {!activeMaster && (
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
                         <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
-                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400 transition-all">
                             <Search size={20} className="text-slate-400 ml-1"/><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="π.χ. DA100 ή 1005..." className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-slate-900 uppercase placeholder-slate-300"/><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800"><Camera size={20}/></button>
                         </div>
                         <div className="mt-2 space-y-2">

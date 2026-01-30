@@ -5,7 +5,7 @@ import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, Refr
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange } from '../utils/pricingEngine';
+import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange, estimateVariantCost } from '../utils/pricingEngine';
 
 interface Props {
   products: Product[];
@@ -92,7 +92,10 @@ export default function OffersPage({ products, materials, settings, collections,
       const tempSettings = { ...settings, silver_price_gram: customSilverPrice };
       
       // Calculate Cost using custom silver
-      const costCalc = calculateProductCost(product, tempSettings, materials, products);
+      // FIX: Use estimateVariantCost for variants to handle stone/material diffs
+      const costCalc = (variantSuffix !== undefined && variantSuffix !== null)
+          ? estimateVariantCost(product, variantSuffix, tempSettings, materials, products)
+          : calculateProductCost(product, tempSettings, materials, products);
       
       let breakdown = costCalc.breakdown;
       let totalWeight = costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0));
@@ -337,16 +340,16 @@ export default function OffersPage({ products, materials, settings, collections,
                           <label className="text-xs font-black text-slate-400 uppercase tracking-wide flex items-center gap-2"><User size={14}/> Πελάτης</label>
                           <div className="relative">
                               <input 
-                                  className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
+                                  className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
                                   placeholder="Αναζήτηση..."
                                   value={customerName}
                                   onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); if(!e.target.value) setCustomerId(null); }}
                                   onFocus={() => setShowCustomerResults(true)}
                               />
                               {showCustomerResults && customerName && !customerId && filteredCustomers.length > 0 && (
-                                  <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden">
+                                  <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
                                       {filteredCustomers.map(c => (
-                                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 font-medium text-sm">
+                                          <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
                                               {c.full_name}
                                           </div>
                                       ))}
