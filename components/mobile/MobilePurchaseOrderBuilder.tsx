@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory } from 'lucide-react';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
@@ -70,7 +70,16 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const addItem = (item: any, type: SupplierOrderType, qty: number = 1) => {
         const id = type === 'Product' ? item.sku : item.id;
         const name = type === 'Product' ? item.sku : item.name;
-        const cost = type === 'Product' ? (item.supplier_cost || 0) : item.cost_per_unit;
+        
+        // FIX: Priority: Supplier Cost > Active Price > 0
+        let cost = 0;
+        if (type === 'Product') {
+            cost = (item.supplier_cost && item.supplier_cost > 0) 
+                   ? item.supplier_cost 
+                   : (item.active_price || 0);
+        } else {
+            cost = item.cost_per_unit;
+        }
         
         setItems(prev => {
             const existingIdx = prev.findIndex(i => i.item_id === id && i.item_type === type);
@@ -94,12 +103,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         showToast("Προστέθηκε.", "success");
     };
 
-    const updateItem = (index: number, field: 'qty' | 'cost', val: number) => {
+    const updateItem = (index: number, field: 'qty' | 'cost' | 'notes', val: any) => {
         setItems(prev => {
             const updated = [...prev];
             const item = { ...updated[index] };
-            if (field === 'qty') item.quantity = val;
-            else item.unit_cost = val;
+            if (field === 'qty') item.quantity = Number(val);
+            else if (field === 'cost') item.unit_cost = Number(val);
+            else if (field === 'notes') item.notes = val;
+            
             item.total_cost = item.quantity * item.unit_cost;
             updated[index] = item;
             return updated;
@@ -180,7 +191,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                 id="mobileShowAll"
                                 className="w-4 h-4 rounded text-blue-600"
                             />
-                            <label htmlFor="mobileShowAll" className="text-xs text-slate-500 font-bold">Όλα τα προϊόντα</label>
+                            <label htmlFor="mobileShowAll" className="text-xs text-slate-500 font-bold">Εμφάνιση όλων (όχι μόνο συνδεδεμένων)</label>
                         </div>
                     )}
 
@@ -197,8 +208,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                 {searchResults.map((r: any) => (
                                     <div key={r.id || r.sku} onClick={() => addItem(r, searchType)} className="p-3 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
-                                                {searchType === 'Material' ? <Box size={14}/> : <Gem size={14}/>}
+                                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden">
+                                                {r.image_url ? <img src={r.image_url} className="w-full h-full object-cover"/> : (searchType === 'Material' ? <Box size={14}/> : <Gem size={14}/>)}
                                             </div>
                                             <div>
                                                 <div className="font-bold text-sm text-slate-800">{r.name || r.sku}</div>
@@ -214,39 +225,66 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 </div>
 
                 <div className="space-y-2">
-                    {items.map((item, idx) => (
-                        <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="font-black text-slate-800">{item.item_name}</div>
-                                <button onClick={() => removeItem(idx)} className="text-red-400"><Trash2 size={16}/></button>
+                    {items.map((item, idx) => {
+                        // Resolve image
+                        let imgUrl = null;
+                        if (item.item_type === 'Product' && products) {
+                            const p = products.find(prod => prod.sku === item.item_id);
+                            imgUrl = p?.image_url;
+                        }
+
+                        return (
+                            <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex gap-3">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
+                                            {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="text-slate-300"/>}
+                                        </div>
+                                        <div>
+                                            <div className="font-black text-slate-800">{item.item_name}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => removeItem(idx)} className="text-red-400"><Trash2 size={16}/></button>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Ποσοτητα</label>
+                                        <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center" value={item.quantity} onChange={e => updateItem(idx, 'qty', parseInt(e.target.value)||1)}/>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Κόστος</label>
+                                        <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-right" value={item.unit_cost} onChange={e => updateItem(idx, 'cost', parseFloat(e.target.value)||0)}/>
+                                    </div>
+                                    <div className="flex-1 text-right pt-4">
+                                        <div className="font-black text-slate-900">{formatCurrency(item.total_cost)}</div>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <StickyNote size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300"/>
+                                    <input 
+                                        value={item.notes || ''}
+                                        onChange={e => updateItem(idx, 'notes', e.target.value)}
+                                        className="w-full pl-8 p-2 bg-slate-50 rounded-lg text-xs outline-none focus:bg-white border border-transparent focus:border-slate-200 transition-colors"
+                                        placeholder="Σημείωση (π.χ. Νούμερο, Χρώμα)..."
+                                    />
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Ποσότητα</label>
-                                    <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-center" value={item.quantity} onChange={e => updateItem(idx, 'qty', parseInt(e.target.value)||1)}/>
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Κόστος</label>
-                                    <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-right" value={item.unit_cost} onChange={e => updateItem(idx, 'cost', parseFloat(e.target.value)||0)}/>
-                                </div>
-                                <div className="flex-1 text-right pt-4">
-                                    <div className="font-black text-slate-900">{formatCurrency(item.total_cost)}</div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {items.length === 0 && <div className="text-center py-10 text-slate-400 italic">Η λίστα είναι κενή.</div>}
                 </div>
 
                 <div className="pt-4">
-                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις</label>
+                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Εντολής</label>
                      <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none"/>
                 </div>
             </div>
 
             <div className="p-4 bg-white border-t border-slate-200 z-20">
                 <div className="flex justify-between items-end mb-3">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Σύνολο</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase">Συνολο</span>
                     <span className="text-2xl font-black text-slate-900">{formatCurrency(items.reduce((s,i) => s + i.total_cost, 0))}</span>
                 </div>
                 <button onClick={handleSave} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
