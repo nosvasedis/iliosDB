@@ -406,16 +406,3 @@ export default function ProductionSendModal({ order, products, materials, existi
         </div>
     );
 }
-
-const ProgressIcon = ({ value, total }: { value: number, total: number }) => {
-    const pct = total > 0 ? (value / total) * 100 : 0;
-    return (
-        <div className="relative w-10 h-10 flex items-center justify-center">
-            <svg className="w-full h-full transform -rotate-90">
-                <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
-                <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={100} strokeDashoffset={100 - pct} className="text-blue-500 transition-all duration-1000" />
-            </svg>
-            <span className="absolute text-[8px] font-black">{Math.round(pct)}%</span>
-        </div>
-    );
-};
