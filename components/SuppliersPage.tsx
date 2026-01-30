@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, ProductionType, Material, SupplierOrder, SupplierOrderItem, MaterialType, SupplierOrderType, ProductionStage } from '../types';
-import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText, Factory, Printer, StickyNote, Gem, AlertCircle } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText, Factory, Printer } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -166,16 +166,7 @@ export default function SuppliersPage() {
   const handleAddToOrder = (item: any, type: SupplierOrderType, qty: number = 1) => {
       const id = type === 'Product' ? item.sku : item.id;
       const name = type === 'Product' ? item.sku : item.name;
-      
-      // IMPROVED COST LOGIC: Supplier Cost > Active Price > Draft Price > 0
-      let cost = 0;
-      if (type === 'Product') {
-          cost = (item.supplier_cost && item.supplier_cost > 0) 
-                 ? item.supplier_cost 
-                 : (item.active_price || item.draft_price || 0);
-      } else {
-          cost = item.cost_per_unit || 0;
-      }
+      const cost = type === 'Product' ? (item.active_price || item.supplier_cost || 0) : item.cost_per_unit;
       
       setOrderItems(prev => {
           const existingIdx = prev.findIndex(i => i.item_id === id && i.item_type === type);
@@ -192,20 +183,17 @@ export default function SuppliersPage() {
               item_name: name,
               quantity: qty,
               unit_cost: cost,
-              total_cost: cost * qty,
-              notes: ''
+              total_cost: cost * qty
           }];
       });
   };
 
-  const updateOrderItem = (index: number, field: string, value: any) => {
+  const updateOrderItem = (index: number, field: string, value: number) => {
       setOrderItems(prev => {
           const updated = [...prev];
           const item = { ...updated[index] };
-          if (field === 'qty') item.quantity = parseInt(value) || 1;
-          else if (field === 'cost') item.unit_cost = parseFloat(value) || 0;
-          else if (field === 'notes') item.notes = value;
-          
+          if (field === 'qty') item.quantity = value;
+          if (field === 'cost') item.unit_cost = value;
           item.total_cost = item.quantity * item.unit_cost;
           updated[index] = item;
           return updated;
@@ -486,7 +474,6 @@ export default function SuppliersPage() {
                 </div>
             )}
             
-            {/* Desktop Order Builder Modal */}
             {isCreatingOrder && selectedSupplier && (
                 <div className="absolute inset-0 bg-white z-50 flex flex-col animate-in slide-in-from-right-4">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -498,54 +485,58 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-                        {/* LEFT: CONTROLS */}
-                        <div className="lg:w-1/3 p-6 border-r border-slate-100 overflow-y-auto space-y-6 custom-scrollbar bg-white">
+                        <div className="lg:w-1/3 p-6 border-r border-slate-100 overflow-y-auto space-y-6">
                             {(productionNeeds.linked.length > 0 || productionNeeds.other.length > 0) && (
-                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 space-y-3 shadow-inner">
+                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <h3 className="font-bold text-indigo-900 text-xs uppercase flex items-center gap-2">
                                             <Factory size={14}/> Ανάγκες Παραγωγής
                                         </h3>
                                         <span className="bg-white text-indigo-600 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm">
-                                            {productionNeeds.linked.length} Συνδεδεμένα
+                                            {productionNeeds.linked.length} Συνδεδεμένα / {productionNeeds.other.length} Άλλα
                                         </span>
                                     </div>
                                     
                                     <div className="max-h-48 overflow-y-auto custom-scrollbar pr-1 space-y-2">
                                         {productionNeeds.linked.map((n, idx) => (
                                             <div key={idx} className="bg-white p-2 rounded-lg border border-indigo-200 flex justify-between items-center shadow-sm">
-                                                <div className="flex items-center gap-2">
-                                                    {n.product?.image_url && <div className="w-8 h-8 rounded bg-slate-100 overflow-hidden border border-slate-200"><img src={n.product.image_url} className="w-full h-full object-cover"/></div>}
-                                                    <div className="min-w-0">
-                                                        <div className="font-black text-slate-800 text-xs truncate">{n.sku}{n.variant}</div>
-                                                        <div className="text-[9px] text-slate-500 font-bold uppercase mt-0.5 truncate max-w-[120px]">
-                                                            {n.requirements.map(r => `${r.customer}`).join(', ')}
-                                                        </div>
+                                                <div className="min-w-0 flex-1 pr-2">
+                                                    <div className="font-black text-slate-800 text-xs truncate">{n.sku}{n.variant}</div>
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase mt-0.5 truncate">
+                                                        {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => handleAddToOrder(n.product, 'Product', n.totalQty)}
+                                                    onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
                                                     className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold hover:bg-indigo-200 shrink-0"
                                                 >
                                                     +{n.totalQty}
                                                 </button>
                                             </div>
                                         ))}
-                                        
+
                                         {productionNeeds.other.length > 0 && (
-                                            <div className="mt-2 pt-2 border-t border-indigo-200/50">
-                                                 <p className="text-[9px] font-bold text-indigo-400 uppercase mb-2">Άλλα ({productionNeeds.other.length})</p>
-                                                 {productionNeeds.other.map((n, idx) => (
+                                            <div className="pt-2 border-t border-indigo-200/50 mt-2">
+                                                <p className="text-[9px] font-bold text-indigo-400 uppercase mb-2">Άλλοι Προμηθευτές (Εξαιρέσεις)</p>
+                                                {productionNeeds.other.map((n, idx) => (
                                                     <div key={`other-${idx}`} className="bg-white/50 p-2 rounded-lg border border-slate-200 flex justify-between items-center mb-1">
-                                                        <span className="font-bold text-slate-600 text-xs">{n.sku}{n.variant}</span>
+                                                        <div className="min-w-0 flex-1 pr-2">
+                                                            <div className="font-bold text-slate-600 text-xs truncate">{n.sku}{n.variant}</div>
+                                                            <div className="text-[8px] text-slate-400 truncate">
+                                                                Αρχικός Προμηθευτής: {suppliers?.find(s => s.id === n.product?.supplier_id)?.name || '-'}
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 truncate">
+                                                                {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
+                                                            </div>
+                                                        </div>
                                                         <button 
-                                                            onClick={() => handleAddToOrder(n.product, 'Product', n.totalQty)}
+                                                            onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
                                                             className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-200 shrink-0"
                                                         >
-                                                            Add {n.totalQty}
+                                                            Προσθήκη {n.totalQty}
                                                         </button>
                                                     </div>
-                                                 ))}
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -558,122 +549,71 @@ export default function SuppliersPage() {
                             </div>
                             
                             {poType === 'Product' && (
-                                <div className="flex items-center gap-2 px-1">
-                                    <input type="checkbox" checked={showAllProducts} onChange={e => setShowAllProducts(e.target.checked)} id="deskShowAll" className="w-4 h-4 text-blue-600 rounded"/>
-                                    <label htmlFor="deskShowAll" className="text-xs font-bold text-slate-600 cursor-pointer">Εμφάνιση όλων (όχι μόνο συνδεδεμένων)</label>
+                                <div className="flex items-center gap-2">
+                                    <input type="checkbox" checked={showAllProducts} onChange={e => setShowAllProducts(e.target.checked)} id="showAllProducts" className="w-4 h-4 text-blue-600 rounded"/>
+                                    <label htmlFor="showAllProducts" className="text-xs font-bold text-slate-600 cursor-pointer">Εμφάνιση όλων των προϊόντων (όχι μόνο συνδεδεμένων)</label>
                                 </div>
                             )}
 
-                            <div className="relative group">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" size={16}/>
-                                <input 
-                                    className="w-full pl-9 p-3 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" 
-                                    placeholder={`Αναζήτηση ${poType === 'Material' ? 'υλικού' : 'προϊόντος'}...`} 
-                                    value={poSearch} 
-                                    onChange={e => setPoSearch(e.target.value)}
-                                />
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <input className="w-full pl-9 p-3 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-slate-200" placeholder={`Αναζήτηση ${poType === 'Material' ? 'υλικού' : 'προϊόντος'}...`} value={poSearch} onChange={e => setPoSearch(e.target.value)}/>
                                 {poSearch && (
-                                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-100 rounded-xl shadow-xl mt-2 z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-100 rounded-xl shadow-xl mt-2 z-50 max-h-60 overflow-y-auto">
                                         {(poType === 'Material' ? materials : products)?.filter((i: any) => {
                                             const matchesSearch = (i.name || i.sku).toLowerCase().includes(poSearch.toLowerCase());
                                             if (poType === 'Product' && !showAllProducts) return matchesSearch && i.supplier_id === selectedSupplier.id;
                                             return matchesSearch;
-                                        }).slice(0, 20).map((item: any) => (
-                                            <div key={item.id || item.sku} onClick={() => { handleAddToOrder(item, poType); setPoSearch(''); }} className="w-full text-left p-2 hover:bg-slate-50 border-b border-slate-50 flex justify-between items-center text-sm cursor-pointer group">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover"/> : (poType==='Material'?<Box size={14} className="text-slate-400"/>:<ImageIcon size={14} className="text-slate-400"/>)}
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-bold text-slate-700 block">{item.name || item.sku}</span>
-                                                        <span className="text-[10px] text-slate-400 block">{poType === 'Product' ? item.category : item.type}</span>
-                                                    </div>
-                                                </div>
-                                                <Plus size={16} className="text-slate-300 group-hover:text-emerald-500"/>
-                                            </div>
+                                        }).slice(0, 10).map((item: any) => (
+                                            <button key={item.id || item.sku} onClick={() => { handleAddToOrder(item, poType); setPoSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex justify-between items-center text-sm">
+                                                <span className="font-bold text-slate-700">{item.name || item.sku}</span>
+                                                <Plus size={14} className="text-emerald-500"/>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
                             </div>
                             
-                            <div className="pt-4 border-t border-slate-50">
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Γενικές Σημειώσεις</label>
-                                <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none focus:ring-2 focus:ring-slate-200" placeholder="Οδηγίες προς προμηθευτή..."/>
-                            </div>
+                            <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Σημειώσεις παραγγελίας..." className="w-full p-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none"/>
                         </div>
 
-                        {/* RIGHT: LIST */}
-                        <div className="flex-1 bg-slate-50/50 p-6 flex flex-col overflow-hidden">
-                            <div className="flex-1 overflow-y-auto space-y-2 mb-4 custom-scrollbar pr-2">
+                        <div className="flex-1 bg-slate-50 p-6 flex flex-col overflow-hidden">
+                            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
                                 {orderItems.map((item, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-blue-300 transition-all">
-                                        <div className="flex items-center gap-4">
-                                            {item.item_type === 'Product' && (
-                                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                                                    {(() => {
-                                                        const p = products?.find(x => x.sku === item.item_id);
-                                                        return p?.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-slate-300" size={16}/>;
-                                                    })()}
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="font-black text-slate-800 text-sm">{item.item_name}</div>
-                                                <div className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-2">
-                                                    {item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}
-                                                    <input 
-                                                        className="bg-slate-50 border-b border-slate-200 text-slate-600 w-32 focus:w-48 outline-none transition-all placeholder:italic"
-                                                        placeholder="Σημείωση είδους..."
-                                                        value={item.notes || ''}
-                                                        onChange={e => updateOrderItem(idx, 'notes', e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
+                                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <div className="font-black text-slate-800 text-sm">{item.item_name}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{item.item_type}</div>
                                         </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex flex-col items-end">
-                                                <label className="text-[8px] font-bold text-slate-400 uppercase">Κοστος</label>
-                                                <div className="flex items-center gap-1">
-                                                    <input type="number" value={item.unit_cost} onChange={e => updateOrderItem(idx, 'cost', parseFloat(e.target.value)||0)} className="w-16 p-1 border rounded text-right text-sm font-mono font-bold text-slate-700 bg-slate-50 focus:bg-white"/>
-                                                    <span className="text-xs text-slate-400">€</span>
-                                                </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] font-bold text-slate-400">€</span>
+                                                <input type="number" value={item.unit_cost} onChange={e => updateOrderItem(idx, 'cost', parseFloat(e.target.value)||0)} className="w-16 p-1 border rounded text-right text-sm font-mono"/>
                                             </div>
-                                            <div className="flex flex-col items-center">
-                                                 <label className="text-[8px] font-bold text-slate-400 uppercase">Ποσοτητα</label>
-                                                 <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-                                                     <button onClick={() => updateOrderItem(idx, 'qty', Math.max(1, item.quantity - 1))} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded shadow-sm transition-all text-slate-500 font-bold">-</button>
-                                                     <input type="number" value={item.quantity} onChange={e => updateOrderItem(idx, 'qty', parseInt(e.target.value)||1)} className="w-10 text-center bg-transparent text-sm font-black outline-none"/>
-                                                     <button onClick={() => updateOrderItem(idx, 'qty', item.quantity + 1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded shadow-sm transition-all text-slate-500 font-bold">+</button>
-                                                 </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] font-bold text-slate-400">Qty</span>
+                                                <input type="number" value={item.quantity} onChange={e => updateOrderItem(idx, 'qty', parseInt(e.target.value)||1)} className="w-12 p-1 border rounded text-center text-sm font-bold"/>
                                             </div>
-                                            <div className="w-24 text-right">
-                                                 <div className="text-[8px] font-bold text-slate-400 uppercase">Συνολο</div>
-                                                 <div className="font-black text-slate-900 text-lg">{formatCurrency(item.total_cost)}</div>
-                                            </div>
-                                            <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                                            <div className="font-black text-slate-900 w-20 text-right">{formatCurrency(item.total_cost)}</div>
+                                            <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                                         </div>
                                     </div>
                                 ))}
-                                {orderItems.length === 0 && (
-                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
-                                        <ShoppingCart size={48} className="mb-2"/>
-                                        <p className="font-bold">Η λίστα είναι κενή</p>
-                                    </div>
-                                )}
+                                {orderItems.length === 0 && <div className="text-center py-20 text-slate-400 italic">Προσθέστε είδη.</div>}
                             </div>
                             
-                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg flex justify-between items-center">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-lg">
                                 <div>
-                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Γενικο Συνολο</div>
-                                    <div className="text-3xl font-black text-emerald-600 tracking-tight">{formatCurrency(orderItems.reduce((s,i) => s + i.total_cost, 0))}</div>
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Σύνολο</div>
+                                    <div className="text-2xl font-black text-emerald-600">{formatCurrency(orderItems.reduce((s,i) => s + i.total_cost, 0))}</div>
                                 </div>
-                                <button onClick={saveOrder} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-black transition-all shadow-xl active:scale-95 flex items-center gap-2">
-                                    <Save size={20}/> Δημιουργία Εντολής
-                                </button>
+                                <button onClick={saveOrder} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-md">Δημιουργία</button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
         </div>
-    );
+    </div>
+  );
 }
