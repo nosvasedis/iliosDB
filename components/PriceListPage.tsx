@@ -401,7 +401,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             onClick={() => setActiveTab('manual')} 
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
-                            <PenTool size={16}/> Manual
+                            <PenTool size={16}/> Εισαγωγή
                             {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full"/>}
                         </button>
                     </div>

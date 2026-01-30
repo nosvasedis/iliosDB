@@ -271,7 +271,7 @@ export default function SettingsPage() {
                 <button onClick={handleJsonBackup} disabled={isExporting} className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-blue-200 hover:bg-blue-50 transition-all group">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-110 transition-transform"><FileJson size={20}/></div>
-                        <div className="text-left"><span className="block font-bold text-slate-700">Full System Backup</span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">JSON Format • All Tables</span></div>
+                        <div className="text-left"><span className="block font-bold text-slate-700">Backup Πλήρους Συστήματος</span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">JSON • Όλοι οι πίνακες</span></div>
                     </div>
                     {isExporting ? <Loader2 size={18} className="animate-spin text-blue-500"/> : <Download size={18} className="text-slate-300 group-hover:text-blue-500"/>}
                 </button>
@@ -279,7 +279,7 @@ export default function SettingsPage() {
                 <button onClick={handleCsvExport} disabled={isExporting} className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-emerald-200 hover:bg-emerald-50 transition-all group">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-110 transition-transform"><FileText size={20}/></div>
-                        <div className="text-left"><span className="block font-bold text-slate-700">Excel / Access Export</span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CSV Bundle • Flattened Data</span></div>
+                        <div className="text-left"><span className="block font-bold text-slate-700">Εξαγωγή Excel / Access </span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Πακέτο CSV • Επιπεδοποιημένα Δεδομένα</span></div>
                     </div>
                     {isExporting ? <Loader2 size={18} className="animate-spin text-emerald-500"/> : <Download size={18} className="text-slate-300 group-hover:text-emerald-500"/>}
                 </button>
@@ -295,27 +295,27 @@ export default function SettingsPage() {
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Χονδρική (Standard)</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Χονδρική</label>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Width</label>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Φάρδος</label>
                                 <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({...settings, barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Height</label>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ύψος</label>
                                 <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({...settings, barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
                             </div>
                         </div>
                     </div>
                     <div className="col-span-2 border-t border-slate-100 pt-3">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Λιανική (Retail)</label>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Λιανική</label>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Width</label>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Φάρδος</label>
                                 <input type="number" value={settings.retail_barcode_width_mm || 40} onChange={(e) => setSettings({...settings, retail_barcode_width_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Height</label>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ύψος</label>
                                 <input type="number" value={settings.retail_barcode_height_mm || 20} onChange={(e) => setSettings({...settings, retail_barcode_height_mm: parseInt(e.target.value)})} className="w-full p-2 border rounded-lg font-mono text-sm"/>
                             </div>
                         </div>
@@ -331,7 +331,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                            <Key size={14} className="text-slate-400"/> Gemini API Key
+                            <Key size={14} className="text-slate-400"/> Κλειδί Gemini API
                         </label>
                         <input type="password" value={localGeminiKey} onChange={(e) => setLocalGeminiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 font-mono text-sm"/>
                     </div>
@@ -341,7 +341,7 @@ export default function SettingsPage() {
                     </button>
                     
                     <button onClick={handleClearSyncQueue} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-bold text-amber-700 text-sm">
-                        <AlertTriangle size={16}/> Εκκαθάριση Ουράς (Rescue)
+                        <AlertTriangle size={16}/> Εκκαθάριση Ουράς
                     </button>
 
                     <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
@@ -350,7 +350,7 @@ export default function SettingsPage() {
                     </button>
 
                     <button onClick={handleWipeCache} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-colors font-bold text-rose-600 text-sm">
-                        <Trash2 size={16}/> Εκκαθάριση Cache (Hard Reset)
+                        <Trash2 size={16}/> Εκκαθάριση Cache
                     </button>
                 </div>
             </div>

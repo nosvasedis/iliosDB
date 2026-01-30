@@ -383,12 +383,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18}/> Επεξεργασία</button>
                     {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction) && (
                         <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
-                            <Factory size={18}/> Αποστολή στην Παραγωγή (Μερική/Ολική)
+                            <Factory size={18}/> Αποστολή στην Παραγωγή
                         </button>
                     )}
                     {managingOrder.status === OrderStatus.InProduction && (
                         <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-all">
-                            <RotateCcw size={18}/> Επαναφορά από Παραγωγή (Rescue)
+                            <RotateCcw size={18}/> Επαναφορά από Παραγωγή
                         </button>
                     )}
                     {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
