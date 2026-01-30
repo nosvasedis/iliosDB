@@ -197,12 +197,18 @@ export const calculateProductCost = (
   const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
 
   if (product.production_type === ProductionType.Imported) {
-      const silverCost = product.weight_g * silverPrice;
-      const technicianCost = product.weight_g * (product.labor.technician_cost || 0); 
+      // For Imported Products: Use Total Weight (Basic + Secondary) for Silver and Technician cost.
+      const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+      const silverCost = totalWeight * silverPrice;
+      const technicianCost = totalWeight * (product.labor.technician_cost || 0); 
       
       let platingCost = 0;
-      if (product.plating_type !== PlatingType.None) {
-          platingCost = product.weight_g * (product.labor.plating_cost_x || 0);
+      if (product.plating_type === PlatingType.TwoTone) {
+          // D (Two-Tone): For Imported, plating_cost_d is stored as TOTAL COST (not rate) via UI effect.
+          platingCost = product.labor.plating_cost_d || 0;
+      } else if (product.plating_type !== PlatingType.None) {
+          // X or H (Gold/Platinum): stored as RATE (per gram) in UI.
+          platingCost = totalWeight * (product.labor.plating_cost_x || 0);
       }
 
       const stoneCost = product.labor.stone_setting_cost || 0;
@@ -210,7 +216,7 @@ export const calculateProductCost = (
       return {
           total: roundPrice(totalCost),
           rawTotal: totalCost,
-          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost_x: platingCost, stone_setting_cost: stoneCost } }
+          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost_x: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
       };
   }
 
@@ -437,8 +443,10 @@ export const estimateVariantCost = (
     const labor: Partial<LaborCost> = masterProduct.labor || {};
 
     if (masterProduct.production_type === ProductionType.Imported) {
-        const silverCost = masterProduct.weight_g * silverPrice;
-        const technicianCost = masterProduct.weight_g * (labor.technician_cost || 0);
+        // Updated Import Logic: Use TOTAL weight for Silver, Technician and X/H Plating.
+        const totalWeight = masterProduct.weight_g + (masterProduct.secondary_weight_g || 0);
+        const silverCost = totalWeight * silverPrice;
+        const technicianCost = totalWeight * (labor.technician_cost || 0);
         const stoneCost = labor.stone_setting_cost || 0;
         
         let platingCost = 0;
@@ -447,15 +455,18 @@ export const estimateVariantCost = (
         if (finish.code === 'P') {
             platingCost = 0; // Force 0 for Patina
         } else if (['X', 'H'].includes(finish.code)) {
-            platingCost = masterProduct.weight_g * (labor.plating_cost_x || 0);
+            // X/H Plating applies to TOTAL weight
+            platingCost = totalWeight * (labor.plating_cost_x || 0);
         } else if (finish.code === 'D') {
-            platingCost = masterProduct.weight_g * (labor.plating_cost_d || 0);
+            // D Plating applies ONLY to Secondary weight, treated as COST (not rate) if stored in plating_cost_d
+            platingCost = labor.plating_cost_d || 0;
         } else {
             // Inherit from Master if no suffix finish
             if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
-                platingCost = masterProduct.weight_g * (labor.plating_cost_x || 0);
+                platingCost = totalWeight * (labor.plating_cost_x || 0);
             } else if (masterProduct.plating_type === PlatingType.TwoTone) {
-                platingCost = masterProduct.weight_g * (labor.plating_cost_d || 0);
+                // For TwoTone imported masters, plating_cost_d stores the TOTAL COST for secondary plating.
+                platingCost = labor.plating_cost_d || 0;
             }
         }
 
@@ -470,7 +481,8 @@ export const estimateVariantCost = (
                 details: { 
                     technician_cost: technicianCost, 
                     plating_cost: platingCost, 
-                    stone_setting_cost: stoneCost 
+                    stone_setting_cost: stoneCost,
+                    total_weight: totalWeight
                 } 
             }
         };
