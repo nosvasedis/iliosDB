@@ -566,7 +566,12 @@ export default function SuppliersPage() {
                                             return matchesSearch;
                                         }).slice(0, 10).map((item: any) => (
                                             <button key={item.id || item.sku} onClick={() => { handleAddToOrder(item, poType); setPoSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex justify-between items-center text-sm">
-                                                <span className="font-bold text-slate-700">{item.name || item.sku}</span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={14} className="text-slate-300"/>}
+                                                    </div>
+                                                    <span className="font-bold text-slate-700">{item.name || item.sku}</span>
+                                                </div>
                                                 <Plus size={14} className="text-emerald-500"/>
                                             </button>
                                         ))}
@@ -578,28 +583,54 @@ export default function SuppliersPage() {
                         </div>
 
                         <div className="flex-1 bg-slate-50 p-6 flex flex-col overflow-hidden">
-                            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                                {orderItems.map((item, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                        <div>
-                                            <div className="font-black text-slate-800 text-sm">{item.item_name}</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{item.item_type}</div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] font-bold text-slate-400">€</span>
-                                                <input type="number" value={item.unit_cost} onChange={e => updateOrderItem(idx, 'cost', parseFloat(e.target.value)||0)} className="w-16 p-1 border rounded text-right text-sm font-mono"/>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] font-bold text-slate-400">Qty</span>
-                                                <input type="number" value={item.quantity} onChange={e => updateOrderItem(idx, 'qty', parseInt(e.target.value)||1)} className="w-12 p-1 border rounded text-center text-sm font-bold"/>
-                                            </div>
-                                            <div className="font-black text-slate-900 w-20 text-right">{formatCurrency(item.total_cost)}</div>
-                                            <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {orderItems.length === 0 && <div className="text-center py-20 text-slate-400 italic">Προσθέστε είδη.</div>}
+                             {/* Items Table with Images - Updated */}
+                            <div className="flex-1 overflow-y-auto space-y-2 mb-4 custom-scrollbar">
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                     <table className="w-full text-left text-xs">
+                                         <thead className="bg-slate-100 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                                             <tr>
+                                                 <th className="p-3 w-10">Εικ.</th>
+                                                 <th className="p-3">Περιγραφη</th>
+                                                 <th className="p-3 w-16 text-center">Ποσ.</th>
+                                                 <th className="p-3 w-20 text-right">Τιμη</th>
+                                                 <th className="p-3 w-20 text-right">Συνολο</th>
+                                                 <th className="p-3 w-8"></th>
+                                             </tr>
+                                         </thead>
+                                         <tbody className="divide-y divide-slate-100">
+                                            {orderItems.map((item, idx) => {
+                                                // Resolve image for display
+                                                let imgUrl = null;
+                                                if (item.item_type === 'Product') {
+                                                    const p = products?.find(prod => prod.sku === item.item_id);
+                                                    imgUrl = p?.image_url;
+                                                }
+
+                                                return (
+                                                <tr key={idx}>
+                                                    <td className="p-2">
+                                                        <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center">
+                                                            {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover"/> : <ImageIcon size={12} className="text-slate-300"/>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-slate-800">{item.item_name}</div>
+                                                        <div className="text-[9px] text-slate-400 font-bold uppercase">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</div>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <input type="number" value={item.quantity} onChange={e => updateOrderItem(idx, 'qty', parseInt(e.target.value)||1)} className="w-10 p-1 border rounded text-center font-bold bg-slate-50 text-slate-800"/>
+                                                    </td>
+                                                    <td className="p-3 text-right">
+                                                        <input type="number" value={item.unit_cost} onChange={e => updateOrderItem(idx, 'cost', parseFloat(e.target.value)||0)} className="w-16 p-1 border rounded text-right font-mono bg-slate-50 text-slate-800"/>
+                                                    </td>
+                                                    <td className="p-3 text-right font-black text-slate-900">{formatCurrency(item.total_cost)}</td>
+                                                    <td className="p-3 text-center"><button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></td>
+                                                </tr>
+                                            )})}
+                                            {orderItems.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-slate-400 italic">Προσθέστε είδη.</td></tr>}
+                                         </tbody>
+                                     </table>
+                                </div>
                             </div>
                             
                             <div className="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-lg">
@@ -614,6 +645,5 @@ export default function SuppliersPage() {
                 </div>
             )}
         </div>
-    </div>
-  );
+    );
 }
