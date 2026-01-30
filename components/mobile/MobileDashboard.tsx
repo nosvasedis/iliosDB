@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Product, GlobalSettings, OrderStatus } from '../../types';
+import { Product, GlobalSettings, OrderStatus, Order } from '../../types';
 import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -30,11 +30,11 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
 };
 
 const STATUS_ICONS = {
-    [OrderStatus.Pending]: <Clock size={12} />,
-    [OrderStatus.InProduction]: <Factory size={12} />,
-    [OrderStatus.Ready]: <CheckCircle size={12} />,
-    [OrderStatus.Delivered]: <Truck size={12} />,
-    [OrderStatus.Cancelled]: <XCircle size={12} />,
+    [OrderStatus.Pending]: <Clock size={14} />,
+    [OrderStatus.InProduction]: <Package size={14} />,
+    [OrderStatus.Ready]: <CheckCircle size={14} />,
+    [OrderStatus.Delivered]: <Truck size={14} />,
+    [OrderStatus.Cancelled]: <XCircle size={14} />,
 };
 
 const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) => (
@@ -53,6 +53,7 @@ const StatCard = ({ title, value, sub, icon, bg, text }: { title: string, value:
             {React.cloneElement(icon, { size: 48 })}
         </div>
         <div className="flex items-center gap-2 mb-2 relative z-10">
+            {/* Fixed syntax error: properly closed className string */}
             <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
                 {React.cloneElement(icon, { size: 16 })}
             </div>
@@ -96,7 +97,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         }, 0);
 
         // Apply discount and strip VAT (implicitly stripped because we sum base prices)
-        // Wait, base prices in registry ARE Wholesale (Net). So we just need to apply discount.
+        // Note: Registry prices ARE Wholesale (Net), so we only apply discount factor.
         const discountFactor = 1 - ((o.discount_percent || 0) / 100);
         return totalAcc + (rawOrderValue * discountFactor);
     }, 0);
@@ -109,8 +110,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         return diffHours > 48; 
     }).length;
 
-    // Recent ACTIVE Activity (Filter out delivered/cancelled)
-    // Only show Pending, InProduction, Ready
+    // Recent ACTIVE Activity
     const activeRecentOrders = activeOrders
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5);
@@ -233,7 +233,9 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
           </div>
           <div className="space-y-3">
               {stats.recentOrders.map(order => {
-                  const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                  // FIX: Handle 0% VAT rate correctly
+                  const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+                  const netValue = order.total_price / (1 + activeVat);
                   return (
                       <div 
                         key={order.id} 

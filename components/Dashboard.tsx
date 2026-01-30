@@ -158,7 +158,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     const calculateHistoricalRevenue = (orderList: Order[]) => {
         return orderList.reduce((acc, o) => {
              // Net = Total / (1 + VAT)
-             const net = o.total_price / (1 + (o.vat_rate || 0.24));
+             // FIX: Correctly check for 0% VAT rate by avoiding the || operator which treats 0 as false
+             const activeVat = o.vat_rate !== undefined ? o.vat_rate : 0.24;
+             const net = o.total_price / (1 + activeVat);
              return acc + net;
         }, 0);
     };
@@ -312,7 +314,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                       <span className="font-black text-slate-400">{item.value}</span>
                                   </div>
                               ))}
-                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν δεδομένα για αυτή την επιλογή.</div>}
+                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν δεδομένα for αυτή την επιλογή.</div>}
                           </div>
                       </div>
                   </div>

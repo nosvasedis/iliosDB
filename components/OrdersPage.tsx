@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw } from 'lucide-react';
@@ -244,7 +243,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const handleRevertFromProduction = async (orderId: string) => {
     const yes = await confirm({
         title: 'Επαναφορά από Παραγωγή',
-        message: 'Αυτή η ενέργεια θα ΔΙΑΓΡΑΨΕΙ όλες τις παρτίδες παραγωγής για αυτή την εντολή και θα την επαναφέρει σε κατάσταση "Εκκρεμεί". Συνέχεια;',
+        message: 'Αυτή η ενέργεια θα ΔΙΑΓΡΑΨΕΙ όλες τις παρτίδες παραγωγής for αυτή την εντολή και θα την επαναφέρει σε κατάσταση "Εκκρεμεί". Συνέχεια;',
         isDestructive: true,
         confirmText: 'Επαναφορά'
     });
@@ -349,7 +348,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                     {orders?.map(order => {
-                        const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                        // FIX: Explicitly check for 0% VAT rate by avoiding truthy checks
+                        const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+                        const netValue = order.total_price / (1 + activeVat);
                         return (
                             <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
                                 <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
@@ -386,7 +387,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                         </button>
                     )}
                     {managingOrder.status === OrderStatus.InProduction && (
-                        <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
+                        <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-all">
                             <RotateCcw size={18}/> Επαναφορά από Παραγωγή (Rescue)
                         </button>
                     )}
