@@ -16,6 +16,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: productionBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
 
@@ -27,21 +28,28 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
 
     // Production Needs Logic
     const productionNeeds = useMemo(() => {
-          if (!productionBatches || !products) return [];
+          if (!productionBatches || !products || !orders) return [];
           const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
-          const groupedNeeds: Record<string, { sku: string, variant?: string, totalQty: number, product?: Product }> = {};
+          const groupedNeeds: Record<string, { sku: string, variant?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
     
           awaiting.forEach(b => {
               const key = `${b.sku}-${b.variant_suffix || ''}`;
               if (!groupedNeeds[key]) {
                   const product = products.find(p => p.sku === b.sku);
-                  groupedNeeds[key] = { sku: b.sku, variant: b.variant_suffix || undefined, totalQty: 0, product };
+                  groupedNeeds[key] = { sku: b.sku, variant: b.variant_suffix || undefined, totalQty: 0, product, requirements: [] };
               }
               groupedNeeds[key].totalQty += b.quantity;
+              if (b.order_id) {
+                  const order = orders.find(o => o.id === b.order_id);
+                  groupedNeeds[key].requirements.push({
+                      orderId: b.order_id,
+                      customer: order?.customer_name || 'Άγνωστος'
+                  });
+              }
           });
           
           return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id);
-    }, [productionBatches, products, supplier.id]);
+    }, [productionBatches, products, supplier.id, orders]);
 
     // Filter Logic
     const searchResults = useMemo(() => {
@@ -136,14 +144,19 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 {productionNeeds.length > 0 && (
                     <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-2">
                         <div className="flex items-center gap-2 text-xs font-black text-indigo-700 uppercase mb-2">
-                            <Factory size={14}/> Ανάγκες Παραγωγής (Linked)
+                            <Factory size={14}/> Ανάγκες Παραγωγής (Συνδεδεμένα)
                         </div>
                         {productionNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-indigo-200">
-                                <div className="text-sm font-bold text-slate-700">{n.sku}{n.variant}</div>
+                                <div className="min-w-0 flex-1 pr-2">
+                                    <div className="text-sm font-bold text-slate-700">{n.sku}{n.variant}</div>
+                                    <div className="text-[9px] text-slate-400 font-bold truncate">
+                                        {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
+                                    </div>
+                                </div>
                                 <button 
                                     onClick={() => addItem(n.product, 'Product', n.totalQty)}
-                                    className="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold"
+                                    className="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
                                 >
                                     +{n.totalQty}
                                 </button>
@@ -152,7 +165,6 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                     </div>
                 )}
 
-                {/* Search Box */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div className="flex bg-slate-100 p-1 rounded-xl">
                         <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
@@ -201,7 +213,6 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                     </div>
                 </div>
 
-                {/* Items List */}
                 <div className="space-y-2">
                     {items.map((item, idx) => (
                         <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
