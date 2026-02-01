@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus, VatRegime } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash, Percent } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash, Percent, X, Clock, Wallet, Calculator } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -30,28 +30,82 @@ const getStatusColor = (status: OrderStatus) => {
     }
 };
 
-export default function CustomersPage({ onPrintOrder }: Props) {
-    const queryClient = useQueryClient();
-    const { showToast, confirm } = useUI();
-    
-    const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
+// --- CUSTOMER CARD COMPONENT ---
+interface CustomerCardProps {
+    customer: Customer;
+    onClick: () => void;
+    latestOrderDate?: string;
+}
 
-    const { data: customers, isLoading: loadingCustomers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-    
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOrderDate }) => {
+    return (
+        <div 
+            onClick={onClick}
+            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer relative overflow-hidden flex flex-col h-full"
+        >
+            <div className="flex items-start justify-between mb-3">
+                <div className="w-12 h-12 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">
+                    {customer.full_name.charAt(0).toUpperCase()}
+                </div>
+                {latestOrderDate && (
+                    <div className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full flex items-center gap-1">
+                        <Clock size={10}/> {new Date(latestOrderDate).toLocaleDateString('el-GR')}
+                    </div>
+                )}
+            </div>
+            
+            <div className="mb-2">
+                <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={customer.full_name}>
+                    {customer.full_name}
+                </h3>
+                {customer.vat_number && (
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
+                )}
+            </div>
+
+            <div className="mt-auto pt-3 border-t border-slate-50 space-y-1.5">
+                {customer.phone ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <Phone size={12} className="text-slate-400"/> {customer.phone}
+                    </div>
+                ) : <div className="h-4"/>}
+                {customer.address ? (
+                     <div className="flex items-center gap-2 text-xs text-slate-600 truncate">
+                        <MapPin size={12} className="text-slate-400 shrink-0"/> {customer.address}
+                    </div>
+                ) : <div className="h-4"/>}
+            </div>
+        </div>
+    );
+};
+
+// --- CUSTOMER MODAL COMPONENT ---
+const CustomerDetailsModal = ({ 
+    customer, 
+    orders, 
+    onClose, 
+    onUpdate, 
+    onDelete, 
+    onPrintOrder 
+}: { 
+    customer: Customer, 
+    orders: Order[], 
+    onClose: () => void, 
+    onUpdate: (c: Customer) => Promise<void>, 
+    onDelete: (id: string) => Promise<void>,
+    onPrintOrder?: (o: Order) => void
+}) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    
-    const [isCreating, setIsCreating] = useState(false);
-    const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard });
+    const [editForm, setEditForm] = useState<Customer>(customer);
+    const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
-    
-    const customerStats = useMemo(() => {
-        if (!selectedCustomer || !orders) return null;
-        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === selectedCustomer.id || o.customer_name === selectedCustomer.full_name));
+    const { showToast } = useUI();
+
+    // Stats Calculation
+    const stats = useMemo(() => {
+        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === customer.id || o.customer_name === customer.full_name));
         
-        // Fix: Calculate Net Total Spent (Gross / (1 + VAT))
+        // Calculate Net Total Spent (Gross / (1 + VAT))
         const totalSpent = customerOrders.reduce((acc, o) => {
             const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
             return acc + netValue;
@@ -60,137 +114,54 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
         
-        // Detailed category stats
+        // Category Stats
         const catStats: Record<string, { count: number; value: number }> = {};
         let totalItems = 0;
 
         customerOrders.forEach(o => {
             const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            
             o.items.forEach(item => {
                 const cat = item.product_details?.category || 'Άλλο';
-                if (!catStats[cat]) {
-                    catStats[cat] = { count: 0, value: 0 };
-                }
+                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
                 catStats[cat].count += item.quantity;
-                // Net item value adjusted by order discount
                 catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
                 totalItems += item.quantity;
             });
         });
         
         const prefData = Object.entries(catStats)
-            .map(([name, stats]) => ({ 
+            .map(([name, s]) => ({ 
                 name, 
-                count: stats.count, 
-                value: stats.value,
-                percentage: totalItems > 0 ? (stats.count / totalItems) * 100 : 0
+                count: s.count, 
+                value: s.value,
+                percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0
             }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 5); 
 
-        return {
-            totalSpent,
-            orderCount,
-            avgOrderValue,
-            history: customerOrders,
-            prefData,
-            totalItems
-        };
-    }, [selectedCustomer, orders]);
+        return { totalSpent, orderCount, avgOrderValue, history: customerOrders, prefData, totalItems };
+    }, [customer, orders]);
 
-    const filteredCustomers = useMemo(() => {
-        if (!customers) return [];
-        const lowerSearch = searchTerm.toLowerCase();
-        return customers.filter(c => 
-            c.full_name.toLowerCase().includes(lowerSearch) || 
-            (c.phone && c.phone.includes(lowerSearch))
-        ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
-    }, [customers, searchTerm]);
-
-    const handleCreate = async () => {
-        if (!newCustomer.full_name) {
-            showToast("Το όνομα είναι υποχρεωτικό.", 'error');
-            return;
-        }
-        try {
-            const created = await api.saveCustomer({
-                ...newCustomer,
-                vat_rate: newCustomer.vat_rate !== undefined ? newCustomer.vat_rate : VatRegime.Standard
-            });
-            queryClient.invalidateQueries({ queryKey: ['customers'] });
-            setIsCreating(false);
-            setNewCustomer({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard });
-            if (created) setSelectedCustomer(created);
-            showToast("Ο πελάτης δημιουργήθηκε.", 'success');
-        } catch (e) {
-            showToast("Σφάλμα δημιουργίας.", 'error');
-        }
+    const handleSave = async () => {
+        setIsSaving(true);
+        await onUpdate(editForm);
+        setIsSaving(false);
+        setIsEditing(false);
     };
 
-    const handleUpdate = async () => {
-        if (!selectedCustomer) return;
-        try {
-            await api.updateCustomer(selectedCustomer.id, {
-                full_name: selectedCustomer.full_name,
-                phone: selectedCustomer.phone,
-                email: selectedCustomer.email,
-                address: selectedCustomer.address,
-                vat_number: selectedCustomer.vat_number,
-                notes: selectedCustomer.notes,
-                vat_rate: selectedCustomer.vat_rate
-            });
-            // Refresh affected data
-            queryClient.invalidateQueries({ queryKey: ['customers'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['offers'] });
-            
-            setIsEditing(false);
-            showToast("Τα στοιχεία ενημερώθηκαν παντού.", 'success');
-        } catch (e) {
-            showToast("Σφάλμα ενημέρωσης.", 'error');
-        }
-    };
-
-    const handleDelete = async () => {
-        if (!selectedCustomer) return;
-        const yes = await confirm({
-            title: 'Διαγραφή Πελάτη',
-            message: `Είστε σίγουροι ότι θέλετε να διαγράψετε τον πελάτη "${selectedCustomer.full_name}"; Η ενέργεια είναι μη αναστρέψιμη.`,
-            isDestructive: true,
-            confirmText: 'Διαγραφή'
-        });
-
-        if (yes) {
-            try {
-                await api.deleteCustomer(selectedCustomer.id);
-                queryClient.invalidateQueries({ queryKey: ['customers'] });
-                setSelectedCustomer(null);
-                showToast('Ο πελάτης διαγράφηκε.', 'success');
-            } catch (e) {
-                console.error(e);
-                showToast('Σφάλμα κατά τη διαγραφή.', 'error');
-            }
-        }
-    };
-
-    const handleAfmLookup = async (afm: string, isUpdate: boolean) => {
-        if (!afm || afm.length < 9) {
+    const handleAfmLookup = async () => {
+        if (!editForm.vat_number || editForm.vat_number.length < 9) {
             showToast("Μη έγκυρο ΑΦΜ.", "error");
             return;
         }
         setIsSearchingAfm(true);
         try {
-            const result = await api.lookupAfm(afm);
+            const result = await api.lookupAfm(editForm.vat_number);
             if (result) {
-                if (isUpdate && selectedCustomer) {
-                    setSelectedCustomer(prev => prev ? ({ ...prev, full_name: result.name, address: result.address }) : null);
-                } else {
-                    setNewCustomer(prev => ({ ...prev, full_name: result.name, address: result.address }));
-                }
+                setEditForm(prev => ({ ...prev, full_name: result.name, address: result.address }));
                 showToast("Τα στοιχεία βρέθηκαν!", "success");
             } else {
-                showToast("Δεν βρέθηκαν στοιχεία για αυτό το ΑΦΜ.", "info");
+                showToast("Δεν βρέθηκαν στοιχεία.", "info");
             }
         } catch (e: any) {
             showToast(e.message || "Σφάλμα αναζήτησης.", "error");
@@ -199,375 +170,393 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         }
     };
 
-    if (loadingCustomers || loadingOrders) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-amber-500" /></div>;
+    return (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 shrink-0">
+                    <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 bg-[#060b00] text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg">
+                            {customer.full_name.charAt(0)}
+                        </div>
+                        <div>
+                            {isEditing ? (
+                                <input 
+                                    className="text-2xl font-black text-slate-800 bg-white border border-slate-300 rounded-lg p-1 px-2 outline-none focus:ring-2 focus:ring-blue-500 mb-1 w-full"
+                                    value={editForm.full_name}
+                                    onChange={e => setEditForm({...editForm, full_name: e.target.value})}
+                                />
+                            ) : (
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{customer.full_name}</h2>
+                            )}
+                            <div className="flex items-center gap-3 text-sm text-slate-500">
+                                {isEditing ? (
+                                    <input 
+                                        className="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs font-mono"
+                                        value={editForm.vat_number || ''}
+                                        onChange={e => setEditForm({...editForm, vat_number: e.target.value})}
+                                        placeholder="ΑΦΜ"
+                                    />
+                                ) : (
+                                    <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs font-bold">ΑΦΜ: {customer.vat_number || '-'}</span>
+                                )}
+                                <span className="flex items-center gap-1"><MapPin size={12}/> {isEditing ? <input className="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs" value={editForm.address || ''} onChange={e => setEditForm({...editForm, address: e.target.value})} placeholder="Διεύθυνση"/> : (customer.address || 'Χωρίς διεύθυνση')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        {isEditing ? (
+                            <>
+                                <button onClick={() => { setEditForm(customer); setIsEditing(false); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg font-bold text-sm">Άκυρο</button>
+                                <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-emerald-700 flex items-center gap-2">
+                                    {isSaving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Αποθήκευση
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button onClick={() => setIsEditing(true)} className="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition-colors shadow-sm" title="Επεξεργασία"><FileText size={18}/></button>
+                                <button onClick={() => onDelete(customer.id)} className="p-2 bg-white border border-red-100 hover:bg-red-50 text-red-500 rounded-xl transition-colors shadow-sm" title="Διαγραφή"><Trash2 size={18}/></button>
+                                <button onClick={onClose} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors ml-2"><X size={18}/></button>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+                    
+                    {/* Top Stats Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-3 opacity-5 text-emerald-600"><TrendingUp size={64}/></div>
+                             <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Wallet size={12}/> Συνολικός Τζίρος (Net)</div>
+                             <div className="text-3xl font-black text-emerald-700">{formatCurrency(stats.totalSpent)}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-3 opacity-5 text-blue-600"><ShoppingBag size={64}/></div>
+                             <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Briefcase size={12}/> Παραγγελίες</div>
+                             <div className="text-3xl font-black text-blue-700">{stats.orderCount}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-3 opacity-5 text-amber-600"><Calculator size={64}/></div>
+                             <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2"><PieChart size={12}/> Μέση Παραγγελία</div>
+                             <div className="text-3xl font-black text-amber-700">{formatCurrency(stats.avgOrderValue)}</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        
+                        {/* Details & Billing */}
+                        <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-full">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><FileText size={14}/> Στοιχεία Τιμολόγησης</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">ΑΦΜ / Auto-Fill</label>
+                                    {isEditing ? (
+                                        <div className="flex gap-2 mt-1">
+                                            <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono" value={editForm.vat_number || ''} onChange={e => setEditForm({...editForm, vat_number: e.target.value})}/>
+                                            <button onClick={handleAfmLookup} disabled={isSearchingAfm} className="p-2 bg-blue-100 text-blue-600 rounded-lg">{isSearchingAfm ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14}/>}</button>
+                                        </div>
+                                    ) : (
+                                        <div className="font-mono font-bold text-slate-700 text-sm mt-0.5">{customer.vat_number || '-'}</div>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Τηλέφωνο</label>
+                                        {isEditing ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1" value={editForm.phone || ''} onChange={e => setEditForm({...editForm, phone: e.target.value})}/> : <div className="font-medium text-slate-700 text-sm mt-0.5">{customer.phone || '-'}</div>}
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Email</label>
+                                        {isEditing ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})}/> : <div className="font-medium text-slate-700 text-sm mt-0.5 truncate">{customer.email || '-'}</div>}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Διεύθυνση</label>
+                                    {isEditing ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1" value={editForm.address || ''} onChange={e => setEditForm({...editForm, address: e.target.value})}/> : <div className="font-medium text-slate-700 text-sm mt-0.5">{customer.address || '-'}</div>}
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">ΦΠΑ</label>
+                                    {isEditing ? (
+                                        <select className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1 font-bold text-slate-700" value={editForm.vat_rate} onChange={e => setEditForm({...editForm, vat_rate: parseFloat(e.target.value)})}>
+                                            <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                                            <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                                            <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                                        </select>
+                                    ) : (
+                                        <div className="font-bold text-blue-600 text-sm mt-0.5">{((customer.vat_rate || 0.24)*100).toFixed(0)}%</div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Σημειώσεις</label>
+                                    {isEditing ? (
+                                        <textarea className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1 h-20 resize-none" value={editForm.notes || ''} onChange={e => setEditForm({...editForm, notes: e.target.value})}/>
+                                    ) : (
+                                        <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 italic min-h-[3rem]">{customer.notes || 'Καμία σημείωση.'}</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top Preferences */}
+                        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Trophy size={14} className="text-amber-500"/> Προτιμήσεις (Top 5)</h3>
+                            
+                            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                {stats.prefData.length > 0 ? stats.prefData.map((item, index) => (
+                                    <div key={item.name} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm ${index === 0 ? 'bg-amber-100 text-amber-700' : (index === 1 ? 'bg-slate-200 text-slate-600' : (index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-white border border-slate-200 text-slate-400'))}`}>
+                                            {index + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-slate-700">{item.name}</span>
+                                                <span className="font-mono font-bold text-slate-600 text-sm">{formatCurrency(item.value)}</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full ${index === 0 ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${item.percentage}%` }}></div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right w-16">
+                                            <div className="text-xs font-black text-slate-800">{item.count} τεμ</div>
+                                            <div className="text-[10px] font-bold text-slate-400">{item.percentage.toFixed(0)}%</div>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                                        <PieChart size={48} className="opacity-20 mb-2"/>
+                                        <p>Δεν υπάρχουν δεδομένα.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Order History Table */}
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                             <Calendar size={16} className="text-slate-500"/> 
+                             <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Ιστορικό Παραγγελιών</span>
+                        </div>
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-white text-slate-400 font-bold text-[10px] uppercase border-b border-slate-100">
+                                <tr>
+                                    <th className="p-4 pl-6">ID</th>
+                                    <th className="p-4">Ημερομηνία</th>
+                                    <th className="p-4 text-right">Ποσό (Net)</th>
+                                    <th className="p-4 text-center">Κατάσταση</th>
+                                    <th className="p-4 text-center">Είδη</th>
+                                    <th className="p-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {stats.history.map(o => {
+                                    const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+                                    return (
+                                        <tr key={o.id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="p-4 pl-6 font-mono font-bold text-slate-600">{o.id}</td>
+                                            <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
+                                            <td className="p-4 text-right font-black text-slate-800">{formatCurrency(netValue)}</td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${getStatusColor(o.status)}`}>
+                                                    {STATUS_TRANSLATIONS[o.status]}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-center font-medium text-slate-500">{o.items.length}</td>
+                                            <td className="p-4 text-center">
+                                                {onPrintOrder && (
+                                                    <button onClick={() => onPrintOrder(o)} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                                        <Printer size={16}/>
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {stats.history.length === 0 && (
+                                    <tr><td colSpan={6} className="p-10 text-center text-slate-400 italic">Καμία παραγγελία.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default function CustomersPage({ onPrintOrder }: Props) {
+    const queryClient = useQueryClient();
+    const { showToast, confirm } = useUI();
+    const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
+    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
+    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    
+    // UI State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+    // Filter Logic
+    const filteredCustomers = useMemo(() => {
+        if (!customers) return [];
+        return customers.filter(c => 
+            c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (c.phone && c.phone.includes(searchTerm))
+        ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
+    }, [customers, searchTerm]);
+
+    // Map latest order dates for quick view
+    const latestOrdersMap = useMemo(() => {
+        if (!orders) return {};
+        const map: Record<string, string> = {};
+        orders.forEach(o => {
+            const cid = o.customer_id;
+            if (cid) {
+                if (!map[cid] || new Date(o.created_at) > new Date(map[cid])) {
+                    map[cid] = o.created_at;
+                }
+            }
+        });
+        return map;
+    }, [orders]);
+
+    const handleCreateCustomer = async (c: Customer) => {
+        try {
+            await api.saveCustomer(c);
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            setIsCreating(false);
+            showToast("Πελάτης δημιουργήθηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα δημιουργίας.", "error");
+        }
+    };
+
+    const handleUpdateCustomer = async (c: Customer) => {
+        try {
+            await api.updateCustomer(c.id, c);
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            setSelectedCustomer(c); // Update local view
+            showToast("Ενημερώθηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα ενημέρωσης.", "error");
+        }
+    };
+
+    const handleDeleteCustomer = async (id: string) => {
+        const yes = await confirm({ title: 'Διαγραφή', message: 'Οριστική διαγραφή πελάτη;', isDestructive: true });
+        if (yes) {
+            try {
+                await api.deleteCustomer(id);
+                queryClient.invalidateQueries({ queryKey: ['customers'] });
+                setSelectedCustomer(null);
+                showToast("Διαγράφηκε.", "success");
+            } catch (e) {
+                showToast("Σφάλμα διαγραφής.", "error");
+            }
+        }
+    };
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
             
-            {/* TABS */}
-            <div className="flex gap-2 bg-white p-1.5 rounded-2xl w-fit shadow-sm border border-slate-100 mx-auto md:mx-0 shrink-0">
-                <button 
-                    onClick={() => setActiveTab('customers')} 
-                    className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'customers' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-                >
-                    <Users size={16}/> Πελάτες
-                </button>
-                <button 
-                    onClick={() => setActiveTab('suppliers')} 
-                    className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'suppliers' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-                >
-                    <Globe size={16}/> Προμηθευτές
-                </button>
+            {/* Header Controls */}
+            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
+                 <div>
+                    <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Users size={24} /></div>
+                        Επαφές
+                    </h1>
+                    <p className="text-slate-500 mt-1 ml-14">Διαχείριση πελατολογίου και προμηθευτών.</p>
+                 </div>
+                 
+                 <div className="flex gap-4">
+                     <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button onClick={() => setActiveTab('customers')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'customers' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Users size={16}/> Πελάτες
+                        </button>
+                        <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'suppliers' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Globe size={16}/> Προμηθευτές
+                        </button>
+                     </div>
+                     
+                     {activeTab === 'customers' && (
+                         <div className="relative group">
+                            <input 
+                                type="text" 
+                                placeholder="Αναζήτηση..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64 shadow-sm font-medium"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600" size={18}/>
+                         </div>
+                     )}
+
+                     <button 
+                        onClick={() => {
+                             if (activeTab === 'customers') {
+                                 setIsCreating(true);
+                                 setSelectedCustomer({ id: '', full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard, address: '', notes: '', created_at: new Date().toISOString() });
+                             }
+                        }}
+                        className="bg-[#060b00] text-white p-3 rounded-xl hover:bg-black shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:scale-95"
+                     >
+                         <Plus size={20}/>
+                     </button>
+                 </div>
             </div>
 
-            <div className="flex-1 min-w-0">
-            {activeTab === 'customers' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
-                    {/* Left Column: List */}
-                    <div className="lg:col-span-4 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-                        <div className="p-5 border-b border-slate-100 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users className="text-emerald-600"/> Πελάτες</h2>
-                                <button onClick={() => { setIsCreating(true); setSelectedCustomer(null); setNewCustomer({ full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard }); }} className="bg-[#060b00] text-white p-2 rounded-lg hover:bg-black transition-colors shadow-md"><Plus size={18}/></button>
-                            </div>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                                <input 
-                                    type="text" 
-                                    placeholder="Αναζήτηση..." 
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all shadow-sm"
-                                />
-                            </div>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/30">
-                            {isCreating && (
-                                <div className="p-5 bg-white rounded-2xl border border-emerald-200 shadow-lg mb-4 animate-in fade-in slide-in-from-top-2 relative z-10">
-                                    <h3 className="font-bold text-emerald-800 text-sm mb-3 flex items-center gap-2"><Plus size={14}/> Νέος Πελάτης</h3>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">ΑΦΜ (Auto-Fill)</label>
-                                            <div className="flex gap-2">
-                                                <input 
-                                                    className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" 
-                                                    value={newCustomer.vat_number || ''} 
-                                                    onChange={e => setNewCustomer({...newCustomer, vat_number: e.target.value})}
-                                                    placeholder="9 ψηφία..."
-                                                />
-                                                <button 
-                                                    onClick={() => handleAfmLookup(newCustomer.vat_number || '', false)} 
-                                                    disabled={isSearchingAfm}
-                                                    className="bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200"
-                                                    title="Αυτόματη Εύρεση"
-                                                >
-                                                    {isSearchingAfm ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} className="fill-current"/>}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Ονοματεπωνυμο / Επωνυμια *</label>
-                                            <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.full_name} onChange={e => setNewCustomer({...newCustomer, full_name: e.target.value})}/>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Τηλεφωνο</label>
-                                            <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})}/>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Διεύθυνση</label>
-                                            <input className="w-full p-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={newCustomer.address || ''} onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}/>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Καθεστώς ΦΠΑ</label>
-                                            <select 
-                                                value={newCustomer.vat_rate} 
-                                                onChange={(e) => setNewCustomer({...newCustomer, vat_rate: parseFloat(e.target.value)})} 
-                                                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 cursor-pointer"
-                                            >
-                                                <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                                                <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                                                <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                                            </select>
-                                        </div>
-                                        <div className="flex gap-2 pt-2">
-                                            <button onClick={handleCreate} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors">Αποθήκευση</button>
-                                            <button onClick={() => setIsCreating(false)} className="flex-1 bg-white text-slate-600 py-2 rounded-xl text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">Άκυρο</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {filteredCustomers.map(c => (
-                                <div 
-                                    key={c.id} 
-                                    onClick={() => { setSelectedCustomer(c); setIsCreating(false); setIsEditing(false); }}
-                                    className={`p-4 rounded-xl cursor-pointer transition-all border group ${selectedCustomer?.id === c.id ? 'bg-[#060b00] text-white border-black shadow-lg transform scale-[1.02]' : 'bg-white hover:bg-white border-transparent hover:border-slate-200 text-slate-700 hover:shadow-md'}`}
-                                >
-                                    <div className="font-bold flex items-center gap-2">
-                                        <Briefcase size={14} className={selectedCustomer?.id === c.id ? 'text-slate-400' : 'text-slate-300'} />
-                                        {c.full_name}
-                                    </div>
-                                    {c.phone && <div className={`text-xs mt-1.5 flex items-center gap-1.5 ${selectedCustomer?.id === c.id ? 'text-slate-400' : 'text-slate-400'}`}><Phone size={12}/> {c.phone}</div>}
-                                </div>
-                            ))}
-                            {filteredCustomers.length === 0 && !isCreating && <div className="text-center text-slate-400 py-10 text-sm">Δεν βρέθηκαν πελάτες.</div>}
-                        </div>
+            {/* Content Area */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">
+                {activeTab === 'customers' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredCustomers.map(c => (
+                            <CustomerCard 
+                                key={c.id} 
+                                customer={c} 
+                                onClick={() => setSelectedCustomer(c)} 
+                                latestOrderDate={latestOrdersMap[c.id]}
+                            />
+                        ))}
+                        {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}
                     </div>
-
-                    {/* Right Column: Details */}
-                    <div className="lg:col-span-8 flex flex-col min-h-0 h-full">
-                        {selectedCustomer ? (
-                            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-right-4">
-                                {/* Header */}
-                                <div className="p-8 border-b border-slate-100 bg-white flex justify-between items-start relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl opacity-50 pointer-events-none"></div>
-                                    
-                                    <div className="flex items-center gap-6 relative z-10 w-full">
-                                        <div className="w-20 h-20 bg-gradient-to-br from-[#060b00] to-emerald-800 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-black/20 transform rotate-3 shrink-0">
-                                            <User size={36}/>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            {isEditing ? (
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ονοματεπωνυμο / Επωνυμια</label>
-                                                    <input className="text-2xl font-black text-slate-800 bg-white border border-slate-200 p-2 rounded-lg outline-none w-full focus:ring-2 focus:ring-emerald-500/20" value={selectedCustomer.full_name} onChange={e => setSelectedCustomer({...selectedCustomer, full_name: e.target.value})}/>
-                                                </div>
-                                            ) : (
-                                                <h2 className="text-3xl font-black text-[#060b00] tracking-tight truncate">{selectedCustomer.full_name}</h2>
-                                            )}
-                                            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 mt-3">
-                                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                                                    <Phone size={14} className="text-slate-400"/> 
-                                                    {isEditing ? <input className="bg-white border-b border-slate-300 outline-none w-32 text-slate-800 font-medium" value={selectedCustomer.phone || ''} onChange={e => setSelectedCustomer({...selectedCustomer, phone: e.target.value})}/> : (selectedCustomer.phone || '-')}
-                                                </div>
-                                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                                                    <Mail size={14} className="text-slate-400"/> 
-                                                    {isEditing ? <input className="bg-white border-b border-slate-300 outline-none w-48 text-slate-800 font-medium" value={selectedCustomer.email || ''} onChange={e => setSelectedCustomer({...selectedCustomer, email: e.target.value})}/> : (selectedCustomer.email || '-')}
-                                                </div>
-                                                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 text-blue-800">
-                                                    <Percent size={14} className="text-blue-500"/> 
-                                                    {isEditing ? (
-                                                        <select 
-                                                            value={selectedCustomer.vat_rate !== undefined ? selectedCustomer.vat_rate : VatRegime.Standard} 
-                                                            onChange={e => setSelectedCustomer({...selectedCustomer, vat_rate: parseFloat(e.target.value)})}
-                                                            className="bg-transparent border-b border-blue-300 outline-none font-bold text-blue-900 cursor-pointer text-xs"
-                                                        >
-                                                            <option value={VatRegime.Standard}>24%</option>
-                                                            <option value={VatRegime.Reduced}>17%</option>
-                                                            <option value={VatRegime.Zero}>0%</option>
-                                                        </select>
-                                                    ) : (
-                                                        <span className="text-xs font-bold">ΦΠΑ: {((selectedCustomer.vat_rate !== undefined ? selectedCustomer.vat_rate : VatRegime.Standard) * 100).toFixed(0)}%</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 relative z-10 ml-4 shrink-0">
-                                        <button onClick={() => isEditing ? handleUpdate() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isEditing ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-                                            {isEditing ? <><Save size={18}/> Αποθήκευση</> : <><FileText size={18}/> Επεξεργασία</>}
-                                        </button>
-                                        {!isEditing && (
-                                            <button onClick={handleDelete} className="px-3 py-2.5 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm" title="Διαγραφή Πελάτη">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30 custom-scrollbar">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
-                                            <div className="absolute right-0 top-0 w-20 h-20 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                            <div className="relative z-10">
-                                                <div className="text-emerald-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><TrendingUp size={14}/> Συνολικός Τζίρος (Net)</div>
-                                                <div className="text-3xl font-black text-emerald-700">{formatCurrency(customerStats?.totalSpent)}</div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
-                                            <div className="absolute right-0 top-0 w-20 h-20 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                            <div className="relative z-10">
-                                                <div className="text-blue-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><ShoppingBag size={14}/> Παραγγελίες</div>
-                                                <div className="text-3xl font-black text-blue-700">{customerStats?.orderCount}</div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-white p-6 rounded-2xl border border-amber-100 shadow-sm relative overflow-hidden group hover:-translate-y-1 transition-transform">
-                                            <div className="absolute right-0 top-0 w-20 h-20 bg-amber-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                                            <div className="relative z-10">
-                                                <div className="text-amber-800/60 text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><PieChart size={14}/> Μέση Παραγγελία</div>
-                                                <div className="text-3xl font-black text-amber-700">{formatCurrency(customerStats?.avgOrderValue)}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50"><FileText size={20} className="text-slate-400"/> Στοιχεία Τιμολόγησης</h3>
-                                            <div className="space-y-5">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
-                                                        <Hash size={14}/> ΑΦΜ
-                                                        {isEditing && (
-                                                            <button 
-                                                                onClick={() => handleAfmLookup(selectedCustomer.vat_number || '', true)} 
-                                                                disabled={isSearchingAfm}
-                                                                className="ml-auto text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-lg flex items-center gap-1 font-bold hover:bg-blue-100"
-                                                            >
-                                                                {isSearchingAfm ? <Loader2 size={10} className="animate-spin"/> : <Zap size={10}/>} Auto-Fill
-                                                            </button>
-                                                        )}
-                                                    </label>
-                                                    {isEditing ? (
-                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" value={selectedCustomer.vat_number || ''} onChange={e => setSelectedCustomer({...selectedCustomer, vat_number: e.target.value})} placeholder="9 ψηφία" />
-                                                    ) : (
-                                                        <div className="text-slate-800 font-medium font-mono text-base bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedCustomer.vat_number || '-'}</div>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Διεύθυνση</label>
-                                                    {isEditing ? (
-                                                        <input className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none" value={selectedCustomer.address || ''} onChange={e => setSelectedCustomer({...selectedCustomer, address: e.target.value})} />
-                                                    ) : (
-                                                        <div className="text-slate-800 font-medium text-base">{selectedCustomer.address || '-'}</div>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Σημειώσεις</label>
-                                                    {isEditing ? (
-                                                        <textarea className="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none h-24 resize-none" value={selectedCustomer.notes || ''} onChange={e => setSelectedCustomer({...selectedCustomer, notes: e.target.value})} />
-                                                    ) : (
-                                                        <div className="text-slate-600 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[80px] leading-relaxed">{selectedCustomer.notes || 'Καμία σημείωση.'}</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-[320px]">
-                                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 pb-3 border-b border-slate-50">
-                                                <Trophy size={20} className="text-amber-500"/> 
-                                                <span>Προτιμήσεις (Top 5)</span>
-                                            </h3>
-                                            
-                                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
-                                                {customerStats && customerStats.prefData.length > 0 ? (
-                                                    customerStats.prefData.map((item, index) => (
-                                                        <div key={item.name} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
-                                                            {/* Rank */}
-                                                            <div className={`
-                                                                w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 shadow-sm border
-                                                                ${index === 0 ? 'bg-amber-100 text-amber-700 border-amber-200' : 
-                                                                index === 1 ? 'bg-slate-100 text-slate-600 border-slate-200' : 
-                                                                index === 2 ? 'bg-orange-50 text-orange-700 border-orange-100' : 
-                                                                'bg-white text-slate-400 border-slate-100'}
-                                                            `}>
-                                                                {index + 1}
-                                                            </div>
-
-                                                            {/* Content */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex justify-between items-center mb-1">
-                                                                    <span className="font-bold text-slate-700 text-sm truncate">{item.name}</span>
-                                                                    <span className="text-xs font-medium text-slate-500">{formatCurrency(item.value)}</span>
-                                                                </div>
-                                                                
-                                                                {/* Progress Bar */}
-                                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className={`h-full rounded-full ${
-                                                                            index === 0 ? 'bg-amber-400' : 
-                                                                            index === 1 ? 'bg-slate-400' : 
-                                                                            index === 2 ? 'bg-orange-400' : 
-                                                                            'bg-emerald-400'
-                                                                        }`} 
-                                                                        style={{ width: `${item.percentage}%` }}
-                                                                    ></div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Quantity Badge */}
-                                                            <div className="text-right shrink-0">
-                                                                <div className="text-xs font-bold text-slate-800">{item.count} <span className="text-[9px] text-slate-400 font-normal uppercase">τεμ</span></div>
-                                                                <div className="text-[9px] font-bold text-emerald-600">{item.percentage.toFixed(0)}%</div>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
-                                                        <PieChart size={32} className="mb-2 opacity-20"/>
-                                                        <p>Δεν υπάρχουν αρκετά δεδομένα.</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg"><Calendar size={20} className="text-emerald-500"/> Ιστορικό Παραγγελιών</h3>
-                                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
-                                                    <tr>
-                                                        <th className="p-4 pl-6">ID</th>
-                                                        <th className="p-4">Ημερομηνία</th>
-                                                        <th className="p-4 text-right">Ποσό (Net)</th>
-                                                        <th className="p-4">Κατάσταση</th>
-                                                        <th className="p-4 text-center">Είδη</th>
-                                                        <th className="p-4 text-center"></th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-50">
-                                                    {customerStats?.history.map(o => {
-                                                        const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
-                                                        return (
-                                                            <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="p-4 pl-6 font-mono font-bold text-slate-700">{o.id}</td>
-                                                                <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
-                                                                <td className="p-4 text-right font-black text-slate-800">{formatCurrency(netValue)}</td>
-                                                                <td className="p-4">
-                                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(o.status)}`}>
-                                                                        {STATUS_TRANSLATIONS[o.status]}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="p-4 text-center text-xs font-bold text-slate-500">{o.items.length}</td>
-                                                                <td className="p-4 text-center">
-                                                                    {onPrintOrder && (
-                                                                        <button 
-                                                                            onClick={() => onPrintOrder(o)}
-                                                                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
-                                                                            title="Προβολή/Εκτύπωση"
-                                                                        >
-                                                                            <Printer size={16} />
-                                                                        </button>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                    {customerStats?.history.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Καμία παραγγελία μέχρι στιγμής.</td></tr>}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-white rounded-3xl border border-slate-200 border-dashed m-1">
-                                <div className="bg-slate-50 p-6 rounded-full mb-4">
-                                    <Users size={48} className="text-slate-300"/>
-                                </div>
-                                <p className="font-bold text-lg text-slate-500">Επιλέξτε πελάτη για προβολή</p>
-                                <p className="text-sm opacity-70">ή δημιουργήστε νέο</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
+                ) : (
                     <SuppliersPage />
-                </div>
-            )}
+                )}
             </div>
+
+            {/* Modals */}
+            {selectedCustomer && activeTab === 'customers' && !isCreating && orders && (
+                <CustomerDetailsModal 
+                    customer={selectedCustomer} 
+                    orders={orders} 
+                    onClose={() => setSelectedCustomer(null)}
+                    onUpdate={handleUpdateCustomer}
+                    onDelete={handleDeleteCustomer}
+                    onPrintOrder={onPrintOrder}
+                />
+            )}
+
+            {isCreating && activeTab === 'customers' && (
+                 <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                     {/* Reuse Modal for Creation by passing dummy customer and edit mode active */}
+                     {/* Simpler: just use the same modal but handle save differently inside or pass a create handler */}
+                     {/* For simplicity in this structure, we can adapt CustomerDetailsModal to handle new creation if we pass an empty customer object and start in edit mode.
+                         However, CustomerDetailsModal expects an existing customer for stats.
+                         Let's mock a "New Customer" state.
+                     */}
+                      <CustomerDetailsModal 
+                        customer={selectedCustomer!} // It's the dummy object created in handleCreate button
+                        orders={[]} 
+                        onClose={() => setIsCreating(false)}
+                        onUpdate={handleCreateCustomer} // Pass create handler as update
+                        onDelete={async () => setIsCreating(false)}
+                        onPrintOrder={undefined}
+                    />
+                 </div>
+            )}
         </div>
     );
 }
