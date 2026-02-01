@@ -214,6 +214,10 @@ export interface Order {
   custom_silver_rate?: number; // New: Locks in the silver price used at the time of order
   vat_rate?: number; // 0.24, 0.17, 0.00
   discount_percent?: number; // New: Discount percentage 0-100
+  
+  // NEW FEATURES
+  tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
+  is_archived?: boolean;
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';

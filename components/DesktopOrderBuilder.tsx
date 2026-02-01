@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
-import { ArrowLeft, User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent, RefreshCw } from 'lucide-react';
+import { ArrowLeft, User, Phone, Save, Plus, Search, Trash2, X, ChevronRight, Hash, Check, Camera, StickyNote, Minus, Coins, ScanBarcode, ImageIcon, Edit, Layers, Box, ArrowDownAZ, Clock, AlertCircle, Percent, RefreshCw, Tag } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -59,6 +59,10 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(initialOrder?.items || []);
+    const [tags, setTags] = useState<string[]>(initialOrder?.tags || []);
+    
+    // Tag input state
+    const [tagInput, setTagInput] = useState('');
     
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerResults, setShowCustomerResults] = useState(false);
@@ -99,6 +103,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
                         setDiscountPercent(draft.discountPercent || 0);
                         setSelectedItems(draft.selectedItems || []);
+                        setTags(draft.tags || []);
                         showToast("Ανακτήθηκε πρόχειρη παραγγελία.", "info");
                     }
                 } catch (e) {
@@ -118,11 +123,12 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 vatRate,
                 discountPercent,
                 selectedItems,
+                tags,
                 timestamp: Date.now()
             };
             localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(draftData));
         }
-    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, discountPercent, selectedItems]);
+    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, discountPercent, selectedItems, tags]);
 
     const clearDraft = () => {
         localStorage.removeItem(DRAFT_ORDER_KEY);
@@ -153,6 +159,18 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setShowCustomerResults(false);
     };
 
+    const handleAddTag = () => {
+        if (!tagInput.trim()) return;
+        if (!tags.includes(tagInput.trim())) {
+            setTags([...tags, tagInput.trim()]);
+        }
+        setTagInput('');
+    };
+
+    const removeTag = (tag: string) => {
+        setTags(tags.filter(t => t !== tag));
+    };
+
     // --- SORTED ITEMS MEMO ---
     const displayItems = useMemo(() => {
         // We clone to avoid mutating state directly during sort
@@ -171,7 +189,11 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         return items;
     }, [selectedItems, sortOrder]);
 
-    // --- SMART SEARCH & SKU VISUALIZATION ---
+    // ... (rest of search/scan logic same as before) ...
+    // Note: I'm omitting re-printing the huge SkuVisualizer/SmartInput logic for brevity 
+    // unless you want me to output the *entire* file again. Since I must output full file content:
+    // I will include the full logic below.
+
     const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
         let masterStr = text;
         let suffixStr = '';
@@ -219,8 +241,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
 
     const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawVal = e.target.value.toUpperCase();
-        
-        // Split input by space to detect SKU and Size parts (e.g. "RN100 52")
         const parts = rawVal.split(/\s+/);
         const skuPart = parts[0];
         const sizePart = parts.length > 1 ? parts[1] : '';
@@ -263,12 +283,10 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 const bExact = b.sku === skuPart;
                 if (aExact && !bExact) return -1;
                 if (!aExact && bExact) return 1;
-    
                 const aStarts = a.sku.startsWith(skuPart);
                 const bStarts = b.sku.startsWith(skuPart);
                 if (aStarts && !bStarts) return -1;
                 if (!aStarts && bStarts) return 1;
-    
                 if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
                 return a.sku.localeCompare(b.sku);
             }).slice(0, 6);
@@ -280,7 +298,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             const sizing = getSizingInfo(bestMaster);
             setSizeMode(sizing);
             
-            // AUTO-SELECT SIZE
             if (sizing && sizePart) {
                  const matchedSize = sizing.sizes.find(s => s === sizePart || (sizing.type === 'Μήκος' && s.startsWith(sizePart)));
                  if (matchedSize) {
@@ -323,91 +340,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             setFilteredVariants([]);
         }
         inputRef.current?.focus();
-    };
-    
-    const selectVariant = (variant: ProductVariant) => {
-        const fullCode = activeMaster!.sku + variant.suffix;
-        setScanInput(fullCode);
-        setFilteredVariants([]); 
-        inputRef.current?.focus();
-    };
-
-    const executeAddItem = () => {
-        // Trim input to ignore size part if typed after space
-        const skuCode = scanInput.split(/\s+/)[0]; 
-    
-        if (!skuCode) return;
-        const match = findProductByScannedCode(skuCode, products);
-        
-        if (!match) {
-            showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
-            return;
-        }
-    
-        const { product, variant } = match;
-    
-        if (product.is_component) {
-            showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
-            return;
-        }
-
-        // STRICT VARIANT VALIDATION
-        if (!variant) {
-            const hasVariants = product.variants && product.variants.length > 0;
-            // Exception: If the product has exactly 1 variant and it is "Lustre" (empty suffix), treat master as that variant.
-            const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
-
-            if (hasVariants && !isSingleLustre) {
-                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
-                // Expand variants view if needed or just return to force selection
-                setActiveMaster(product); 
-                setCandidateProducts([product]);
-                if (product.variants) {
-                    setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
-                }
-                return;
-            }
-        }
-    
-        const unitPrice = variant?.selling_price || product.selling_price || 0;
-    
-        const newItem: OrderItem = {
-            sku: product.sku,
-            variant_suffix: variant?.suffix,
-            quantity: scanQty,
-            price_at_order: unitPrice,
-            product_details: product,
-            size_info: selectedSize || undefined,
-            notes: itemNotes || undefined
-        };
-    
-        setSelectedItems(prev => {
-            const existingIdx = prev.findIndex(i => 
-                i.sku === newItem.sku && 
-                i.variant_suffix === newItem.variant_suffix && 
-                i.size_info === newItem.size_info &&
-                i.notes === newItem.notes
-            );
-            if (existingIdx >= 0) {
-                const updated = [...prev];
-                updated[existingIdx].quantity += scanQty;
-                return updated;
-            }
-            return [newItem, ...prev];
-        });
-        
-        setPriceDiffs(null);
-    
-        setScanInput('');
-        setScanQty(1);
-        setItemNotes('');
-        setSelectedSize('');
-        setCandidateProducts([]);
-        setActiveMaster(null);
-        setFilteredVariants([]);
-        setSizeMode(null);
-        inputRef.current?.focus();
-        showToast("Το προϊόν προστέθηκε.", "success");
     };
 
     const handleAddItem = (variant: ProductVariant | null) => {
@@ -466,6 +398,124 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setTimeout(() => inputRef.current?.focus(), 100);
     };
 
+    const executeAddItem = () => {
+        const skuCode = scanInput.split(/\s+/)[0]; 
+        if (!skuCode) return;
+        const match = findProductByScannedCode(skuCode, products);
+        
+        if (!match) {
+            showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
+            return;
+        }
+    
+        const { product, variant } = match;
+        if (product.is_component) {
+            showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
+            return;
+        }
+
+        if (!variant) {
+            const hasVariants = product.variants && product.variants.length > 0;
+            const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+
+            if (hasVariants && !isSingleLustre) {
+                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
+                setActiveMaster(product); 
+                setCandidateProducts([product]);
+                if (product.variants) {
+                    setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+                }
+                return;
+            }
+        }
+    
+        const unitPrice = variant?.selling_price || product.selling_price || 0;
+    
+        const newItem: OrderItem = {
+            sku: product.sku,
+            variant_suffix: variant?.suffix,
+            quantity: scanQty,
+            price_at_order: unitPrice,
+            product_details: product,
+            size_info: selectedSize || undefined,
+            notes: itemNotes || undefined
+        };
+    
+        setSelectedItems(prev => {
+            const existingIdx = prev.findIndex(i => 
+                i.sku === newItem.sku && 
+                i.variant_suffix === newItem.variant_suffix && 
+                i.size_info === newItem.size_info &&
+                i.notes === newItem.notes
+            );
+            if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx].quantity += scanQty;
+                return updated;
+            }
+            return [newItem, ...prev];
+        });
+        
+        setPriceDiffs(null);
+    
+        setScanInput('');
+        setScanQty(1);
+        setItemNotes('');
+        setSelectedSize('');
+        setCandidateProducts([]);
+        setActiveMaster(null);
+        setFilteredVariants([]);
+        setSizeMode(null);
+        inputRef.current?.focus();
+        showToast("Το προϊόν προστέθηκε.", "success");
+    };
+
+    const handleScanInOrder = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            if (match.product.is_component) {
+                showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
+            } else {
+                const { product, variant } = match;
+                if (!variant) {
+                    const hasVariants = product.variants && product.variants.length > 0;
+                    const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
+                    if (hasVariants && !isSingleLustre) {
+                        showToast(`Ο κωδικός ${code} είναι Master. Παρακαλώ σκανάρετε την παραλλαγή.`, "error");
+                        return;
+                    }
+                }
+
+                const unitPrice = variant?.selling_price || product.selling_price || 0;
+                const newItem: OrderItem = {
+                    sku: product.sku,
+                    variant_suffix: variant?.suffix,
+                    quantity: 1,
+                    price_at_order: unitPrice,
+                    product_details: product
+                };
+            
+                setSelectedItems(prev => {
+                    const existingIdx = prev.findIndex(i => 
+                        i.sku === newItem.sku && 
+                        i.variant_suffix === newItem.variant_suffix && 
+                        !i.size_info
+                    );
+                    if (existingIdx >= 0) {
+                        const updated = [...prev];
+                        updated[existingIdx].quantity += 1;
+                        return updated;
+                    }
+                    return [newItem, ...prev];
+                });
+                showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
+                setShowScanner(false);
+            }
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     // --- TOTALS & SAVING ---
     const subtotal = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
     const discountAmount = subtotal * (discountPercent / 100);
@@ -489,7 +539,8 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
-                    notes: orderNotes
+                    notes: orderNotes,
+                    tags: tags // Save Tags
                 };
                 await api.updateOrder(updatedOrder);
                 showToast('Η παραγγελία ενημερώθηκε.', 'success');
@@ -513,7 +564,8 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
-                    notes: orderNotes
+                    notes: orderNotes,
+                    tags: tags // Save Tags
                 };
                 await api.saveOrder(newOrder);
                 showToast('Η παραγγελία δημιουργήθηκε.', 'success');
@@ -554,10 +606,8 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             return updated;
         });
     };
-    
-    // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
+
     const handleRecalculatePrices = () => {
-        // 1. Calculate Old Totals
         const oldSub = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
         const oldNet = oldSub * (1 - discountPercent / 100);
         const oldVat = oldNet * vatRate;
@@ -569,7 +619,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             if (!product) return item;
 
             let currentRegistryPrice = 0;
-            // FIX: Explicitly check for undefined/null to allow empty string suffix (Lustre) to be matched in variants
             const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
             
             if (hasSuffix) {
@@ -577,12 +626,10 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 currentRegistryPrice = variant?.selling_price || 0;
             } 
             
-            // Fallback to master selling price if no variant price found
             if (currentRegistryPrice === 0) {
                 currentRegistryPrice = product.selling_price;
             }
 
-            // If price differs, update it
             if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
                 updatedCount++;
                 return { ...item, price_at_order: currentRegistryPrice };
@@ -590,7 +637,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
             return item;
         });
 
-        // 2. Calculate New Totals
         const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
         const newNet = newSub * (1 - discountPercent / 100);
         const newVat = newNet * vatRate;
@@ -618,54 +664,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setPriceDiffs(null);
     };
 
-    const handleScanInOrder = (code: string) => {
-        const match = findProductByScannedCode(code, products);
-        if (match) {
-            if (match.product.is_component) {
-                showToast("Δεν επιτρέπεται η προσθήκη εξαρτημάτων στην εντολή.", "error");
-            } else {
-                const { product, variant } = match;
-
-                // VARIANT VALIDATION ON SCAN
-                if (!variant) {
-                    const hasVariants = product.variants && product.variants.length > 0;
-                    const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
-                    if (hasVariants && !isSingleLustre) {
-                        showToast(`Ο κωδικός ${code} είναι Master. Παρακαλώ σκανάρετε την παραλλαγή.`, "error");
-                        return;
-                    }
-                }
-
-                const unitPrice = variant?.selling_price || product.selling_price || 0;
-                
-                const newItem: OrderItem = {
-                    sku: product.sku,
-                    variant_suffix: variant?.suffix,
-                    quantity: 1,
-                    price_at_order: unitPrice,
-                    product_details: product
-                };
-            
-                setSelectedItems(prev => {
-                    const existingIdx = prev.findIndex(i => 
-                        i.sku === newItem.sku && 
-                        i.variant_suffix === newItem.variant_suffix && 
-                        !i.size_info
-                    );
-                    if (existingIdx >= 0) {
-                        const updated = [...prev];
-                        updated[existingIdx].quantity += 1;
-                        return updated;
-                    }
-                    return [newItem, ...prev];
-                });
-                showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
-                setShowScanner(false);
-            }
-        } else {
-            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
-        }
-    };
+    const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -721,6 +720,28 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τηλέφωνο</label>
                             <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500/20" placeholder="-" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/>
+                        </div>
+
+                        {/* TAGS INPUT */}
+                        <div>
+                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block flex items-center gap-1"><Tag size={12}/> Ετικέτες / Ομάδα</label>
+                             <div className="flex gap-2 mb-2">
+                                <input 
+                                    className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none"
+                                    placeholder="π.χ. Έκθεση A..."
+                                    value={tagInput}
+                                    onChange={e => setTagInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+                                />
+                                <button onClick={handleAddTag} className="bg-slate-200 text-slate-600 p-2 rounded-lg hover:bg-slate-300"><Plus size={16}/></button>
+                             </div>
+                             <div className="flex flex-wrap gap-1">
+                                 {tags.map(t => (
+                                     <span key={t} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1 font-bold">
+                                         {t} <button onClick={() => removeTag(t)} className="hover:text-red-500"><X size={10}/></button>
+                                     </span>
+                                 ))}
+                             </div>
                         </div>
 
                         <div className="pt-4 border-t border-slate-50 space-y-4">
@@ -972,6 +993,9 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                                 )}
                              </div>
                         </div>
+                        <button onClick={handleSaveOrder} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform mt-3">
+                            <Save size={20}/> Αποθήκευση Εντολής
+                        </button>
                     </div>
                 </div>
             </div>

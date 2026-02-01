@@ -466,7 +466,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                  <div>
                     <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
                         <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Users size={24} /></div>
-                        Επαφές
+                        Πελάτες
                     </h1>
                     <p className="text-slate-500 mt-1 ml-14">Διαχείριση πελατολογίου και προμηθευτών.</p>
                  </div>

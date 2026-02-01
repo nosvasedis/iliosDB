@@ -24,3 +24,7 @@ ALTER TABLE production_batches ADD COLUMN IF NOT EXISTS requires_setting BOOLEAN
 
 -- PERFORMANCE: Index for faster Partial Batch calculations
 CREATE INDEX IF NOT EXISTS idx_production_batches_order_id ON production_batches(order_id);
+
+-- NEW (FEATURE REQUEST): Order Tags and Archiving
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;

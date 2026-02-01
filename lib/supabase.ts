@@ -959,4 +959,9 @@ export const api = {
     saveOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'INSERT', offer); },
     updateOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'UPDATE', offer, { match: { id: offer.id } }); },
     deleteOffer: async (id: string): Promise<void> => { await safeMutate('offers', 'DELETE', null, { match: { id } }); },
+
+    // Archive an order
+    archiveOrder: async (orderId: string, archive: boolean): Promise<void> => {
+        await safeMutate('orders', 'UPDATE', { is_archived: archive }, { match: { id: orderId } });
+    }
 };
