@@ -35,6 +35,15 @@ const STAGE_COLORS: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
+// Heuristic for delay detection (matches ProductionPage logic)
+const STAGE_LIMITS_HOURS: Record<string, number> = {
+    [ProductionStage.Waxing]: 120,    // 5 Days
+    [ProductionStage.Casting]: 96,    // 4 Days
+    [ProductionStage.Setting]: 144,   // 6 Days
+    [ProductionStage.Polishing]: 120, // 5 Days
+    [ProductionStage.Labeling]: 72    // 3 Days
+};
+
 // Time Aging Helper
 const getTimeInStage = (dateStr: string) => {
     const start = new Date(dateStr);
@@ -48,8 +57,8 @@ const getTimeInStage = (dateStr: string) => {
 
     if (diffDays > 0) {
         label = `${diffDays}d ${diffHrs % 24}h`;
-        if (diffDays >= 3) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical
-        else if (diffDays >= 1) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning
+        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical (> 6 days)
+        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning (4-5 days)
         else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
     } else {
         label = `${diffHrs}h`;
@@ -60,7 +69,7 @@ const getTimeInStage = (dateStr: string) => {
     return { label, colorClass };
 };
 
-const MobileBatchCard: React.FC<{ batch: ProductionBatch, onNext: (b: ProductionBatch) => void, onToggleHold: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onToggleHold, onClick }) => {
+const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean }, onNext: (b: ProductionBatch) => void, onToggleHold: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onToggleHold, onClick }) => {
     const isDelayed = batch.isDelayed; 
     const isReady = batch.current_stage === ProductionStage.Ready;
     const timeInfo = getTimeInStage(batch.updated_at);
@@ -342,11 +351,19 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
             const order = orders.find(o => o.id === b.order_id);
 
+            // Calculate Delay
+            const lastUpdate = new Date(b.updated_at);
+            const now = new Date();
+            const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
+            const threshold = STAGE_LIMITS_HOURS[b.current_stage] || Infinity;
+            const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
+
             return { 
                 ...b, 
                 requires_setting: hasZircons, 
                 product_details: prod,
-                customer_name: order?.customer_name || ''
+                customer_name: order?.customer_name || '',
+                isDelayed // Calculate for mobile display
             };
         });
     }, [batches, allProducts, materials, orders]);

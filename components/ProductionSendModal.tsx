@@ -38,11 +38,11 @@ const STAGE_COLORS: Record<string, string> = {
 
 // Heuristic for delay detection (matches ProductionPage logic)
 const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 48,
-    [ProductionStage.Casting]: 24,
-    [ProductionStage.Setting]: 72,
-    [ProductionStage.Polishing]: 48,
-    [ProductionStage.Labeling]: 24
+    [ProductionStage.Waxing]: 120,    // 5 Days
+    [ProductionStage.Casting]: 96,    // 4 Days
+    [ProductionStage.Setting]: 144,   // 6 Days
+    [ProductionStage.Polishing]: 120, // 5 Days
+    [ProductionStage.Labeling]: 72    // 3 Days
 };
 
 const getAgingInfo = (updatedAt: string, stage: string) => {

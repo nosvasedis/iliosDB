@@ -30,11 +30,11 @@ const STAGES = [
 ];
 
 const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 48,
-    [ProductionStage.Casting]: 24,
-    [ProductionStage.Setting]: 72,
-    [ProductionStage.Polishing]: 48,
-    [ProductionStage.Labeling]: 24
+    [ProductionStage.Waxing]: 120,    // 5 Days
+    [ProductionStage.Casting]: 96,    // 4 Days
+    [ProductionStage.Setting]: 144,   // 6 Days
+    [ProductionStage.Polishing]: 120, // 5 Days
+    [ProductionStage.Labeling]: 72    // 3 Days
 };
 
 const STAGE_COLORS = {
@@ -77,8 +77,8 @@ const getTimeInStage = (dateStr: string) => {
 
     if (diffDays > 0) {
         label = `${diffDays}d ${diffHrs % 24}h`;
-        if (diffDays >= 3) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical
-        else if (diffDays >= 1) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning
+        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical (> 6 days)
+        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning (4-5 days)
         else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
     } else {
         label = `${diffHrs}h`;
