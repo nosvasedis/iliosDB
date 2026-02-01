@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { SupplierOrder, Product } from '../types';
+import { SupplierOrder, Product, Gender } from '../types';
 import { APP_LOGO } from '../constants';
-import { Phone, Mail, MapPin, Box, ImageIcon } from 'lucide-react';
+import { ImageIcon } from 'lucide-react';
+import { getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     order: SupplierOrder;
@@ -28,6 +29,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
             <style>{`
                 @page { size: A4; margin: 0; }
                 .break-avoid { break-inside: avoid; }
+                th, td { padding-top: 6px; padding-bottom: 6px; }
             `}</style>
 
             {/* HEADER */}
@@ -68,10 +70,10 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b-2 border-slate-800 text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                            <th className="py-2 px-2 text-center w-16">Εικόνα</th>
-                            <th className="py-2 px-2 w-32 bg-slate-100 text-slate-900">Κωδ. Προμηθευτη</th>
-                            <th className="py-2 px-2">Περιγραφη & Λεπτομερειες</th>
-                            <th className="py-2 px-2 text-center w-20">Ποσοτητα</th>
+                            <th className="px-2 w-16 text-center">Εικόνα</th>
+                            <th className="px-2 w-32 bg-slate-100 text-slate-900 border-l border-r border-slate-200">Κωδ. Προμηθευτη</th>
+                            <th className="px-2">Περιγραφη & Λεπτομερειες</th>
+                            <th className="px-2 text-center w-20">Ποσοτητα</th>
                         </tr>
                     </thead>
                     <tbody className="text-xs">
@@ -84,8 +86,8 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
 
                             // Determine Display Data
                             let supplierSku = '-';
-                            let description = item.item_name;
-                            let details = '';
+                            let mainDescription = item.item_name; // Default to stored name (e.g. SKU+Suffix)
+                            let detailLine = '';
                             let imageUrl = null;
 
                             if (product) {
@@ -94,22 +96,37 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                 imageUrl = product.image_url;
                                 
                                 const category = product.category;
-                                const plating = product.plating_type;
                                 
-                                // Clean up variant description
-                                let variantDesc = '';
-                                if (item.item_name !== product.sku) {
-                                     variantDesc = item.item_name.replace(product.sku, '').trim();
+                                // Extract finish info from suffix using the full stored name
+                                // item.item_name should be something like "DA1102XKO"
+                                let suffixStr = '';
+                                if (item.item_name.startsWith(product.sku)) {
+                                    suffixStr = item.item_name.slice(product.sku.length);
                                 }
                                 
-                                description = `${product.sku} ${variantDesc}`;
-                                details = `${category} • ${plating}`;
-                                if (product.description) details += ` • ${product.description}`;
+                                const { finish, stone } = getVariantComponents(suffixStr, product.gender || Gender.Unisex);
+                                
+                                // Build readable description
+                                let finishDesc = 'Λουστρέ';
+                                if (finish.name) finishDesc = finish.name;
+                                
+                                let stoneDesc = '';
+                                if (stone.name) stoneDesc = ` • ${stone.name}`;
+                                
+                                mainDescription = `${category}`;
+                                detailLine = `${finishDesc}${stoneDesc}`;
+                                
+                            } else {
+                                // Fallback if product not found (e.g. Material)
+                                if (item.item_type === 'Material') {
+                                    mainDescription = item.item_name;
+                                    detailLine = 'Υλικό';
+                                }
                             }
 
                             return (
                                 <tr key={idx} className="border-b border-slate-100 break-inside-avoid">
-                                    <td className="py-3 px-2 align-middle text-center">
+                                    <td className="px-2 align-middle text-center">
                                         <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded mx-auto overflow-hidden flex items-center justify-center">
                                             {imageUrl ? (
                                                 <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
@@ -118,20 +135,22 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                             )}
                                         </div>
                                     </td>
-                                    <td className="py-3 px-2 align-middle bg-slate-50">
-                                        <span className="font-mono font-black text-sm text-slate-900">{supplierSku}</span>
+                                    <td className="px-2 align-middle bg-slate-50 border-l border-r border-slate-100">
+                                        <span className="font-mono font-black text-sm text-slate-900 block">{supplierSku}</span>
+                                        {/* Show internal SKU as reference in small print */}
+                                        <span className="text-[9px] text-slate-400 block mt-1">Ref: {item.item_name}</span>
                                     </td>
-                                    <td className="py-3 px-2 align-middle">
-                                        <div className="font-bold text-slate-800 text-sm">{description}</div>
-                                        <div className="text-[10px] text-slate-500 uppercase font-medium mt-0.5">{details}</div>
+                                    <td className="px-2 align-middle">
+                                        <div className="font-bold text-slate-800 text-sm">{mainDescription}</div>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-wide">{detailLine}</div>
                                         {item.notes && (
                                             <div className="mt-1 bg-yellow-50 p-1.5 rounded border border-yellow-100 text-[10px] text-yellow-800 font-bold italic inline-block">
                                                 Σημείωση: {item.notes}
                                             </div>
                                         )}
                                     </td>
-                                    <td className="py-3 px-2 align-middle text-center">
-                                        <div className="inline-block px-4 py-2 rounded bg-slate-900 text-white font-black text-lg">
+                                    <td className="px-2 align-middle text-center">
+                                        <div className="inline-block px-4 py-2 rounded bg-slate-900 text-white font-black text-lg shadow-sm">
                                             {item.quantity}
                                         </div>
                                     </td>

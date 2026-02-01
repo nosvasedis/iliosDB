@@ -7,6 +7,7 @@ import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
+import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -25,8 +26,6 @@ export default function SuppliersPage() {
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: supplierOrders } = useQuery({ queryKey: ['supplier_orders'], queryFn: api.getSupplierOrders });
-  const { data: productionBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
 
   // UI State
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -42,15 +41,8 @@ export default function SuppliersPage() {
   
   // Purchase Order State
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  const [orderItems, setOrderItems] = useState<SupplierOrderItem[]>([]);
-  const [orderNotes, setOrderNotes] = useState('');
   const [viewOrderId, setViewOrderId] = useState<string | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
-  
-  // PO Item Selection
-  const [poSearch, setPoSearch] = useState('');
-  const [poType, setPoType] = useState<SupplierOrderType>('Material');
-  const [showAllProducts, setShowAllProducts] = useState(false); 
 
   const filteredSuppliers = useMemo(() => {
       if (!suppliers) return [];
@@ -59,46 +51,6 @@ export default function SuppliersPage() {
           s.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
       ).sort((a, b) => a.name.localeCompare(b.name));
   }, [suppliers, searchTerm]);
-
-  // Production Needs Intelligence
-  const productionNeeds = useMemo(() => {
-      if (!productionBatches || !products || !orders) return { linked: [], other: [] };
-      
-      const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
-      
-      // Group by SKU + Variant to sum quantities
-      const groupedNeeds: Record<string, { sku: string, variant?: string, totalQty: number, requirements: { orderId: string, customer: string }[], product?: Product }> = {};
-
-      awaiting.forEach(b => {
-          const key = `${b.sku}-${b.variant_suffix || ''}`;
-          if (!groupedNeeds[key]) {
-              const product = products.find(p => p.sku === b.sku);
-              groupedNeeds[key] = {
-                  sku: b.sku,
-                  variant: b.variant_suffix || undefined,
-                  totalQty: 0,
-                  requirements: [],
-                  product
-              };
-          }
-          groupedNeeds[key].totalQty += b.quantity;
-          if (b.order_id) {
-              const order = orders.find(o => o.id === b.order_id);
-              groupedNeeds[key].requirements.push({
-                  orderId: b.order_id,
-                  customer: order?.customer_name || 'Άγνωστος'
-              });
-          }
-      });
-
-      const needsList = Object.values(groupedNeeds);
-      
-      // Split into "Linked" vs "Other"
-      const linked = needsList.filter(n => n.product?.supplier_id === selectedSupplier?.id);
-      const other = needsList.filter(n => n.product?.supplier_id !== selectedSupplier?.id);
-
-      return { linked, other };
-  }, [productionBatches, products, selectedSupplier, orders]);
 
   // Supplier Actions
   const handleSaveSupplier = async () => {
@@ -163,66 +115,6 @@ export default function SuppliersPage() {
       } catch (e) { showToast("Σφάλμα.", "error"); }
   };
 
-  const handleAddToOrder = (item: any, type: SupplierOrderType, qty: number = 1) => {
-      const id = type === 'Product' ? item.sku : item.id;
-      const name = type === 'Product' ? item.sku : item.name;
-      const cost = type === 'Product' ? (item.active_price || item.supplier_cost || 0) : item.cost_per_unit;
-      
-      setOrderItems(prev => {
-          const existingIdx = prev.findIndex(i => i.item_id === id && i.item_type === type);
-          if (existingIdx >= 0) {
-              const updated = [...prev];
-              updated[existingIdx].quantity += qty;
-              updated[existingIdx].total_cost = updated[existingIdx].quantity * updated[existingIdx].unit_cost;
-              return updated;
-          }
-          return [...prev, {
-              id: Math.random().toString(36),
-              item_type: type,
-              item_id: id,
-              item_name: name,
-              quantity: qty,
-              unit_cost: cost,
-              total_cost: cost * qty
-          }];
-      });
-  };
-
-  const updateOrderItem = (index: number, field: string, value: number) => {
-      setOrderItems(prev => {
-          const updated = [...prev];
-          const item = { ...updated[index] };
-          if (field === 'qty') item.quantity = value;
-          if (field === 'cost') item.unit_cost = value;
-          item.total_cost = item.quantity * item.unit_cost;
-          updated[index] = item;
-          return updated;
-      });
-  };
-
-  const saveOrder = async () => {
-      if (!selectedSupplier || orderItems.length === 0) return;
-      try {
-          const total = orderItems.reduce((s, i) => s + i.total_cost, 0);
-          const order: SupplierOrder = {
-              id: crypto.randomUUID(),
-              supplier_id: selectedSupplier.id,
-              supplier_name: selectedSupplier.name,
-              created_at: new Date().toISOString(),
-              status: 'Pending',
-              total_amount: total,
-              items: orderItems,
-              notes: orderNotes
-          };
-          await api.saveSupplierOrder(order);
-          queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-          setIsCreatingOrder(false);
-          setOrderItems([]);
-          setOrderNotes('');
-          showToast("Εντολή Αγοράς δημιουργήθηκε!", "success");
-      } catch (e) { showToast("Σφάλμα.", "error"); }
-  };
-
   const handleReceiveOrder = async (order: SupplierOrder) => {
       const yes = await confirm({ title: 'Παραλαβή', message: 'Θέλετε να παραλάβετε τα προϊόντα; Θα ενημερωθεί το απόθεμα.', confirmText: 'Παραλαβή' });
       if (!yes) return;
@@ -239,7 +131,7 @@ export default function SuppliersPage() {
     <div className="h-[calc(100vh-100px)] flex gap-6">
         
         {orderToPrint && products && (
-             <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+             <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
                  <div className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl">
                      <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                          <h3 className="font-bold text-slate-800 flex items-center gap-2"><Printer size={18}/> Προεπισκόπηση Εκτύπωσης</h3>
@@ -398,7 +290,7 @@ export default function SuppliersPage() {
                                                 </div>
                                                 <div>
                                                     <div className="font-black text-slate-800 text-lg flex items-center gap-2">
-                                                        {formatCurrency(o.total_amount)}
+                                                        #{o.id.slice(0, 6)}
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${o.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{o.status}</span>
                                                     </div>
                                                     <div className="text-xs text-slate-500 font-medium">
@@ -428,15 +320,14 @@ export default function SuppliersPage() {
                                      <div className="max-h-[60vh] overflow-y-auto custom-scrollbar border rounded-xl border-slate-200">
                                          <table className="w-full text-sm text-left">
                                              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
-                                                 <tr><th className="p-3">Είδος</th><th className="p-3">Όνομα</th><th className="p-3 text-center">Ποσ.</th><th className="p-3 text-right">Σύνολο</th></tr>
+                                                 <tr><th className="p-3">Είδος</th><th className="p-3">Όνομα</th><th className="p-3 text-center">Ποσ.</th></tr>
                                              </thead>
                                              <tbody className="divide-y divide-slate-100">
                                                  {relatedOrders.find(o => o.id === viewOrderId)?.items.map((item, i) => (
                                                      <tr key={i}>
-                                                         <td className="p-3 font-bold text-slate-600 text-xs">{item.item_type}</td>
+                                                         <td className="p-3 font-bold text-slate-600 text-xs">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</td>
                                                          <td className="p-3 font-medium text-slate-800">{item.item_name}</td>
                                                          <td className="p-3 text-center font-mono">{item.quantity}</td>
-                                                         <td className="p-3 text-right font-black">{formatCurrency(item.total_cost)}</td>
                                                      </tr>
                                                  ))}
                                              </tbody>
@@ -475,143 +366,10 @@ export default function SuppliersPage() {
             )}
             
             {isCreatingOrder && selectedSupplier && (
-                <div className="absolute inset-0 bg-white z-50 flex flex-col animate-in slide-in-from-right-4">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800">Νέα Εντολή Αγοράς</h2>
-                            <p className="text-sm text-slate-500">{selectedSupplier.name}</p>
-                        </div>
-                        <button onClick={() => setIsCreatingOrder(false)} className="p-2 bg-white rounded-full text-slate-500"><X size={20}/></button>
-                    </div>
-                    
-                    <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-                        <div className="lg:w-1/3 p-6 border-r border-slate-100 overflow-y-auto space-y-6">
-                            {(productionNeeds.linked.length > 0 || productionNeeds.other.length > 0) && (
-                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-bold text-indigo-900 text-xs uppercase flex items-center gap-2">
-                                            <Factory size={14}/> Ανάγκες Παραγωγής
-                                        </h3>
-                                        <span className="bg-white text-indigo-600 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm">
-                                            {productionNeeds.linked.length} Συνδεδεμένα / {productionNeeds.other.length} Άλλα
-                                        </span>
-                                    </div>
-                                    
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar pr-1 space-y-2">
-                                        {productionNeeds.linked.map((n, idx) => (
-                                            <div key={idx} className="bg-white p-2 rounded-lg border border-indigo-200 flex justify-between items-center shadow-sm">
-                                                <div className="min-w-0 flex-1 pr-2">
-                                                    <div className="font-black text-slate-800 text-xs truncate">{n.sku}{n.variant}</div>
-                                                    <div className="text-[9px] text-slate-500 font-bold uppercase mt-0.5 truncate">
-                                                        {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
-                                                    className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold hover:bg-indigo-200 shrink-0"
-                                                >
-                                                    +{n.totalQty}
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {productionNeeds.other.length > 0 && (
-                                            <div className="pt-2 border-t border-indigo-200/50 mt-2">
-                                                <p className="text-[9px] font-bold text-indigo-400 uppercase mb-2">Άλλοι Προμηθευτές (Εξαιρέσεις)</p>
-                                                {productionNeeds.other.map((n, idx) => (
-                                                    <div key={`other-${idx}`} className="bg-white/50 p-2 rounded-lg border border-slate-200 flex justify-between items-center mb-1">
-                                                        <div className="min-w-0 flex-1 pr-2">
-                                                            <div className="font-bold text-slate-600 text-xs truncate">{n.sku}{n.variant}</div>
-                                                            <div className="text-[8px] text-slate-400 truncate">
-                                                                Αρχικός Προμηθευτής: {suppliers?.find(s => s.id === n.product?.supplier_id)?.name || '-'}
-                                                            </div>
-                                                            <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 truncate">
-                                                                {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
-                                                            </div>
-                                                        </div>
-                                                        <button 
-                                                            onClick={() => handleAddToOrder({ sku: n.sku, supplier_cost: n.product?.supplier_cost }, 'Product', n.totalQty)}
-                                                            className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold hover:bg-slate-200 shrink-0"
-                                                        >
-                                                            Προσθήκη {n.totalQty}
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                                <button onClick={() => setPoType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${poType === 'Material' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500'}`}>Υλικά</button>
-                                <button onClick={() => setPoType('Product')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${poType === 'Product' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>Προϊόντα</button>
-                            </div>
-                            
-                            {poType === 'Product' && (
-                                <div className="flex items-center gap-2">
-                                    <input type="checkbox" checked={showAllProducts} onChange={e => setShowAllProducts(e.target.checked)} id="showAllProducts" className="w-4 h-4 text-blue-600 rounded"/>
-                                    <label htmlFor="showAllProducts" className="text-xs font-bold text-slate-600 cursor-pointer">Εμφάνιση όλων των προϊόντων (όχι μόνο συνδεδεμένων)</label>
-                                </div>
-                            )}
-
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                                <input className="w-full pl-9 p-3 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-slate-200" placeholder={`Αναζήτηση ${poType === 'Material' ? 'υλικού' : 'προϊόντος'}...`} value={poSearch} onChange={e => setPoSearch(e.target.value)}/>
-                                {poSearch && (
-                                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-100 rounded-xl shadow-xl mt-2 z-50 max-h-60 overflow-y-auto">
-                                        {(poType === 'Material' ? materials : products)?.filter((i: any) => {
-                                            const matchesSearch = (i.name || i.sku).toLowerCase().includes(poSearch.toLowerCase());
-                                            if (poType === 'Product' && !showAllProducts) return matchesSearch && i.supplier_id === selectedSupplier.id;
-                                            return matchesSearch;
-                                        }).slice(0, 10).map((item: any) => (
-                                            <button key={item.id || item.sku} onClick={() => { handleAddToOrder(item, poType); setPoSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 flex justify-between items-center text-sm">
-                                                <span className="font-bold text-slate-700">{item.name || item.sku}</span>
-                                                <Plus size={14} className="text-emerald-500"/>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Σημειώσεις παραγγελίας..." className="w-full p-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none"/>
-                        </div>
-
-                        <div className="flex-1 bg-slate-50 p-6 flex flex-col overflow-hidden">
-                            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                                {orderItems.map((item, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                        <div>
-                                            <div className="font-black text-slate-800 text-sm">{item.item_name}</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{item.item_type}</div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] font-bold text-slate-400">€</span>
-                                                <input type="number" value={item.unit_cost} onChange={e => updateOrderItem(idx, 'cost', parseFloat(e.target.value)||0)} className="w-16 p-1 border rounded text-right text-sm font-mono"/>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] font-bold text-slate-400">Qty</span>
-                                                <input type="number" value={item.quantity} onChange={e => updateOrderItem(idx, 'qty', parseInt(e.target.value)||1)} className="w-12 p-1 border rounded text-center text-sm font-bold"/>
-                                            </div>
-                                            <div className="font-black text-slate-900 w-20 text-right">{formatCurrency(item.total_cost)}</div>
-                                            <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {orderItems.length === 0 && <div className="text-center py-20 text-slate-400 italic">Προσθέστε είδη.</div>}
-                            </div>
-                            
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-lg">
-                                <div>
-                                    <div className="text-xs font-bold text-slate-400 uppercase">Σύνολο</div>
-                                    <div className="text-2xl font-black text-emerald-600">{formatCurrency(orderItems.reduce((s,i) => s + i.total_cost, 0))}</div>
-                                </div>
-                                <button onClick={saveOrder} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-md">Δημιουργία</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                 <DesktopPurchaseOrderBuilder 
+                    supplier={selectedSupplier}
+                    onClose={() => setIsCreatingOrder(false)}
+                 />
             )}
         </div>
     </div>
