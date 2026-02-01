@@ -903,7 +903,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα ({selectedItems.length})</label>
                         <div className="flex items-center gap-2">
                             <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all">
-                                <RefreshCw size={14}/> Συγχρονισμός Τιμών
+                                <RefreshCw size={12}/> Συγχρονισμός Τιμών
                             </button>
                             <button onClick={() => setSortOrder(prev => prev === 'input' ? 'alpha' : 'input')} className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
                                 <ArrowDownAZ size={12}/> {sortOrder === 'input' ? 'Χρον.' : 'Αλφ.'}
