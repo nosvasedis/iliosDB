@@ -678,13 +678,21 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (!finderTerm || finderTerm.length < 2) return [];
         const term = finderTerm.toUpperCase();
         
+        // Define stage order based on the STAGES array
+        const stageOrder = STAGES.reduce((acc, s, i) => ({ ...acc, [s.id]: i }), {} as Record<string, number>);
+
         return enhancedBatches
             .filter(b => {
                 const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
                 return fullSku.includes(term) || (b.order_id && b.order_id.includes(term)) || (b.customer_name && b.customer_name.toUpperCase().includes(term));
             })
-            // Sort: Exact matches first
+            // Sort by Stage Order first, then Exact Match
             .sort((a, b) => {
+                const stageA = stageOrder[a.current_stage] ?? 99;
+                const stageB = stageOrder[b.current_stage] ?? 99;
+                
+                if (stageA !== stageB) return stageA - stageB;
+
                 const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
                 const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
                 return (aExact === bExact) ? 0 : aExact ? -1 : 1;
@@ -1041,7 +1049,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                      {/* RESULTS DROPDOWN */}
                      {finderTerm.length >= 2 && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-96 overflow-y-auto custom-scrollbar p-2 space-y-2">
-                             {foundBatches.map(b => (
+                             {foundBatches.map(b => {
+                                 const stageConf = STAGES.find(s => s.id === b.current_stage);
+                                 const colorClasses = STAGE_COLORS[stageConf?.color || 'slate'] || 'bg-slate-100 text-slate-600 border-slate-200';
+                                 
+                                 return (
                                  <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
                                      <div className="flex justify-between items-start">
                                          <div>
@@ -1055,8 +1067,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                          </div>
                                          <div className="text-right">
                                              <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
-                                             <span className="text-[10px] uppercase font-bold bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">
-                                                 {STAGES.find(s => s.id === b.current_stage)?.label || b.current_stage}
+                                             <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClasses}`}>
+                                                 {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
+                                                 {stageConf?.label || b.current_stage}
                                              </span>
                                          </div>
                                      </div>
@@ -1069,7 +1082,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                          ) : <div/>}
                                          
                                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                             <span className="text-[9px] font-bold text-slate-400 uppercase">Move:</span>
+                                             <span className="text-[9px] font-bold text-slate-400 uppercase">Μετακίνηση:</span>
                                              <select 
                                                 value="" 
                                                 onChange={(e) => attemptMove(b, e.target.value as ProductionStage)}
@@ -1081,7 +1094,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                          </div>
                                      </div>
                                  </div>
-                             ))}
+                             )})}
                              {foundBatches.length === 0 && <div className="p-4 text-center text-slate-400 text-xs italic">Δεν βρέθηκαν ενεργές παρτίδες.</div>}
                         </div>
                      )}
@@ -1090,7 +1103,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             
             <div className="flex items-center gap-2 flex-wrap">
                 <button 
-                    onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.current_stage === ProductionStage.Waxing || b.current_stage === ProductionStage.Casting), 'preparation')}
+                    onClick={() => handlePrintRequest(enhancedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
                     className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-xs"
                 >
                     <BookOpen size={14} /> Προετοιμασία
