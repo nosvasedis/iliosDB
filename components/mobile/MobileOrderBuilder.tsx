@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../../types';
-import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, Hash, User, Phone, Check, AlertCircle, ImageIcon, Box, Camera, StickyNote, Minus, Coins, Percent, ScanBarcode, RefreshCw, Tag, Layers, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -16,24 +16,39 @@ interface Props {
     products: Product[];
 }
 
-// Visual Helpers
+// Visual Helpers (Synced with Desktop)
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-700 border-amber-200',
-    'P': 'bg-slate-100 text-slate-600 border-slate-200',
-    'D': 'bg-orange-100 text-orange-700 border-orange-200',
-    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    '': 'bg-emerald-50 text-emerald-700 border-emerald-200' // Lustre default
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500', 
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400', 
+    '': 'text-slate-400'
 };
 
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-500', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
-    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
-    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
-    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
-    'MV': 'text-purple-500', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
+
+const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender: any }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+
+    return (
+        <span className="font-black">
+            <span className="text-slate-900">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
 };
 
 export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
@@ -53,6 +68,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
+    const [tags, setTags] = useState<string[]>(initialOrder?.tags || []);
 
     // --- INPUT STATE ---
     const [input, setInput] = useState('');
@@ -63,11 +79,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [itemNotes, setItemNotes] = useState('');
     const [qty, setQty] = useState(1);
     const [showScanner, setShowScanner] = useState(false);
+    const [tagInput, setTagInput] = useState('');
+    const [showCustSuggestions, setShowCustSuggestions] = useState(false);
     
-    // Price Sync Indicators
-    const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number } | null>(null);
-    
-    // Suggestion List Ref for scrolling
     const inputRef = useRef<HTMLInputElement>(null);
 
     // --- SMART SEARCH LOGIC ---
@@ -78,50 +92,33 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             return;
         }
 
-        const numericMatch = term.match(/\d+/);
-        const numberTerm = numericMatch ? numericMatch[0] : null;
-
         const results = products.filter(p => {
             if (p.is_component) return false;
-            // Case 1: SKU starts with term
-            if (p.sku.startsWith(term)) return true;
-            // Case 2: SKU contains the numeric part (e.g. searching "602" matches "PN602")
-            if (numberTerm && numberTerm.length >= 3 && p.sku.includes(numberTerm)) return true;
-            return false;
-        }).sort((a, b) => {
-            // Priority 1: Exact Match
-            const aExact = a.sku === term;
-            const bExact = b.sku === term;
-            if (aExact && !bExact) return -1;
-            if (!aExact && bExact) return 1;
-
-            // Priority 2: Starts With Match (e.g. "PN" puts "PN602" before "RN602" even if RN has "PN" somewhere else or via numeric match)
-            const aStarts = a.sku.startsWith(term);
-            const bStarts = b.sku.startsWith(term);
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-
-            // Priority 3: Shorter length (e.g. "A100" before "A1005")
-            if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
-            
-            // Priority 4: Alphabetical
-            return a.sku.localeCompare(b.sku);
+            return p.sku.startsWith(term) || (term.length >= 3 && p.sku.includes(term));
         }).slice(0, 10);
 
         setSuggestions(results);
     }, [input, products]);
+
+    const handleSelectCustomer = (c: Customer) => {
+        setCustomerId(c.id);
+        setCustomerName(c.full_name);
+        setCustomerPhone(c.phone || '');
+        if (c.vat_rate !== undefined && c.vat_rate !== null) {
+            setVatRate(c.vat_rate);
+        } else {
+            setVatRate(VatRegime.Standard);
+        }
+        setShowCustSuggestions(false);
+    };
 
     const handleSelectMaster = (p: Product) => {
         setActiveMaster(p);
         setInput(''); 
         setSuggestions([]);
         const sizing = getSizingInfo(p);
-        if (sizing) {
-            setSizeMode(sizing);
-            setSelectedSize('');
-        } else {
-            setSizeMode(null);
-        }
+        setSizeMode(sizing || null);
+        setSelectedSize('');
     };
 
     const handleAddItem = (variant: ProductVariant | null) => {
@@ -155,168 +152,57 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             return [newItem, ...prev];
         });
 
-        if (navigator.vibrate) navigator.vibrate(50);
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
         
-        // Reset diffs on new add
-        setPriceDiffs(null);
-
         setActiveMaster(null);
         setQty(1);
         setSelectedSize('');
         setItemNotes('');
         setSizeMode(null);
         setInput('');
-        setTimeout(() => inputRef.current?.focus(), 100);
     };
 
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
         if (match) {
             const { product, variant } = match;
-
-            // @FIX: Block adding components (STX) via Barcode Scanner in Order workflow
             if (product.is_component) {
-                showToast(`Ο κωδικός ${product.sku} είναι εξάρτημα και δεν πωλείται.`, "error");
+                showToast(`Το ${product.sku} είναι εξάρτημα.`, "error");
                 return;
             }
 
-            const isSpecific = !!variant;
-            const isSimple = !product.variants || product.variants.length === 0;
+            const unitPrice = variant?.selling_price || product.selling_price || 0;
+            const newItem: OrderItem = {
+                sku: product.sku,
+                variant_suffix: variant?.suffix,
+                quantity: 1,
+                price_at_order: unitPrice,
+                product_details: product
+            };
 
-            if (isSpecific || isSimple) {
-                const unitPrice = variant?.selling_price || product.selling_price || 0;
-                const newItem: OrderItem = {
-                    sku: product.sku,
-                    variant_suffix: variant?.suffix,
-                    quantity: 1,
-                    price_at_order: unitPrice,
-                    product_details: product
-                };
-
-                setItems(prev => {
-                    const existingIdx = prev.findIndex(i => 
-                        i.sku === newItem.sku && 
-                        i.variant_suffix === newItem.variant_suffix && 
-                        !i.size_info
-                    );
-                    if (existingIdx >= 0) {
-                        const updated = [...prev];
-                        updated[existingIdx].quantity += 1;
-                        return updated;
-                    }
-                    return [newItem, ...prev];
-                });
-                setPriceDiffs(null);
-                showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
-                setShowScanner(false);
-            } else {
-                handleSelectMaster(product);
-                setShowScanner(false);
-                showToast(`Επιλέξτε παραλλαγή για ${product.sku}`, 'info');
-            }
+            setItems(prev => {
+                const existingIdx = prev.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
+                if (existingIdx >= 0) {
+                    const updated = [...prev];
+                    updated[existingIdx].quantity += 1;
+                    return updated;
+                }
+                return [newItem, ...prev];
+            });
+            showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
+            setShowScanner(false);
         } else {
-            showToast(`Μη έγκυρος κωδικός: ${code}`, 'error');
+            showToast(`Μη έγκυρος κωδικός.`, 'error');
         }
     };
-
-    const executeAddItem = () => {
-        // Trim input to ignore size part if typed after space
-        const skuCode = input.split(/\s+/)[0]; 
-    
-        if (!skuCode) return;
-        const match = findProductByScannedCode(skuCode, products);
-        
-        if (!match) {
-            showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, "error");
-            return;
-        }
-    
-        const { product, variant } = match;
-    
-        if (product.is_component) {
-            showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, "error");
-            return;
-        }
-
-        // STRICT VARIANT VALIDATION
-        if (!variant) {
-            const hasVariants = product.variants && product.variants.length > 0;
-            // Exception: If the product has exactly 1 variant and it is "Lustre" (empty suffix), treat master as that variant.
-            const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
-
-            if (hasVariants && !isSingleLustre) {
-                showToast("Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.", "error");
-                // Expand variants view if needed or just return to force selection
-                setActiveMaster(product); 
-                return;
-            }
-        }
-    
-        const unitPrice = variant?.selling_price || product.selling_price || 0;
-    
-        const newItem: OrderItem = {
-            sku: product.sku,
-            variant_suffix: variant?.suffix,
-            quantity: qty,
-            price_at_order: unitPrice,
-            product_details: product,
-            size_info: selectedSize || undefined,
-            notes: itemNotes || undefined
-        };
-    
-        setItems(prev => {
-            const existingIdx = prev.findIndex(i => 
-                i.sku === newItem.sku && 
-                i.variant_suffix === newItem.variant_suffix && 
-                i.size_info === newItem.size_info &&
-                i.notes === newItem.notes
-            );
-            if (existingIdx >= 0) {
-                const updated = [...prev];
-                updated[existingIdx].quantity += qty;
-                return updated;
-            }
-            return [newItem, ...prev];
-        });
-        
-        setPriceDiffs(null);
-    
-        setInput('');
-        setQty(1);
-        setItemNotes('');
-        setSelectedSize('');
-        setSuggestions([]);
-        setActiveMaster(null);
-        setSizeMode(null);
-        inputRef.current?.focus();
-        showToast("Το προϊόν προστέθηκε.", "success");
-    };
-
-    // Calculate Totals
-    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-    const discountAmount = subtotal * (discountPercent / 100);
-    const netAmount = subtotal - discountAmount;
-    const vatAmount = netAmount * vatRate;
-    const grandTotal = netAmount + vatAmount;
 
     const handleSaveOrder = async () => {
         if (!customerName) { showToast("Το όνομα πελάτη είναι υποχρεωτικό.", 'error'); return; }
         if (items.length === 0) { showToast("Η παραγγελία είναι κενή.", 'error'); return; }
         setIsSaving(true);
         try {
-            let orderId = initialOrder?.id;
-            if (!orderId) {
-                const now = new Date();
-                const year = now.getFullYear().toString().slice(-2);
-                const month = (now.getMonth() + 1).toString().padStart(2, '0');
-                const day = now.getDate().toString().padStart(2, '0');
-                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-                orderId = `ORD-${year}${month}${day}-${random}`;
-            }
-
             const orderPayload: Order = {
-                id: orderId,
+                id: initialOrder?.id || `ORD-${Date.now()}`,
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_id: customerId || undefined,
@@ -327,7 +213,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 discount_percent: discountPercent,
                 status: initialOrder?.status || OrderStatus.Pending,
                 created_at: initialOrder?.created_at || new Date().toISOString(),
-                notes: orderNotes
+                notes: orderNotes,
+                tags: tags
             };
             if (initialOrder) await api.updateOrder(orderPayload);
             else await api.saveOrder(orderPayload);
@@ -337,283 +224,174 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         finally { setIsSaving(false); }
     };
 
-    const handleRemoveItem = (index: number) => {
-        setItems(prev => prev.filter((_, i) => i !== index));
-        setPriceDiffs(null);
-    };
-    
-    const updateItemQty = (index: number, delta: number) => {
-        setItems(prev => {
-            const next = [...prev];
-            next[index].quantity = Math.max(1, next[index].quantity + delta);
-            return next;
-        });
-        setPriceDiffs(null);
-    };
+    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
+    const discountAmount = subtotal * (discountPercent / 100);
+    const netAmount = subtotal - discountAmount;
+    const vatAmount = netAmount * vatRate;
+    const grandTotal = netAmount + vatAmount;
 
-    const updateItemNotes = (index: number, notes: string) => {
-        setItems(prev => {
-            const next = [...prev];
-            next[index].notes = notes || undefined;
-            return next;
-        });
-    };
-
-    const [showCustSearch, setShowCustSearch] = useState(false);
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
         return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
     }, [customers, customerName]);
 
-    const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
-    
-    // NEW: RECALCULATE PRICES BASED ON CURRENT REGISTRY
-    const handleRecalculatePrices = () => {
-        // 1. Calculate Old Totals
-        const oldSub = items.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-        const oldNet = oldSub * (1 - discountPercent / 100);
-        const oldVat = oldNet * vatRate;
-        const oldTotal = oldNet + oldVat;
-
-        let updatedCount = 0;
-        const newItems = items.map(item => {
-            const product = products.find(p => p.sku === item.sku);
-            if (!product) return item;
-
-            let currentRegistryPrice = 0;
-            // FIX: Explicitly check for undefined/null to allow empty string suffix (Lustre) to be matched in variants
-            const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
-            
-            if (hasSuffix) {
-                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-                currentRegistryPrice = variant?.selling_price || 0;
-            } 
-            
-            // Fallback to master selling price if no variant price found
-            if (currentRegistryPrice === 0) {
-                currentRegistryPrice = product.selling_price;
-            }
-
-            // If price differs, update it
-            if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
-                updatedCount++;
-                return { ...item, price_at_order: currentRegistryPrice };
-            }
-            return item;
-        });
-
-        // 2. Calculate New Totals
-        const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-        const newNet = newSub * (1 - discountPercent / 100);
-        const newVat = newNet * vatRate;
-        const newTotal = newNet + newVat;
-        
-        setPriceDiffs({
-            net: newNet - oldNet,
-            vat: newVat - oldVat,
-            total: newTotal - oldTotal
-        });
-
-        if (updatedCount > 0) {
-            setItems(newItems);
-            showToast(`Ενημερώθηκαν οι τιμές σε ${updatedCount} είδη.`, 'success');
-        } else {
-            showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
-        }
-    };
-
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
-                <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800"><ArrowLeft size={24}/></button>
-                <div className="font-black text-slate-800 text-lg">{initialOrder ? `Edit #${initialOrder.id.slice(0,6)}` : 'Νέα Παραγγελία'}</div>
-                <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50"><Save size={20}/></button>
+                <button onClick={onBack} className="p-2 -ml-2 text-slate-500"><ArrowLeft size={24}/></button>
+                <div className="font-black text-slate-800 text-lg">{initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα Παραγγελία'}</div>
+                <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50">{isSaving ? <Loader2 size={20} className="animate-spin"/> : <Save size={20}/>}</button>
             </div>
 
-            <div className="p-4 bg-white border-b border-slate-100 shrink-0 z-10 space-y-3">
-                <div className="relative">
-                    <div className="flex items-center gap-2 mb-2">
-                        <User size={16} className="text-slate-400"/>
-                        <input className="flex-1 outline-none font-bold text-slate-800 placeholder-slate-300" placeholder="Όνομα Πελάτη..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSearch(true); if(!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustSearch(true)}/>
-                        {customerId && <Check size={16} className="text-emerald-500"/>}
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4 pb-40">
+                
+                {/* Customer Section */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                    <div className="relative">
+                        <div className="flex items-center gap-2 mb-2">
+                            <User size={16} className="text-slate-400"/>
+                            <input className="flex-1 outline-none font-bold text-slate-800" placeholder="Όνομα Πελάτη..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); if(!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustSuggestions(true)}/>
+                        </div>
+                        {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
+                                {filteredCustomers.map(c => (
+                                    <div key={c.id} onClick={() => { handleSelectCustomer(c); }} className="p-3 border-b border-slate-50 font-medium text-sm flex justify-between"><span>{c.full_name}</span><span className="text-slate-400 text-xs">{c.phone}</span></div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="flex items-center gap-4 border-t border-slate-50 pt-3">
+                            <div className="flex-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">ΦΠΑ</label>
+                                <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-slate-50 rounded-lg text-sm font-bold outline-none border border-slate-100">
+                                    <option value={VatRegime.Standard}>24%</option>
+                                    <option value={VatRegime.Reduced}>17%</option>
+                                    <option value={VatRegime.Zero}>0%</option>
+                                </select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
+                                <div className="flex items-center gap-2 bg-slate-50 px-2 rounded-lg border border-slate-100">
+                                    <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-none text-right"/>
+                                    <Percent size={14} className="text-slate-400"/>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    {showCustSearch && customerName && !customerId && filteredCustomers.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
-                            {filteredCustomers.map(c => (
-                                <div key={c.id} onClick={() => { setCustomerName(c.full_name); setCustomerPhone(c.phone||''); setCustomerId(c.id); setShowCustSearch(false); }} className="p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 font-medium text-sm flex justify-between"><span>{c.full_name}</span>{c.phone && <span className="text-slate-400 text-xs">{c.phone}</span>}</div>
-                            ))}
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2 border-t border-slate-50 pt-2"><Phone size={16} className="text-slate-400"/><input className="flex-1 outline-none text-sm text-slate-600 placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}/></div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    <Coins size={14} className="text-slate-400"/>
-                    <label className="text-xs font-bold text-slate-500 uppercase shrink-0">ΦΠΑ:</label>
-                    <select 
-                        value={vatRate} 
-                        onChange={(e) => setVatRate(parseFloat(e.target.value))} 
-                        className="flex-1 bg-transparent text-sm font-bold text-slate-800 outline-none"
-                    >
-                        <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                        <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                        <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                    </select>
-                </div>
-
-                <div className="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
-                    <Percent size={14} className="text-amber-500"/>
-                    <label className="text-xs font-bold text-amber-700 uppercase shrink-0">Έκπτωση (%):</label>
-                    <input 
-                        type="number" 
-                        min="0" 
-                        max="100" 
-                        value={discountPercent} 
-                        onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} 
-                        className="flex-1 bg-transparent text-sm font-black text-amber-800 outline-none"
-                        placeholder="0"
-                    />
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4">
-                {/* Product Input Section */}
+                {/* Add Item Trigger */}
                 {!activeMaster && (
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
-                        <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
-                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400 transition-all">
-                            <Search size={20} className="text-slate-400 ml-1"/><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="π.χ. DA100 ή 1005..." className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-slate-900 uppercase placeholder-slate-300"/><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-800"><Camera size={20}/></button>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                            <Search size={20} className="text-slate-400 ml-1"/><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="Αναζήτηση κωδικού..." className="flex-1 bg-transparent p-2 outline-none font-bold text-slate-900 uppercase"/><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400"><Camera size={20}/></button>
                         </div>
-                        <div className="mt-2 space-y-2">
-                            {suggestions.map(p => (
-                                <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-2 rounded-xl bg-white border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300"/>}</div>
-                                        <div><div className="font-black text-slate-800 text-lg leading-none">{p.sku}</div><div className="text-xs text-slate-500 font-medium">{p.category}</div></div>
-                                    </div>
-                                    <ChevronRight size={16} className="text-slate-300"/>
+                        {suggestions.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                                {suggestions.map(p => (
+                                    <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300"/>}</div>
+                                            <div><div className="font-black text-slate-800 text-sm">{p.sku}</div><div className="text-[10px] text-slate-500">{p.category}</div></div>
+                                        </div>
+                                        <ChevronRight size={16} className="text-slate-300"/>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Selection Details */}
+                {activeMaster && (
+                    <div className="bg-white p-5 rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
+                        <div className="flex justify-between items-start">
+                            <div><h3 className="text-xl font-black text-slate-900">{activeMaster.sku}</h3><p className="text-[10px] text-slate-400 font-bold uppercase">{activeMaster.category}</p></div>
+                            <button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-50 rounded-full"><X size={20}/></button>
+                        </div>
+                        {sizeMode && (
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Επιλογή {sizeMode.type}</label>
+                                <div className="grid grid-cols-5 gap-1.5">
+                                    {sizeMode.sizes.map(s => (<button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-1.5 rounded-lg text-xs font-bold border ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{s}</button>))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
+                            <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
+                            <div className="flex items-center gap-4"><button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 bg-white rounded shadow-sm text-slate-700 font-bold">-</button><span className="font-black text-lg">{qty}</span><button onClick={() => setQty(qty + 1)} className="w-8 h-8 bg-white rounded shadow-sm text-slate-700 font-bold">+</button></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(!activeMaster.variants || activeMaster.variants.length === 0) && <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black col-span-2">Προσθήκη</button>}
+                            {activeMaster.variants?.map(v => (
+                                <button key={v.suffix} onClick={() => handleAddItem(v)} className="p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-0.5 active:scale-95 shadow-sm bg-white border-slate-100 hover:border-emerald-500">
+                                    <SkuColored sku="" suffix={v.suffix} gender={activeMaster.gender} />
+                                    <span className="text-[8px] uppercase font-bold text-slate-400 truncate w-full text-center">{v.description}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* Variant/Options Selection */}
-                {activeMaster && (
-                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-emerald-100 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-start mb-4"><div><h3 className="text-2xl font-black text-slate-900">{activeMaster.sku}</h3><p className="text-xs text-slate-500 font-bold uppercase">{activeMaster.category}</p></div><button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button></div>
-
-                        {sizeMode && (
-                            <div className="mb-6">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block flex items-center gap-1"><Hash size={12}/> Επιλογή {sizeMode.type} <span className="font-normal text-slate-300 lowercase">(προαιρετικό)</span></label>
-                                <div className="grid grid-cols-5 gap-2">{sizeMode.sizes.map(s => (<button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-2 rounded-lg text-sm font-bold border ${selectedSize === s ? 'bg-slate-800 text-white border-slate-800 shadow-md transform scale-105' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{s}</button>))}</div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl mb-4 border border-slate-100">
-                            <span className="text-xs font-bold text-slate-500 uppercase ml-1">Ποσότητα</span>
-                            <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-sm"><button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 bg-slate-100 rounded text-slate-600 font-bold">-</button><span className="w-8 text-center font-black text-lg">{qty}</span><button onClick={() => setQty(qty + 1)} className="w-8 h-8 bg-slate-100 rounded text-slate-600 font-bold">+</button></div>
-                        </div>
-                        
-                        <div className="mb-6">
-                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><StickyNote size={12}/> Παρατηρήσεις Είδους</label>
-                            <input value={itemNotes} onChange={e => setItemNotes(e.target.value)} onKeyDown={e => e.key === 'Enter' && executeAddItem()} placeholder="π.χ. Αλλαγή κουμπώματος..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"/>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            {!hasVariants && (<button onClick={() => handleAddItem(null)} className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 col-span-2"><span className="text-lg font-black text-slate-700">Βασικό</span><span className="text-[10px] uppercase font-bold text-slate-400">Master</span></button>)}
-                            {activeMaster.variants?.map(v => {
-                                const { finish, stone } = getVariantComponents(v.suffix, activeMaster.gender);
-                                const finishColor = FINISH_COLORS[finish.code] || 'bg-slate-50 text-slate-700 border-slate-200';
-                                const stoneColorClass = stone.code ? (STONE_TEXT_COLORS[stone.code] || 'text-emerald-600') : '';
-                                return (<button key={v.suffix} onClick={() => handleAddItem(v)} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm bg-white ${finishColor}`}><span className="text-lg font-black flex items-center gap-0.5">{finish.code}{stone.code && <span className={stoneColorClass}>{stone.code}</span>}{!finish.code && !stone.code && v.suffix}</span><span className="text-[10px] uppercase font-bold opacity-80 truncate w-full text-center">{v.description || 'Var'}</span></button>);
-                            })}
-                        </div>
-                    </div>
-                )}
-
                 {/* Items List */}
-                <div className="mt-4 pb-20">
-                    <div className="flex justify-between items-center mb-2 px-2 pb-2 border-b border-slate-100">
-                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Καλάθι ({items.length})</h3>
-                         <button onClick={handleRecalculatePrices} className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all">
-                             <RefreshCw size={12}/> Sync Prices
-                         </button>
-                    </div>
-
-                    <div className="space-y-2">
-                        {items.map((item, idx) => (
-                            <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="font-black text-slate-800 text-base">{item.sku}<span className="text-emerald-600">{item.variant_suffix}</span></div>
-                                        <div className="text-[10px] text-slate-500 font-medium flex gap-2"><span>{formatCurrency(item.price_at_order)}</span>{item.size_info && <span className="bg-slate-100 px-1 rounded border border-slate-200">Size: {item.size_info}</span>}</div>
+                <div className="space-y-2">
+                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-widest ml-1">Περιεχόμενα ({items.length})</h3>
+                    {items.map((item, idx) => (
+                        <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
+                                    {item.product_details?.image_url ? <img src={item.product_details.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-200"/>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-start">
+                                        <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
+                                        <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1"><Trash2 size={16}/></button>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1 border border-slate-100">
-                                            <button onClick={() => updateItemQty(idx, -1)} className="p-1 text-slate-400"><Minus size={12}/></button>
-                                            <span className="text-xs font-bold text-slate-700 w-4 text-center">{item.quantity}</span>
-                                            <button onClick={() => updateItemQty(idx, 1)} className="p-1 text-slate-400"><Plus size={12}/></button>
-                                        </div>
-                                        <button onClick={() => handleRemoveItem(idx)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
+                                        {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded border border-blue-100 font-bold">{item.size_info}</span>}
                                     </div>
                                 </div>
-                                {item.notes && (
-                                    <div className="bg-emerald-50/50 p-2 rounded-lg border border-emerald-100 flex items-start gap-2">
-                                        <StickyNote size={12} className="text-emerald-500 shrink-0 mt-0.5"/>
-                                        <span className="text-[10px] text-emerald-800 font-bold italic line-clamp-1">{item.notes}</span>
-                                    </div>
-                                )}
                             </div>
-                        ))}
-                        {items.length === 0 && (<div className="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50"><p className="text-sm font-bold">Το καλάθι είναι άδειο</p><p className="text-xs">Ξεκινήστε την πληκτρολόγηση...</p></div>)}
-                    </div>
+                            <div className="flex items-center gap-3 pt-2 border-t border-slate-50">
+                                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
+                                    <StickyNote size={14} className="text-slate-300 ml-1"/>
+                                    <input 
+                                        className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-300"
+                                        placeholder="Σημείωση είδους..."
+                                        value={item.notes || ''}
+                                        onChange={e => {
+                                            const newItems = [...items];
+                                            newItems[idx].notes = e.target.value;
+                                            setItems(newItems);
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">-</button>
+                                    <span className="w-4 text-center font-black text-xs">{item.quantity}</span>
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="pt-4 space-y-4">
+                     <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Γενικές Σημειώσεις Παραγγελίας</label>
+                        <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-none mt-1 shadow-inner focus:ring-2 focus:ring-slate-200"/>
+                     </div>
                 </div>
             </div>
 
-            {/* Footer */}
-            <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-lg">
-                <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
-                     <span>Καθαρή Αξία:</span>
-                     <div className="flex items-center gap-1">
-                        <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
-                        {priceDiffs && priceDiffs.net !== 0 && (
-                            <span className={`text-[10px] font-bold ${priceDiffs.net > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                ({priceDiffs.net > 0 ? '+' : ''}{formatCurrency(priceDiffs.net)})
-                            </span>
-                        )}
-                     </div>
+            {/* Footer Summary */}
+            <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
+                <div className="flex justify-between items-center mb-3 px-2">
+                    <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο (Net): {formatCurrency(netAmount)}</div>
+                    <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                 </div>
-                {discountPercent > 0 && (
-                    <div className="flex justify-between items-center text-xs text-red-500 mb-1">
-                        <span>Έκπτωση ({discountPercent}%):</span>
-                        <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
-                    </div>
-                )}
-                <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200 pb-2 mb-2">
-                     <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
-                     <div className="flex items-center gap-1">
-                        <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
-                        {priceDiffs && priceDiffs.vat !== 0 && (
-                            <span className={`text-[10px] font-bold ${priceDiffs.vat > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                ({priceDiffs.vat > 0 ? '+' : ''}{formatCurrency(priceDiffs.vat)})
-                            </span>
-                        )}
-                     </div>
-                </div>
-                <div className="flex justify-between items-center mb-3">
-                     <span className="font-black text-slate-800 uppercase text-sm">Συνολο</span>
-                     <div className="flex flex-col items-end">
-                         <span className="font-black text-2xl text-emerald-700">{formatCurrency(grandTotal)}</span>
-                         {priceDiffs && priceDiffs.total !== 0 && (
-                            <span className={`text-xs font-bold ${priceDiffs.total > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                {priceDiffs.total > 0 ? '+' : ''}{formatCurrency(priceDiffs.total)}
-                            </span>
-                        )}
-                     </div>
-                </div>
-                <button onClick={handleSaveOrder} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
-                    <Save size={20}/> Αποθήκευση Εντολής
+                <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3">
+                    <Save size={20}/> {initialOrder ? 'Ενημέρωση Εντολής' : 'Αποθήκευση Εντολής'}
                 </button>
             </div>
             

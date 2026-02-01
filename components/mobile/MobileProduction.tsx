@@ -35,7 +35,6 @@ const STAGE_COLORS: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
-// Heuristic for delay detection (matches ProductionPage logic)
 const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Waxing]: 120,    // 5 Days
     [ProductionStage.Casting]: 96,    // 4 Days
@@ -44,7 +43,6 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Labeling]: 72    // 3 Days
 };
 
-// Time Aging Helper
 const getTimeInStage = (dateStr: string) => {
     const start = new Date(dateStr);
     const now = new Date();
@@ -57,13 +55,13 @@ const getTimeInStage = (dateStr: string) => {
 
     if (diffDays > 0) {
         label = `${diffDays}d ${diffHrs % 24}h`;
-        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical (> 6 days)
-        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning (4-5 days)
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
+        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200';
+        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200';
+        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
     } else {
         label = `${diffHrs}h`;
-        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200'; // Fresh
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
+        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200';
+        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
     }
 
     return { label, colorClass };
@@ -351,7 +349,6 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
             const order = orders.find(o => o.id === b.order_id);
 
-            // Calculate Delay
             const lastUpdate = new Date(b.updated_at);
             const now = new Date();
             const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
@@ -363,7 +360,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 requires_setting: hasZircons, 
                 product_details: prod,
                 customer_name: order?.customer_name || '',
-                isDelayed // Calculate for mobile display
+                isDelayed
             };
         });
     }, [batches, allProducts, materials, orders]);
@@ -384,6 +381,12 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const getNextStage = (batch: ProductionBatch): ProductionStage | null => {
         const currentIndex = STAGES.findIndex(s => s.id === batch.current_stage);
         if (currentIndex === -1 || currentIndex === STAGES.length - 1) return null;
+        
+        // Shortcut for Imported Items: Awaiting -> Labeling
+        if (batch.product_details?.production_type === ProductionType.Imported && batch.current_stage === ProductionStage.AwaitingDelivery) {
+            return ProductionStage.Labeling;
+        }
+
         let nextIndex = currentIndex + 1;
         if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) nextIndex++;
         return STAGES[nextIndex].id as ProductionStage;
@@ -405,7 +408,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         if (batch.on_hold) {
             await api.toggleBatchHold(batch.id, false);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
-            showToast("Resumed.", "success");
+            showToast("Η παραγωγή συνεχίζεται.", "success");
         } else {
             setHoldBatch(batch);
         }
@@ -417,8 +420,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             await api.toggleBatchHold(holdBatch.id, true, reason);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             setHoldBatch(null);
-            showToast("Held.", "warning");
-        } catch (e) { showToast("Error.", "error"); }
+            showToast("Τέθηκε σε αναμονή.", "warning");
+        } catch (e) { showToast("Σφάλμα.", "error"); }
     };
 
     const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage) => {
@@ -431,7 +434,6 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         }
     };
 
-    // Print Handlers
     const handlePrintRequest = (batchesToPrint: ProductionBatch[], type: 'technician' | 'preparation' | 'aggregated') => {
         const validBatches = batchesToPrint.filter(b => !b.on_hold);
         
@@ -448,7 +450,6 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     };
 
     const handlePrintStageLabels = () => {
-        // Filter for Labeling stage specifically
         const stageBatches = enrichedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
         if (stageBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες στη Συσκευασία.", "info");
@@ -463,7 +464,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 product,
                 variant,
                 quantity: b.quantity,
-                format: 'standard' // Wholesale format default for production flow
+                format: 'standard'
             };
         }).filter(item => item !== null);
   
@@ -484,22 +485,23 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
     }
     
-    const activeBatches = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready && !b.on_hold);
+    const activeBatchesCount = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready && !b.on_hold).length;
 
     return (
         <div className="p-4 space-y-4 pb-24">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-2xl font-black text-slate-900">Ροή Παραγωγής</h1>
+                <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">{activeBatchesCount} ΕΝΕΡΓΑ</span>
             </div>
 
             <div className="bg-slate-900 rounded-3xl p-5 shadow-lg relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-4 opacity-10 text-white"><Search size={80}/></div>
                  <div className="relative z-10">
                     <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
-                        <Search size={16} className="text-emerald-400"/> Εύρεση Εντολής / Πελάτη
+                        <Search size={16} className="text-emerald-400"/> Εύρεση Παρτίδας
                     </h2>
                     <div className="relative">
-                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="SKU ή ID..." className="w-full pl-10 p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 font-bold transition-all uppercase"/>
+                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="SKU ή Πελάτης..." className="w-full pl-10 p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 font-bold transition-all uppercase"/>
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={18}/>
                         {finderTerm && <button onClick={() => setFinderTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1"><X size={16}/></button>}
                     </div>
@@ -513,7 +515,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         <div className="flex items-center gap-2"><span className="font-black text-slate-800 text-lg">{b.sku}{b.variant_suffix}</span>{b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}</div>
                                         <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><User size={12}/> {b.customerName}</div>
                                     </div>
-                                    <div className="text-right"><div className="text-[10px] font-mono text-slate-400">#{b.order_id?.slice(0,6)}</div><div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded mt-1">{b.current_stage}</div></div>
+                                    <div className="text-right"><div className="text-[10px] font-mono text-slate-400">#{b.order_id?.slice(-6)}</div><div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded mt-1">{b.current_stage}</div></div>
                                 </div>
                                 {b.notes && <div className="bg-amber-50 text-amber-800 text-xs font-bold p-2 rounded-lg flex items-start gap-2 border border-amber-100"><StickyNote size={14} className="shrink-0 mt-0.5"/><span>{b.notes}</span></div>}
                             </div>
@@ -536,7 +538,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     <Hammer size={14} /> Τεχνίτης
                 </button>
                 <button 
-                    onClick={() => handlePrintRequest(activeBatches, 'aggregated')}
+                    onClick={() => handlePrintRequest(enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready), 'aggregated')}
                     className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
                 >
                     <FileText size={14} /> Συγκεντρωτική
