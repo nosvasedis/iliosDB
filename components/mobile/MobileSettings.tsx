@@ -41,13 +41,8 @@ export default function MobileSettings() {
         if (!localSettings) return;
         setIsSaving(true);
         try {
-            await supabase.from('global_settings').update({ 
-                silver_price_gram: localSettings.silver_price_gram,
-                barcode_width_mm: localSettings.barcode_width_mm,
-                barcode_height_mm: localSettings.barcode_height_mm,
-                retail_barcode_width_mm: localSettings.retail_barcode_width_mm,
-                retail_barcode_height_mm: localSettings.retail_barcode_height_mm
-            }).eq('id', 1);
+            // Use central API method for persistence (local + cloud)
+            await api.updateSettings(localSettings);
             
             if (geminiKey !== GEMINI_API_KEY) {
                 localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);

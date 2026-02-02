@@ -38,7 +38,10 @@ export default function SettingsPage() {
       const data = await response.json();
       const finalPrice = parseFloat(data.price.toFixed(3));
       const newSettings = { ...settings, silver_price_gram: finalPrice };
-      await supabase.from('global_settings').update({ silver_price_gram: finalPrice }).eq('id', 1);
+      
+      // Update via API for full persistence
+      await api.updateSettings(newSettings);
+      
       setSettings(newSettings);
       queryClient.setQueryData(['settings'], newSettings);
       showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
@@ -52,14 +55,8 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-        await supabase.from('global_settings').update({ 
-            silver_price_gram: settings.silver_price_gram, 
-            loss_percentage: settings.loss_percentage,
-            barcode_width_mm: settings.barcode_width_mm,
-            barcode_height_mm: settings.barcode_height_mm,
-            retail_barcode_width_mm: settings.retail_barcode_width_mm,
-            retail_barcode_height_mm: settings.retail_barcode_height_mm
-        }).eq('id', 1);
+        // Use central API method for persistence (local + cloud)
+        await api.updateSettings(settings);
 
         if (localGeminiKey !== GEMINI_API_KEY) {
             localStorage.setItem('VITE_GEMINI_API_KEY', localGeminiKey);

@@ -359,6 +359,14 @@ export const api = {
         }
     },
 
+    updateSettings: async (settings: GlobalSettings): Promise<void> => {
+        // Use UPSERT on ID 1
+        const payload = { ...settings, id: 1 };
+        await safeMutate('global_settings', 'UPSERT', payload, { onConflict: 'id' });
+        // Update local mirror immediately to ensure persistence across reloads even if offline sync is pending
+        await offlineDb.saveTable('global_settings', [settings]);
+    },
+
     getMaterials: async (): Promise<Material[]> => {
         const data = await fetchFullTable('materials');
         return data.map((m: any) => ({ 
