@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
@@ -9,9 +8,10 @@ interface Props {
     orderId: string;
     customerName: string;
     date: string;
+    silverPrice: number;
 }
 
-export default function OrderFinancialReport({ stats, orderId, customerName, date }: Props) {
+export default function OrderFinancialReport({ stats, orderId, customerName, date, silverPrice }: Props) {
     if (!stats) return null;
 
     // Calculate percentages for the cost bar
@@ -45,6 +45,11 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                     <div className="flex items-center justify-end gap-2">
                          <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Πελατης</span>
                          <span className="font-bold text-sm">{customerName}</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-1 inline-flex">
+                        <Coins size={10} className="text-slate-400"/>
+                        <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
+                        <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(silverPrice, 2)} €/g</span>
                     </div>
                 </div>
             </div>

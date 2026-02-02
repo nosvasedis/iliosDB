@@ -1,12 +1,11 @@
-
 import React, { useEffect, useState } from 'react';
-import { Order, Product, Customer } from '../types';
+import { Order, Product, Customer, GlobalSettings } from '../types';
 import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import QRCode from 'qrcode';
-import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User, Weight } from 'lucide-react';
-import { transliterateForBarcode } from '../utils/pricingEngine';
+import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User, Weight, Coins } from 'lucide-react';
+import { transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
 
 interface Props {
     order: Order;
@@ -37,6 +36,7 @@ const QRCodeImage: React.FC<{ sku: string }> = ({ sku }) => {
 
 export default function OrderInvoiceView({ order }: Props) {
     const { data: allProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: settings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
     const queryClient = useQueryClient();
     const allCustomers = queryClient.getQueryData<Customer[]>(['customers']);
     const customer = order.customer_id
@@ -58,6 +58,8 @@ export default function OrderInvoiceView({ order }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+
+    const silverPrice = order.custom_silver_rate || settings?.silver_price_gram || 0;
 
     // Calculate Total Silver Weight
     const totalSilverWeight = order.items.reduce((acc, item) => {
@@ -125,6 +127,9 @@ export default function OrderInvoiceView({ order }: Props) {
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Συνολο</span>
                     <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}€</span>
+                    <div className="text-[7px] text-slate-400 font-bold uppercase mt-1 flex items-center gap-1">
+                        <Coins size={7}/> Ag: {formatDecimal(silverPrice, 2)} €/g
+                    </div>
                 </div>
             </div>
 

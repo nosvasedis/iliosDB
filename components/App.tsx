@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -606,7 +605,15 @@ function AppContent() {
         {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
         {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
         {analyticsPrintData && <AnalyticsPrintReport stats={analyticsPrintData} title={analyticsPrintData.title} />}
-        {orderAnalyticsData && <OrderFinancialReport stats={orderAnalyticsData.stats} orderId={orderAnalyticsData.order.id} customerName={orderAnalyticsData.order.customer_name} date={new Date().toLocaleDateString('el-GR')} />}
+        {orderAnalyticsData && (
+          <OrderFinancialReport 
+            stats={orderAnalyticsData.stats} 
+            orderId={orderAnalyticsData.order.id} 
+            customerName={orderAnalyticsData.order.customer_name} 
+            date={new Date().toLocaleDateString('el-GR')} 
+            silverPrice={orderAnalyticsData.order.custom_silver_rate || settings.silver_price_gram}
+          />
+        )}
         {printItems.length > 0 && (
             <div className="print-area">
             {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
