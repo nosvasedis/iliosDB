@@ -92,7 +92,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                                 const details = allMolds.find(m => m.code === pm.code);
                                                                 return (
                                                                     <span key={idx}>
-                                                                        {pm.code}
+                                                                        {pm.code} <span className="text-[8px] font-black">(x{pm.quantity})</span>
                                                                         {details?.description && (
                                                                             <span className="font-medium text-[8px] text-slate-600 normal-case italic"> ({details.description})</span>
                                                                         )}
