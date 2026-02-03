@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -87,6 +87,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
+    const [searchTerm, setSearchTerm] = useState('');
     const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
 
     const rows = useMemo(() => {
@@ -156,9 +157,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                  const product = products.find(p => p.sku === row.sku);
                  if (!product?.collections?.includes(filterCollection)) return false;
             }
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const product = products.find(p => p.sku === row.sku);
+                const matchesSku = row.sku.toLowerCase().includes(term);
+                const matchesSuffix = (row.variant_suffix || '').toLowerCase().includes(term);
+                const matchesCategory = product?.category?.toLowerCase().includes(term) || false;
+                
+                if (!matchesSku && !matchesSuffix && !matchesCategory) return false;
+            }
             return true;
         });
-    }, [rows, filterGender, filterCollection, products]);
+    }, [rows, filterGender, filterCollection, products, searchTerm]);
 
     const historyGroups = useMemo(() => {
        const groups: Record<string, { date: Date, qty: number, value: number, count: number }> = {};
@@ -184,7 +194,6 @@ export default function ProductionSendModal({ order, products, materials, existi
         }, 0);
     }, [rows, toSendQuantities]);
 
-    // @FIX: Explicitly cast Object.values to number[] to resolve "unknown" type error in reduction where TypeScript inferred unknown types from the Record values.
     const totalToSend = (Object.values(toSendQuantities) as number[]).reduce((a, b) => a + b, 0);
 
     const updateToSend = (idx: number, val: number) => {
@@ -289,6 +298,17 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         {relevantCollections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 )}
+
+                                <div className="relative group shrink-0">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={14} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Αναζήτηση..." 
+                                        value={searchTerm} 
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-32 focus:w-48 transition-all text-slate-700 placeholder:text-slate-400"
+                                    />
+                                </div>
                             </div>
 
                             <div className="flex gap-2 shrink-0 w-full sm:w-auto overflow-x-auto">
@@ -315,13 +335,32 @@ export default function ProductionSendModal({ order, products, materials, existi
                                              <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
                                                  {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
                                              </div>
-                                             <div className="min-w-0">
+                                             <div className="min-w-0 flex-1">
                                                  <div className="flex items-baseline gap-1.5">
                                                      <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
                                                  </div>
-                                                 <div className="text-[10px] text-slate-400 font-bold uppercase truncate">{product?.category} {row.size_info && `• ${row.size_info}`}</div>
+                                                 <div className="flex flex-col gap-1 mt-0.5">
+                                                     <div className="text-[10px] text-slate-400 font-bold uppercase truncate">{product?.category}</div>
+                                                     
+                                                     {/* Explicit Size Display */}
+                                                     {row.size_info && (
+                                                         <div className="flex items-center gap-1">
+                                                              <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5">
+                                                                 <Hash size={8} /> {row.size_info}
+                                                              </span>
+                                                         </div>
+                                                     )}
+
+                                                     {/* Explicit Notes Display */}
+                                                     {row.notes && (
+                                                         <div className="text-[10px] bg-amber-50 text-amber-800 p-1.5 rounded border border-amber-100 italic flex items-start gap-1 leading-tight">
+                                                             <StickyNote size={10} className="shrink-0 mt-0.5 text-amber-500"/>
+                                                             <span className="break-words">{row.notes}</span>
+                                                         </div>
+                                                     )}
+                                                 </div>
                                                  
-                                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                                      {row.readyQty > 0 && (
                                                          <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black uppercase border border-emerald-200">
                                                              {row.readyQty} Έτοιμα
