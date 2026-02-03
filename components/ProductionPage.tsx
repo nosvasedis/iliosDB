@@ -422,7 +422,7 @@ const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], 
     ];
 
     return (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
+        <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
             <div className="flex items-center gap-4 w-full md:w-auto">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
                     {healthScore.toFixed(0)}%
@@ -1058,17 +1058,18 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
-        <ProductionHealthBar batches={enhancedBatches} orders={orders || []} />
-
-        <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-                <h1 className="text-2xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                    <div className="p-2 bg-[#060b00] text-white rounded-xl">
-                        <Factory size={24} />
-                    </div>
-                    Ροή Παραγωγής
-                </h1>
-                <p className="text-slate-500 mt-1 ml-14">Διαχείριση εντολών σε πραγματικό χρόνο.</p>
+        
+        {/* HEADER MOVED TO TOP AND THINNER */}
+        <div className="shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-[#060b00] text-white rounded-xl">
+                    <Factory size={20} />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold text-[#060b00] tracking-tight">
+                        Ροή Παραγωγής
+                    </h1>
+                </div>
             </div>
 
             {/* ORDER FINDER (DESKTOP) */}
@@ -1161,6 +1162,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     <FileText size={14} /> Συγκεντρωτική
                 </button>
             </div>
+        </div>
+
+        {/* HEALTH BAR MOVED DOWN AND PADDING REDUCED */}
+        <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 mb-2">
+             <ProductionHealthBar batches={enhancedBatches} orders={orders || []} />
         </div>
 
         <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
