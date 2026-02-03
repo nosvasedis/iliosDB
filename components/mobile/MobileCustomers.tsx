@@ -60,7 +60,26 @@ export default function MobileCustomers() {
 
     const handleCreate = () => {
         setEditType(tab === 'customers' ? 'customer' : 'supplier');
-        setEditData(tab === 'customers' ? { full_name: '', phone: '', email: '', address: '', vat_number: '', notes: '', vat_rate: VatRegime.Standard } : { name: '', contact_person: '', phone: '', email: '', address: '', notes: '' });
+        const newData = tab === 'customers' ? { 
+            id: crypto.randomUUID(), 
+            full_name: '', 
+            phone: '', 
+            email: '', 
+            address: '', 
+            vat_number: '', 
+            notes: '', 
+            vat_rate: VatRegime.Standard, 
+            created_at: new Date().toISOString() 
+        } : { 
+            id: crypto.randomUUID(), 
+            name: '', 
+            contact_person: '', 
+            phone: '', 
+            email: '', 
+            address: '', 
+            notes: '' 
+        };
+        setEditData(newData);
         setIsEditing(true);
     };
 
@@ -75,12 +94,14 @@ export default function MobileCustomers() {
     };
 
     const handleSave = async () => {
-        if (editType === 'customer' && !editData.full_name) { showToast('Το όνομα είναι υποχρεωτικό', 'error'); return; }
-        if (editType === 'supplier' && !editData.name) { showToast('Η επωνυμία είναι υποχρεωτική', 'error'); return; }
+        if (editType === 'customer' && !editData.full_name.trim()) { showToast('Το όνομα είναι υποχρεωτικό', 'error'); return; }
+        if (editType === 'supplier' && !editData.name.trim()) { showToast('Η επωνυμία είναι υποχρεωτική', 'error'); return; }
 
         try {
             if (editType === 'customer') {
-                if (editData.id) await api.updateCustomer(editData.id, editData);
+                // Determine if this is an update by checking the list
+                const isExisting = customers?.some(c => c.id === editData.id);
+                if (isExisting) await api.updateCustomer(editData.id, editData);
                 else await api.saveCustomer(editData);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
             } else {
@@ -142,14 +163,14 @@ export default function MobileCustomers() {
             <div className="flex flex-col h-full bg-slate-50">
                 <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
                     <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                        {editData.id ? <Edit size={20} className="text-blue-500"/> : <Plus size={20} className="text-emerald-500"/>}
-                        {editData.id ? 'Επεξεργασία' : 'Νέα Εγγραφή'}
+                        <User className={editType === 'customer' ? 'text-emerald-600' : 'text-purple-600'}/>
+                        {editData.full_name || editData.name ? 'Επεξεργασία' : 'Νέα Εγγραφή'}
                     </h2>
                     <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20}/></button>
                 </div>
                 
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-sm">
                         {editType === 'customer' && (
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block flex items-center gap-1">
@@ -181,6 +202,8 @@ export default function MobileCustomers() {
                                 value={editType === 'customer' ? editData.full_name : editData.name} 
                                 onChange={e => setEditData({...editData, [editType === 'customer' ? 'full_name' : 'name']: e.target.value})}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20"
+                                placeholder="Πληκτρολογήστε όνομα..."
+                                autoFocus={!editData.full_name && !editData.name}
                             />
                         </div>
                         {editType === 'supplier' && (
@@ -200,6 +223,7 @@ export default function MobileCustomers() {
                                     value={editData.phone || ''} 
                                     onChange={e => setEditData({...editData, phone: e.target.value})}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    type="tel"
                                 />
                             </div>
                             <div>
@@ -208,6 +232,7 @@ export default function MobileCustomers() {
                                     value={editData.email || ''} 
                                     onChange={e => setEditData({...editData, email: e.target.value})}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    type="email"
                                 />
                             </div>
                         </div>
@@ -225,7 +250,7 @@ export default function MobileCustomers() {
                                 <select 
                                     value={editData.vat_rate !== undefined ? editData.vat_rate : VatRegime.Standard} 
                                     onChange={e => setEditData({...editData, vat_rate: parseFloat(e.target.value)})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 font-bold"
                                 >
                                     <option value={VatRegime.Standard}>24% (Κανονικό)</option>
                                     <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
@@ -239,17 +264,13 @@ export default function MobileCustomers() {
                                 value={editData.notes || ''} 
                                 onChange={e => setEditData({...editData, notes: e.target.value})}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 h-24 resize-none"
+                                placeholder="Πρόσθετα σχόλια..."
                             />
                         </div>
                     </div>
                     
                     <div className="flex gap-3">
-                        {editData.id && (
-                            <button onClick={handleDelete} className="p-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 flex-1 flex items-center justify-center gap-2">
-                                <Trash2 size={20}/> Διαγραφή
-                            </button>
-                        )}
-                        <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-[2] flex items-center justify-center gap-2">
+                        <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-1 flex items-center justify-center gap-2 hover:bg-black transition-all">
                             <Save size={20}/> Αποθήκευση
                         </button>
                     </div>
@@ -261,7 +282,7 @@ export default function MobileCustomers() {
     return (
         <div className="p-4 h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                     <User className="text-blue-600"/> Επαφές
                 </h1>
                 
@@ -282,14 +303,14 @@ export default function MobileCustomers() {
                         </button>
                     </div>
 
-                    <button onClick={handleCreate} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl hover:bg-slate-800 font-bold transition-all shadow-md active:scale-95">
-                        <Plus size={18} /> <span className="hidden sm:inline">Νέα Εγγραφή</span>
+                    <button onClick={handleCreate} className="flex items-center gap-2 bg-[#060b00] text-white px-4 py-2.5 rounded-xl hover:bg-black font-black transition-all shadow-md active:scale-95">
+                        <Plus size={20} /> <span className="hidden sm:inline">Νέα Εγγραφή</span>
                     </button>
                 </div>
             </div>
 
             {/* Search */}
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 mt-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                     type="text" 
@@ -301,7 +322,7 @@ export default function MobileCustomers() {
             </div>
 
             {/* Content List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-24">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-24 mt-4 overflow-y-auto custom-scrollbar pr-1">
                 {filteredList.map((item: any) => (
                     <div 
                         key={item.id} 
@@ -349,99 +370,6 @@ export default function MobileCustomers() {
                     </div>
                 )}
             </div>
-
-            {/* Edit Modal */}
-            {isEditing && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                {editData.id ? <Edit size={20} className="text-blue-500"/> : <Plus size={20} className="text-emerald-500"/>}
-                                {editData.id ? 'Επεξεργασία' : 'Νέα Εγγραφή'}
-                            </h2>
-                            <button onClick={() => setIsEditing(false)} className="p-2 bg-white rounded-full text-slate-500 hover:text-slate-800 shadow-sm transition-colors"><X size={20}/></button>
-                        </div>
-                        
-                        <div className="p-6 overflow-y-auto space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">
-                                    {editType === 'customer' ? 'Ονοματεπωνυμο / Επωνυμια *' : 'Επωνυμια *'}
-                                </label>
-                                <input 
-                                    value={editType === 'customer' ? editData.full_name : editData.name} 
-                                    onChange={e => setEditData({...editData, [editType === 'customer' ? 'full_name' : 'name']: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20"
-                                />
-                            </div>
-                            {editType === 'supplier' && (
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Υπευθυνος Επικοινωνιας</label>
-                                    <input 
-                                        value={editData.contact_person || ''} 
-                                        onChange={e => setEditData({...editData, contact_person: e.target.value})}
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                    />
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Τηλεφωνο</label>
-                                    <input 
-                                        value={editData.phone || ''} 
-                                        onChange={e => setEditData({...editData, phone: e.target.value})}
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Email</label>
-                                    <input 
-                                        value={editData.email || ''} 
-                                        onChange={e => setEditData({...editData, email: e.target.value})}
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Διευθυνση</label>
-                                <input 
-                                    value={editData.address || ''} 
-                                    onChange={e => setEditData({...editData, address: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                />
-                            </div>
-                            {editType === 'customer' && (
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">ΑΦΜ</label>
-                                    <input 
-                                        value={editData.vat_number || ''} 
-                                        onChange={e => setEditData({...editData, vat_number: e.target.value})}
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
-                                    />
-                                </div>
-                            )}
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειωσεις</label>
-                                <textarea 
-                                    value={editData.notes || ''} 
-                                    onChange={e => setEditData({...editData, notes: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 h-24 resize-none"
-                                />
-                            </div>
-                        </div>
-                        
-                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-                            {editData.id && (
-                                <button onClick={handleDelete} className="p-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 flex-1 flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
-                                    <Trash2 size={20}/> Διαγραφή
-                                </button>
-                            )}
-                            <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-[2] flex items-center justify-center gap-2 hover:bg-black transition-colors">
-                                <Save size={20}/> Αποθήκευση
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

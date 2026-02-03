@@ -95,7 +95,8 @@ const CustomerDetailsModal = ({
     onDelete: (id: string) => Promise<void>,
     onPrintOrder?: (o: Order) => void
 }) => {
-    const [isEditing, setIsEditing] = useState(false);
+    // If no ID, we are in CREATE mode. Force isEditing to true.
+    const [isEditing, setIsEditing] = useState(!customer.id);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
@@ -143,6 +144,10 @@ const CustomerDetailsModal = ({
     }, [customer, orders]);
 
     const handleSave = async () => {
+        if (!editForm.full_name.trim()) {
+            showToast("Το ονοματεπώνυμο είναι υποχρεωτικό.", "error");
+            return;
+        }
         setIsSaving(true);
         await onUpdate(editForm);
         setIsSaving(false);
@@ -178,7 +183,7 @@ const CustomerDetailsModal = ({
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 shrink-0">
                     <div className="flex items-center gap-5">
                         <div className="w-16 h-16 bg-[#060b00] text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg">
-                            {customer.full_name.charAt(0)}
+                            {customer.full_name ? customer.full_name.charAt(0) : '+'}
                         </div>
                         <div>
                             {isEditing ? (
@@ -186,6 +191,8 @@ const CustomerDetailsModal = ({
                                     className="text-2xl font-black text-slate-800 bg-white border border-slate-300 rounded-lg p-1 px-2 outline-none focus:ring-2 focus:ring-blue-500 mb-1 w-full"
                                     value={editForm.full_name}
                                     onChange={e => setEditForm({...editForm, full_name: e.target.value})}
+                                    placeholder="Ονοματεπώνυμο..."
+                                    autoFocus
                                 />
                             ) : (
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">{customer.full_name}</h2>
@@ -208,7 +215,7 @@ const CustomerDetailsModal = ({
                     <div className="flex gap-2">
                         {isEditing ? (
                             <>
-                                <button onClick={() => { setEditForm(customer); setIsEditing(false); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg font-bold text-sm">Άκυρο</button>
+                                <button onClick={() => { if (!customer.id) onClose(); else { setEditForm(customer); setIsEditing(false); } }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg font-bold text-sm">Άκυρο</button>
                                 <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-emerald-700 flex items-center gap-2">
                                     {isSaving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Αποθήκευση
                                 </button>
@@ -225,24 +232,26 @@ const CustomerDetailsModal = ({
 
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
                     
-                    {/* Top Stats Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-3 opacity-5 text-emerald-600"><TrendingUp size={64}/></div>
-                             <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Wallet size={12}/> Συνολικός Τζίρος (Net)</div>
-                             <div className="text-3xl font-black text-emerald-700">{formatCurrency(stats.totalSpent)}</div>
+                    {/* Top Stats Cards - Only visible if not creating new */}
+                    {customer.id && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3 opacity-5 text-emerald-600"><TrendingUp size={64}/></div>
+                                <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Wallet size={12}/> Συνολικός Τζίρος (Net)</div>
+                                <div className="text-3xl font-black text-emerald-700">{formatCurrency(stats.totalSpent)}</div>
+                            </div>
+                            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3 opacity-5 text-blue-600"><ShoppingBag size={64}/></div>
+                                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Briefcase size={12}/> Παραγγελίες</div>
+                                <div className="text-3xl font-black text-blue-700">{stats.orderCount}</div>
+                            </div>
+                            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3 opacity-5 text-amber-600"><Calculator size={64}/></div>
+                                <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2"><PieChart size={12}/> Μέση Παραγγελία</div>
+                                <div className="text-3xl font-black text-amber-700">{formatCurrency(stats.avgOrderValue)}</div>
+                            </div>
                         </div>
-                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-3 opacity-5 text-blue-600"><ShoppingBag size={64}/></div>
-                             <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Briefcase size={12}/> Παραγγελίες</div>
-                             <div className="text-3xl font-black text-blue-700">{stats.orderCount}</div>
-                        </div>
-                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-3 opacity-5 text-amber-600"><Calculator size={64}/></div>
-                             <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2"><PieChart size={12}/> Μέση Παραγγελία</div>
-                             <div className="text-3xl font-black text-amber-700">{formatCurrency(stats.avgOrderValue)}</div>
-                        </div>
-                    </div>
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                         
@@ -333,53 +342,54 @@ const CustomerDetailsModal = ({
                     </div>
 
                     {/* Order History Table */}
-                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                             <Calendar size={16} className="text-slate-500"/> 
-                             <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Ιστορικό Παραγγελιών</span>
+                    {customer.id && (
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                                <Calendar size={16} className="text-slate-500"/> 
+                                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Ιστορικό Παραγγελιών</span>
+                            </div>
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-white text-slate-400 font-bold text-[10px] uppercase border-b border-slate-100">
+                                    <tr>
+                                        <th className="p-4 pl-6">ID</th>
+                                        <th className="p-4">Ημερομηνία</th>
+                                        <th className="p-4 text-right">Ποσό (Net)</th>
+                                        <th className="p-4 text-center">Κατάσταση</th>
+                                        <th className="p-4 text-center">Είδη</th>
+                                        <th className="p-4"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {stats.history.map(o => {
+                                        const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+                                        return (
+                                            <tr key={o.id} className="hover:bg-slate-50 transition-colors group">
+                                                <td className="p-4 pl-6 font-mono font-bold text-slate-600">{o.id}</td>
+                                                <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
+                                                <td className="p-4 text-right font-black text-slate-800">{formatCurrency(netValue)}</td>
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${getStatusColor(o.status)}`}>
+                                                        {STATUS_TRANSLATIONS[o.status]}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-center font-medium text-slate-500">{o.items.length}</td>
+                                                <td className="p-4 text-center">
+                                                    {onPrintOrder && (
+                                                        <button onClick={() => onPrintOrder(o)} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                                            <Printer size={16}/>
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {stats.history.length === 0 && (
+                                        <tr><td colSpan={6} className="p-10 text-center text-slate-400 italic">Καμία παραγγελία.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-white text-slate-400 font-bold text-[10px] uppercase border-b border-slate-100">
-                                <tr>
-                                    <th className="p-4 pl-6">ID</th>
-                                    <th className="p-4">Ημερομηνία</th>
-                                    <th className="p-4 text-right">Ποσό (Net)</th>
-                                    <th className="p-4 text-center">Κατάσταση</th>
-                                    <th className="p-4 text-center">Είδη</th>
-                                    <th className="p-4"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {stats.history.map(o => {
-                                    const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
-                                    return (
-                                        <tr key={o.id} className="hover:bg-slate-50 transition-colors group">
-                                            <td className="p-4 pl-6 font-mono font-bold text-slate-600">{o.id}</td>
-                                            <td className="p-4 text-slate-600">{new Date(o.created_at).toLocaleDateString('el-GR')}</td>
-                                            <td className="p-4 text-right font-black text-slate-800">{formatCurrency(netValue)}</td>
-                                            <td className="p-4 text-center">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${getStatusColor(o.status)}`}>
-                                                    {STATUS_TRANSLATIONS[o.status]}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-center font-medium text-slate-500">{o.items.length}</td>
-                                            <td className="p-4 text-center">
-                                                {onPrintOrder && (
-                                                    <button onClick={() => onPrintOrder(o)} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
-                                                        <Printer size={16}/>
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {stats.history.length === 0 && (
-                                    <tr><td colSpan={6} className="p-10 text-center text-slate-400 italic">Καμία παραγγελία.</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    
+                    )}
                 </div>
             </div>
         </div>
@@ -498,7 +508,17 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         onClick={() => {
                              if (activeTab === 'customers') {
                                  setIsCreating(true);
-                                 setSelectedCustomer({ id: '', full_name: '', phone: '', vat_number: '', vat_rate: VatRegime.Standard, address: '', notes: '', created_at: new Date().toISOString() });
+                                 // Generate random ID for consistent offline-first state
+                                 setSelectedCustomer({ 
+                                     id: crypto.randomUUID(), 
+                                     full_name: '', 
+                                     phone: '', 
+                                     vat_number: '', 
+                                     vat_rate: VatRegime.Standard, 
+                                     address: '', 
+                                     notes: '', 
+                                     created_at: new Date().toISOString() 
+                                 });
                              }
                         }}
                         className="bg-[#060b00] text-white p-3 rounded-xl hover:bg-black shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:scale-95"
@@ -541,17 +561,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
             {isCreating && activeTab === 'customers' && (
                  <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                     {/* Reuse Modal for Creation by passing dummy customer and edit mode active */}
-                     {/* Simpler: just use the same modal but handle save differently inside or pass a create handler */}
-                     {/* For simplicity in this structure, we can adapt CustomerDetailsModal to handle new creation if we pass an empty customer object and start in edit mode.
-                         However, CustomerDetailsModal expects an existing customer for stats.
-                         Let's mock a "New Customer" state.
-                     */}
                       <CustomerDetailsModal 
-                        customer={selectedCustomer!} // It's the dummy object created in handleCreate button
+                        customer={selectedCustomer!} 
                         orders={[]} 
                         onClose={() => setIsCreating(false)}
-                        onUpdate={handleCreateCustomer} // Pass create handler as update
+                        onUpdate={handleCreateCustomer} 
                         onDelete={async () => setIsCreating(false)}
                         onPrintOrder={undefined}
                     />

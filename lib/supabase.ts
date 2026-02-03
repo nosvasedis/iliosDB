@@ -589,12 +589,13 @@ export const api = {
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { match: { id } }); },
     
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => { 
-        const result = await safeMutate('customers', c.id ? 'UPDATE' : 'INSERT', c, c.id ? { match: { id: c.id } } : undefined); 
+        // Force INSERT if no ID or ID is explicitly an empty string
+        const isUpdate = !!(c.id && c.id.trim().length > 0);
+        const result = await safeMutate('customers', isUpdate ? 'UPDATE' : 'INSERT', c, isUpdate ? { match: { id: c.id } } : undefined); 
         return result.data;
     },
     
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
-        // ... (Same as before)
         await safeMutate('customers', 'UPDATE', updates, { match: { id } });
     },
     
@@ -613,7 +614,7 @@ export const api = {
     
     deleteOrder: async (id: string): Promise<void> => { 
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
-        await safeMutate('orders', 'DELETE', null, { match: { id } }); 
+        await safeMutate('orders', 'DELETE', null, { match: { id: id } }); 
     },
     
     updateBatchStage: async (id: string, stage: ProductionStage): Promise<void> => { await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } }); },
@@ -629,7 +630,7 @@ export const api = {
     },
     
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { 
-        await safeMutate('orders', 'UPDATE', { status }, { match: { id } }); 
+        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } }); 
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
