@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, Gender } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote } from 'lucide-react';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
@@ -42,7 +42,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
 
     const [items, setItems] = useState<SupplierOrderItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchType, setSearchType] = useState<SupplierOrderType>('Material');
+    const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState('');
     const [showAllProducts, setShowAllProducts] = useState(false);
 
@@ -70,6 +70,42 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
           
           return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id);
     }, [productionBatches, products, supplier.id, orders]);
+
+    // Order Needs Logic (Pending Orders)
+    const pendingOrderNeeds = useMemo(() => {
+        if (!orders || !products) return [];
+
+        const groupedOrderNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+
+        // Only look at Pending orders.
+        const pendingOrders = orders.filter(o => o.status === 'Pending');
+
+        pendingOrders.forEach(order => {
+            order.items.forEach(item => {
+                const product = products.find(p => p.sku === item.sku);
+                // Filter by supplier match
+                if (product?.supplier_id === supplier.id) {
+                    const key = `${item.sku}-${item.variant_suffix || ''}`;
+                    if (!groupedOrderNeeds[key]) {
+                        groupedOrderNeeds[key] = {
+                            sku: item.sku, 
+                            variant: item.variant_suffix || '', 
+                            totalQty: 0, 
+                            product, 
+                            requirements: [] 
+                        };
+                    }
+                    groupedOrderNeeds[key].totalQty += item.quantity;
+                    groupedOrderNeeds[key].requirements.push({
+                        orderId: order.id,
+                        customer: order.customer_name
+                    });
+                }
+            });
+        });
+
+        return Object.values(groupedOrderNeeds);
+    }, [orders, products, supplier.id]);
 
     // Filter Logic
     const searchResults = useMemo(() => {
@@ -195,7 +231,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 {productionNeeds.length > 0 && (
                     <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-2">
                         <div className="flex items-center gap-2 text-xs font-black text-indigo-700 uppercase mb-2">
-                            <Factory size={14}/> Ανάγκες Παραγωγής (Συνδεδεμένα)
+                            <Factory size={14}/> Ανάγκες Παραγωγής
                         </div>
                         {productionNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-indigo-200">
@@ -208,6 +244,31 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                 <button 
                                     onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
                                     className="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
+                                >
+                                    +{n.totalQty}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Pending Order Needs */}
+                {pendingOrderNeeds.length > 0 && (
+                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-black text-blue-700 uppercase mb-2">
+                            <ShoppingCart size={14}/> Ανάγκες Παραγγελιών (Εκκρεμείς)
+                        </div>
+                        {pendingOrderNeeds.map((n, idx) => (
+                            <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-blue-200">
+                                <div className="min-w-0 flex-1 pr-2">
+                                    <div className="text-sm font-bold text-slate-700">{n.sku}{n.variant}</div>
+                                    <div className="text-[9px] text-slate-400 font-bold truncate">
+                                        {n.requirements.map(r => `${r.customer}`).join(', ')}
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                    className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
                                 >
                                     +{n.totalQty}
                                 </button>
@@ -284,8 +345,6 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                             supplierRef = product?.supplier_sku;
                         }
                         
-                        // Parse description using utility
-                        // Ensure suffix extraction works for manually added items like DA1102XKO
                         let suffixStr = '';
                         if (product && item.item_name.startsWith(product.sku)) {
                             suffixStr = item.item_name.slice(product.sku.length);
@@ -351,7 +410,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                             </div>
                         );
                     })}
-                    {items.length === 0 && <div className="text-center py-10 text-slate-400 italic">Η λίστα είναι κενή.</div>}
+                    {items.length === 0 && <div className="text-center py-10 text-slate-400 text-xs italic">Η λίστα είναι κενή.</div>}
                 </div>
 
                 <div className="pt-4">

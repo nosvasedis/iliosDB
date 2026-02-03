@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, SupplierOrder, Gender } from '../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, Loader2, Tag } from 'lucide-react';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, Loader2, Tag, ShoppingCart } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -23,7 +23,7 @@ const FINISH_STYLES: Record<string, string> = {
 
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
     'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
     'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
@@ -48,7 +48,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
     const [showAllProducts, setShowAllProducts] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Production Needs Logic (Smart Suggestion)
+    // Production Needs Logic (Items in Production/Batches waiting for delivery)
     const productionNeeds = useMemo(() => {
           if (!productionBatches || !products || !orders) return [];
           
@@ -73,6 +73,42 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
           
           return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id);
     }, [productionBatches, products, supplier.id, orders]);
+
+    // Order Needs Logic (Items in Pending Orders - Not yet in production)
+    const pendingOrderNeeds = useMemo(() => {
+        if (!orders || !products) return [];
+
+        const groupedOrderNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+
+        // Only look at Pending orders. In Production orders are handled by productionNeeds above.
+        const pendingOrders = orders.filter(o => o.status === 'Pending');
+
+        pendingOrders.forEach(order => {
+            order.items.forEach(item => {
+                const product = products.find(p => p.sku === item.sku);
+                // Filter by supplier match
+                if (product?.supplier_id === supplier.id) {
+                    const key = `${item.sku}-${item.variant_suffix || ''}`;
+                    if (!groupedOrderNeeds[key]) {
+                        groupedOrderNeeds[key] = {
+                            sku: item.sku, 
+                            variant: item.variant_suffix || '', 
+                            totalQty: 0, 
+                            product, 
+                            requirements: [] 
+                        };
+                    }
+                    groupedOrderNeeds[key].totalQty += item.quantity;
+                    groupedOrderNeeds[key].requirements.push({
+                        orderId: order.id,
+                        customer: order.customer_name
+                    });
+                }
+            });
+        });
+
+        return Object.values(groupedOrderNeeds);
+    }, [orders, products, supplier.id]);
 
     // Search Results Logic (Flattened to include Variants)
     const searchResults = useMemo(() => {
@@ -221,7 +257,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                     <div className="lg:w-1/3 border-r border-slate-100 flex flex-col bg-slate-50">
                         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                             
-                            {/* Production Needs */}
+                            {/* Production Needs (Existing Batches) */}
                             {(productionNeeds.length > 0) && (
                                 <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-3 shadow-sm">
                                     <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase mb-2">
@@ -244,6 +280,38 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                 <button 
                                                     onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
                                                     className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
+                                                >
+                                                    +{n.totalQty}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Pending Order Needs (Not yet in production) */}
+                            {(pendingOrderNeeds.length > 0) && (
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
+                                    <div className="flex items-center gap-2 text-xs font-black text-blue-800 uppercase mb-2">
+                                        <ShoppingCart size={16}/> Ανάγκες Παραγγελιών (Εκκρεμείς)
+                                    </div>
+                                    <div className="space-y-2">
+                                        {pendingOrderNeeds.map((n, idx) => (
+                                            <div key={idx} className="bg-white p-3 rounded-xl flex justify-between items-center border border-blue-200">
+                                                <div className="min-w-0 flex-1 pr-2 flex items-center gap-3">
+                                                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                                        {n.product?.image_url ? <img src={n.product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-black text-slate-800">{n.sku}{n.variant}</div>
+                                                        <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
+                                                            {n.requirements.map(r => `${r.customer}`).join(', ')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
                                                 >
                                                     +{n.totalQty}
                                                 </button>
