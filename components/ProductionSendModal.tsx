@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -11,28 +10,53 @@ interface Props {
     products: Product[];
     materials: Material[];
     existingBatches: ProductionBatch[];
-    collections?: Collection[]; // Added collections
+    collections?: Collection[];
     onClose: () => void;
     onSuccess: () => void;
 }
 
-const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 120,    
-    [ProductionStage.Casting]: 96,    
-    [ProductionStage.Setting]: 144,   
-    [ProductionStage.Polishing]: 120, 
-    [ProductionStage.Labeling]: 72    
+const STAGE_CONFIG: Record<string, { label: string, color: string, text: string }> = {
+    [ProductionStage.AwaitingDelivery]: { label: 'Αναμονή', color: 'bg-indigo-100', text: 'text-indigo-700' },
+    [ProductionStage.Waxing]: { label: 'Λάστιχα/Κεριά', color: 'bg-slate-100', text: 'text-slate-700' },
+    [ProductionStage.Casting]: { label: 'Χυτήριο', color: 'bg-orange-100', text: 'text-orange-700' },
+    [ProductionStage.Setting]: { label: 'Καρφωτής', color: 'bg-purple-100', text: 'text-purple-700' },
+    [ProductionStage.Polishing]: { label: 'Τεχνίτης', color: 'bg-blue-100', text: 'text-blue-700' },
+    [ProductionStage.Labeling]: { label: 'Συσκευασία', color: 'bg-yellow-100', text: 'text-yellow-700' },
+    [ProductionStage.Ready]: { label: 'Έτοιμα', color: 'bg-emerald-100', text: 'text-emerald-700' }
 };
 
-const getAgingInfo = (updatedAt: string, stage: string) => {
-    const start = new Date(updatedAt);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const limit = STAGE_LIMITS_HOURS[stage] || 999;
-    const isDelayed = stage !== ProductionStage.Ready && diffHrs > limit;
-    let timeLabel = diffHrs < 24 ? `${diffHrs}ώ` : `${Math.floor(diffHrs/24)}ημ`;
-    return { diffHrs, timeLabel, isDelayed };
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500', 
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400', 
+    '': 'text-slate-400'
+};
+
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
+};
+
+const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender: any }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+
+    return (
+        <span className="font-black">
+            <span className="text-slate-900">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
 };
 
 interface BatchMiniStatus {
@@ -51,27 +75,22 @@ interface RowItem extends OrderItem {
     remainingQty: number;
     toSendQty: number;
     batchDetails: BatchMiniStatus[];
-    
-    // Filtering Metadata
     gender?: Gender;
     collectionId?: number;
-    price: number; // Unit price at order time
+    price: number; 
+    originalIndex: number;
 }
 
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess }: Props) {
     const { showToast } = useUI();
     const [isSending, setIsSending] = useState(false);
     
-    // --- FILTER STATE ---
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
-    
-    // --- SEND QUANTITY STATE ---
-    // Stores how many to send for each row index. Default is 0.
     const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
 
     const rows = useMemo(() => {
-        return order.items.map(item => {
+        return order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
             
             const relevantBatches = existingBatches.filter(b => 
@@ -104,10 +123,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                 return stages.indexOf(a.stage as any) - stages.indexOf(b.stage as any);
             });
 
-            // Determine Gender/Collection for filtering
-            const gender = product?.gender || 'Unknown';
-            const collectionId = product?.collections?.[0]; // Taking primary collection
-
             return {
                 ...item,
                 readyQty,
@@ -115,20 +130,29 @@ export default function ProductionSendModal({ order, products, materials, existi
                 remainingQty,
                 toSendQty: remainingQty,
                 batchDetails,
-                gender,
-                collectionId,
-                price: item.price_at_order
+                gender: product?.gender || 'Unknown',
+                collectionId: product?.collections?.[0],
+                price: item.price_at_order,
+                originalIndex: index
             } as RowItem;
         });
     }, [order.items, existingBatches, products]);
 
-    // Derived: Filtered Rows based on selection
+    // FILTERED COLLECTIONS: Only show collections that exist in the order items
+    const relevantCollections = useMemo(() => {
+        if (!collections) return [];
+        const orderCollectionIds = new Set<number>();
+        order.items.forEach(item => {
+            const product = products.find(p => p.sku === item.sku);
+            product?.collections?.forEach(id => orderCollectionIds.add(id));
+        });
+        return collections.filter(c => orderCollectionIds.has(c.id));
+    }, [collections, order.items, products]);
+
     const filteredRows = useMemo(() => {
-        return rows.map((row, idx) => ({ ...row, originalIndex: idx })).filter(row => {
+        return rows.filter(row => {
             if (filterGender !== 'All' && row.gender !== filterGender) return false;
             if (filterCollection !== 'All') {
-                 // Check if product belongs to selected collection (row.collectionId is just primary, check products list ideally or trust primary)
-                 // Better: Check if product has this collection
                  const product = products.find(p => p.sku === row.sku);
                  if (!product?.collections?.includes(filterCollection)) return false;
             }
@@ -136,17 +160,13 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
     }, [rows, filterGender, filterCollection, products]);
 
-    // --- FINANCIAL HISTORY LOGIC ---
     const historyGroups = useMemo(() => {
        const groups: Record<string, { date: Date, qty: number, value: number, count: number }> = {};
        
        existingBatches.forEach(b => {
-           // Find original order item price to calculate historical value
-           const item = order.items.find(i => i.sku === b.sku && i.variant_suffix === b.variant_suffix);
+           const item = order.items.find(i => i.sku === b.sku && (i.variant_suffix || '') === (b.variant_suffix || ''));
            const price = item ? item.price_at_order : 0;
-           
-           // Group by Hour to simulate a "Batch Event"
-           const key = new Date(b.created_at).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+           const key = new Date(b.created_at).toISOString().slice(0, 13);
            
            if (!groups[key]) groups[key] = { date: new Date(b.created_at), qty: 0, value: 0, count: 0 };
            groups[key].qty += b.quantity;
@@ -157,15 +177,15 @@ export default function ProductionSendModal({ order, products, materials, existi
        return Object.values(groups).sort((a,b) => b.date.getTime() - a.date.getTime());
     }, [existingBatches, order.items]);
 
-    // --- CURRENT SEND VALUE ---
     const currentSendValue = useMemo(() => {
-        return rows.reduce((sum: number, row, idx) => {
+        return rows.reduce((sum, row, idx) => {
             const qty = toSendQuantities[idx] || 0;
             return sum + (qty * row.price);
         }, 0);
     }, [rows, toSendQuantities]);
 
-    const totalToSend = Object.values(toSendQuantities).reduce((a: number, b: number) => a + b, 0);
+    // @FIX: Explicitly cast Object.values to number[] to resolve "unknown" type error in reduction where TypeScript inferred unknown types from the Record values.
+    const totalToSend = (Object.values(toSendQuantities) as number[]).reduce((a, b) => a + b, 0);
 
     const updateToSend = (idx: number, val: number) => {
         const row = rows[idx];
@@ -219,13 +239,13 @@ export default function ProductionSendModal({ order, products, materials, existi
     const totalSent = rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
                 
                 {/* HEADER */}
                 <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg hidden sm:block">
+                        <div className="p-3 bg-[#060b00] text-white rounded-2xl shadow-lg hidden sm:block">
                             <Factory size={28}/>
                         </div>
                         <div>
@@ -241,7 +261,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                     
-                    {/* LEFT PANEL: SELECTION & TABLE (Takes remaining space) */}
+                    {/* LEFT PANEL */}
                     <div className="flex-1 flex flex-col min-h-0 border-r border-slate-100 bg-slate-50/50">
                         
                         {/* FILTERS BAR */}
@@ -259,14 +279,14 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     ))}
                                 </div>
 
-                                {collections && collections.length > 0 && (
+                                {relevantCollections.length > 0 && (
                                     <select 
                                         value={filterCollection} 
                                         onChange={(e) => setFilterCollection(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
                                         className="bg-white border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[150px]"
                                     >
-                                        <option value="All">Όλες οι Συλλογές</option>
-                                        {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        <option value="All">Συλλογές Εντολής</option>
+                                        {relevantCollections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 )}
                             </div>
@@ -289,31 +309,36 @@ export default function ProductionSendModal({ order, products, materials, existi
                                  const currentSend = toSendQuantities[originalIndex] || 0;
                                  const isFullySent = row.remainingQty === 0;
 
-                                 // Variants styling
-                                 const { finish, stone } = getVariantComponents(row.variant_suffix || '', row.gender);
-
                                  return (
                                      <div key={originalIndex} className={`bg-white p-3 rounded-2xl border transition-all flex items-center justify-between gap-4 ${currentSend > 0 ? 'border-emerald-400 shadow-md ring-1 ring-emerald-500/20' : 'border-slate-100 hover:border-slate-300'}`}>
-                                         {/* Product Info */}
                                          <div className="flex items-center gap-3 min-w-0 flex-1">
                                              <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
                                                  {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
                                              </div>
                                              <div className="min-w-0">
                                                  <div className="flex items-baseline gap-1.5">
-                                                     <span className="font-black text-slate-800 text-sm">{row.sku}</span>
-                                                     <span className="text-xs font-bold text-slate-500">{finish.code}{stone.code}</span>
+                                                     <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
                                                  </div>
                                                  <div className="text-[10px] text-slate-400 font-bold uppercase truncate">{product?.category} {row.size_info && `• ${row.size_info}`}</div>
-                                                 {/* Status Bar */}
-                                                 <div className="flex gap-2 mt-1">
-                                                     {row.readyQty > 0 && <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 rounded font-bold">{row.readyQty} Έτοιμα</span>}
-                                                     {row.inProgressQty > 0 && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 rounded font-bold">{row.inProgressQty} Ενεργά</span>}
+                                                 
+                                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                     {row.readyQty > 0 && (
+                                                         <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black uppercase border border-emerald-200">
+                                                             {row.readyQty} Έτοιμα
+                                                         </span>
+                                                     )}
+                                                     {row.batchDetails.filter(b => b.stage !== ProductionStage.Ready).map(batch => {
+                                                         const conf = STAGE_CONFIG[batch.stage] || STAGE_CONFIG[ProductionStage.Waxing];
+                                                         return (
+                                                             <span key={batch.id} className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase border ${conf.color} ${conf.text} ${conf.text.replace('text', 'border').replace('700', '300')}`}>
+                                                                 {batch.qty} {conf.label}
+                                                             </span>
+                                                         );
+                                                     })}
                                                  </div>
                                              </div>
                                          </div>
 
-                                         {/* Quantity Controls */}
                                          {isFullySent ? (
                                              <div className="px-4 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap">
                                                  Ολοκληρώθηκε
@@ -337,15 +362,14 @@ export default function ProductionSendModal({ order, products, materials, existi
                                      </div>
                                  );
                              })}
-                             {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη με τα επιλεγμένα φίλτρα.</div>}
+                             {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη.</div>}
                         </div>
                     </div>
 
-                    {/* RIGHT PANEL: SUMMARY & HISTORY */}
+                    {/* RIGHT PANEL */}
                     <div className="w-full lg:w-[400px] xl:w-[450px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
                         
-                        {/* Current Selection Summary */}
-                        <div className="p-6 bg-slate-900 text-white flex flex-col gap-4 shrink-0">
+                        <div className="p-6 bg-[#060b00] text-white flex flex-col gap-4 shrink-0">
                             <h3 className="font-bold uppercase text-xs tracking-widest text-slate-400 flex items-center gap-2">
                                 <Wallet size={14}/> Τρέχουσα Αποστολή
                             </h3>
@@ -370,7 +394,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </button>
                         </div>
 
-                        {/* History Feed - Hidden on Mobile to save space, Visible on Desktop */}
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white hidden lg:block">
                             <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
                                 <History size={14} className="text-blue-500"/> Ιστορικό Αποστολών
@@ -386,7 +409,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     {group.date.toLocaleDateString('el-GR')} • {group.date.toLocaleTimeString('el-GR', {hour: '2-digit', minute:'2-digit'})}
                                                 </span>
                                                 <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">
-                                                    Part {historyGroups.length - idx}
+                                                    Αποστολή {historyGroups.length - idx}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between items-end">
@@ -408,7 +431,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </div>
                         </div>
 
-                        {/* Order Stats */}
                         <div className="p-6 bg-slate-50 border-t border-slate-100 hidden sm:block">
                              <div className="flex justify-between text-xs text-slate-500 mb-1">
                                  <span>Σύνολο Παραγγελίας:</span>
@@ -419,7 +441,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                  <span className="font-bold text-blue-600">{totalSent}</span>
                              </div>
                              <div className="flex justify-between text-xs text-slate-500">
-                                 <span>Απομένουν (Συνολικά):</span>
+                                 <span>Απομένουν:</span>
                                  <span className="font-bold text-amber-600">{totalRemaining}</span>
                              </div>
                         </div>
