@@ -1,9 +1,9 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2 } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -394,7 +394,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
     );
 };
 
-const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
+const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], orders: Order[] }) => {
     const total = batches.length;
     const delayed = batches.filter(b => b.isDelayed && !b.on_hold).length; // Exclude held batches from delay stats
     const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
@@ -403,6 +403,14 @@ const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
     
     // Adjusted health score: Exclude on-hold from penalty
     const healthScore = (inProgress + ready) > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
+
+    // Filter active orders that have notes
+    const activeOrderNotes = orders?.filter(o => 
+        (o.status === 'In Production' || o.status === 'Pending') && 
+        o.notes && 
+        o.notes.trim().length > 0 && 
+        batches.some(b => b.order_id === o.id)
+    ).map(o => ({ id: o.id, customer: o.customer_name, note: o.notes }));
     
     return (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
@@ -417,6 +425,30 @@ const ProductionHealthBar = ({ batches }: { batches: ProductionBatch[] }) => {
             </div>
 
             <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                {/* NEW: General Order Notes Card */}
+                {activeOrderNotes && activeOrderNotes.length > 0 && (
+                    <div className="bg-indigo-50 px-5 py-3 rounded-2xl border border-indigo-100 min-w-[140px] relative group cursor-help">
+                        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <ClipboardList size={12}/> Οδηγίες
+                        </div>
+                        <div className="text-2xl font-black text-indigo-800">{activeOrderNotes.length}</div>
+                        
+                        {/* Tooltip/Dropdown for Notes */}
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 p-3 z-50 hidden group-hover:block max-h-60 overflow-y-auto">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wide border-b border-slate-50 pb-1">Γενικές Οδηγίες Εντολών</h4>
+                            {activeOrderNotes.map(n => (
+                                <div key={n.id} className="mb-2 border-b border-slate-50 pb-2 last:border-0 last:mb-0 last:pb-0">
+                                    <div className="text-[10px] font-bold text-slate-500 flex justify-between">
+                                        <span>{n.customer}</span>
+                                        <span className="font-mono opacity-50">#{n.id.slice(0,4)}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-700 italic font-medium leading-snug mt-0.5">{n.note}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                  <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px]">
                     <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{onHold}</div>
@@ -1018,7 +1050,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
-        <ProductionHealthBar batches={enhancedBatches} />
+        <ProductionHealthBar batches={enhancedBatches} orders={orders || []} />
 
         <div className="shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
