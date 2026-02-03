@@ -589,9 +589,11 @@ export const api = {
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { match: { id } }); },
     
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => { 
-        // Force INSERT if no ID or ID is explicitly an empty string
-        const isUpdate = !!(c.id && c.id.trim().length > 0);
-        const result = await safeMutate('customers', isUpdate ? 'UPDATE' : 'INSERT', c, isUpdate ? { match: { id: c.id } } : undefined); 
+        // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
+        const payload = { ...c };
+        if (payload.id === '') delete payload.id;
+        
+        const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' }); 
         return result.data;
     },
     

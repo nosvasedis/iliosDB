@@ -95,8 +95,8 @@ const CustomerDetailsModal = ({
     onDelete: (id: string) => Promise<void>,
     onPrintOrder?: (o: Order) => void
 }) => {
-    // If no ID, we are in CREATE mode. Force isEditing to true.
-    const [isEditing, setIsEditing] = useState(!customer.id);
+    // Start in editing mode if the customer name is empty (new creation)
+    const [isEditing, setIsEditing] = useState(customer.full_name === '');
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
@@ -149,9 +149,14 @@ const CustomerDetailsModal = ({
             return;
         }
         setIsSaving(true);
-        await onUpdate(editForm);
-        setIsSaving(false);
-        setIsEditing(false);
+        try {
+            await onUpdate(editForm);
+            setIsEditing(false);
+        } catch (e) {
+            console.error("Save error:", e);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleAfmLookup = async () => {
@@ -183,7 +188,7 @@ const CustomerDetailsModal = ({
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 shrink-0">
                     <div className="flex items-center gap-5">
                         <div className="w-16 h-16 bg-[#060b00] text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg">
-                            {customer.full_name ? customer.full_name.charAt(0) : '+'}
+                            {customer.full_name ? customer.full_name.charAt(0).toUpperCase() : '+'}
                         </div>
                         <div>
                             {isEditing ? (
@@ -215,7 +220,7 @@ const CustomerDetailsModal = ({
                     <div className="flex gap-2">
                         {isEditing ? (
                             <>
-                                <button onClick={() => { if (!customer.id) onClose(); else { setEditForm(customer); setIsEditing(false); } }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg font-bold text-sm">Άκυρο</button>
+                                <button onClick={() => { if (customer.full_name === '') onClose(); else { setEditForm(customer); setIsEditing(false); } }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg font-bold text-sm">Άκυρο</button>
                                 <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-emerald-700 flex items-center gap-2">
                                     {isSaving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Αποθήκευση
                                 </button>
@@ -233,7 +238,7 @@ const CustomerDetailsModal = ({
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
                     
                     {/* Top Stats Cards - Only visible if not creating new */}
-                    {customer.id && (
+                    {customer.id && customer.full_name !== '' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-3 opacity-5 text-emerald-600"><TrendingUp size={64}/></div>
@@ -277,7 +282,7 @@ const CustomerDetailsModal = ({
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-400 uppercase">Email</label>
-                                        {isEditing ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})}/> : <div className="font-medium text-slate-700 text-sm mt-0.5 truncate">{customer.email || '-'}</div>}
+                                        {isEditing ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})} /> : <div className="font-medium text-slate-700 text-sm mt-0.5 truncate">{customer.email || '-'}</div>}
                                     </div>
                                 </div>
                                 <div>
@@ -342,7 +347,7 @@ const CustomerDetailsModal = ({
                     </div>
 
                     {/* Order History Table */}
-                    {customer.id && (
+                    {customer.id && customer.full_name !== '' && (
                         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
                                 <Calendar size={16} className="text-slate-500"/> 
@@ -437,9 +442,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             await api.saveCustomer(c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setIsCreating(false);
-            showToast("Πελάτης δημιουργήθηκε.", "success");
+            setSelectedCustomer(null);
+            showToast("Ο πελάτης δημιουργήθηκε επιτυχώς.", "success");
         } catch (e) {
             showToast("Σφάλμα δημιουργίας.", "error");
+            throw e;
         }
     };
 
@@ -448,14 +455,15 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             await api.updateCustomer(c.id, c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setSelectedCustomer(c); // Update local view
-            showToast("Ενημερώθηκε.", "success");
+            showToast("Τα στοιχεία ενημερώθηκαν.", "success");
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", "error");
+            throw e;
         }
     };
 
     const handleDeleteCustomer = async (id: string) => {
-        const yes = await confirm({ title: 'Διαγραφή', message: 'Οριστική διαγραφή πελάτη;', isDestructive: true });
+        const yes = await confirm({ title: 'Διαγραφή', message: 'Θέλετε να διαγράψετε οριστικά αυτόν τον πελάτη;', isDestructive: true });
         if (yes) {
             try {
                 await api.deleteCustomer(id);
@@ -507,8 +515,6 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                      <button 
                         onClick={() => {
                              if (activeTab === 'customers') {
-                                 setIsCreating(true);
-                                 // Generate random ID for consistent offline-first state
                                  setSelectedCustomer({ 
                                      id: crypto.randomUUID(), 
                                      full_name: '', 
@@ -519,6 +525,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                      notes: '', 
                                      created_at: new Date().toISOString() 
                                  });
+                                 setIsCreating(true);
                              }
                         }}
                         className="bg-[#060b00] text-white p-3 rounded-xl hover:bg-black shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:scale-95"
@@ -536,7 +543,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             <CustomerCard 
                                 key={c.id} 
                                 customer={c} 
-                                onClick={() => setSelectedCustomer(c)} 
+                                onClick={() => { setSelectedCustomer(c); setIsCreating(false); }} 
                                 latestOrderDate={latestOrdersMap[c.id]}
                             />
                         ))}
@@ -547,7 +554,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 )}
             </div>
 
-            {/* Modals */}
+            {/* View/Edit Modal */}
             {selectedCustomer && activeTab === 'customers' && !isCreating && orders && (
                 <CustomerDetailsModal 
                     customer={selectedCustomer} 
@@ -559,17 +566,16 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 />
             )}
 
-            {isCreating && activeTab === 'customers' && (
-                 <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                      <CustomerDetailsModal 
-                        customer={selectedCustomer!} 
-                        orders={[]} 
-                        onClose={() => setIsCreating(false)}
-                        onUpdate={handleCreateCustomer} 
-                        onDelete={async () => setIsCreating(false)}
-                        onPrintOrder={undefined}
-                    />
-                 </div>
+            {/* Create Modal */}
+            {isCreating && activeTab === 'customers' && selectedCustomer && (
+                 <CustomerDetailsModal 
+                    customer={selectedCustomer} 
+                    orders={[]} 
+                    onClose={() => { setIsCreating(false); setSelectedCustomer(null); }}
+                    onUpdate={handleCreateCustomer} 
+                    onDelete={async () => { setIsCreating(false); setSelectedCustomer(null); }}
+                    onPrintOrder={undefined}
+                />
             )}
         </div>
     );
