@@ -412,6 +412,15 @@ const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], 
         batches.some(b => b.order_id === o.id)
     ).map(o => ({ id: o.id, customer: o.customer_name, note: o.notes }));
     
+    // Cycle for note colors
+    const NOTE_COLORS = [
+        'bg-blue-50 border-blue-100 text-blue-800',
+        'bg-purple-50 border-purple-100 text-purple-800',
+        'bg-rose-50 border-rose-100 text-rose-800',
+        'bg-amber-50 border-amber-100 text-amber-800',
+        'bg-teal-50 border-teal-100 text-teal-800',
+    ];
+
     return (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -424,46 +433,45 @@ const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], 
                 </div>
             </div>
 
-            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                {/* NEW: General Order Notes Card */}
+            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-start">
+                {/* NEW: General Order Notes Card (Redesigned) */}
                 {activeOrderNotes && activeOrderNotes.length > 0 && (
-                    <div className="bg-indigo-50 px-5 py-3 rounded-2xl border border-indigo-100 min-w-[140px] relative group cursor-help">
-                        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <ClipboardList size={12}/> Οδηγίες
+                     <div className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm">
+                        <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
+                            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
+                                <ClipboardList size={10}/> Οδηγίες Παραγωγής
+                            </span>
+                            <span className="bg-white text-indigo-600 px-1.5 rounded text-[9px] font-bold shadow-sm">{activeOrderNotes.length}</span>
                         </div>
-                        <div className="text-2xl font-black text-indigo-800">{activeOrderNotes.length}</div>
-                        
-                        {/* Tooltip/Dropdown for Notes */}
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 p-3 z-50 hidden group-hover:block max-h-60 overflow-y-auto">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wide border-b border-slate-50 pb-1">Γενικές Οδηγίες Εντολών</h4>
-                            {activeOrderNotes.map(n => (
-                                <div key={n.id} className="mb-2 border-b border-slate-50 pb-2 last:border-0 last:mb-0 last:pb-0">
-                                    <div className="text-[10px] font-bold text-slate-500 flex justify-between">
-                                        <span>{n.customer}</span>
-                                        <span className="font-mono opacity-50">#{n.id.slice(0,4)}</span>
+                        <div className="overflow-y-auto p-2 space-y-1.5 custom-scrollbar bg-white">
+                            {activeOrderNotes.map((n, i) => (
+                                <div key={n.id} className={`p-2 rounded-lg border text-[10px] leading-tight ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
+                                    <div className="flex justify-between font-bold mb-0.5 opacity-90 border-b border-black/5 pb-0.5">
+                                        <span>{i + 1}. {n.customer}</span>
+                                        <span className="font-mono opacity-70">#{n.id.slice(0,4)}</span>
                                     </div>
-                                    <div className="text-xs text-slate-700 italic font-medium leading-snug mt-0.5">{n.note}</div>
+                                    <div className="font-medium italic opacity-90">"{n.note}"</div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                 <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px]">
+                 <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center">
                     <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{onHold}</div>
                 </div>
-                <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px]">
+                <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12}/> Ενεργά</div>
                     <div className="text-2xl font-black text-slate-800">{inProgress}</div>
                 </div>
-                <div className={`px-5 py-3 rounded-2xl border min-w-[120px] ${delayed > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                <div className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center ${delayed > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
                     <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''}/> Καθυστέρηση
                     </div>
                     <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
                 </div>
-                <div className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px]">
+                <div className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center">
                     <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Έτοιμα</div>
                     <div className="text-2xl font-black text-emerald-700">{ready}</div>
                 </div>
