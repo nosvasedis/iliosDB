@@ -219,40 +219,40 @@ export default function ProductionSendModal({ order, products, materials, existi
     const totalSent = rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-7xl h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
                 
                 {/* HEADER */}
                 <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg">
+                        <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg hidden sm:block">
                             <Factory size={28}/>
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Αποστολή στην Παραγωγή</h2>
+                            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Αποστολή στην Παραγωγή</h2>
                             <div className="flex items-center gap-3 text-sm font-bold text-slate-500 mt-0.5">
                                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
-                                <span className="flex items-center gap-1"><User size={14}/> {order.customer_name}</span>
+                                <span className="flex items-center gap-1 truncate max-w-[200px]"><User size={14}/> {order.customer_name}</span>
                             </div>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
                 </div>
 
-                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+                <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                     
-                    {/* LEFT PANEL: SELECTION & TABLE */}
-                    <div className="lg:col-span-8 flex flex-col border-r border-slate-100 bg-slate-50/50">
+                    {/* LEFT PANEL: SELECTION & TABLE (Takes remaining space) */}
+                    <div className="flex-1 flex flex-col min-h-0 border-r border-slate-100 bg-slate-50/50">
                         
                         {/* FILTERS BAR */}
-                        <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shrink-0">
                             <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-hide">
-                                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase px-2"><Filter size={10} className="inline mr-1"/> Φύλο</span>
+                                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100 shrink-0">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase px-2 hidden sm:inline"><Filter size={10} className="inline mr-1"/> Φύλο</span>
                                     {['All', Gender.Women, Gender.Men, Gender.Unisex].map(g => (
                                         <button 
                                             key={g} onClick={() => setFilterGender(g as any)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterGender === g ? 'bg-white shadow-sm text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${filterGender === g ? 'bg-white shadow-sm text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             {g === 'All' ? 'Όλα' : (g === Gender.Women ? 'Γυν' : (g === Gender.Men ? 'Ανδ' : 'Uni'))}
                                         </button>
@@ -263,7 +263,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <select 
                                         value={filterCollection} 
                                         onChange={(e) => setFilterCollection(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
-                                        className="bg-white border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                                        className="bg-white border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[150px]"
                                     >
                                         <option value="All">Όλες οι Συλλογές</option>
                                         {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -271,11 +271,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 )}
                             </div>
 
-                            <div className="flex gap-2 shrink-0">
-                                <button onClick={handleSelectVisible} className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100">
+                            <div className="flex gap-2 shrink-0 w-full sm:w-auto overflow-x-auto">
+                                <button onClick={handleSelectVisible} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 whitespace-nowrap">
                                     <CheckSquare size={14}/> Όλα τα ορατά
                                 </button>
-                                <button onClick={handleClearSelection} className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200">
+                                <button onClick={handleClearSelection} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200 whitespace-nowrap">
                                     <Square size={14}/> Καθαρισμός
                                 </button>
                             </div>
@@ -315,7 +315,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                          {/* Quantity Controls */}
                                          {isFullySent ? (
-                                             <div className="px-4 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-400 border border-slate-100">
+                                             <div className="px-4 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap">
                                                  Ολοκληρώθηκε
                                              </div>
                                          ) : (
@@ -342,7 +342,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                     </div>
 
                     {/* RIGHT PANEL: SUMMARY & HISTORY */}
-                    <div className="lg:col-span-4 bg-white flex flex-col h-full border-l border-slate-100 shadow-xl z-20">
+                    <div className="w-full lg:w-[400px] xl:w-[450px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
                         
                         {/* Current Selection Summary */}
                         <div className="p-6 bg-slate-900 text-white flex flex-col gap-4 shrink-0">
@@ -370,8 +370,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </button>
                         </div>
 
-                        {/* History Feed */}
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
+                        {/* History Feed - Hidden on Mobile to save space, Visible on Desktop */}
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white hidden lg:block">
                             <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
                                 <History size={14} className="text-blue-500"/> Ιστορικό Αποστολών
                             </h3>
@@ -409,7 +409,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
 
                         {/* Order Stats */}
-                        <div className="p-6 bg-slate-50 border-t border-slate-100">
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 hidden sm:block">
                              <div className="flex justify-between text-xs text-slate-500 mb-1">
                                  <span>Σύνολο Παραγγελίας:</span>
                                  <span className="font-bold text-slate-900">{order.items.reduce((s,i)=>s+i.quantity,0)}</span>
