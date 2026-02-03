@@ -620,6 +620,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
               onClose={() => setProductionModalOrder(null)}
               onSuccess={onProductionSuccess}
               collections={collections}
+              onPrintAggregated={onPrintAggregated}
           />
       )}
     </div>

@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -13,6 +14,7 @@ interface Props {
     collections?: Collection[];
     onClose: () => void;
     onSuccess: () => void;
+    onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
 }
 
 const STAGE_CONFIG: Record<string, { label: string, color: string, text: string }> = {
@@ -81,7 +83,7 @@ interface RowItem extends OrderItem {
     originalIndex: number;
 }
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated }: Props) {
     const { showToast } = useUI();
     const [isSending, setIsSending] = useState(false);
     
@@ -171,17 +173,18 @@ export default function ProductionSendModal({ order, products, materials, existi
     }, [rows, filterGender, filterCollection, products, searchTerm]);
 
     const historyGroups = useMemo(() => {
-       const groups: Record<string, { date: Date, qty: number, value: number, count: number }> = {};
+       const groups: Record<string, { date: Date, qty: number, value: number, count: number, batches: ProductionBatch[] }> = {};
        
        existingBatches.forEach(b => {
            const item = order.items.find(i => i.sku === b.sku && (i.variant_suffix || '') === (b.variant_suffix || ''));
            const price = item ? item.price_at_order : 0;
-           const key = new Date(b.created_at).toISOString().slice(0, 13);
+           const key = new Date(b.created_at).toISOString().slice(0, 16); // Minute precision
            
-           if (!groups[key]) groups[key] = { date: new Date(b.created_at), qty: 0, value: 0, count: 0 };
+           if (!groups[key]) groups[key] = { date: new Date(b.created_at), qty: 0, value: 0, count: 0, batches: [] };
            groups[key].qty += b.quantity;
            groups[key].value += (b.quantity * price);
            groups[key].count += 1;
+           groups[key].batches.push(b);
        });
 
        return Object.values(groups).sort((a,b) => b.date.getTime() - a.date.getTime());
@@ -241,6 +244,15 @@ export default function ProductionSendModal({ order, products, materials, existi
             showToast("Σφάλμα κατά την αποστολή.", "error");
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handlePrintHistoryGroup = (groupBatches: ProductionBatch[]) => {
+        if (onPrintAggregated) {
+            onPrintAggregated(groupBatches, { orderId: order.id, customerName: order.customer_name });
+            showToast("Εκτύπωση ιστορικού...", "info");
+        } else {
+            showToast("Η εκτύπωση δεν είναι διαθέσιμη.", "error");
         }
     };
 
@@ -447,9 +459,21 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                                     {group.date.toLocaleDateString('el-GR')} • {group.date.toLocaleTimeString('el-GR', {hour: '2-digit', minute:'2-digit'})}
                                                 </span>
-                                                <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">
-                                                    Αποστολή {historyGroups.length - idx}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                                        Αποστολή {historyGroups.length - idx}
+                                                    </span>
+                                                    {/* NEW: PRINT BUTTON FOR HISTORY */}
+                                                    {onPrintAggregated && (
+                                                        <button 
+                                                            onClick={() => handlePrintHistoryGroup(group.batches)}
+                                                            className="bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 p-1.5 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors shadow-sm"
+                                                            title="Εκτύπωση Παραστατικού"
+                                                        >
+                                                            <Printer size={12}/>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="flex justify-between items-end">
                                                 <div>
