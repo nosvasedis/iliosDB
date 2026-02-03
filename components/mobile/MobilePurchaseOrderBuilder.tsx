@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, Gender } from '../../types';
+import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, Gender, ProductionType } from '../../types';
 import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -27,7 +26,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
     'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
     'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
-    'AP': 'text-cyan-600', 'AM': 'text-teal-600', 'LR': 'text-indigo-600', 'BST': 'text-sky-500',
+    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
     'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
@@ -84,8 +83,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         pendingOrders.forEach(order => {
             order.items.forEach(item => {
                 const product = products.find(p => p.sku === item.sku);
-                // Filter by supplier match (or unassigned)
-                if (product?.supplier_id === supplier.id || !product?.supplier_id) {
+                // Filter by supplier match (or unassigned) AND product is Imported
+                if ((product?.supplier_id === supplier.id || !product?.supplier_id) && product?.production_type === ProductionType.Imported) {
                     const key = `${item.sku}-${item.variant_suffix || ''}`;
                     if (!groupedOrderNeeds[key]) {
                         groupedOrderNeeds[key] = {
