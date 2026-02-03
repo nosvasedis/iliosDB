@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Order, Product, Customer, GlobalSettings } from '../types';
 import { APP_LOGO } from '../constants';
@@ -76,7 +77,7 @@ export default function OrderInvoiceView({ order }: Props) {
     };
 
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always flex flex-col">
+        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always flex flex-col relative">
             
             {/* COMPACT HEADER */}
             <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-3 shrink-0">
@@ -100,7 +101,7 @@ export default function OrderInvoiceView({ order }: Props) {
             </div>
             
             {/* SUPER COMPACT INFO BAR */}
-            <div className="flex gap-4 mb-4 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
+            <div className="flex gap-4 mb-3 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
                 {/* Client Info */}
                 <div className="flex-1 flex flex-col justify-center">
                     <div className="flex items-baseline gap-2 mb-0.5">
@@ -133,63 +134,91 @@ export default function OrderInvoiceView({ order }: Props) {
                 </div>
             </div>
 
+            {/* DUAL COLUMN ITEMS GRID */}
+            <main className="flex-1 min-h-0 relative">
+                
+                {/* Header Row (Duplicated for 2 Columns) */}
+                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[8px] font-black text-slate-600 uppercase tracking-wider">
+                    {/* Left Column Header */}
+                    <div className="flex-1 flex items-center pr-3">
+                        <div className="w-6 text-center text-slate-400">#</div>
+                        <div className="w-8 text-center">Eik.</div>
+                        <div className="flex-1 px-1">Περιγραφη</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                        <div className="w-12 text-right">Τιμη</div>
+                        <div className="w-14 text-right">Συνολο</div>
+                    </div>
+                    {/* Right Column Header */}
+                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
+                         <div className="w-6 text-center text-slate-400">#</div>
+                        <div className="w-8 text-center">Eik.</div>
+                        <div className="flex-1 px-1">Περιγραφη</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                        <div className="w-12 text-right">Τιμη</div>
+                        <div className="w-14 text-right">Συνολο</div>
+                    </div>
+                </div>
 
-            {/* DENSE ITEMS TABLE */}
-            <main className="flex-1 min-h-0">
-                <table className="w-full text-left border-collapse text-[10px]">
-                    <thead>
-                        <tr className="border-b-2 border-slate-900 text-slate-600 uppercase font-bold tracking-wider text-[8px]">
-                            <th className="py-1 pr-1 w-6 text-center">#</th>
-                            <th className="py-1 px-1 w-8">Eik.</th>
-                            <th className="py-1 px-1">Περιγραφη / Κωδικος</th>
-                            <th className="py-1 px-1 text-center w-12">Ποσ.</th>
-                            <th className="py-1 px-1 text-right w-16">Τιμη</th>
-                            <th className="py-1 pl-1 text-right w-20">Συνολο</th>
-                        </tr>
-                    </thead>
-                    <tbody className="align-top">
-                        {order.items.map((item, index) => {
-                            const product = allProducts?.find(p => p.sku === item.sku);
-                            const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
+                {/* Items Grid */}
+                <div className="grid grid-cols-2 text-[9px] leading-tight auto-rows-min">
+                    {order.items.map((item, index) => {
+                        const product = allProducts?.find(p => p.sku === item.sku);
+                        const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
 
-                            const fullSku = item.sku + (item.variant_suffix || '');
-                            const imageUrl = product?.image_url;
-                            const description = variant?.description || product?.category || 'Προϊόν';
+                        const fullSku = item.sku + (item.variant_suffix || '');
+                        const imageUrl = product?.image_url;
+                        const description = variant?.description || product?.category || 'Προϊόν';
 
-                            return (
-                                <tr key={index} className="border-b border-slate-100 break-inside-avoid">
-                                    <td className="py-1.5 pr-1 text-center text-slate-400 font-mono align-middle">{index + 1}</td>
-                                    <td className="py-1.5 px-1 align-middle">
-                                        <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
-                                            {imageUrl ? (
-                                                <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <ImageIcon size={10} className="text-slate-300" />
-                                            )}
+                        return (
+                            <div 
+                                key={index} 
+                                className={`
+                                    flex items-center py-1.5 border-b border-slate-100 break-inside-avoid
+                                    ${index % 2 === 0 ? 'pr-3 border-r border-dashed border-slate-200' : 'pl-3'}
+                                `}
+                            >
+                                {/* Index */}
+                                <div className="w-6 text-center text-slate-400 font-mono text-[8px]">{index + 1}</div>
+                                
+                                {/* Image */}
+                                <div className="w-8 text-center">
+                                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                                        {imageUrl ? (
+                                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <ImageIcon size={10} className="text-slate-300" />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Desc */}
+                                <div className="flex-1 px-1 min-w-0">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="font-bold text-slate-900">{fullSku}</span>
+                                            {item.size_info && <span className="text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
                                         </div>
-                                    </td>
-                                    <td className="py-1.5 px-1 align-middle">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="font-bold text-slate-900">{fullSku}</span>
-                                                {item.size_info && <span className="text-[8px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold">{item.size_info}</span>}
+                                        <span className="text-[8px] text-slate-500 truncate max-w-[200px]">{description}</span>
+                                        {item.notes && (
+                                            <div className="text-[7px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none">
+                                                <StickyNote size={6}/> {item.notes}
                                             </div>
-                                            <span className="text-[9px] text-slate-500 truncate max-w-[250px]">{description}</span>
-                                            {item.notes && (
-                                                <div className="text-[8px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5">
-                                                    <StickyNote size={8}/> {item.notes}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="py-1.5 px-1 text-center align-middle font-bold text-slate-800 text-xs">{item.quantity}</td>
-                                    <td className="py-1.5 px-1 text-right align-middle text-slate-600 font-mono">{item.price_at_order.toFixed(2).replace('.', ',')}</td>
-                                    <td className="py-1.5 pl-1 text-right align-middle font-black text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Qty */}
+                                <div className="w-8 text-center font-bold text-slate-800 text-xs">{item.quantity}</div>
+                                
+                                {/* Price */}
+                                <div className="w-12 text-right text-slate-600 font-mono">{item.price_at_order.toFixed(2).replace('.', ',')}</div>
+                                
+                                {/* Total */}
+                                <div className="w-14 text-right font-black text-slate-900 font-mono">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+                            </div>
+                        );
+                    })}
+                </div>
             </main>
 
             {/* COMPACT FOOTER */}
