@@ -192,6 +192,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
   const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
   const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+  const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
   // View State
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -610,7 +611,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         />
       )}
 
-      {productionModalOrder && (
+      {productionModalOrder && collections && (
           <ProductionSendModal 
               order={productionModalOrder} 
               products={products}
@@ -618,6 +619,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
               existingBatches={enrichedBatches.filter(b => b.order_id === productionModalOrder.id)}
               onClose={() => setProductionModalOrder(null)}
               onSuccess={onProductionSuccess}
+              collections={collections}
           />
       )}
     </div>

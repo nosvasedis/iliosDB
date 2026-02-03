@@ -1,48 +1,27 @@
 
 import React, { useState, useMemo } from 'react';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem } from '../types';
-// @FIX: Added missing icon imports: User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus } from 'lucide-react';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender } from '../types';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, Phone, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     order: Order;
     products: Product[];
     materials: Material[];
     existingBatches: ProductionBatch[];
+    collections?: Collection[]; // Added collections
     onClose: () => void;
     onSuccess: () => void;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'Αναμονή',
-    [ProductionStage.Waxing]: 'Κεριά',
-    [ProductionStage.Casting]: 'Χυτήριο',
-    [ProductionStage.Setting]: 'Καρφωτής',
-    [ProductionStage.Polishing]: 'Τεχνίτης',
-    [ProductionStage.Labeling]: 'Συσκευασία',
-    [ProductionStage.Ready]: 'Έτοιμα'
-};
-
-const STAGE_COLORS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    [ProductionStage.Waxing]: 'bg-slate-100 text-slate-700 border-slate-200',
-    [ProductionStage.Casting]: 'bg-orange-50 text-orange-700 border-orange-200',
-    [ProductionStage.Setting]: 'bg-purple-50 text-purple-700 border-purple-200',
-    [ProductionStage.Polishing]: 'bg-blue-50 text-blue-700 border-blue-200',
-    [ProductionStage.Labeling]: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    [ProductionStage.Ready]: 'bg-emerald-500 text-white border-emerald-600 shadow-emerald-100'
-};
-
-// Heuristic for delay detection (matches ProductionPage logic)
 const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 120,    // 5 Days
-    [ProductionStage.Casting]: 96,    // 4 Days
-    [ProductionStage.Setting]: 144,   // 6 Days
-    [ProductionStage.Polishing]: 120, // 5 Days
-    [ProductionStage.Labeling]: 72    // 3 Days
+    [ProductionStage.Waxing]: 120,    
+    [ProductionStage.Casting]: 96,    
+    [ProductionStage.Setting]: 144,   
+    [ProductionStage.Polishing]: 120, 
+    [ProductionStage.Labeling]: 72    
 };
 
 const getAgingInfo = (updatedAt: string, stage: string) => {
@@ -50,14 +29,9 @@ const getAgingInfo = (updatedAt: string, stage: string) => {
     const now = new Date();
     const diffMs = now.getTime() - start.getTime();
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    
     const limit = STAGE_LIMITS_HOURS[stage] || 999;
     const isDelayed = stage !== ProductionStage.Ready && diffHrs > limit;
-    
-    let timeLabel = '';
-    if (diffHrs < 24) timeLabel = `${diffHrs}ώ`;
-    else timeLabel = `${Math.floor(diffHrs/24)}ημ`;
-
+    let timeLabel = diffHrs < 24 ? `${diffHrs}ώ` : `${Math.floor(diffHrs/24)}ημ`;
     return { diffHrs, timeLabel, isDelayed };
 };
 
@@ -77,14 +51,29 @@ interface RowItem extends OrderItem {
     remainingQty: number;
     toSendQty: number;
     batchDetails: BatchMiniStatus[];
+    
+    // Filtering Metadata
+    gender?: Gender;
+    collectionId?: number;
+    price: number; // Unit price at order time
 }
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, onClose, onSuccess }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess }: Props) {
     const { showToast } = useUI();
     const [isSending, setIsSending] = useState(false);
     
+    // --- FILTER STATE ---
+    const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
+    const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
+    
+    // --- SEND QUANTITY STATE ---
+    // Stores how many to send for each row index. Default is 0.
+    const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
+
     const rows = useMemo(() => {
         return order.items.map(item => {
+            const product = products.find(p => p.sku === item.sku);
+            
             const relevantBatches = existingBatches.filter(b => 
                 b.sku === item.sku && 
                 (b.variant_suffix || '') === (item.variant_suffix || '') &&
@@ -115,31 +104,96 @@ export default function ProductionSendModal({ order, products, materials, existi
                 return stages.indexOf(a.stage as any) - stages.indexOf(b.stage as any);
             });
 
+            // Determine Gender/Collection for filtering
+            const gender = product?.gender || 'Unknown';
+            const collectionId = product?.collections?.[0]; // Taking primary collection
+
             return {
                 ...item,
                 readyQty,
                 inProgressQty,
                 remainingQty,
                 toSendQty: remainingQty,
-                batchDetails
-            };
+                batchDetails,
+                gender,
+                collectionId,
+                price: item.price_at_order
+            } as RowItem;
         });
-    }, [order.items, existingBatches]);
+    }, [order.items, existingBatches, products]);
 
-    const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
+    // Derived: Filtered Rows based on selection
+    const filteredRows = useMemo(() => {
+        return rows.map((row, idx) => ({ ...row, originalIndex: idx })).filter(row => {
+            if (filterGender !== 'All' && row.gender !== filterGender) return false;
+            if (filterCollection !== 'All') {
+                 // Check if product belongs to selected collection (row.collectionId is just primary, check products list ideally or trust primary)
+                 // Better: Check if product has this collection
+                 const product = products.find(p => p.sku === row.sku);
+                 if (!product?.collections?.includes(filterCollection)) return false;
+            }
+            return true;
+        });
+    }, [rows, filterGender, filterCollection, products]);
+
+    // --- FINANCIAL HISTORY LOGIC ---
+    const historyGroups = useMemo(() => {
+       const groups: Record<string, { date: Date, qty: number, value: number, count: number }> = {};
+       
+       existingBatches.forEach(b => {
+           // Find original order item price to calculate historical value
+           const item = order.items.find(i => i.sku === b.sku && i.variant_suffix === b.variant_suffix);
+           const price = item ? item.price_at_order : 0;
+           
+           // Group by Hour to simulate a "Batch Event"
+           const key = new Date(b.created_at).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+           
+           if (!groups[key]) groups[key] = { date: new Date(b.created_at), qty: 0, value: 0, count: 0 };
+           groups[key].qty += b.quantity;
+           groups[key].value += (b.quantity * price);
+           groups[key].count += 1;
+       });
+
+       return Object.values(groups).sort((a,b) => b.date.getTime() - a.date.getTime());
+    }, [existingBatches, order.items]);
+
+    // --- CURRENT SEND VALUE ---
+    const currentSendValue = useMemo(() => {
+        return rows.reduce((sum: number, row, idx) => {
+            const qty = toSendQuantities[idx] || 0;
+            return sum + (qty * row.price);
+        }, 0);
+    }, [rows, toSendQuantities]);
+
+    const totalToSend = Object.values(toSendQuantities).reduce((a: number, b: number) => a + b, 0);
 
     const updateToSend = (idx: number, val: number) => {
+        const row = rows[idx];
         setToSendQuantities(prev => ({
             ...prev,
-            [idx]: Math.min(rows[idx].remainingQty, Math.max(0, val))
+            [idx]: Math.min(row.remainingQty, Math.max(0, val))
         }));
+    };
+
+    const handleSelectVisible = () => {
+        const newQuantities = { ...toSendQuantities };
+        filteredRows.forEach(row => {
+            if (row.remainingQty > 0) {
+                newQuantities[row.originalIndex] = row.remainingQty;
+            }
+        });
+        setToSendQuantities(newQuantities);
+    };
+
+    const handleClearSelection = () => {
+        setToSendQuantities({});
     };
 
     const handleSend = async () => {
         const itemsToSend = rows.map((r, idx) => ({
             sku: r.sku,
             variant: r.variant_suffix || null,
-            qty: toSendQuantities[idx] !== undefined ? toSendQuantities[idx] : r.remainingQty,
+            qty: toSendQuantities[idx] || 0,
             size_info: r.size_info,
             notes: r.notes
         })).filter(i => i.qty > 0);
@@ -152,7 +206,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         setIsSending(true);
         try {
             await api.sendPartialOrderToProduction(order.id, itemsToSend, products, materials);
-            showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών στην παραγωγή.`, "success");
+            showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών.`, "success");
             onSuccess();
         } catch (e) {
             showToast("Σφάλμα κατά την αποστολή.", "error");
@@ -161,247 +215,217 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
-    const totalOrdered = order.items.reduce((s, i) => s + i.quantity, 0);
-    const totalReady = rows.reduce((s, r) => s + r.readyQty, 0);
-    const totalInProduction = rows.reduce((s, r) => s + r.inProgressQty, 0);
     const totalRemaining = rows.reduce((s, r) => s + r.remainingQty, 0);
-    const totalToSend = rows.reduce((s, r, idx) => s + (toSendQuantities[idx] !== undefined ? toSendQuantities[idx] : r.remainingQty), 0);
+    const totalSent = rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
+        <div className="fixed inset-0 z-[200] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full max-w-7xl h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
                 
-                {/* Header Section */}
-                <div className="p-8 border-b border-slate-100 bg-white sticky top-0 z-10 flex flex-col sm:flex-row justify-between items-start gap-6">
-                    <div className="flex gap-4">
-                        <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-lg">
-                            <Factory size={32}/>
+                {/* HEADER */}
+                <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg">
+                            <Factory size={28}/>
                         </div>
                         <div>
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Αποστολή στην Παραγωγή</h2>
-                                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border border-blue-200">
-                                    #{order.id.slice(0, 12)}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-4 mt-1 text-slate-500 font-bold">
-                                <div className="flex items-center gap-1.5"><User size={16} className="text-slate-400"/> {order.customer_name}</div>
-                                {order.customer_phone && <div className="flex items-center gap-1.5"><Phone size={16} className="text-slate-400"/> {order.customer_phone}</div>}
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Αποστολή στην Παραγωγή</h2>
+                            <div className="flex items-center gap-3 text-sm font-bold text-slate-500 mt-0.5">
+                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
+                                <span className="flex items-center gap-1"><User size={14}/> {order.customer_name}</span>
                             </div>
                         </div>
                     </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
+                </div>
+
+                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
                     
-                    {/* Order Notes Overview */}
-                    {order.notes && (
-                        <div className="flex-1 max-w-md bg-amber-50/80 border border-amber-200 p-3 rounded-2xl flex gap-3">
-                            <StickyNote className="text-amber-500 shrink-0 mt-1" size={18}/>
-                            <div>
-                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest block mb-0.5">Σημειώσεις Παραγγελίας</span>
-                                <p className="text-xs text-amber-900 font-medium leading-relaxed line-clamp-2 italic">"{order.notes}"</p>
+                    {/* LEFT PANEL: SELECTION & TABLE */}
+                    <div className="lg:col-span-8 flex flex-col border-r border-slate-100 bg-slate-50/50">
+                        
+                        {/* FILTERS BAR */}
+                        <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-4 items-center justify-between">
+                            <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-hide">
+                                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase px-2"><Filter size={10} className="inline mr-1"/> Φύλο</span>
+                                    {['All', Gender.Women, Gender.Men, Gender.Unisex].map(g => (
+                                        <button 
+                                            key={g} onClick={() => setFilterGender(g as any)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterGender === g ? 'bg-white shadow-sm text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            {g === 'All' ? 'Όλα' : (g === Gender.Women ? 'Γυν' : (g === Gender.Men ? 'Ανδ' : 'Uni'))}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {collections && collections.length > 0 && (
+                                    <select 
+                                        value={filterCollection} 
+                                        onChange={(e) => setFilterCollection(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
+                                        className="bg-white border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                                    >
+                                        <option value="All">Όλες οι Συλλογές</option>
+                                        {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                )}
+                            </div>
+
+                            <div className="flex gap-2 shrink-0">
+                                <button onClick={handleSelectVisible} className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100">
+                                    <CheckSquare size={14}/> Όλα τα ορατά
+                                </button>
+                                <button onClick={handleClearSelection} className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200">
+                                    <Square size={14}/> Καθαρισμός
+                                </button>
                             </div>
                         </div>
-                    )}
 
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors shrink-0"><X size={24}/></button>
-                </div>
+                        {/* ITEMS LIST */}
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
+                             {filteredRows.map((row) => {
+                                 const product = products.find(p => p.sku === row.sku);
+                                 const originalIndex = row.originalIndex;
+                                 const currentSend = toSendQuantities[originalIndex] || 0;
+                                 const isFullySent = row.remainingQty === 0;
 
-                {/* Progress Summary Dashboard */}
-                <div className="px-8 py-4 bg-slate-50/80 border-b border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center gap-4 shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500"><ShoppingCart size={20}/></div>
-                        <div>
-                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Παραγγελία</div>
-                            <div className="text-xl font-black text-slate-800">{totalOrdered} <span className="text-xs text-slate-400">τμχ</span></div>
+                                 // Variants styling
+                                 const { finish, stone } = getVariantComponents(row.variant_suffix || '', row.gender);
+
+                                 return (
+                                     <div key={originalIndex} className={`bg-white p-3 rounded-2xl border transition-all flex items-center justify-between gap-4 ${currentSend > 0 ? 'border-emerald-400 shadow-md ring-1 ring-emerald-500/20' : 'border-slate-100 hover:border-slate-300'}`}>
+                                         {/* Product Info */}
+                                         <div className="flex items-center gap-3 min-w-0 flex-1">
+                                             <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+                                                 {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
+                                             </div>
+                                             <div className="min-w-0">
+                                                 <div className="flex items-baseline gap-1.5">
+                                                     <span className="font-black text-slate-800 text-sm">{row.sku}</span>
+                                                     <span className="text-xs font-bold text-slate-500">{finish.code}{stone.code}</span>
+                                                 </div>
+                                                 <div className="text-[10px] text-slate-400 font-bold uppercase truncate">{product?.category} {row.size_info && `• ${row.size_info}`}</div>
+                                                 {/* Status Bar */}
+                                                 <div className="flex gap-2 mt-1">
+                                                     {row.readyQty > 0 && <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 rounded font-bold">{row.readyQty} Έτοιμα</span>}
+                                                     {row.inProgressQty > 0 && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 rounded font-bold">{row.inProgressQty} Ενεργά</span>}
+                                                 </div>
+                                             </div>
+                                         </div>
+
+                                         {/* Quantity Controls */}
+                                         {isFullySent ? (
+                                             <div className="px-4 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-400 border border-slate-100">
+                                                 Ολοκληρώθηκε
+                                             </div>
+                                         ) : (
+                                             <div className="flex flex-col items-end gap-1">
+                                                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Υπόλοιπο: {row.remainingQty}</div>
+                                                 <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                                                     <button onClick={() => updateToSend(originalIndex, currentSend - 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-600 hover:text-slate-900 active:scale-95 transition-transform"><Minus size={14}/></button>
+                                                     <input 
+                                                         type="number" 
+                                                         min="0" max={row.remainingQty} 
+                                                         value={currentSend} 
+                                                         onChange={(e) => updateToSend(originalIndex, parseInt(e.target.value)||0)}
+                                                         className="w-10 text-center font-black text-lg bg-transparent outline-none text-slate-800"
+                                                     />
+                                                     <button onClick={() => updateToSend(originalIndex, currentSend + 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-600 hover:text-slate-900 active:scale-95 transition-transform"><Plus size={14}/></button>
+                                                 </div>
+                                             </div>
+                                         )}
+                                     </div>
+                                 );
+                             })}
+                             {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη με τα επιλεγμένα φίλτρα.</div>}
                         </div>
                     </div>
-                    <div className="bg-white p-3 rounded-2xl border border-emerald-100 flex items-center gap-4 shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600"><CheckCircle size={20}/></div>
-                        <div>
-                            <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Έτοιμα</div>
-                            <div className="text-xl font-black text-emerald-700">{totalReady} <span className="text-xs text-emerald-400">τμχ</span></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-2xl border border-blue-100 flex items-center gap-4 shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600"><RefreshCw size={20} className="animate-spin-slow"/></div>
-                        <div>
-                            <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">Σε Παραγωγή</div>
-                            <div className="text-xl font-black text-blue-700">{totalInProduction} <span className="text-xs text-slate-400">τμχ</span></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-2xl border border-amber-100 flex items-center gap-4 shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600"><History size={20}/></div>
-                        <div>
-                            <div className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Εκκρεμούν</div>
-                            <div className="text-xl font-black text-amber-700">{totalRemaining} <span className="text-xs text-slate-400">τμχ</span></div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Items List Table */}
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                    <div className="space-y-4">
-                        {rows.map((row, idx) => {
-                            const product = products.find(p => p.sku === row.sku);
-                            const toSendVal = toSendQuantities[idx] !== undefined ? toSendQuantities[idx] : row.remainingQty;
-                            const isFullySent = row.remainingQty === 0;
+                    {/* RIGHT PANEL: SUMMARY & HISTORY */}
+                    <div className="lg:col-span-4 bg-white flex flex-col h-full border-l border-slate-100 shadow-xl z-20">
+                        
+                        {/* Current Selection Summary */}
+                        <div className="p-6 bg-slate-900 text-white flex flex-col gap-4 shrink-0">
+                            <h3 className="font-bold uppercase text-xs tracking-widest text-slate-400 flex items-center gap-2">
+                                <Wallet size={14}/> Τρέχουσα Αποστολή
+                            </h3>
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <div className="text-4xl font-black tracking-tight">{totalToSend} <span className="text-lg font-medium text-slate-400">τεμ</span></div>
+                                    <div className="text-xs text-slate-400 font-bold mt-1">Επιλεγμένα Είδη</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-black text-emerald-400">{formatCurrency(currentSendValue)}</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase">Καθαρη Αξια</div>
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={handleSend}
+                                disabled={isSending || totalToSend === 0}
+                                className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-lg shadow-lg hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 active:scale-95"
+                            >
+                                {isSending ? <Loader2 className="animate-spin"/> : <Factory size={20}/>}
+                                {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
+                            </button>
+                        </div>
 
-                            return (
-                                <div key={idx} className={`bg-white rounded-3xl border transition-all duration-300 flex flex-col md:flex-row overflow-hidden ${isFullySent ? 'border-slate-100 opacity-80' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200'}`}>
-                                    {/* Left: Product Info */}
-                                    <div className="p-4 md:w-1/4 border-b md:border-b-0 md:border-r border-slate-100 flex items-center gap-4 shrink-0 bg-slate-50/30">
-                                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
-                                            {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-slate-300" size={24}/>}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="font-black text-slate-800 text-base leading-tight truncate uppercase">{row.sku}{row.variant_suffix}</div>
-                                            {row.size_info && <div className="text-[10px] font-black text-blue-600 uppercase mt-1">Μέγεθος: {row.size_info}</div>}
-                                            <div className="text-[9px] font-bold text-slate-400 uppercase mt-1 truncate">{product?.category}</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Middle: Intelligent Status Visualizer */}
-                                    <div className="flex-1 p-4 flex flex-col gap-4">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="flex gap-4">
-                                                <div className="text-center">
-                                                    <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Εντολή</div>
-                                                    <div className="text-base font-black text-slate-600">{row.quantity}</div>
+                        {/* History Feed */}
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
+                            <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest mb-4 flex items-center gap-2">
+                                <History size={14} className="text-blue-500"/> Ιστορικό Αποστολών
+                            </h3>
+                            
+                            <div className="space-y-4">
+                                {historyGroups.map((group, idx) => (
+                                    <div key={idx} className="relative pl-4 border-l-2 border-slate-100 pb-2">
+                                        <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-sm"/>
+                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                    {group.date.toLocaleDateString('el-GR')} • {group.date.toLocaleTimeString('el-GR', {hour: '2-digit', minute:'2-digit'})}
+                                                </span>
+                                                <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                                    Part {historyGroups.length - idx}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-end">
+                                                <div>
+                                                    <div className="text-xl font-black text-slate-800">{group.qty} <span className="text-xs font-bold text-slate-400">τεμ</span></div>
                                                 </div>
-                                                <div className="text-center">
-                                                    <div className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Έτοιμα</div>
-                                                    <div className="text-base font-black text-emerald-600">{row.readyQty}</div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">Σε Παραγωγή</div>
-                                                    <div className="text-base font-black text-blue-600">{row.inProgressQty}</div>
+                                                <div className="font-mono font-bold text-slate-600">
+                                                    {formatCurrency(group.value)}
                                                 </div>
                                             </div>
-                                            
-                                            {row.notes && (
-                                                <div className="bg-emerald-50/50 border border-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-2 max-w-[200px]" title={row.notes}>
-                                                    <StickyNote size={12} className="text-emerald-500 shrink-0"/>
-                                                    <span className="text-[10px] text-emerald-800 font-bold truncate italic">"{row.notes}"</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Batch Timeline Strip */}
-                                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                                            {row.batchDetails.map(batch => {
-                                                const age = getAgingInfo(batch.updatedAt, batch.stage);
-                                                return (
-                                                    <div 
-                                                        key={batch.id} 
-                                                        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border min-w-max shadow-sm relative transition-all hover:scale-105 ${STAGE_COLORS[batch.stage] || 'bg-slate-50 border-slate-200'}`}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[10px] font-black uppercase tracking-tight">{STAGE_LABELS[batch.stage]}</span>
-                                                                <span className="w-1 h-1 rounded-full bg-current opacity-30"/>
-                                                                <span className="text-xs font-black">{batch.qty}τμχ</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                <div className={`flex items-center gap-0.5 text-[8px] font-bold px-1 rounded ${age.isDelayed ? 'bg-red-500 text-white animate-pulse' : 'bg-black/5 text-current'}`}>
-                                                                    <Clock size={8}/> {age.timeLabel}
-                                                                </div>
-                                                                {batch.onHold && <span className="bg-amber-500 text-white text-[7px] font-black px-1 rounded flex items-center gap-0.5"><PauseCircle size={8}/> HOLD</span>}
-                                                                {batch.notes && <StickyNote size={10} className="text-current opacity-60"/>}
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        {batch.onHold && batch.onHoldReason && (
-                                                            <div className="absolute -top-1 -right-1 group cursor-help">
-                                                                <AlertTriangle size={12} className="text-amber-600 fill-white"/>
-                                                                <div className="absolute bottom-full right-0 mb-2 p-2 bg-slate-900 text-white text-[9px] rounded-lg w-32 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none shadow-xl">
-                                                                    {batch.onHoldReason}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            
-                                            {/* Remaining Visual Placeholder */}
-                                            {row.remainingQty > 0 && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50/30 text-amber-600 min-w-max">
-                                                    <span className="text-[10px] font-black uppercase tracking-tight">Εκκρεμεί</span>
-                                                    <span className="text-xs font-black">{row.remainingQty}τμχ</span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-
-                                    {/* Right: Sending Control */}
-                                    <div className={`p-4 md:w-32 flex flex-col items-center justify-center gap-2 shrink-0 ${isFullySent ? 'bg-slate-50/30' : 'bg-blue-50/30 border-l border-slate-100'}`}>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Αποστολη</label>
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => updateToSend(idx, toSendVal - 1)}
-                                                disabled={isFullySent || toSendVal <= 0}
-                                                className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-30"
-                                            >
-                                                <Minus size={14} className="text-slate-400"/>
-                                            </button>
-                                            <input 
-                                                type="number"
-                                                min="0"
-                                                max={row.remainingQty}
-                                                value={toSendVal}
-                                                onChange={e => updateToSend(idx, parseInt(e.target.value) || 0)}
-                                                className={`w-12 text-center font-black text-lg bg-transparent outline-none ${toSendVal > 0 ? 'text-blue-600' : 'text-slate-300'}`}
-                                                disabled={isFullySent}
-                                            />
-                                            <button 
-                                                onClick={() => updateToSend(idx, toSendVal + 1)}
-                                                disabled={isFullySent || toSendVal >= row.remainingQty}
-                                                className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-30"
-                                            >
-                                                <Plus size={14} className="text-slate-400"/>
-                                            </button>
-                                        </div>
-                                        {row.remainingQty > 0 && toSendVal === row.remainingQty && (
-                                            <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-1">Full Batch</span>
-                                        )}
+                                ))}
+                                {historyGroups.length === 0 && (
+                                    <div className="text-center py-10 text-slate-300 italic text-sm">
+                                        Καμία προηγούμενη αποστολή.
                                     </div>
-                                </div>
-                            );
-                        })}
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Order Stats */}
+                        <div className="p-6 bg-slate-50 border-t border-slate-100">
+                             <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                 <span>Σύνολο Παραγγελίας:</span>
+                                 <span className="font-bold text-slate-900">{order.items.reduce((s,i)=>s+i.quantity,0)}</span>
+                             </div>
+                             <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                 <span>Στάλθηκαν:</span>
+                                 <span className="font-bold text-blue-600">{totalSent}</span>
+                             </div>
+                             <div className="flex justify-between text-xs text-slate-500">
+                                 <span>Απομένουν (Συνολικά):</span>
+                                 <span className="font-bold text-amber-600">{totalRemaining}</span>
+                             </div>
+                        </div>
+
                     </div>
                 </div>
-
-                {/* Footer Section */}
-                <div className="p-8 border-t border-slate-100 bg-white flex flex-col md:flex-row justify-between items-center gap-8 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
-                    <div className="flex gap-8 items-center bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
-                        <div className="text-center">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Προς Παραγωγή</div>
-                            <div className="text-4xl font-black text-blue-600">{totalToSend} <span className="text-xs text-slate-400 font-bold">τεμ</span></div>
-                        </div>
-                        <div className="w-px h-10 bg-slate-200"/>
-                        <div className="text-center">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Αναμονή Μετά</div>
-                            <div className="text-3xl font-black text-slate-400">{totalRemaining - totalToSend}</div>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-4 w-full md:w-auto">
-                        <button onClick={onClose} className="flex-1 md:flex-none px-10 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition-all active:scale-95 border-2 border-transparent">
-                            Άκυρο
-                        </button>
-                        <button 
-                            onClick={handleSend}
-                            disabled={isSending || totalToSend === 0}
-                            className="flex-[2] md:flex-none px-12 py-4 rounded-2xl bg-slate-900 text-white font-black text-lg shadow-2xl shadow-slate-200 hover:bg-black transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3 relative group"
-                        >
-                            {isSending ? <Loader2 size={24} className="animate-spin"/> : (
-                                <>
-                                    <span>Έναρξη Παρτίδων</span>
-                                    <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform"/>
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
             </div>
         </div>
     );
