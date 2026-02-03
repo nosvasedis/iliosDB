@@ -71,7 +71,8 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
               }
           });
           
-          return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id);
+          // Filter: Show if assigned to this supplier OR if unassigned (so manual batches appear)
+          return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id || !n.product?.supplier_id);
     }, [productionBatches, products, supplier.id, orders]);
 
     // Order Needs Logic (Items in Pending Orders - Not yet in production)
@@ -86,8 +87,8 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
         pendingOrders.forEach(order => {
             order.items.forEach(item => {
                 const product = products.find(p => p.sku === item.sku);
-                // Filter by supplier match
-                if (product?.supplier_id === supplier.id) {
+                // Filter: Show if assigned to this supplier OR if unassigned
+                if (product?.supplier_id === supplier.id || !product?.supplier_id) {
                     const key = `${item.sku}-${item.variant_suffix || ''}`;
                     if (!groupedOrderNeeds[key]) {
                         groupedOrderNeeds[key] = {
@@ -273,7 +274,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                     <div>
                                                         <div className="text-sm font-black text-slate-800">{n.sku}{n.variant}</div>
                                                         <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
-                                                            {n.requirements.map(r => `${r.customer}`).join(', ')}
+                                                            {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
                                                         </div>
                                                     </div>
                                                 </div>

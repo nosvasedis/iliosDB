@@ -23,7 +23,7 @@ const FINISH_STYLES: Record<string, string> = {
 
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
     'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
     'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
@@ -68,7 +68,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
               }
           });
           
-          return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id);
+          // Filter: Show if assigned to this supplier OR if unassigned
+          return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id || !n.product?.supplier_id);
     }, [productionBatches, products, supplier.id, orders]);
 
     // Order Needs Logic (Pending Orders)
@@ -83,8 +84,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         pendingOrders.forEach(order => {
             order.items.forEach(item => {
                 const product = products.find(p => p.sku === item.sku);
-                // Filter by supplier match
-                if (product?.supplier_id === supplier.id) {
+                // Filter by supplier match (or unassigned)
+                if (product?.supplier_id === supplier.id || !product?.supplier_id) {
                     const key = `${item.sku}-${item.variant_suffix || ''}`;
                     if (!groupedOrderNeeds[key]) {
                         groupedOrderNeeds[key] = {
@@ -410,17 +411,17 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                             </div>
                         );
                     })}
-                    {items.length === 0 && <div className="text-center py-10 text-slate-400 text-xs italic">Η λίστα είναι κενή.</div>}
+                    {items.length === 0 && <div className="text-center py-8 text-slate-400 text-xs italic">Η λίστα είναι κενή.</div>}
                 </div>
 
                 <div className="pt-4">
                      <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Εντολής</label>
-                     <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none"/>
+                     <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none mt-1" placeholder="Εσωτερικές σημειώσεις..."/>
                 </div>
             </div>
 
             <div className="p-4 bg-white border-t border-slate-200 z-20">
-                <button onClick={handleSave} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
+                <button onClick={handleSave} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
                     <Save size={20}/> Αποθήκευση Εντολής
                 </button>
             </div>
