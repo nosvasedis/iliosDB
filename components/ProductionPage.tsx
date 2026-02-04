@@ -247,7 +247,7 @@ const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: Prod
                 </div>
             </div>
 
-            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-start">
+            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-4 md:pb-0 items-start">
                 {/* General Order Notes Card */}
                 {activeOrderNotes && activeOrderNotes.length > 0 && (
                      <div className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm">
@@ -271,11 +271,11 @@ const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: Prod
                     </div>
                 )}
 
-                 <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 hover:scale-105 transition-all text-left">
+                 <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all text-left">
                     <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{onHold}</div>
                 </button>
-                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 hover:scale-105 transition-all text-left">
+                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all text-left">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12}/> Ενεργά</div>
                     <div className="text-2xl font-black text-slate-800">{inProgress}</div>
                 </button>
@@ -285,7 +285,7 @@ const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: Prod
                     </div>
                     <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
                 </button>
-                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 hover:scale-105 transition-all text-left">
+                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all text-left">
                     <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Έτοιμα</div>
                     <div className="text-2xl font-black text-emerald-700">{ready}</div>
                 </button>
