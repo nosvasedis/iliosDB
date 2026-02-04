@@ -225,7 +225,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     {onEditNote && (
                                         <button 
                                             onClick={() => onEditNote(batch)}
-                                            className="absolute top-2 right-2 p-1.5 text-amber-400 hover:text-amber-700 bg-white/50 hover:bg-white rounded-lg transition-all"
+                                            className="absolute top-2 right-2 p-1.5 text-amber-400 hover:text-amber-700 bg-white/50 hover:bg-white rounded-lg transition-all md:hidden"
                                         >
                                             <Edit size={14}/>
                                         </button>
@@ -233,7 +233,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                 </div>
                             ) : (
                                 onEditNote && (
-                                    <button onClick={() => onEditNote(batch)} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 group">
+                                    <button onClick={() => onEditNote(batch)} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 group md:hidden">
                                         <StickyNote size={16} className="group-hover:fill-amber-100"/> Προσθήκη Σημείωσης
                                     </button>
                                 )

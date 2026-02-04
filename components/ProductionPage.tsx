@@ -298,7 +298,7 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
     const [note, setNote] = useState(batch.notes || '');
 
     return (
-        <div className="fixed inset-0 z-[160] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[250] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
