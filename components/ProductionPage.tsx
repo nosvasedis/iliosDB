@@ -1,12 +1,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList } from 'lucide-react';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
+import MoldRequirementsModal from './MoldRequirementsModal';
 
 interface Props {
   products: Product[];
@@ -677,6 +678,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   
   // Finder State
   const [finderTerm, setFinderTerm] = useState('');
+  
+  // Mold Matrix Modal
+  const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
 
   // PRINT SELECTOR MODAL STATE
   const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
@@ -1073,8 +1077,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             </div>
 
             {/* ORDER FINDER (DESKTOP) */}
-            <div className="flex-1 max-w-xl w-full mx-4">
-                 <div className="relative group">
+            <div className="flex-1 max-w-xl w-full mx-4 flex gap-2">
+                <button 
+                    onClick={() => setIsMoldModalOpen(true)}
+                    className="hidden lg:flex p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-200 transition-colors shadow-sm"
+                    title="Υπολογισμός Λάστιχων"
+                >
+                    <Grid size={20} />
+                </button>
+                 <div className="relative group flex-1">
                      <input 
                          type="text" 
                          value={finderTerm}
@@ -1320,6 +1331,17 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 allProducts={products}
                 onClose={() => setViewBuildBatch(null)} 
                 onMove={handleMoveBatch}
+            />
+        )}
+
+        {isMoldModalOpen && (
+            <MoldRequirementsModal 
+                isOpen={isMoldModalOpen}
+                onClose={() => setIsMoldModalOpen(false)}
+                orders={orders || []}
+                batches={batches || []}
+                products={products}
+                molds={molds}
             />
         )}
 
