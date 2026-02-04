@@ -8,6 +8,8 @@ import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
 import MoldRequirementsModal from './MoldRequirementsModal';
+import { ProductionBatchCard } from './ProductionBatchCard';
+import ProductionOverviewModal from './ProductionOverviewModal';
 
 interface Props {
   products: Product[];
@@ -54,195 +56,6 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
     [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
-};
-
-// Finish/Plating Visuals
-const FINISH_STYLES: Record<string, { style: string, label: string }> = {
-    'X': { style: 'bg-amber-100 text-amber-900 border-amber-200', label: 'Επίχρυσο' },
-    'P': { style: 'bg-stone-200 text-stone-800 border-stone-300', label: 'Πατίνα' },
-    'D': { style: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Δίχρωμο' },
-    'H': { style: 'bg-cyan-100 text-cyan-900 border-cyan-200', label: 'Πλατίνα' },
-    '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
-};
-
-// Time Aging Helper
-const getTimeInStage = (dateStr: string) => {
-    const start = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    let label = '';
-    let colorClass = '';
-
-    if (diffDays > 0) {
-        label = `${diffDays}d ${diffHrs % 24}h`;
-        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical (> 6 days)
-        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning (4-5 days)
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
-    } else {
-        label = `${diffHrs}h`;
-        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200'; // Fresh
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
-    }
-
-    return { label, colorClass };
-};
-
-interface BatchCardProps {
-    batch: ProductionBatch & { customer_name?: string };
-    onDragStart: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
-    onPrint: (batch: ProductionBatch) => void;
-    onMoveDirectly?: (batch: ProductionBatch, target: ProductionStage) => void;
-    onNextStage?: (batch: ProductionBatch) => void;
-    onEditNote: (batch: ProductionBatch) => void;
-    onToggleHold: (batch: ProductionBatch) => void; 
-    onDelete: (batch: ProductionBatch) => void;
-    onClick: (batch: ProductionBatch) => void;
-}
-
-const BatchCard: React.FC<BatchCardProps> = ({ batch, onDragStart, onPrint, onMoveDirectly, onNextStage, onEditNote, onToggleHold, onDelete, onClick }) => {
-    const isRefurbish = batch.type === 'Φρεσκάρισμα';
-    const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
-    const isReady = batch.current_stage === ProductionStage.Ready;
-    
-    // Calculate finish for styling
-    const { finish } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
-    const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
-    
-    const timeInfo = getTimeInStage(batch.updated_at);
-
-    return (
-    <div 
-        draggable={true} // Allow dragging even if ready, to move backwards if needed
-        onDragStart={(e) => onDragStart(e, batch.id)}
-        onClick={() => onClick(batch)}
-        className={`bg-white p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
-                    ${batch.on_hold 
-                        ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
-                        : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
-                    ${isReady ? 'opacity-90 hover:opacity-100' : ''}
-        `}
-    >
-        {/* Header Badges */}
-        <div className="flex justify-between items-start mb-3">
-            <div className="flex flex-wrap gap-2">
-                {batch.on_hold ? (
-                    <div className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
-                        <PauseCircle size={10} className="fill-current" />
-                        <span>ΣΕ ΑΝΑΜΟΝΗ</span>
-                    </div>
-                ) : (
-                    <div className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 border ${timeInfo.colorClass}`}>
-                        <Clock size={10} />
-                        <span>{timeInfo.label}</span>
-                    </div>
-                )}
-                {isRefurbish && (
-                    <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                        <RefreshCcw size={10}/> Repair
-                    </div>
-                )}
-            </div>
-            
-            <div className="flex gap-1">
-                 <button
-                    onClick={(e) => { e.stopPropagation(); onToggleHold(batch); }}
-                    className={`p-1.5 rounded-lg transition-colors ${batch.on_hold ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
-                    title={batch.on_hold ? "Συνέχιση Παραγωγής" : "Θέση σε Αναμονή"}
-                >
-                    {batch.on_hold ? <PlayCircle size={16} className="fill-current"/> : <PauseCircle size={16}/>}
-                </button>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
-                    className={`p-1.5 rounded-lg transition-colors ${batch.notes ? 'bg-amber-100 text-amber-700' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
-                    title={batch.notes || "Προσθήκη Σημείωσης"}
-                >
-                    <StickyNote size={16} className={batch.notes ? "fill-current" : ""} />
-                </button>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(batch); }}
-                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Διαγραφή Παρτίδας"
-                >
-                    <Trash2 size={16} />
-                </button>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                    title="Εκτύπωση Εντολής"
-                >
-                    <Printer size={16} />
-                </button>
-            </div>
-        </div>
-        
-        {/* Content */}
-        <div className="flex gap-3 items-center mb-3 pointer-events-none">
-            <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative">
-                {batch.product_image ? (
-                    <img src={batch.product_image} className="w-full h-full object-cover" alt="prod"/>
-                ) : (
-                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                        <ImageIcon size={18} className="text-slate-300"/>
-                    </div>
-                )}
-                {batch.quantity > 1 && (
-                    <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg">
-                        x{batch.quantity}
-                    </div>
-                )}
-            </div>
-            <div className="min-w-0 flex-1">
-                {/* SKU Badge with Finish Color */}
-                <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border mb-1 ${finishConfig.style}`}>
-                     <span className="font-black text-sm leading-none">{batch.sku}{batch.variant_suffix}</span>
-                     <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block">| {finishConfig.label}</span>
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                    {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.size_info}</span>}
-                </div>
-            </div>
-        </div>
-        
-        {/* Hold Reason Display */}
-        {batch.on_hold && batch.on_hold_reason && (
-             <div className="mb-3 bg-amber-100 border border-amber-200 rounded-lg p-2 flex gap-2">
-                <AlertTriangle size={12} className="text-amber-600 shrink-0 mt-0.5"/>
-                <span className="text-[10px] text-amber-800 font-bold leading-tight">{batch.on_hold_reason}</span>
-            </div>
-        )}
-
-        {batch.notes && !batch.on_hold && (
-            <div className="mb-3 bg-yellow-50 border border-yellow-100 rounded-lg p-2 text-[10px] text-yellow-800 italic leading-tight pointer-events-none">
-                "{batch.notes}"
-            </div>
-        )}
-
-        {/* Action Footer */}
-        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
-            <div className="flex flex-col pointer-events-none">
-                {batch.order_id ? (
-                    <div className="text-[10px] font-mono font-medium text-slate-400">#{batch.order_id.slice(0,8)}</div>
-                ) : <div/>}
-                {batch.customer_name && (
-                    <div className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{batch.customer_name}</div>
-                )}
-            </div>
-
-            {!isReady && onNextStage && !batch.on_hold && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onNextStage(batch); }}
-                    className="flex items-center gap-1 bg-slate-100 hover:bg-emerald-500 hover:text-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
-                >
-                    {isAwaiting ? 'Παραλαβή' : 'Επόμενο'} <MoveRight size={12}/>
-                </button>
-            )}
-        </div>
-    </div>
-    );
 };
 
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: { 
@@ -395,7 +208,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
     );
 };
 
-const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], orders: Order[] }) => {
+const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: ProductionBatch[], orders: Order[], onFilterClick: (type: 'active' | 'delayed' | 'onHold' | 'ready') => void }) => {
     const total = batches.length;
     const delayed = batches.filter(b => b.isDelayed && !b.on_hold).length; // Exclude held batches from delay stats
     const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
@@ -435,7 +248,7 @@ const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], 
             </div>
 
             <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-start">
-                {/* NEW: General Order Notes Card (Redesigned) */}
+                {/* General Order Notes Card */}
                 {activeOrderNotes && activeOrderNotes.length > 0 && (
                      <div className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm">
                         <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
@@ -458,24 +271,24 @@ const ProductionHealthBar = ({ batches, orders }: { batches: ProductionBatch[], 
                     </div>
                 )}
 
-                 <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center">
+                 <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 hover:scale-105 transition-all text-left">
                     <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12}/> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{onHold}</div>
-                </div>
-                <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center">
+                </button>
+                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 hover:scale-105 transition-all text-left">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12}/> Ενεργά</div>
                     <div className="text-2xl font-black text-slate-800">{inProgress}</div>
-                </div>
-                <div className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center ${delayed > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                </button>
+                <button onClick={() => onFilterClick('delayed')} className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center hover:scale-105 transition-all text-left ${delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
                     <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''}/> Καθυστέρηση
                     </div>
                     <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
-                </div>
-                <div className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center">
+                </button>
+                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 hover:scale-105 transition-all text-left">
                     <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12}/> Έτοιμα</div>
                     <div className="text-2xl font-black text-emerald-700">{ready}</div>
-                </div>
+                </button>
             </div>
         </div>
     );
@@ -567,6 +380,9 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     const sourceStageInfo = STAGES.find(s => s.id === batch.current_stage)!;
     const selectedTargetInfo = STAGES.find(s => s.id === selectedTarget)!;
 
+    const sourceColors = STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS];
+    const targetColors = STAGE_COLORS[selectedTargetInfo.color as keyof typeof STAGE_COLORS];
+
     const handleConfirmClick = () => {
         if (quantity > 0 && quantity <= batch.quantity) {
             onConfirm(quantity, selectedTarget);
@@ -586,7 +402,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                 <div className="p-8 space-y-6">
                     <div className="flex items-center justify-around text-center">
                         <div className="flex flex-col items-center gap-2 opacity-60">
-                            <div className={`p-3 rounded-xl ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[sourceStageInfo.color as keyof typeof STAGE_COLORS].text}`}>{sourceStageInfo.icon}</div>
+                            <div className={`p-3 rounded-xl ${sourceColors.bg} ${sourceColors.text}`}>{sourceStageInfo.icon}</div>
                             <span className="text-xs font-bold">{sourceStageInfo.label}</span>
                         </div>
                         <ArrowRight size={24} className="text-slate-300 mx-4 shrink-0"/>
@@ -594,7 +410,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                         {/* Target Selection Dropdown Trigger */}
                         <div className="relative group">
                             <div className="flex flex-col items-center gap-2 cursor-pointer">
-                                <div className={`p-3 rounded-xl border-2 ${STAGE_COLORS[selectedTargetInfo.color as keyof typeof STAGE_COLORS].bg} ${STAGE_COLORS[selectedTargetInfo.color as keyof typeof STAGE_COLORS].text} ${STAGE_COLORS[selectedTargetInfo.color as keyof typeof STAGE_COLORS].border}`}>
+                                <div className={`p-3 rounded-xl border-2 ${targetColors.border} ${targetColors.bg} ${targetColors.text}`}>
                                     {selectedTargetInfo.icon}
                                 </div>
                                 <div className="flex items-center gap-1 text-slate-800 border-b border-dashed border-slate-400 pb-0.5 hover:text-emerald-600 transition-colors">
@@ -681,6 +497,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   
   // Mold Matrix Modal
   const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
+  
+  // Overview Modal State
+  const [overviewModal, setOverviewModal] = useState<{ isOpen: boolean, type: 'active' | 'delayed' | 'onHold' | 'ready' } | null>(null);
 
   // PRINT SELECTOR MODAL STATE
   const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
@@ -1103,7 +922,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-96 overflow-y-auto custom-scrollbar p-2 space-y-2">
                              {foundBatches.map(b => {
                                  const stageConf = STAGES.find(s => s.id === b.current_stage);
-                                 const colorClasses = STAGE_COLORS[stageConf?.color || 'slate'] || 'bg-slate-100 text-slate-600 border-slate-200';
+                                 const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
+                                 const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
                                  
                                  return (
                                  <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
@@ -1119,7 +939,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                          </div>
                                          <div className="text-right">
                                              <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
-                                             <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClasses}`}>
+                                             <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClassString}`}>
                                                  {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
                                                  {stageConf?.label || b.current_stage}
                                              </span>
@@ -1177,7 +997,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
         {/* HEALTH BAR MOVED DOWN AND PADDING REDUCED */}
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 mb-2">
-             <ProductionHealthBar batches={enhancedBatches} orders={orders || []} />
+             <ProductionHealthBar 
+                 batches={enhancedBatches} 
+                 orders={orders || []} 
+                 onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
+             />
         </div>
 
         <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
@@ -1265,7 +1089,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                     </div>
                                                     
                                                     {genderBatches[collName].map(batch => (
-                                                        <BatchCard 
+                                                        <ProductionBatchCard 
                                                             key={batch.id} 
                                                             batch={batch} 
                                                             onDragStart={handleDragStart} 
@@ -1355,6 +1179,27 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
                     printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' : 'Συγκεντρωτική Εκτύπωση'
                 }
+            />
+        )}
+
+        {overviewModal && (
+            <ProductionOverviewModal 
+                isOpen={overviewModal.isOpen}
+                onClose={() => setOverviewModal(null)}
+                title={
+                    overviewModal.type === 'active' ? 'Ενεργές Παρτίδες' :
+                    overviewModal.type === 'delayed' ? 'Καθυστερημένες Παρτίδες' :
+                    overviewModal.type === 'onHold' ? 'Παρτίδες σε Αναμονή' : 'Έτοιμες Παρτίδες'
+                }
+                filterType={overviewModal.type}
+                batches={enhancedBatches}
+                collections={collections || []}
+                onPrint={onPrintBatch} 
+                onNextStage={handleQuickNext}
+                onEditNote={(b) => setEditingNoteBatch(b)}
+                onToggleHold={(b) => handleToggleHold(b)}
+                onDelete={(b) => handleDeleteBatch(b)}
+                onClick={(b) => setViewBuildBatch(b)}
             />
         )}
     </div>
