@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
 import { Box, Coins, Gem, Puzzle, Globe, MapPin, StickyNote } from 'lucide-react';
@@ -16,6 +16,31 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
     // Filter batches into In-House and Imported
     const inHouseBatches = batches.filter(b => b.product_details?.production_type !== ProductionType.Imported);
     const importedBatches = batches.filter(b => b.product_details?.production_type === ProductionType.Imported);
+
+    // Aggregate Molds Logic
+    const aggregatedMolds = useMemo(() => {
+        const acc: Record<string, { code: string, desc: string, qty: number, loc: string }> = {};
+
+        inHouseBatches.forEach(b => {
+            if (!b.product_details?.molds) return;
+            b.product_details.molds.forEach(m => {
+                // Determine mold details
+                if (!acc[m.code]) {
+                    const details = allMolds.find(am => am.code === m.code);
+                    acc[m.code] = {
+                        code: m.code,
+                        desc: details?.description || '',
+                        loc: details?.location || '',
+                        qty: 0
+                    };
+                }
+                // Add (Batch Qty * Molds Per Item)
+                acc[m.code].qty += (m.quantity * b.quantity);
+            });
+        });
+
+        return Object.values(acc).sort((a,b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    }, [inHouseBatches, allMolds]);
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
@@ -120,6 +145,31 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+                )}
+
+                {/* NEW: Aggregated Molds Section */}
+                {aggregatedMolds.length > 0 && (
+                    <div className="mt-6 border-t-2 border-slate-900 pt-4 break-inside-avoid">
+                        <h2 className="text-xs font-black text-slate-900 uppercase mb-3 flex items-center gap-2">
+                            <MapPin size={14}/> Συγκεντρωτικη Λιστα Λαστιχων
+                        </h2>
+                        <div className="grid grid-cols-4 gap-2">
+                            {aggregatedMolds.map(m => (
+                                <div key={m.code} className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between break-inside-avoid">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="font-black text-sm text-slate-900 leading-none">{m.code}</span>
+                                        <span className="font-bold text-slate-500 text-[9px]">{m.loc}</span>
+                                    </div>
+                                    <div className="text-[9px] text-slate-600 truncate font-medium leading-tight mb-2">
+                                        {m.desc}
+                                    </div>
+                                    <div className="text-right border-t border-slate-200 pt-1">
+                                         <span className="font-black text-lg text-slate-900 leading-none">{m.qty} <span className="text-[9px] font-normal text-slate-500">τμχ</span></span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
