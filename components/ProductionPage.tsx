@@ -1155,6 +1155,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 allProducts={products}
                 onClose={() => setViewBuildBatch(null)} 
                 onMove={handleMoveBatch}
+                onEditNote={(b) => setEditingNoteBatch(b)}
             />
         )}
 

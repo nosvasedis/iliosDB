@@ -1,6 +1,7 @@
+
 import React, { useMemo, useState } from 'react';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
     allProducts: Product[];
     onClose: () => void;
     onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
+    onEditNote?: (batch: ProductionBatch) => void;
 }
 
 const STAGES = [
@@ -22,7 +24,7 @@ const STAGES = [
     { id: ProductionStage.Ready, label: 'Έτοιμα' }
 ];
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove }: Props) {
+export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
 
@@ -147,6 +149,16 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     </div>
                     
                     <div className="flex items-center gap-4">
+                        {onEditNote && (
+                             <button 
+                                 onClick={() => onEditNote(batch)}
+                                 className="p-3 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-full transition-colors hidden md:block"
+                                 title="Επεξεργασία Σημειώσεων"
+                             >
+                                 <StickyNote size={20}/>
+                             </button>
+                        )}
+
                         {/* Stage Mover */}
                         {onMove && (
                             <div className="hidden md:flex flex-col items-end mr-4">
@@ -202,15 +214,29 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                         {/* LEFT COLUMN: RESOURCES */}
                         <div className="space-y-6">
                             
-                            {/* Notes Alert */}
-                            {batch.notes && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 shadow-sm">
+                            {/* Notes Alert & Action */}
+                            {batch.notes ? (
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 shadow-sm relative group">
                                     <StickyNote className="text-amber-500 shrink-0" size={24}/>
                                     <div>
                                         <h4 className="font-bold text-amber-800 text-sm uppercase tracking-wide mb-1">Σημειωση Παραγωγης</h4>
                                         <p className="text-amber-900 font-medium text-sm leading-relaxed">{batch.notes}</p>
                                     </div>
+                                    {onEditNote && (
+                                        <button 
+                                            onClick={() => onEditNote(batch)}
+                                            className="absolute top-2 right-2 p-1.5 text-amber-400 hover:text-amber-700 bg-white/50 hover:bg-white rounded-lg transition-all"
+                                        >
+                                            <Edit size={14}/>
+                                        </button>
+                                    )}
                                 </div>
+                            ) : (
+                                onEditNote && (
+                                    <button onClick={() => onEditNote(batch)} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 group">
+                                        <StickyNote size={16} className="group-hover:fill-amber-100"/> Προσθήκη Σημείωσης
+                                    </button>
+                                )
                             )}
 
                             {/* Molds */}

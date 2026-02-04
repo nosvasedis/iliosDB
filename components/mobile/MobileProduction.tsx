@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, supabase } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 
@@ -316,6 +316,45 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
     );
 };
 
+const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: ProductionBatch, onClose: () => void, onSave: (notes: string) => void, isProcessing: boolean }) => {
+    const [note, setNote] = useState(batch.notes || '');
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <StickyNote size={18} className="text-amber-500"/> Σημειώσεις Παρτίδας
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button>
+                </div>
+                <div className="p-6">
+                    <div className="mb-4 text-xs text-slate-500">
+                        Προσθέστε οδηγίες ή παρατηρήσεις για την παρτίδα <strong>{batch.sku}</strong>.
+                    </div>
+                    <textarea 
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
+                        placeholder="Γράψτε εδώ..."
+                        autoFocus
+                    />
+                </div>
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-200 transition-colors">Άκυρο</button>
+                    <button 
+                        onClick={() => onSave(note)} 
+                        disabled={isProcessing}
+                        className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors flex items-center gap-2 shadow-lg"
+                    >
+                        {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Αποθήκευση
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -329,6 +368,10 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
+
+    // Edit Note State (Newly Added)
+    const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
+    const [isSavingNote, setIsSavingNote] = useState(false);
 
     // Print Modal State
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
@@ -481,6 +524,26 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         else if (type === 'aggregated') onPrintAggregated(selected);
     };
 
+    // Note Saving Handler
+    const handleSaveNote = async (newNote: string) => {
+        if (!editingNoteBatch) return;
+        setIsSavingNote(true);
+        try {
+            const { error } = await supabase
+                .from('production_batches')
+                .update({ notes: newNote || null })
+                .eq('id', editingNoteBatch.id);
+            if (error) throw error;
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast("Η σημείωση αποθηκεύτηκε.", "success");
+            setEditingNoteBatch(null);
+        } catch (e) {
+            showToast("Σφάλμα αποθήκευσης.", "error");
+        } finally {
+            setIsSavingNote(false);
+        }
+    };
+
     if (loadingBatches || loadingMaterials || !allProducts || !materials || !batches) {
         return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
     }
@@ -574,6 +637,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             </div>
 
             {holdBatch && <MobileHoldModal batch={holdBatch} onClose={() => setHoldBatch(null)} onConfirm={confirmHold} />}
+            
             {viewBuildBatch && molds && (
                 <BatchBuildModal 
                     batch={viewBuildBatch} 
@@ -582,9 +646,20 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     allProducts={allProducts}
                     onClose={() => setViewBuildBatch(null)} 
                     onMove={handleMoveBatch}
+                    onEditNote={(b) => setEditingNoteBatch(b)}
                 />
             )}
             
+            {/* Edit Note Modal */}
+            {editingNoteBatch && (
+                <EditBatchNoteModal 
+                    batch={editingNoteBatch}
+                    onClose={() => setEditingNoteBatch(null)}
+                    onSave={handleSaveNote}
+                    isProcessing={isSavingNote}
+                />
+            )}
+
             {printSelectorState.isOpen && (
                 <PrintSelectorModal 
                     isOpen={printSelectorState.isOpen}
