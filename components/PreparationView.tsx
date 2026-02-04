@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
@@ -14,9 +13,25 @@ interface Props {
 
 export default function PreparationView({ batches, allMaterials, allProducts, allMolds }: Props) {
     
-    // Filter batches into In-House and Imported
-    const inHouseBatches = batches.filter(b => b.product_details?.production_type !== ProductionType.Imported);
-    const importedBatches = batches.filter(b => b.product_details?.production_type === ProductionType.Imported);
+    // Sort logic
+    const sortBatches = (a: ProductionBatch, b: ProductionBatch) => {
+        const keyA = (a.sku + (a.variant_suffix || '')).toUpperCase();
+        const keyB = (b.sku + (b.variant_suffix || '')).toUpperCase();
+        return keyA.localeCompare(keyB, undefined, { numeric: true });
+    };
+
+    // Filter batches into In-House and Imported and Sort them
+    const inHouseBatches = useMemo(() => 
+        batches
+            .filter(b => b.product_details?.production_type !== ProductionType.Imported)
+            .sort(sortBatches)
+    , [batches]);
+
+    const importedBatches = useMemo(() => 
+        batches
+            .filter(b => b.product_details?.production_type === ProductionType.Imported)
+            .sort(sortBatches)
+    , [batches]);
 
     // Aggregate Molds Logic with Breakdown
     const aggregatedMolds = useMemo(() => {
