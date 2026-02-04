@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
 import { Box, Coins, Gem, Puzzle, Globe, MapPin, StickyNote } from 'lucide-react';
+import { getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     batches: ProductionBatch[];
@@ -17,30 +18,59 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
     const inHouseBatches = batches.filter(b => b.product_details?.production_type !== ProductionType.Imported);
     const importedBatches = batches.filter(b => b.product_details?.production_type === ProductionType.Imported);
 
-    // Aggregate Molds Logic
+    // Aggregate Molds Logic with Breakdown
     const aggregatedMolds = useMemo(() => {
-        const acc: Record<string, { code: string, desc: string, qty: number, loc: string }> = {};
+        const acc: Record<string, { 
+            code: string, 
+            desc: string, 
+            totalQty: number, 
+            loc: string,
+            breakdown: Record<string, number> 
+        }> = {};
 
         inHouseBatches.forEach(b => {
             if (!b.product_details?.molds) return;
+            
+            // Identify Finish Code (e.g. 'P', 'X', or 'STD' for Lustre)
+            const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details.gender);
+            const finishKey = finish.code || 'STD'; 
+
             b.product_details.molds.forEach(m => {
-                // Determine mold details
+                // Initialize mold entry if missing
                 if (!acc[m.code]) {
                     const details = allMolds.find(am => am.code === m.code);
                     acc[m.code] = {
                         code: m.code,
                         desc: details?.description || '',
                         loc: details?.location || '',
-                        qty: 0
+                        totalQty: 0,
+                        breakdown: {}
                     };
                 }
-                // Add (Batch Qty * Molds Per Item)
-                acc[m.code].qty += (m.quantity * b.quantity);
+
+                // Calculate required quantity for this batch
+                const qtyNeeded = m.quantity * b.quantity;
+
+                // Add to Total
+                acc[m.code].totalQty += qtyNeeded;
+
+                // Add to Breakdown bucket
+                acc[m.code].breakdown[finishKey] = (acc[m.code].breakdown[finishKey] || 0) + qtyNeeded;
             });
         });
 
         return Object.values(acc).sort((a,b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
     }, [inHouseBatches, allMolds]);
+
+    const getFinishStyle = (key: string) => {
+        switch(key) {
+            case 'X': return 'bg-amber-100 text-amber-800 border-amber-200'; // Gold
+            case 'P': return 'bg-slate-200 text-slate-700 border-slate-300'; // Patina
+            case 'D': return 'bg-orange-100 text-orange-800 border-orange-200'; // Two-Tone
+            case 'H': return 'bg-cyan-100 text-cyan-800 border-cyan-200'; // Platinum
+            default: return 'bg-slate-50 text-slate-600 border-slate-200'; // Standard/Lustre
+        }
+    };
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
@@ -157,7 +187,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                         </h2>
                         <div className="grid grid-cols-4 gap-2">
                             {aggregatedMolds.map(m => (
-                                <div key={m.code} className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between break-inside-avoid">
+                                <div key={m.code} className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between break-inside-avoid shadow-sm">
                                     <div className="flex justify-between items-start mb-1">
                                         <span className="font-black text-sm text-slate-900 leading-none">{m.code}</span>
                                         <span className="font-bold text-slate-500 text-[9px]">{m.loc}</span>
@@ -165,8 +195,19 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                     <div className="text-[9px] text-slate-600 truncate font-medium leading-tight mb-2">
                                         {m.desc}
                                     </div>
-                                    <div className="text-right border-t border-slate-200 pt-1">
-                                         <span className="font-black text-lg text-slate-900 leading-none">{m.qty} <span className="text-[9px] font-normal text-slate-500">τμχ</span></span>
+                                    
+                                    {/* Breakdown of Finishes */}
+                                    <div className="space-y-1 mb-1">
+                                        {Object.entries(m.breakdown).map(([key, qty]) => (
+                                            <div key={key} className={`flex justify-between items-center text-[9px] font-bold px-1.5 py-0.5 rounded border ${getFinishStyle(key)}`}>
+                                                <span>{key === 'STD' ? 'ΒΑΣ' : key}</span>
+                                                <span className="font-black">{qty}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="text-right border-t border-slate-200 pt-1 mt-1">
+                                         <span className="font-black text-lg text-slate-900 leading-none">{m.totalQty} <span className="text-[9px] font-normal text-slate-500">συν.</span></span>
                                     </div>
                                 </div>
                             ))}
