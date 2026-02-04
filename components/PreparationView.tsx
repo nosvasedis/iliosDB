@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { ProductionBatch, Product, Material, RecipeItem, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
@@ -148,7 +149,12 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                         <span className="text-slate-500 uppercase text-[8px]">ΥΛΙΚΑ: </span>
                                                         {product.recipe.map((item, idx) => {
                                                             const details = item.type === 'raw' ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-                                                            const name = item.type === 'raw' ? (details as Material)?.name : item.sku;
+                                                            let name = item.type === 'raw' ? (details as Material)?.name : item.sku;
+                                                            
+                                                            if (item.type === 'component' && (details as Product)?.description) {
+                                                                name += ` (${(details as Product).description})`;
+                                                            }
+                                                            
                                                             return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
                                                         })}
                                                     </div>
