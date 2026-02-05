@@ -797,21 +797,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
          groups[gender][collName].push(b);
       });
       
-      // Sort batches within groups by Finish Priority then SKU
-      const FINISH_PRIORITY: Record<string, number> = { '': 0, 'P': 1, 'X': 2, 'D': 3, 'H': 4 };
-      
+      // Sort batches within groups alphabetically by SKU
       Object.keys(groups).forEach(genderKey => {
           Object.keys(groups[genderKey]).forEach(collKey => {
               groups[genderKey][collKey].sort((a, b) => {
-                  const finishA = getVariantComponents(a.variant_suffix || '', a.product_details?.gender).finish.code;
-                  const finishB = getVariantComponents(b.variant_suffix || '', b.product_details?.gender).finish.code;
-                  
-                  const prioA = FINISH_PRIORITY[finishA] ?? 9;
-                  const prioB = FINISH_PRIORITY[finishB] ?? 9;
-                  
-                  if (prioA !== prioB) return prioA - prioB;
-                  
-                  return (a.sku + (a.variant_suffix || '')).localeCompare(b.sku + (b.variant_suffix || ''));
+                  const fullA = a.sku + (a.variant_suffix || '');
+                  const fullB = b.sku + (b.variant_suffix || '');
+                  return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
               });
           });
       });
@@ -1016,7 +1008,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     
                     return (
                         <div 
-                            key={stage.id}
+                            key={stage.id} 
                             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(stage.id); }}
                             onDragLeave={() => setDropTarget(null)}
                             onDragEnd={handleDragEnd}

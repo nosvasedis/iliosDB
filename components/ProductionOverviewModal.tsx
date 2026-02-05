@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { ProductionBatch, ProductionStage, Collection, Gender } from '../types';
 import { X, FolderKanban } from 'lucide-react';
@@ -63,7 +64,7 @@ export default function ProductionOverviewModal({
         });
     }, [batches, filterType]);
 
-    // 2. Grouping Logic (Replicated from ProductionPage to ensure exact match)
+    // 2. Grouping Logic
     const groupedBatchesByStage = useMemo(() => {
         const result: Record<string, Record<string, Record<string, ProductionBatch[]>>> = {};
         
@@ -84,22 +85,14 @@ export default function ProductionOverviewModal({
              result[stage][gender][collName].push(b);
         });
 
-        // Sort inside groups
-        const FINISH_PRIORITY: Record<string, number> = { '': 0, 'P': 1, 'X': 2, 'D': 3, 'H': 4 };
-        
+        // Sort inside groups alphabetically by SKU
         Object.keys(result).forEach(stage => {
             Object.keys(result[stage]).forEach(gender => {
                 Object.keys(result[stage][gender]).forEach(coll => {
                     result[stage][gender][coll].sort((a, b) => {
-                        const finishA = getVariantComponents(a.variant_suffix || '', a.product_details?.gender).finish.code;
-                        const finishB = getVariantComponents(b.variant_suffix || '', b.product_details?.gender).finish.code;
-                        
-                        const prioA = FINISH_PRIORITY[finishA] ?? 9;
-                        const prioB = FINISH_PRIORITY[finishB] ?? 9;
-                        
-                        if (prioA !== prioB) return prioA - prioB;
-                        
-                        return (a.sku + (a.variant_suffix || '')).localeCompare(b.sku + (b.variant_suffix || ''));
+                        const fullA = a.sku + (a.variant_suffix || '');
+                        const fullB = b.sku + (b.variant_suffix || '');
+                        return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
                     });
                 });
             });
