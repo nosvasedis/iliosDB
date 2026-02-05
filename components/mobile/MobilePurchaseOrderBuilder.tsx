@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, Gender, ProductionType } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart } from 'lucide-react';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
@@ -49,13 +50,20 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const productionNeeds = useMemo(() => {
           if (!productionBatches || !products || !orders) return [];
           const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
-          const groupedNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+          const groupedNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
     
           awaiting.forEach(b => {
-              const key = `${b.sku}-${b.variant_suffix || ''}`;
+              const key = `${b.sku}-${b.variant_suffix || ''}-${b.size_info || ''}`;
               if (!groupedNeeds[key]) {
                   const product = products.find(p => p.sku === b.sku);
-                  groupedNeeds[key] = { sku: b.sku, variant: b.variant_suffix || '', totalQty: 0, product, requirements: [] };
+                  groupedNeeds[key] = { 
+                      sku: b.sku, 
+                      variant: b.variant_suffix || '', 
+                      size: b.size_info || undefined,
+                      totalQty: 0, 
+                      product, 
+                      requirements: [] 
+                  };
               }
               groupedNeeds[key].totalQty += b.quantity;
               if (b.order_id) {
@@ -75,7 +83,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const pendingOrderNeeds = useMemo(() => {
         if (!orders || !products) return [];
 
-        const groupedOrderNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+        const groupedOrderNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
 
         // Only look at Pending orders.
         const pendingOrders = orders.filter(o => o.status === 'Pending');
@@ -85,11 +93,12 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 const product = products.find(p => p.sku === item.sku);
                 // Filter by supplier match (or unassigned) AND product is Imported
                 if ((product?.supplier_id === supplier.id || !product?.supplier_id) && product?.production_type === ProductionType.Imported) {
-                    const key = `${item.sku}-${item.variant_suffix || ''}`;
+                    const key = `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}`;
                     if (!groupedOrderNeeds[key]) {
                         groupedOrderNeeds[key] = {
                             sku: item.sku, 
                             variant: item.variant_suffix || '', 
+                            size: item.size_info || undefined,
                             totalQty: 0, 
                             product, 
                             requirements: [] 
@@ -143,11 +152,13 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         }
     }, [searchTerm, searchType, materials, products, supplier.id, showAllProducts]);
 
-    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '') => {
+    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '', size: string = '') => {
         let id, name;
         if (type === 'Product') {
             const product = item.sku ? item : item.product;
             const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
+            const sizeVal = item.size !== undefined ? item.size : size;
+
             id = product.sku;
             name = `${product.sku}${suffix}`;
         } else {
@@ -156,9 +167,10 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         }
 
         const cost = 0;
+        const finalSize = item.size || size;
         
         setItems(prev => {
-            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type);
+            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === (finalSize || ''));
             if (existingIdx >= 0) {
                 const updated = [...prev];
                 updated[existingIdx].quantity += qty;
@@ -172,7 +184,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 item_name: name,
                 quantity: qty,
                 unit_cost: cost,
-                total_cost: 0
+                total_cost: 0,
+                size_info: finalSize || undefined
             }];
         });
         setSearchTerm('');
@@ -236,13 +249,16 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                         {productionNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-indigo-200">
                                 <div className="min-w-0 flex-1 pr-2">
-                                    <div className="text-sm font-bold text-slate-700">{n.sku}{n.variant}</div>
+                                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        {n.sku}{n.variant}
+                                        {n.size && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
+                                    </div>
                                     <div className="text-[9px] text-slate-400 font-bold truncate">
                                         {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
                                     className="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
                                 >
                                     +{n.totalQty}
@@ -261,13 +277,16 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                         {pendingOrderNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-blue-200">
                                 <div className="min-w-0 flex-1 pr-2">
-                                    <div className="text-sm font-bold text-slate-700">{n.sku}{n.variant}</div>
+                                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        {n.sku}{n.variant}
+                                        {n.size && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
+                                    </div>
                                     <div className="text-[9px] text-slate-400 font-bold truncate">
                                         {n.requirements.map(r => `${r.customer}`).join(', ')}
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
                                     className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
                                 >
                                     +{n.totalQty}
@@ -279,8 +298,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
 
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                         <button onClick={() => setSearchType('Product')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Προϊόντα</button>
+                        <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                     </div>
                     
                     {searchType === 'Product' && (
@@ -372,6 +391,11 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                                 <span className={`font-black text-lg px-2 py-0.5 rounded border ${item.item_type === 'Product' ? finishStyle : 'bg-slate-50 text-slate-800 border-slate-200'}`}>
                                                     {item.item_name}
                                                 </span>
+                                                {item.size_info && (
+                                                    <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
+                                                        <Hash size={10}/> {item.size_info}
+                                                    </span>
+                                                )}
                                                 {supplierRef && (
                                                     <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-1 rounded border border-purple-100">
                                                         {supplierRef}

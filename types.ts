@@ -338,6 +338,7 @@ export interface SupplierOrderItem {
     unit_cost: number;
     total_cost: number;
     notes?: string;
+    size_info?: string; // New: Store size for ring orders
 }
 
 export interface SupplierOrder {

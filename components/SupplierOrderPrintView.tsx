@@ -142,7 +142,14 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                     </td>
                                     <td className="px-2 align-middle">
                                         <div className="font-bold text-slate-800 text-sm">{mainDescription}</div>
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-wide">{detailLine}</div>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-wide">
+                                            {detailLine}
+                                            {item.size_info && (
+                                                <span className="ml-2 bg-slate-900 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">
+                                                    ΝΟΥΜ: {item.size_info}
+                                                </span>
+                                            )}
+                                        </div>
                                         {item.notes && (
                                             <div className="mt-1 bg-yellow-50 p-1.5 rounded border border-yellow-100 text-[10px] text-yellow-800 font-bold italic inline-block">
                                                 Σημείωση: {item.notes}

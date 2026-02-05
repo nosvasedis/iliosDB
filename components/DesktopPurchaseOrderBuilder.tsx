@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, SupplierOrder, Gender, ProductionType } from '../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, Loader2, Tag, ShoppingCart } from 'lucide-react';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, Loader2, Tag, ShoppingCart, Hash } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -52,13 +53,21 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
           if (!productionBatches || !products || !orders) return [];
           
           const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
-          const groupedNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+          // Key includes size_info to separate rings by size
+          const groupedNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
     
           awaiting.forEach(b => {
-              const key = `${b.sku}-${b.variant_suffix || ''}`;
+              const key = `${b.sku}-${b.variant_suffix || ''}-${b.size_info || ''}`;
               if (!groupedNeeds[key]) {
                   const product = products.find(p => p.sku === b.sku);
-                  groupedNeeds[key] = { sku: b.sku, variant: b.variant_suffix || '', totalQty: 0, product, requirements: [] };
+                  groupedNeeds[key] = { 
+                      sku: b.sku, 
+                      variant: b.variant_suffix || '', 
+                      size: b.size_info || undefined,
+                      totalQty: 0, 
+                      product, 
+                      requirements: [] 
+                  };
               }
               groupedNeeds[key].totalQty += b.quantity;
               if (b.order_id) {
@@ -78,7 +87,8 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
     const pendingOrderNeeds = useMemo(() => {
         if (!orders || !products) return [];
 
-        const groupedOrderNeeds: Record<string, { sku: string, variant: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+        // Key includes size_info
+        const groupedOrderNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
 
         // Only look at Pending orders. In Production orders are handled by productionNeeds above.
         const pendingOrders = orders.filter(o => o.status === 'Pending');
@@ -88,11 +98,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                 const product = products.find(p => p.sku === item.sku);
                 // Filter: Show if assigned to this supplier OR if unassigned AND product is Imported
                 if ((product?.supplier_id === supplier.id || !product?.supplier_id) && product?.production_type === ProductionType.Imported) {
-                    const key = `${item.sku}-${item.variant_suffix || ''}`;
+                    const key = `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}`;
                     if (!groupedOrderNeeds[key]) {
                         groupedOrderNeeds[key] = {
                             sku: item.sku, 
                             variant: item.variant_suffix || '', 
+                            size: item.size_info || undefined,
                             totalQty: 0, 
                             product, 
                             requirements: [] 
@@ -156,7 +167,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
         }
     }, [searchTerm, searchType, materials, products, supplier.id, showAllProducts]);
 
-    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '') => {
+    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '', size: string = '') => {
         // Construct unique ID and Name
         let id, name;
         
@@ -164,9 +175,11 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
             // item is the { product, variantSuffix ... } wrapper from search, OR the Product object from needs
             const product = item.sku ? item : item.product; // Handle both direct product object and wrapper
             const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
+            const sizeVal = item.size !== undefined ? item.size : size;
             
             id = product.sku;
             name = `${product.sku}${suffix}`; // IMPORTANT: Full SKU name
+            // For checking existence, we need to consider size too
         } else {
             id = item.id;
             name = item.name;
@@ -175,8 +188,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
         // Zero pricing model
         const cost = 0;
         
+        // Ensure size from the need item object is used if passed
+        const finalSize = item.size || size;
+
         setItems(prev => {
-            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type);
+            // Find if item exists with same name AND same size
+            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === (finalSize || ''));
             if (existingIdx >= 0) {
                 const updated = [...prev];
                 updated[existingIdx].quantity += qty;
@@ -190,7 +207,8 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                 item_name: name, // Full Display Name (SKU+Suffix)
                 quantity: qty,
                 unit_cost: cost,
-                total_cost: 0 
+                total_cost: 0,
+                size_info: finalSize || undefined
             }];
         });
         setSearchTerm('');
@@ -271,14 +289,17 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                         {n.product?.image_url ? <img src={n.product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
                                                     </div>
                                                     <div>
-                                                        <div className="text-sm font-black text-slate-800">{n.sku}{n.variant}</div>
+                                                        <div className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                                            {n.sku}{n.variant}
+                                                            {n.size && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
+                                                        </div>
                                                         <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
                                                             {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
                                                     className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
                                                 >
                                                     +{n.totalQty}
@@ -303,14 +324,17 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                         {n.product?.image_url ? <img src={n.product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
                                                     </div>
                                                     <div>
-                                                        <div className="text-sm font-black text-slate-800">{n.sku}{n.variant}</div>
+                                                        <div className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                                            {n.sku}{n.variant}
+                                                            {n.size && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
+                                                        </div>
                                                         <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
                                                             {n.requirements.map(r => `${r.customer}`).join(', ')}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant)}
+                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
                                                     className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
                                                 >
                                                     +{n.totalQty}
@@ -414,7 +438,6 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                 }
 
                                 // Robust Suffix Extraction
-                                // If item_name is "DA1102XKO" and sku is "DA1102", suffix is "XKO"
                                 let suffixStr = '';
                                 if (product && item.item_name.startsWith(product.sku)) {
                                     suffixStr = item.item_name.slice(product.sku.length);
@@ -441,6 +464,11 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                     <span className={`font-black text-lg px-2 py-0.5 rounded border ${item.item_type === 'Product' ? finishStyle : 'bg-slate-50 text-slate-800 border-slate-200'}`}>
                                                         {item.item_name}
                                                     </span>
+                                                    {item.size_info && (
+                                                        <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
+                                                            <Hash size={10}/> {item.size_info}
+                                                        </span>
+                                                    )}
                                                     {supplierRef && (
                                                         <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-1 rounded border border-purple-100">
                                                             Ref: {supplierRef}
