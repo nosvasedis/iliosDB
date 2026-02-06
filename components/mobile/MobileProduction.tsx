@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 
@@ -87,7 +86,7 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean
                         {batch.quantity}
                     </div>
                     {batch.on_hold && (
-                        <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                        <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse">
                             <PauseCircle size={8} className="fill-current"/> ΑΝΑΜΟΝΗ
                         </span>
                     )}
@@ -127,7 +126,7 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean
                     {!isReady && !batch.on_hold && (
                         <button 
                             onClick={() => onNext(batch)}
-                            className="bg-emerald-500 active:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all"
+                            className="bg-emerald-50 active:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all"
                         >
                             Επόμενο <MoveRight size={12}/>
                         </button>
@@ -189,6 +188,14 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
         setSelectedIds(next);
     };
 
+    const toggleAll = () => {
+        if (selectedIds.size === batches.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(batches.map(b => b.id)));
+        }
+    };
+
     const handleConfirm = () => {
         const selected = batches.filter(b => selectedIds.has(b.id));
         onConfirm(selected);
@@ -209,7 +216,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20}/></button>
                 </div>
 
-                <div className="p-4 border-b border-slate-100 bg-white">
+                <div className="p-4 border-b border-slate-100 bg-white space-y-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                         <input 
@@ -220,6 +227,16 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
                             className="w-full pl-9 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-medium"
                         />
                     </div>
+                    <button 
+                        onClick={toggleAll}
+                        className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-slate-100 bg-slate-50 text-slate-500 flex items-center justify-center gap-2 active:bg-slate-100"
+                    >
+                        {selectedIds.size === batches.length ? (
+                            <><Square size={14}/> Αποεπιλογη ολων</>
+                        ) : (
+                            <><CheckSquare size={14}/> Επιλογη ολων</>
+                        )}
+                    </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-50/30">

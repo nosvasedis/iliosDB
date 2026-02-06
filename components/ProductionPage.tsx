@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
@@ -109,6 +108,14 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
         setSelectedIds(next);
     };
 
+    const toggleAll = () => {
+        if (selectedIds.size === batches.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(batches.map(b => b.id)));
+        }
+    };
+
     const handleConfirm = () => {
         const selected = batches.filter(b => selectedIds.has(b.id));
         onConfirm(selected);
@@ -130,8 +137,8 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20}/></button>
                 </div>
 
-                <div className="p-4 border-b border-slate-100 bg-white">
-                    <div className="relative">
+                <div className="p-4 border-b border-slate-100 bg-white flex items-center gap-4">
+                    <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                         <input 
                             type="text" 
@@ -141,6 +148,16 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
                             className="w-full pl-9 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-medium"
                         />
                     </div>
+                    <button 
+                        onClick={toggleAll}
+                        className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                        {selectedIds.size === batches.length ? (
+                            <><Square size={14}/> Αποεπιλογη ολων</>
+                        ) : (
+                            <><CheckSquare size={14}/> Επιλογη ολων</>
+                        )}
+                    </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-50/30">
