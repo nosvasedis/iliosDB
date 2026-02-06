@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -375,7 +375,7 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
                     />
                 </div>
                 <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-200 transition-colors">Άκυρο</button>
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-200 transition-colors">Άκυρο</button>
                     <button 
                         onClick={() => onConfirm(reason)} 
                         disabled={isProcessing || !reason.trim()}
@@ -526,10 +526,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       targetStage: ProductionStage;
   } | null>(null);
 
-  const enhancedBatches: (ProductionBatch & { customer_name?: string })[] = useMemo(() => {
+  // NEW: Sorting State
+  const [isClientCentric, setIsClientCentric] = useState(false);
+
+  // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
+  const enhancedBatches = useMemo(() => {
     const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
     
-    return batches?.map(b => {
+    const results = batches?.map(b => {
       const prod = products.find(p => p.sku === b.sku);
       const lastUpdate = new Date(b.updated_at);
       const now = new Date();
@@ -552,10 +556,12 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
       return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, customer_name: customerName };
     }) || [];
+    return results as (ProductionBatch & { customer_name: string })[];
   }, [batches, products, materials, orders]);
 
+  // @FIX: Explicitly type foundBatches result to include customer_name.
   const foundBatches = useMemo(() => {
-        if (!finderTerm || finderTerm.length < 2) return [];
+        if (!finderTerm || finderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
         const term = finderTerm.toUpperCase();
         
         // Define stage order based on the STAGES array
@@ -576,8 +582,26 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
                 const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
                 return (aExact === bExact) ? 0 : aExact ? -1 : 1;
-            });
+            }) as (ProductionBatch & { customer_name: string })[];
     }, [enhancedBatches, finderTerm]);
+
+  const sortedClients = useMemo(() => {
+      if (!isClientCentric) return [];
+      
+      const clientLatestActionMap: Record<string, number> = {};
+      
+      enhancedBatches.forEach(b => {
+          const client = b.customer_name || 'Χωρίς Πελάτη';
+          const time = new Date(b.created_at).getTime(); // Group by latest order creation
+          if (!clientLatestActionMap[client] || time > clientLatestActionMap[client]) {
+              clientLatestActionMap[client] = time;
+          }
+      });
+
+      return Object.entries(clientLatestActionMap)
+          .sort((a, b) => b[1] - a[1]) // Newest First
+          .map(entry => entry[0]);
+  }, [enhancedBatches, isClientCentric]);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
       e.dataTransfer.effectAllowed = 'move';
@@ -792,14 +816,20 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       if (nextStage) attemptMove(batch, nextStage);
   };
   
-  // NEW: GROUPING LOGIC (Gender -> Collection -> Finish -> Batches)
-  const groupBatches = (batches: ProductionBatch[]) => {
-      // Structure: Record<Gender, Record<CollectionName, ProductionBatch[]>>
-      const groups: Record<string, Record<string, ProductionBatch[]>> = {};
+  // @FIX: Update groupBatches signature to accept extended type and avoid property errors.
+  const groupBatches = (batches: (ProductionBatch & { customer_name: string })[]) => {
+      // Structure: Record<Level1Name, Record<CollectionName, ProductionBatch[]>>
+      // Level1Name can be Gender OR Customer
+      const groups: Record<string, Record<string, (ProductionBatch & { customer_name: string })[]>> = {};
       
       batches.forEach(b => {
-         // Level 1: Gender (Use Gender Enum)
-         const gender = b.product_details?.gender || 'Unknown';
+         // Determine Level 1 Key
+         let level1Key = '';
+         if (isClientCentric) {
+             level1Key = b.customer_name || 'Χωρίς Πελάτη';
+         } else {
+             level1Key = b.product_details?.gender || 'Unknown';
+         }
 
          // Level 2: Collection
          let collName = 'Γενικά';
@@ -808,16 +838,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
              if (c) collName = c.name;
          }
          
-         if (!groups[gender]) groups[gender] = {};
-         if (!groups[gender][collName]) groups[gender][collName] = [];
+         if (!groups[level1Key]) groups[level1Key] = {};
+         if (!groups[level1Key][collName]) groups[level1Key][collName] = [];
          
-         groups[gender][collName].push(b);
+         groups[level1Key][collName].push(b);
       });
       
       // Sort batches within groups alphabetically by SKU
-      Object.keys(groups).forEach(genderKey => {
-          Object.keys(groups[genderKey]).forEach(collKey => {
-              groups[genderKey][collKey].sort((a, b) => {
+      Object.keys(groups).forEach(l1Key => {
+          Object.keys(groups[l1Key]).forEach(collKey => {
+              groups[l1Key][collKey].sort((a, b) => {
                   const fullA = a.sku + (a.variant_suffix || '');
                   const fullB = b.sku + (b.variant_suffix || '');
                   return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
@@ -907,6 +937,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             {/* ORDER FINDER (DESKTOP) */}
             <div className="flex-1 max-w-xl w-full mx-4 flex gap-2">
                 <button 
+                    onClick={() => setIsClientCentric(!isClientCentric)}
+                    className={`hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm ${isClientCentric ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700'}`}
+                    title={isClientCentric ? "Επαναφορά Ταξινόμησης" : "Ταξινόμηση ανά Πελάτη"}
+                >
+                    <Users size={20} />
+                </button>
+                <button 
                     onClick={() => setIsMoldModalOpen(true)}
                     className="hidden lg:flex p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-200 transition-colors shadow-sm"
                     title="Υπολογισμός Λάστιχων"
@@ -943,6 +980,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                 {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
                                              </div>
                                              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                                 {/* @FIX: TypeScript should now recognize customer_name after explicit cast in useMemo. */}
                                                  <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
                                              </div>
                                          </div>
@@ -1017,7 +1055,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
                     const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);
-                    const groupedBatches = groupBatches(stageBatches);
+                    const groupedData = groupBatches(stageBatches);
                     
                     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                     const isTarget = dropTarget === stage.id;
@@ -1076,19 +1114,26 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     </div>
                                 )}
 
-                                {SORTED_GENDERS.map(genderKey => {
-                                    const genderBatches = groupedBatches[genderKey];
-                                    if (!genderBatches || Object.keys(genderBatches).length === 0) return null;
+                                {(isClientCentric ? sortedClients : SORTED_GENDERS).map(level1Key => {
+                                    const l1Batches = groupedData[level1Key];
+                                    if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
                                     
-                                    const gConfig = GENDER_CONFIG[genderKey] || GENDER_CONFIG['Unknown'];
-                                    const collectionKeys = Object.keys(genderBatches).sort();
+                                    const gConfig = isClientCentric ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
+                                    const collectionKeys = Object.keys(l1Batches).sort();
 
                                     return (
-                                        <div key={genderKey} className="space-y-3">
-                                            <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig.style} flex justify-between items-center`}>
-                                                <span>{gConfig.label}</span>
-                                                <span className="opacity-60 text-[9px]">{Object.values(genderBatches).flat().length}</span>
-                                            </div>
+                                        <div key={level1Key} className="space-y-3">
+                                            {isClientCentric ? (
+                                                 <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
+                                                    <span>{level1Key}</span>
+                                                    <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
+                                                 </div>
+                                            ) : (
+                                                <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
+                                                    <span>{gConfig?.label}</span>
+                                                    <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
+                                                </div>
+                                            )}
 
                                             {collectionKeys.map(collName => (
                                                 <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
@@ -1097,7 +1142,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
                                                     </div>
                                                     
-                                                    {genderBatches[collName].map(batch => (
+                                                    {l1Batches[collName].map(batch => (
                                                         <ProductionBatchCard 
                                                             key={batch.id} 
                                                             batch={batch} 
@@ -1129,6 +1174,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             </div>
         </div>
         
+        {/* MODALS REMAIN UNCHANGED */}
         {splitModalState && (
             <SplitBatchModal 
                 state={splitModalState}
