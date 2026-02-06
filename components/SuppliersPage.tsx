@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, ProductionType, Material, SupplierOrder, SupplierOrderItem, MaterialType, SupplierOrderType, ProductionStage } from '../types';
-import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText, Factory, Printer } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Globe, Phone, Mail, MapPin, Search, Edit, Package, X, Check, Link, ImageIcon, Box, ShoppingCart, TrendingUp, Clock, Calendar, CheckCircle, List, ArrowRight, FileText, Factory, Printer, Hash } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -239,17 +239,22 @@ export default function SuppliersPage() {
                                 )}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {assignedProducts.map(p => (
-                                        <div key={p.sku} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between group">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                        <div key={p.sku} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between group h-fit">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                     {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
                                                 </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-bold text-slate-800 text-sm truncate">{p.sku}</div>
+                                                    {p.supplier_sku && (
+                                                        <div className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase inline-block mt-0.5 mb-1 truncate max-w-full">
+                                                            Ref: {p.supplier_sku}
+                                                        </div>
+                                                    )}
                                                     <div className="text-[10px] text-slate-500 font-mono">Κόστος: {formatCurrency(p.active_price || p.supplier_cost || 0)}</div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => handleUnlinkProduct(p.sku)} className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"><X size={16}/></button>
+                                            <button onClick={() => handleUnlinkProduct(p.sku)} className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all shrink-0"><X size={16}/></button>
                                         </div>
                                     ))}
                                     {assignedProducts.length === 0 && <div className="col-span-full text-center py-10 text-slate-400 italic">Κανένα συνδεδεμένο προϊόν.</div>}
