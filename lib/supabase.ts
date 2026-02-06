@@ -608,10 +608,9 @@ export const api = {
     updateOrder: async (o: Order): Promise<void> => { 
         await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); 
         
-        // Smart Reconciliation: If order is in production, sync new items to batches
-        if (o.status === OrderStatus.InProduction) {
-            await api.reconcileOrderBatches(o);
-        }
+        // Smart Reconciliation: If order is in production, sync items to batches
+        // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
+        await api.reconcileOrderBatches(o);
     },
     
     deleteOrder: async (id: string): Promise<void> => { 
@@ -689,54 +688,63 @@ export const api = {
         }
     },
 
-    // NEW: Reconciliation Function
+    // NEW: Bulletproof Reconciliation Function
+    // This function handles additions, quantity reductions, and item removals for orders already in production.
     reconcileOrderBatches: async (order: Order): Promise<void> => {
         try {
             // 1. Fetch existing batches
-            const { data: existingBatches } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
-            const batches = existingBatches || [];
+            let existingBatches: any[] = [];
+            if (isLocalMode) {
+                const local = await offlineDb.getTable('production_batches');
+                existingBatches = local?.filter(b => b.order_id === order.id) || [];
+            } else {
+                const { data } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
+                existingBatches = data || [];
+            }
+            
+            if (existingBatches.length === 0 && order.status !== OrderStatus.InProduction && order.status !== OrderStatus.Ready) {
+                // If no batches exist and we aren't "In Production", do nothing
+                return;
+            }
 
-            // 2. Fetch products & materials for config
+            // 2. Fetch dependencies
             const allProducts = await api.getProducts();
             const allMaterials = await api.getMaterials();
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
 
-            // 3. Map Demand (Current Order Items)
-            const newBatches: any[] = [];
-            const demandMap: Record<string, { qty: number, item: any }> = {};
+            // 3. Define "Natural Key" for matching: SKU + Variant + Size
+            const getNaturalKey = (sku: string, variant: string | null | undefined, size: string | null | undefined) => {
+                return `${sku.toUpperCase()}::${(variant || '').toUpperCase()}::${(size || '').toUpperCase()}`;
+            };
 
+            // 4. Map Demand (What the order says NOW)
+            const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
-                 const key = `${item.sku}::${item.variant_suffix || ''}`;
+                 const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info);
                  if (!demandMap[key]) demandMap[key] = { qty: 0, item };
                  demandMap[key].qty += item.quantity;
             });
 
-            // 4. CLEANUP: Delete batches for SKUs no longer in the order or missing
-            for (const b of batches) {
-                const key = `${b.sku}::${b.variant_suffix || ''}`;
-                if (!demandMap[key]) {
-                    await api.deleteProductionBatch(b.id);
-                }
-            }
-
-            // 5. Map Supply (Remaining Batches)
-            const supplyMap: Record<string, number> = {};
-            // Re-map after identifying which ones stay
-            batches.forEach((b: any) => {
-                const key = `${b.sku}::${b.variant_suffix || ''}`;
-                if (demandMap[key]) {
-                    supplyMap[key] = (supplyMap[key] || 0) + b.quantity;
-                }
+            // 5. Map Supply (What batches currently exist)
+            const supplyMap: Record<string, ProductionBatch[]> = {};
+            existingBatches.forEach((b: any) => {
+                const key = getNaturalKey(b.sku, b.variant_suffix, b.size_info);
+                if (!supplyMap[key]) supplyMap[key] = [];
+                supplyMap[key].push(b);
             });
 
-            // 6. Calculate Diff & Prepare New Batches
-            Object.entries(demandMap).forEach(([key, data]) => {
-                const supply = supplyMap[key] || 0;
-                const demand = data.qty;
+            // 6. RECONCILE: Iterate all unique keys from both maps
+            const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
+            
+            for (const key of allKeys) {
+                const targetQty = demandMap[key]?.qty || 0;
+                const existingList = supplyMap[key] || [];
+                const currentQty = existingList.reduce((s, b) => s + b.quantity, 0);
                 
-                if (demand > supply) {
-                    const diff = demand - supply;
-                    const { item } = data;
+                // CASE A: Deficit (Need more items)
+                if (targetQty > currentQty) {
+                    const diff = targetQty - currentQty;
+                    const { item } = demandMap[key];
                     const product = allProducts.find(p => p.sku === item.sku);
                     
                     if (product) {
@@ -750,7 +758,7 @@ export const api = {
                          
                          const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
-                         newBatches.push({
+                         await safeMutate('production_batches', 'INSERT', {
                             id: crypto.randomUUID(),
                             order_id: order.id,
                             sku: item.sku,
@@ -767,10 +775,33 @@ export const api = {
                          });
                     }
                 }
-            });
+                // CASE B: Surplus (Too many items) or Item Removed
+                else if (currentQty > targetQty) {
+                    let surplus = currentQty - targetQty;
+                    
+                    // Sort existing batches by progress (Stage index) - we want to delete/reduce EARLIEST stages first
+                    const sortedSupply = [...existingList].sort((a, b) => {
+                        const stages = Object.values(ProductionStage);
+                        return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
+                    });
 
-            if (newBatches.length > 0) {
-                await safeMutate('production_batches', 'UPSERT', newBatches);
+                    for (const batch of sortedSupply) {
+                        if (surplus <= 0) break;
+
+                        if (batch.quantity <= surplus) {
+                            // Delete whole batch
+                            await api.deleteProductionBatch(batch.id);
+                            surplus -= batch.quantity;
+                        } else {
+                            // Reduce batch quantity
+                            await safeMutate('production_batches', 'UPDATE', { 
+                                quantity: batch.quantity - surplus,
+                                updated_at: new Date().toISOString()
+                            }, { match: { id: batch.id } });
+                            surplus = 0;
+                        }
+                    }
+                }
             }
         } catch (err) {
             console.error("Batch Reconciliation Failed:", err);
@@ -789,50 +820,12 @@ export const api = {
 
         if (!order) throw new Error("Order not found.");
         
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
-        const batches: any[] = [];
-        const missingSkus: string[] = [];
-
-        for (const item of order.items) {
-            const product = allProducts.find(p => p.sku === item.sku);
-            
-            if (!product) {
-                missingSkus.push(item.sku);
-                continue;
-            }
-
-            const suffix = item.variant_suffix || '';
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
-                             product.recipe.some(r => {
-                                 if (r.type !== 'raw') return false;
-                                 const material = allMaterials.find(m => m.id === r.id);
-                                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                             });
-            const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-            
-            batches.push({
-                id: crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15), 
-                order_id: orderId,
-                sku: item.sku,
-                variant_suffix: item.variant_suffix || null,
-                quantity: item.quantity,
-                current_stage: stage,
-                size_info: item.size_info || null,
-                notes: item.notes || null,
-                priority: 'Normal',
-                type: 'Νέα',
-                requires_setting: hasZircons,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            });
-        }
-
-        if (missingSkus.length > 0) {
-            throw new Error(`Production Blocked: Products not found in registry: ${missingSkus.join(', ')}. Try refreshing the page.`);
-        }
-
-        if (batches.length > 0) await safeMutate('production_batches', 'UPSERT', batches, { onConflict: 'id' });
+        // Mark as In Production first
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
+        
+        // Delegate to the bulletproof reconciliation logic
+        // This prevents the "Four instead of Two" issue by checking existing supply first.
+        await api.reconcileOrderBatches(order);
     },
 
     // NEW: PARTIAL SEND TO PRODUCTION
