@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { AggregatedData, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
@@ -20,15 +19,15 @@ export default function AggregatedProductionView({ data, settings }: Props) {
         });
     };
 
-    // Calculate Technician Metal Breakdown (Excluding STX)
+    // Calculate Technician Metal Breakdown (Excluding STX and Imported Items)
     const techMetal = useMemo(() => {
         const acc = { P: 0, X: 0, H: 0 };
         
         data.batches.forEach(batch => {
             const p = batch.product_details;
-            // 1. Exclude STX (Components) and Imported items (if they don't go to technician)
-            // Usually Imported items don't need metal calculation for casting, but request specifically mentioned STX.
-            if (!p || p.is_component) return; 
+            // CRITICAL: Exclude STX (Components) AND Imported items.
+            // Only workshop (InHouse) manufactured products are calculated for technician metal delivery.
+            if (!p || p.is_component || p.production_type === ProductionType.Imported) return; 
 
             const qty = batch.quantity;
             const wMain = p.weight_g;
@@ -78,7 +77,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             {/* HEADER */}
             <div className="flex justify-between items-start border-b border-slate-900 pb-2 mb-3">
                 <div className="w-24">
-                    <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
+                     <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                 </div>
                 <div className="text-right">
                     {data.orderId ? (
@@ -128,7 +127,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <Hammer size={10}/> Παράδοση Μετάλλου στον Τεχνίτη
                      </span>
                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                        (Εκτός STX) • Σύνολο: {formatDecimal(totalTechnicianSilver, 1)}g
+                        (Μόνο Εργαστηρίου) • Σύνολο: {formatDecimal(totalTechnicianSilver, 1)}g
                      </span>
                 </div>
                 <div className="grid grid-cols-3 divide-x divide-slate-200">
@@ -185,6 +184,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                     <span className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</span>
                                     {batch.size_info && <span className="text-[9px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200">{batch.size_info}</span>}
                                     {batch.product_details?.is_component && <span className="text-[8px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
+                                    {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[8px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase ml-1">IMP</span>}
                                 </div>
                                 {(batch.product_details?.supplier_sku || batch.notes) && (
                                     <div className="flex flex-wrap gap-2 text-[9px] mt-0.5">
@@ -210,14 +210,3 @@ export default function AggregatedProductionView({ data, settings }: Props) {
         </div>
     );
 }
-
-const SummaryCard = ({ title, value, icon }: any) => (
-    <div className="flex flex-col">
-        <span className="text-[9px] text-slate-400 font-bold uppercase">{title}</span>
-        <span className="text-sm font-black text-slate-800 flex items-center gap-1">{icon} {value}</span>
-    </div>
-);
-
-const CostRow = ({ label, value }: { label: string, value: number }) => (
-    <span>{label}: <b className="text-slate-900">{formatCurrency(value)}</b></span>
-);
