@@ -137,7 +137,7 @@ export default function ProductionOverviewModal({
                                 <div className={`flex items-center gap-3 p-3 rounded-2xl border mb-4 sticky top-0 z-10 shadow-sm ${stageColorClass}`}>
                                     <h3 className="font-black uppercase tracking-wide text-sm">{stage.label}</h3>
                                     <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-bold border border-white/20">
-                                        {Object.values(stageData).flatMap(g => Object.values(g).flat()).length} Items
+                                        {Object.values(stageData).flatMap(g => Object.values(g).flat()).length} Παρτίδες
                                     </span>
                                 </div>
 
