@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle } from 'lucide-react';
-import { api } from '../lib/supabase';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
+import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 import { useQueryClient } from '@tanstack/react-query';
@@ -92,7 +92,6 @@ export default function ProductionSendModal({ order, products, materials, existi
     const queryClient = useQueryClient();
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
-    const [isReconciling, setIsReconciling] = useState(false);
     
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
@@ -103,6 +102,10 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [splitTarget, setSplitTarget] = useState<{ batch: ProductionBatch, maxQty: number } | null>(null);
     const [splitQty, setSplitQty] = useState(1);
     const [splitStage, setSplitStage] = useState<ProductionStage>(ProductionStage.Waxing);
+
+    // Note Editing State
+    const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
+    const [noteText, setNoteText] = useState('');
 
     // Order Financials
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -242,23 +245,6 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
-    // --- RECONCILE / REPAIR ---
-    const handleReconcile = async () => {
-        if (!await confirm({ title: 'Συγχρονισμός', message: 'Αυτό θα διαγράψει τυχόν διπλότυπα και θα δημιουργήσει παρτίδες για είδη που λείπουν, ώστε να ταιριάζουν με την εντολή. Συνέχεια;', confirmText: 'Διόρθωση' })) return;
-        
-        setIsReconciling(true);
-        try {
-            await api.reconcileOrderBatches(order);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
-            await queryClient.invalidateQueries({ queryKey: ['orders'] });
-            showToast("Ο συγχρονισμός ολοκληρώθηκε.", "success");
-        } catch (e) {
-            showToast("Σφάλμα συγχρονισμού.", "error");
-        } finally {
-            setIsReconciling(false);
-        }
-    };
-
     // --- BATCH MANAGEMENT ACTIONS ---
 
     const handleStageMove = async (batch: ProductionBatch, newStage: ProductionStage) => {
@@ -317,6 +303,27 @@ export default function ProductionSendModal({ order, products, materials, existi
         } catch (e) {
             console.error(e);
             showToast("Σφάλμα συγχώνευσης.", "error");
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const handleSaveNote = async () => {
+        if (!editingNoteBatch) return;
+        setIsWorking(true);
+        try {
+            const { error } = await supabase
+                .from('production_batches')
+                .update({ notes: noteText || null, updated_at: new Date().toISOString() })
+                .eq('id', editingNoteBatch.id);
+            
+            if (error) throw error;
+
+            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast("Η σημείωση ενημερώθηκε.", "success");
+            setEditingNoteBatch(null);
+        } catch (e) {
+            showToast("Σφάλμα ενημέρωσης.", "error");
         } finally {
             setIsWorking(false);
         }
@@ -420,14 +427,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <span className="text-xs font-bold truncate">{order.notes}</span>
                             </div>
                         )}
-                        <button 
-                            onClick={handleReconcile} 
-                            disabled={isReconciling}
-                            className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold text-xs border border-purple-100 hover:bg-purple-100 transition-colors flex items-center gap-2"
-                        >
-                            {isReconciling ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} 
-                            Διόρθωση & Συγχρονισμός
-                        </button>
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
                     </div>
                 </div>
@@ -599,6 +598,13 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                          
                                                                          <div className="flex gap-1 items-center">
                                                                              <span className="text-[10px] font-mono text-slate-400 mr-2">{formatCurrency(batchVal)}</span>
+                                                                             <button 
+                                                                                 onClick={() => { setEditingNoteBatch(batch); setNoteText(batch.notes || ''); }}
+                                                                                 className={`p-1.5 rounded transition-colors ${batch.notes ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
+                                                                                 title="Σημειώσεις"
+                                                                             >
+                                                                                 <StickyNote size={14} className={batch.notes ? "fill-current" : ""}/>
+                                                                             </button>
                                                                              {batch.current_stage !== ProductionStage.Ready && (
                                                                                  <button 
                                                                                      onClick={() => openSplitModal(batch)} 
@@ -784,6 +790,33 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         <button onClick={handleSplit} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
                             <Split size={18}/> Εκτέλεση
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* NOTE EDIT MODAL */}
+            {editingNoteBatch && (
+                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500"/> Σημείωση</h3>
+                            <button onClick={() => setEditingNoteBatch(null)}><X size={20} className="text-slate-400"/></button>
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Κείμενο</label>
+                            <textarea 
+                                value={noteText}
+                                onChange={(e) => setNoteText(e.target.value)}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none h-32 resize-none"
+                                placeholder="Γράψτε μια σημείωση..."
+                                autoFocus
+                            />
+                        </div>
+
+                        <button onClick={handleSaveNote} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                            <Save size={18}/> Αποθήκευση
                         </button>
                     </div>
                 </div>
