@@ -1,9 +1,8 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Users } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -527,9 +526,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       targetStage: ProductionStage;
   } | null>(null);
 
-  // NEW: State for sorting by client
-  const [groupByClient, setGroupByClient] = useState(false);
-
   const enhancedBatches: (ProductionBatch & { customer_name?: string })[] = useMemo(() => {
     const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
     
@@ -832,41 +828,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
       return groups;
   };
 
-  // NEW: GROUPING LOGIC BY CLIENT
-  const groupBatchesByClient = (batches: (ProductionBatch & { customer_name?: string })[]) => {
-      const groups: Record<string, Record<string, ProductionBatch[]>> = {};
-
-      batches.forEach(b => {
-          // Level 1: Client Name
-          const clientName = b.customer_name || 'Χωρίς Πελάτη';
-          
-          // Level 2: Order ID (formatted)
-          // We use the ID because names can be duplicate, but usually client name is the primary sort key requested
-          // For batches without order ID, group under "No Order"
-          const orderKey = b.order_id ? `#${b.order_id.slice(0, 8)}` : 'Εκτός Παραγγελίας';
-
-          if (!groups[clientName]) groups[clientName] = {};
-          if (!groups[clientName][orderKey]) groups[clientName][orderKey] = [];
-
-          groups[clientName][orderKey].push(b);
-      });
-
-      // Sort logic inside the groups
-      Object.keys(groups).forEach(client => {
-          // Sort orders: Newest first (assuming ID correlates to time or we can just do alpha desc)
-          // Since IDs are usually UUIDs or timestamps, desc string sort is a decent proxy for "recent"
-          Object.keys(groups[client]).forEach(orderKey => {
-              groups[client][orderKey].sort((a, b) => {
-                  const fullA = a.sku + (a.variant_suffix || '');
-                  const fullB = b.sku + (b.variant_suffix || '');
-                  return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
-              });
-          });
-      });
-
-      return groups;
-  };
-
   // Sort Order for Genders
   const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
@@ -945,14 +906,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
             {/* ORDER FINDER (DESKTOP) */}
             <div className="flex-1 max-w-xl w-full mx-4 flex gap-2">
-                <button
-                    onClick={() => setGroupByClient(!groupByClient)}
-                    className={`hidden lg:flex p-3 rounded-2xl border transition-colors shadow-sm gap-2 items-center ${groupByClient ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                    title={groupByClient ? "Ταξινόμηση ανά Φύλο/Συλλογή" : "Ταξινόμηση ανά Πελάτη"}
-                >
-                    {groupByClient ? <Users size={20} /> : <Layers size={20} />}
-                    <span className="text-xs font-bold">{groupByClient ? 'Ανά Πελάτη' : 'Ανά Είδος'}</span>
-                </button>
                 <button 
                     onClick={() => setIsMoldModalOpen(true)}
                     className="hidden lg:flex p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-200 transition-colors shadow-sm"
@@ -1064,11 +1017,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                 {STAGES.map(stage => {
                     const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);
-                    
-                    // Conditional Grouping
-                    const groupedBatches = groupByClient 
-                        ? groupBatchesByClient(stageBatches) 
-                        : groupBatches(stageBatches);
+                    const groupedBatches = groupBatches(stageBatches);
                     
                     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                     const isTarget = dropTarget === stage.id;
@@ -1127,84 +1076,45 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     </div>
                                 )}
 
-                                {groupByClient ? (
-                                    // BY CLIENT RENDERING
-                                    Object.keys(groupedBatches).sort().map(clientName => {
-                                        const clientOrders = groupedBatches[clientName] as Record<string, ProductionBatch[]>;
-                                        if (!clientOrders || Object.keys(clientOrders).length === 0) return null;
-                                        const orderKeys = Object.keys(clientOrders).sort().reverse(); // Show recent orders (larger ID) first
+                                {SORTED_GENDERS.map(genderKey => {
+                                    const genderBatches = groupedBatches[genderKey];
+                                    if (!genderBatches || Object.keys(genderBatches).length === 0) return null;
+                                    
+                                    const gConfig = GENDER_CONFIG[genderKey] || GENDER_CONFIG['Unknown'];
+                                    const collectionKeys = Object.keys(genderBatches).sort();
 
-                                        return (
-                                            <div key={clientName} className="space-y-2">
-                                                <div className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-black uppercase flex justify-between items-center shadow-sm">
-                                                    <span className="truncate max-w-[180px]" title={clientName}>{clientName}</span>
-                                                    <span className="opacity-60 text-[9px]">{Object.values(clientOrders).flat().length}</span>
-                                                </div>
-
-                                                {orderKeys.map(orderKey => (
-                                                    <div key={orderKey} className="pl-2 border-l-2 border-indigo-100 ml-1 space-y-2">
-                                                        <div className="text-[9px] font-bold text-slate-400 px-1">{orderKey}</div>
-                                                        {clientOrders[orderKey].map(batch => (
-                                                            <ProductionBatchCard 
-                                                                key={batch.id} 
-                                                                batch={batch} 
-                                                                onDragStart={handleDragStart} 
-                                                                onPrint={onPrintBatch} 
-                                                                onNextStage={handleQuickNext}
-                                                                onEditNote={() => setEditingNoteBatch(batch)}
-                                                                onToggleHold={() => handleToggleHold(batch)}
-                                                                onDelete={() => handleDeleteBatch(batch)}
-                                                                onClick={() => setViewBuildBatch(batch)}
-                                                                hideActions={false}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                ))}
+                                    return (
+                                        <div key={genderKey} className="space-y-3">
+                                            <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig.style} flex justify-between items-center`}>
+                                                <span>{gConfig.label}</span>
+                                                <span className="opacity-60 text-[9px]">{Object.values(genderBatches).flat().length}</span>
                                             </div>
-                                        );
-                                    })
-                                ) : (
-                                    // BY GENDER/COLLECTION RENDERING (Default)
-                                    SORTED_GENDERS.map(genderKey => {
-                                        const genderBatches = (groupedBatches as any)[genderKey];
-                                        if (!genderBatches || Object.keys(genderBatches).length === 0) return null;
-                                        
-                                        const gConfig = GENDER_CONFIG[genderKey] || GENDER_CONFIG['Unknown'];
-                                        const collectionKeys = Object.keys(genderBatches).sort();
 
-                                        return (
-                                            <div key={genderKey} className="space-y-3">
-                                                <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig.style} flex justify-between items-center`}>
-                                                    <span>{gConfig.label}</span>
-                                                    <span className="opacity-60 text-[9px]">{Object.values(genderBatches).flat().length}</span>
-                                                </div>
-
-                                                {collectionKeys.map(collName => (
-                                                    <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
-                                                        <div className="flex items-center gap-2 px-1">
-                                                            <FolderKanban size={10} className="text-slate-400"/>
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
-                                                        </div>
-                                                        
-                                                        {genderBatches[collName].map((batch: ProductionBatch) => (
-                                                            <ProductionBatchCard 
-                                                                key={batch.id} 
-                                                                batch={batch} 
-                                                                onDragStart={handleDragStart} 
-                                                                onPrint={onPrintBatch} 
-                                                                onNextStage={handleQuickNext}
-                                                                onEditNote={() => setEditingNoteBatch(batch)}
-                                                                onToggleHold={() => handleToggleHold(batch)}
-                                                                onDelete={() => handleDeleteBatch(batch)}
-                                                                onClick={() => setViewBuildBatch(batch)}
-                                                            />
-                                                        ))}
+                                            {collectionKeys.map(collName => (
+                                                <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
+                                                    <div className="flex items-center gap-2 px-1">
+                                                        <FolderKanban size={10} className="text-slate-400"/>
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        );
-                                    })
-                                )}
+                                                    
+                                                    {genderBatches[collName].map(batch => (
+                                                        <ProductionBatchCard 
+                                                            key={batch.id} 
+                                                            batch={batch} 
+                                                            onDragStart={handleDragStart} 
+                                                            onPrint={onPrintBatch} 
+                                                            onNextStage={handleQuickNext}
+                                                            onEditNote={() => setEditingNoteBatch(batch)}
+                                                            onToggleHold={() => handleToggleHold(batch)}
+                                                            onDelete={() => handleDeleteBatch(batch)}
+                                                            onClick={() => setViewBuildBatch(batch)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
                                 
                                 {stageBatches.length === 0 && (
                                     <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
@@ -1251,7 +1161,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 batch={viewBuildBatch} 
                 allMaterials={materials} 
                 allMolds={molds} 
-                allProducts={allProducts}
+                allProducts={products}
                 onClose={() => setViewBuildBatch(null)} 
                 onMove={handleMoveBatch}
                 onEditNote={(b) => setEditingNoteBatch(b)}
