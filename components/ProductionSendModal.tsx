@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -74,10 +74,25 @@ interface RowItem extends OrderItem {
     originalIndex: number;
 }
 
+// Group batches by their created_at timestamp to simulate "Shipments"
+const groupBatchesByShipment = (batches: ProductionBatch[]) => {
+    const groups: Record<string, ProductionBatch[]> = {};
+    batches.forEach(b => {
+        // Group by minute to catch batches created in the same "Send" action
+        const timeKey = new Date(b.created_at).toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+        if (!groups[timeKey]) groups[timeKey] = [];
+        groups[timeKey].push(b);
+    });
+    // Sort keys descending (newest first)
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+};
+
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const [isSending, setIsSending] = useState(false);
+    const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
+    const [isReconciling, setIsReconciling] = useState(false);
     
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
@@ -89,8 +104,12 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [splitQty, setSplitQty] = useState(1);
     const [splitStage, setSplitStage] = useState<ProductionStage>(ProductionStage.Waxing);
 
+    // Order Financials
+    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+
     const rows = useMemo(() => {
-        return order.items.map((item, index) => {
+        const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
             
             const relevantBatches = existingBatches.filter(b => 
@@ -126,9 +145,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                 originalIndex: index
             } as RowItem;
         });
+
+        // 1. Sort Alphabetically by SKU
+        return mapped.sort((a, b) => {
+            const skuA = a.sku + (a.variant_suffix || '');
+            const skuB = b.sku + (b.variant_suffix || '');
+            return skuA.localeCompare(skuB, undefined, { numeric: true });
+        });
     }, [order.items, existingBatches, products]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
+
+    const shipmentHistory = useMemo(() => groupBatchesByShipment(existingBatches), [existingBatches]);
 
     const relevantCollections = useMemo(() => {
         if (!collections) return [];
@@ -162,9 +190,9 @@ export default function ProductionSendModal({ order, products, materials, existi
     const currentSendValue = useMemo(() => {
         return rows.reduce((sum, row, idx) => {
             const qty = toSendQuantities[idx] || 0;
-            return sum + (qty * row.price);
+            return sum + (qty * row.price * discountFactor);
         }, 0);
-    }, [rows, toSendQuantities]);
+    }, [rows, toSendQuantities, discountFactor]);
 
     const totalToSend = (Object.values(toSendQuantities) as number[]).reduce((a, b) => a + b, 0);
 
@@ -214,26 +242,83 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
+    // --- RECONCILE / REPAIR ---
+    const handleReconcile = async () => {
+        if (!await confirm({ title: 'Συγχρονισμός', message: 'Αυτό θα διαγράψει τυχόν διπλότυπα και θα δημιουργήσει παρτίδες για είδη που λείπουν, ώστε να ταιριάζουν με την εντολή. Συνέχεια;', confirmText: 'Διόρθωση' })) return;
+        
+        setIsReconciling(true);
+        try {
+            await api.reconcileOrderBatches(order);
+            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await queryClient.invalidateQueries({ queryKey: ['orders'] });
+            showToast("Ο συγχρονισμός ολοκληρώθηκε.", "success");
+        } catch (e) {
+            showToast("Σφάλμα συγχρονισμού.", "error");
+        } finally {
+            setIsReconciling(false);
+        }
+    };
+
     // --- BATCH MANAGEMENT ACTIONS ---
 
     const handleStageMove = async (batch: ProductionBatch, newStage: ProductionStage) => {
+        if (isWorking) return;
+        setIsWorking(true);
         try {
             await api.updateBatchStage(batch.id, newStage);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast("Η παρτίδα μετακινήθηκε.", "success");
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", "error");
+        } finally {
+            setIsWorking(false);
         }
     };
 
     const handleDeleteBatch = async (batch: ProductionBatch) => {
+        if (isWorking) return;
         if (!await confirm({ title: 'Διαγραφή', message: `Διαγραφή παρτίδας (${batch.quantity} τεμ);`, isDestructive: true })) return;
+        
+        setIsWorking(true);
         try {
             await api.deleteProductionBatch(batch.id);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast("Η παρτίδα διαγράφηκε.", "info");
         } catch (e) {
             showToast("Σφάλμα διαγραφής.", "error");
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const handleMergeBatches = async (stage: ProductionStage, batchesToMerge: ProductionBatch[]) => {
+        if (isWorking) return;
+        if (batchesToMerge.length < 2) return;
+        
+        const totalQty = batchesToMerge.reduce((sum, b) => sum + b.quantity, 0);
+        
+        const yes = await confirm({
+            title: 'Συγχώνευση Παρτίδων',
+            message: `Θα συγχωνευθούν ${batchesToMerge.length} παρτίδες στο στάδιο "${STAGES.find(s => s.id === stage)?.label}" σε μία ενιαία παρτίδα των ${totalQty} τεμαχίων.`,
+            confirmText: 'Συγχώνευση'
+        });
+        
+        if (!yes) return;
+
+        setIsWorking(true);
+        try {
+            const target = batchesToMerge[0];
+            const sourceIds = batchesToMerge.slice(1).map(b => b.id);
+            
+            await api.mergeBatches(target.id, sourceIds, totalQty);
+            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            
+            showToast("Επιτυχής συγχώνευση.", "success");
+        } catch (e) {
+            console.error(e);
+            showToast("Σφάλμα συγχώνευσης.", "error");
+        } finally {
+            setIsWorking(false);
         }
     };
 
@@ -256,12 +341,14 @@ export default function ProductionSendModal({ order, products, materials, existi
              return;
         }
         
+        setIsWorking(true);
         try {
             const originalNewQty = splitTarget.maxQty - splitQty;
             const batch = splitTarget.batch;
             
             // Prepare new batch object
             // Use existing batch properties but update stage, qty, id
+            // Ensure we strictly copy only DB columns to avoid errors
             const newBatchData = {
                 id: crypto.randomUUID(),
                 order_id: batch.order_id,
@@ -269,7 +356,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 variant_suffix: batch.variant_suffix,
                 quantity: splitQty,
                 current_stage: splitStage,
-                created_at: batch.created_at,
+                created_at: batch.created_at, // Preserve creation time for tracking
                 updated_at: new Date().toISOString(),
                 priority: batch.priority,
                 type: batch.type,
@@ -286,13 +373,31 @@ export default function ProductionSendModal({ order, products, materials, existi
             setSplitTarget(null);
         } catch (e) {
             showToast("Σφάλμα διαχωρισμού.", "error");
+        } finally {
+            setIsWorking(false);
         }
+    };
+
+    // Helper to group batches by stage for rendering
+    const groupBatchesByStage = (batches: ProductionBatch[]) => {
+        const groups: Record<string, ProductionBatch[]> = {};
+        batches.forEach(b => {
+            if (!groups[b.current_stage]) groups[b.current_stage] = [];
+            groups[b.current_stage].push(b);
+        });
+        return groups;
     };
 
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
                 
+                {isWorking && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-50 flex items-center justify-center">
+                        <Loader2 className="animate-spin text-slate-800" size={48} />
+                    </div>
+                )}
+
                 {/* HEADER */}
                 <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
@@ -307,7 +412,24 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
+                    
+                    <div className="flex gap-2">
+                        {order.notes && (
+                            <div className="hidden lg:flex items-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-xl border border-yellow-100 mr-2 max-w-md truncate" title={order.notes}>
+                                <AlertCircle size={16} className="shrink-0"/>
+                                <span className="text-xs font-bold truncate">{order.notes}</span>
+                            </div>
+                        )}
+                        <button 
+                            onClick={handleReconcile} 
+                            disabled={isReconciling}
+                            className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold text-xs border border-purple-100 hover:bg-purple-100 transition-colors flex items-center gap-2"
+                        >
+                            {isReconciling ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>} 
+                            Διόρθωση & Συγχρονισμός
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
+                    </div>
                 </div>
 
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
@@ -361,6 +483,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                  const originalIndex = row.originalIndex;
                                  const currentSend = toSendQuantities[originalIndex] || 0;
                                  const isFullySent = row.remainingQty === 0;
+                                 
+                                 // Group batches by stage for layout
+                                 const batchesByStage = groupBatchesByStage(row.batchDetails);
+                                 // Sort stages based on defined order
+                                 const sortedStages = Object.keys(batchesByStage).sort((a,b) => {
+                                     const idxA = STAGES.findIndex(s => s.id === a);
+                                     const idxB = STAGES.findIndex(s => s.id === b);
+                                     return idxA - idxB;
+                                 });
 
                                  return (
                                      <div key={originalIndex} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
@@ -377,6 +508,14 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                          {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                                                      </div>
                                                      <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
+                                                     
+                                                     {/* DISPLAY ROW NOTE */}
+                                                     {row.notes && (
+                                                         <div className="mt-1.5 flex items-start gap-1 p-1.5 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
+                                                             <StickyNote size={10} className="shrink-0 mt-0.5"/>
+                                                             <span className="text-[10px] font-bold italic leading-tight">{row.notes}</span>
+                                                         </div>
+                                                     )}
                                                  </div>
                                              </div>
 
@@ -399,63 +538,90 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                          {/* BOTTOM: Active Batches Management */}
                                          {row.batchDetails.length > 0 && (
-                                             <div className="pt-3 border-t border-slate-100">
-                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                             <div className="pt-3 border-t border-slate-100 space-y-3">
+                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                                                      <RefreshCw size={10}/> Ενεργές Παρτίδες ({row.batchDetails.length})
                                                  </div>
-                                                 <div className="space-y-2">
-                                                     {row.batchDetails.map(batch => {
-                                                         const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
-                                                         const stageColorClass = stageConf.color;
+                                                 
+                                                 {sortedStages.map(stageId => {
+                                                     const stageBatches = batchesByStage[stageId];
+                                                     const stageLabel = STAGES.find(s => s.id === stageId)?.label || stageId;
+                                                     
+                                                     return (
+                                                         <div key={stageId} className="space-y-1">
+                                                             {/* Stage Header with optional Merge Button */}
+                                                             <div className="flex items-center justify-between px-1">
+                                                                 <span className="text-[10px] font-bold text-slate-500 uppercase">{stageLabel}</span>
+                                                                 {stageBatches.length > 1 && (
+                                                                     <button 
+                                                                        onClick={() => handleMergeBatches(stageId as ProductionStage, stageBatches)}
+                                                                        className="flex items-center gap-1 text-[9px] font-black bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-100 hover:bg-purple-100 transition-colors"
+                                                                     >
+                                                                         <Merge size={10}/> Συγχώνευση ({stageBatches.length})
+                                                                     </button>
+                                                                 )}
+                                                             </div>
 
-                                                         return (
-                                                             <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                                                                 <div className="flex items-center gap-3">
-                                                                     <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
-                                                                     
-                                                                     {/* Stage Selector */}
-                                                                     <div className="relative group">
-                                                                         <select 
-                                                                             value={batch.current_stage} 
-                                                                             onChange={(e) => handleStageMove(batch, e.target.value as ProductionStage)}
-                                                                             className={`appearance-none pl-2 pr-6 py-1 rounded font-bold uppercase outline-none cursor-pointer ${stageColorClass} border-transparent focus:ring-2 focus:ring-blue-200`}
-                                                                         >
-                                                                             {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                                                         </select>
-                                                                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-current opacity-60">
-                                                                             <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                             {stageBatches.map(batch => {
+                                                                 const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
+                                                                 
+                                                                 // Calculate value for this specific batch
+                                                                 const batchRow = rows.find(r => r.sku === batch.sku && r.variant_suffix === batch.variant_suffix);
+                                                                 const unitPrice = batchRow?.price || 0;
+                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
+
+                                                                 return (
+                                                                     <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+                                                                         <div className="flex items-center gap-3">
+                                                                             <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
+                                                                             
+                                                                             {/* Stage Selector */}
+                                                                             <div className="relative group">
+                                                                                 <select 
+                                                                                     value={batch.current_stage} 
+                                                                                     onChange={(e) => handleStageMove(batch, e.target.value as ProductionStage)}
+                                                                                     className={`appearance-none pl-2 pr-6 py-1 rounded font-bold uppercase outline-none cursor-pointer ${stageConf.color} border-transparent focus:ring-2 focus:ring-blue-200`}
+                                                                                 >
+                                                                                     {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                                                                 </select>
+                                                                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-current opacity-60">
+                                                                                     <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                                                 </div>
+                                                                             </div>
+                                                                             
+                                                                             {/* Batch Note */}
+                                                                             {batch.notes && (
+                                                                                 <div className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-bold flex items-center gap-1" title={batch.notes}>
+                                                                                     <StickyNote size={10}/> {batch.notes}
+                                                                                 </div>
+                                                                             )}
+                                                                         </div>
+                                                                         
+                                                                         <div className="flex gap-1 items-center">
+                                                                             <span className="text-[10px] font-mono text-slate-400 mr-2">{formatCurrency(batchVal)}</span>
+                                                                             {batch.current_stage !== ProductionStage.Ready && (
+                                                                                 <button 
+                                                                                     onClick={() => openSplitModal(batch)} 
+                                                                                     className="p-1.5 text-blue-500 hover:bg-blue-100 rounded transition-colors" 
+                                                                                     title="Διαχωρισμός"
+                                                                                 >
+                                                                                     <Split size={14}/>
+                                                                                 </button>
+                                                                             )}
+                                                                             <button 
+                                                                                 onClick={() => handleDeleteBatch(batch)} 
+                                                                                 className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" 
+                                                                                 title="Διαγραφή"
+                                                                             >
+                                                                                 <Trash2 size={14}/>
+                                                                             </button>
                                                                          </div>
                                                                      </div>
-
-                                                                     {batch.notes && (
-                                                                         <div className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-bold flex items-center gap-1" title={batch.notes}>
-                                                                             <StickyNote size={8}/> Note
-                                                                         </div>
-                                                                     )}
-                                                                 </div>
-                                                                 
-                                                                 <div className="flex gap-1">
-                                                                     {batch.current_stage !== ProductionStage.Ready && (
-                                                                         <button 
-                                                                             onClick={() => openSplitModal(batch)} 
-                                                                             className="p-1.5 text-blue-500 hover:bg-blue-100 rounded transition-colors" 
-                                                                             title="Διαχωρισμός"
-                                                                         >
-                                                                             <Scissors size={14}/>
-                                                                         </button>
-                                                                     )}
-                                                                     <button 
-                                                                         onClick={() => handleDeleteBatch(batch)} 
-                                                                         className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" 
-                                                                         title="Διαγραφή"
-                                                                     >
-                                                                         <Trash2 size={14}/>
-                                                                     </button>
-                                                                 </div>
-                                                             </div>
-                                                         );
-                                                     })}
-                                                 </div>
+                                                                 );
+                                                             })}
+                                                         </div>
+                                                     );
+                                                 })}
                                              </div>
                                          )}
                                      </div>
@@ -465,9 +631,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
                     </div>
 
-                    {/* RIGHT PANEL: SUMMARY & ACTION */}
-                    <div className="w-full lg:w-[400px] xl:w-[450px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
+                    {/* RIGHT PANEL: SUMMARY & HISTORY */}
+                    <div className="w-full lg:w-[450px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
                         
+                        {/* 1. CURRENT SEND SUMMARY */}
                         <div className="p-6 bg-[#060b00] text-white flex flex-col gap-4 shrink-0">
                             <h3 className="font-bold uppercase text-xs tracking-widest text-slate-400 flex items-center gap-2">
                                 <Wallet size={14}/> Τρέχουσα Αποστολή
@@ -493,7 +660,69 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </button>
                         </div>
                         
-                        <div className="p-6 bg-slate-50 flex-1 flex flex-col">
+                        {/* 2. HISTORY / SHIPMENTS */}
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 border-t border-slate-900 space-y-4">
+                            <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest mb-2 flex items-center gap-2">
+                                <History size={14}/> Ιστορικό Αποστολών
+                            </h3>
+                            
+                            {shipmentHistory.length > 0 ? shipmentHistory.map(([dateKey, batches]) => {
+                                const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);
+                                
+                                // Calculate Shipment Financials
+                                let shipNet = 0;
+                                batches.forEach(b => {
+                                     const item = order.items.find(i => i.sku === b.sku && i.variant_suffix === b.variant_suffix);
+                                     if(item) {
+                                         shipNet += (item.price_at_order * b.quantity * discountFactor);
+                                     }
+                                });
+                                const shipVat = shipNet * vatRate;
+                                const shipTotal = shipNet + shipVat;
+                                
+                                const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+                                return (
+                                    <div key={dateKey} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="text-xs font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
+                                            <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{totalItems} τεμ.</div>
+                                        </div>
+                                        
+                                        <div className="space-y-1 mb-3">
+                                            <div className="flex justify-between text-xs text-slate-500">
+                                                <span>Καθαρή:</span>
+                                                <span className="font-mono font-bold">{formatCurrency(shipNet)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs text-slate-500">
+                                                <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                                                <span className="font-mono font-bold">{formatCurrency(shipVat)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm font-black text-slate-800 border-t border-slate-100 pt-1 mt-1">
+                                                <span>Σύνολο:</span>
+                                                <span>{formatCurrency(shipTotal)}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        {onPrintAggregated && (
+                                            <button 
+                                                onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: order.customer_name })}
+                                                className="w-full py-2 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                                            >
+                                                <FileText size={14}/> Εκτύπωση Δελτίου
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            }) : (
+                                <div className="text-center py-8 text-slate-400 italic text-xs">
+                                    Δεν υπάρχουν προηγούμενες αποστολές.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 3. TOTALS FOOTER */}
+                        <div className="p-4 bg-white border-t border-slate-200">
                              <div className="flex gap-2 w-full mb-4">
                                 <button onClick={handleSelectVisible} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-200 transition-colors border border-blue-200 whitespace-nowrap shadow-sm">
                                     <CheckSquare size={14}/> Επιλογή Ορατών
@@ -503,7 +732,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 </button>
                             </div>
                             
-                            <div className="mt-auto space-y-2 text-xs border-t border-slate-200 pt-4">
+                            <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
                                 <div className="flex justify-between items-center text-slate-500">
                                     <span>Σύνολο Παραγγελίας:</span>
                                     <span className="font-bold text-slate-900">{order.items.reduce((s,i)=>s+i.quantity,0)}</span>

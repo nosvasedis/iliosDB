@@ -891,6 +891,15 @@ export const api = {
         await safeMutate('production_batches', 'INSERT', sanitizedNew);
     },
 
+    mergeBatches: async (targetBatchId: string, sourceBatchIds: string[], totalQty: number): Promise<void> => {
+        // Update target
+        await safeMutate('production_batches', 'UPDATE', { quantity: totalQty, updated_at: new Date().toISOString() }, { match: { id: targetBatchId } });
+        // Delete sources
+        for (const id of sourceBatchIds) {
+            await safeMutate('production_batches', 'DELETE', null, { match: { id } });
+        }
+    },
+
     syncOfflineData: async (): Promise<number> => {
         if (isLocalMode) return 0;
         const queue = await offlineDb.getQueue();
