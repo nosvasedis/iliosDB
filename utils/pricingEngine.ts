@@ -582,6 +582,10 @@ export const parseSku = (sku: string) => {
   
   if (prefix === 'RZ') return { gender: Gender.Unisex, category: 'Ροζάριο' };
 
+  if (prefix === 'KL' && !isNaN(numPart) && numPart >= 100 && numPart <= 500) {
+    return { gender: Gender.Unisex, category: 'Κολιέ Πετράτο' };
+  }
+
   if (prefix === 'XR' && !isNaN(numPart)) {
     // Specific high-priority ranges for stone bracelets as requested
     if ((numPart >= 1 && numPart <= 35) || (numPart >= 750 && numPart <= 763)) {
