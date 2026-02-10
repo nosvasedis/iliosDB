@@ -57,6 +57,40 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
 
+const TEXT_FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 
+    'P': 'text-slate-500', 
+    'D': 'text-orange-500', 
+    'H': 'text-cyan-400', 
+    '': 'text-slate-400'
+};
+
+const TEXT_STONE_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
+};
+
+const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender: any }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = TEXT_FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = TEXT_STONE_COLORS[stone.code] || 'text-emerald-500';
+
+    return (
+        <span className="font-black text-lg">
+            <span className="text-slate-800">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
+};
+
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: { 
     isOpen: boolean, 
     onClose: () => void, 
@@ -974,16 +1008,22 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                  return (
                                  <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
                                      <div className="flex justify-between items-start">
-                                         <div>
-                                             <div className="flex items-center gap-2">
-                                                <span className="font-black text-slate-800 text-lg">{b.sku}{b.variant_suffix}</span>
-                                                {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
-                                             </div>
-                                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                                 {/* @FIX: TypeScript should now recognize customer_name after explicit cast in useMemo. */}
-                                                 <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
-                                             </div>
-                                         </div>
+                                         <div className="flex items-start gap-3">
+                                            {/* Image */}
+                                            <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                                 {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
+                                            </div>
+
+                                            <div>
+                                                 <div className="flex items-center gap-2">
+                                                     <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
+                                                     {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
+                                                 </div>
+                                                 <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                                     <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
+                                                 </div>
+                                            </div>
+                                        </div>
                                          <div className="text-right">
                                              <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
                                              <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClassString}`}>
