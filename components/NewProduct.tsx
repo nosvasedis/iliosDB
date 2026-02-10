@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
@@ -55,7 +54,6 @@ const RecipeItemSelectorModal = ({
         
         allItems.forEach(item => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
             
             const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
             if (isSuggested) {
@@ -67,8 +65,11 @@ const RecipeItemSelectorModal = ({
 
         const filterFn = (item: any) => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
+            const description = (item.description || '').toLowerCase();
+            const category = type === 'component' ? (item.category || '').toLowerCase() : '';
             const search = searchTerm.toLowerCase();
-            return name.includes(search);
+            
+            return name.includes(search) || description.includes(search) || category.includes(search);
         };
 
         return {
