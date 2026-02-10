@@ -91,6 +91,33 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
     );
 };
 
+// Helper for Age/Delay Visualization
+const getAgeInfo = (dateStr: string) => {
+    const start = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHrs / 24);
+
+    let label = '';
+    let style = '';
+
+    if (diffDays > 5) {
+        label = `${diffDays}ημ`;
+        style = 'bg-red-50 text-red-600 border-red-200';
+    } else if (diffDays > 2) {
+        label = `${diffDays}ημ`;
+        style = 'bg-orange-50 text-orange-600 border-orange-200';
+    } else if (diffDays > 0) {
+         label = `${diffDays}ημ ${diffHrs % 24}ω`;
+         style = 'bg-blue-50 text-blue-600 border-blue-200';
+    } else {
+        label = `${diffHrs}ω`;
+        style = 'bg-emerald-50 text-emerald-600 border-emerald-200';
+    }
+    return { label, style };
+};
+
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: { 
     isOpen: boolean, 
     onClose: () => void, 
@@ -593,6 +620,33 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     return results as (ProductionBatch & { customer_name: string })[];
   }, [batches, products, materials, orders]);
 
+  // Helper for Age/Delay Visualization
+  const getAgeInfo = (dateStr: string) => {
+      const start = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - start.getTime();
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHrs / 24);
+
+      let label = '';
+      let style = '';
+
+      if (diffDays > 5) {
+          label = `${diffDays}ημ`;
+          style = 'bg-red-100 text-red-700 border-red-200';
+      } else if (diffDays > 2) {
+          label = `${diffDays}ημ`;
+          style = 'bg-orange-100 text-orange-700 border-orange-200';
+      } else if (diffDays > 0) {
+           label = `${diffDays}ημ ${diffHrs % 24}ω`;
+           style = 'bg-blue-50 text-blue-700 border-blue-100';
+      } else {
+          label = `${diffHrs}ω`;
+          style = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      }
+      return { label, style };
+  };
+
   // @FIX: Explicitly type foundBatches result to include customer_name.
   const foundBatches = useMemo(() => {
         if (!finderTerm || finderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
@@ -1004,6 +1058,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                  const stageConf = STAGES.find(s => s.id === b.current_stage);
                                  const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
                                  const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
+                                 const age = getAgeInfo(b.updated_at);
                                  
                                  return (
                                  <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
@@ -1019,8 +1074,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                      <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
                                                      {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
                                                  </div>
-                                                 <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                                     <span className="font-bold text-slate-700">{b.customer_name || 'Unknown'}</span>
+                                                 <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
+                                                     <span className="font-bold text-slate-700 text-xs">{b.customer_name || 'Unknown'}</span>
+                                                     <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
+                                                        <Clock size={10}/> {age.label}
+                                                     </div>
                                                  </div>
                                             </div>
                                         </div>
