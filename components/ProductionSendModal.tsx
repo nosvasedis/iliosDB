@@ -111,6 +111,18 @@ export default function ProductionSendModal({ order, products, materials, existi
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const discountFactor = 1 - ((order.discount_percent || 0) / 100);
 
+    // --- NEW: STAGE COUNT SUMMARY ---
+    const stageCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        existingBatches.forEach(b => {
+            counts[b.current_stage] = (counts[b.current_stage] || 0) + b.quantity;
+        });
+        return counts;
+    }, [existingBatches]);
+
+    const totalInProduction = existingBatches.reduce((sum, b) => sum + b.quantity, 0);
+    // --------------------------------
+
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
@@ -417,6 +429,22 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
                                 <span className="flex items-center gap-1 truncate max-w-[200px]"><User size={14}/> {order.customer_name}</span>
                             </div>
+
+                            {/* STAGE SUMMARY BAR */}
+                            {totalInProduction > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    {STAGES.map(stage => {
+                                        const count = stageCounts[stage.id] || 0;
+                                        if (count === 0) return null;
+                                        return (
+                                            <div key={stage.id} className={`text-[10px] px-2 py-0.5 rounded-md border font-bold flex items-center gap-1.5 ${stage.color}`}>
+                                                <span>{stage.label}:</span>
+                                                <span className="bg-white/50 px-1 rounded text-xs leading-none">{count}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
                     
