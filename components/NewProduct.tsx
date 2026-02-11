@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 /* @FIX: Added missing 'Zap' icon import from lucide-react */
-import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap, PieChart, TrendingUp, Sparkles, Scale, RefreshCcw } from 'lucide-react';
+import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap, PieChart, TrendingUp, Sparkles, Scale, RefreshCcw, Grip } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -433,13 +433,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const [isGenderManuallySet, setIsGenderManuallySet] = useState(false);
   const [stxDescription, setStxDescription] = useState('');
   
+  // --- NEW ASSEMBLY STATE ---
+  const [isAssembly, setIsAssembly] = useState(false);
+  
   const [weight, setWeight] = useState(0);
   const [secondaryWeight, setSecondaryWeight] = useState(0);
   const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
   const [selectedFinishes, setSelectedFinishes] = useState<string[]>(['']); 
-  const [finishPrices, setFinishPrices] = useState<Record<string, number>>({}); // Store prices for each selected finish
+  const [finishPrices, setFinishPrices] = useState<Record<string, number>>({}); 
   
-  const [bridge, setBridge] = useState(''); // NEW: Detected bridge like 'S'
+  const [bridge, setBridge] = useState(''); 
   
   const [supplierId, setSupplierId] = useState<string>(''); 
   const [supplierSku, setSupplierSku] = useState<string>(''); 
@@ -497,6 +500,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const STEPS = getSteps(productionType);
   const finalStepId = STEPS[STEPS.length - 1].id;
 
+  // Assembly Effect: Reset weight when toggled ON
+  useEffect(() => {
+    if (isAssembly) {
+        setWeight(0);
+        setSecondaryWeight(0);
+    }
+  }, [isAssembly]);
+
   // SKU ANALYSIS & NORMALIZATION
   useEffect(() => {
     const skuTrimmed = sku.trim();
@@ -515,18 +526,15 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           setPlating(analysis.detectedPlating);
           setBridge(analysis.detectedBridge || '');
           
-          // SMART SYNC: Update selected finishes based on detected finish
           const finishCode = getVariantComponents(analysis.suffix, gender as Gender).finish.code;
           setSelectedFinishes(prev => {
               if (!prev.includes(finishCode)) return [...prev, finishCode];
               return prev;
           });
       } else {
-          // If not a variant (e.g. Bridge Pattern or New Root), use the input SKU as master
           setDetectedMasterSku(skuTrimmed.toUpperCase());
           setDetectedSuffix('');
           setDetectedVariantDesc('');
-          // RESPECT DETECTED PROPERTIES EVEN FOR NEW MASTERS (e.g. Bridge S + Gold X)
           setPlating(analysis.detectedPlating); 
           setBridge(analysis.detectedBridge || '');
       }
@@ -537,10 +545,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     }
   }, [sku, gender]);
 
-  // Sync Selling Price logic
   useEffect(() => {
-      // Keep sellingPrice in sync with the price of the Master Finish (based on plating state)
-      // This ensures backward compatibility while allowing specific pricing in the new UI
       const platingMap: Record<string, string> = { 
           [PlatingType.None]: '', 
           [PlatingType.GoldPlated]: 'X', 
@@ -548,16 +553,12 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           [PlatingType.Platinum]: 'H' 
       };
       const masterCode = platingMap[plating] || '';
-      
-      // If we have a price for this specific code, sync it to the main sellingPrice state
       if (finishPrices[masterCode] !== undefined) {
           setSellingPrice(finishPrices[masterCode]);
       }
   }, [finishPrices, plating]);
 
-  // Dynamic Master Plating Label with Smart Mapping
   const platingMasterLabel = useMemo(() => {
-    // Show all selected finishes dynamically
     if (selectedFinishes.length > 0) {
         return selectedFinishes.map(f => f ? FINISH_CODES[f] : 'Λουστρέ').join(', ');
     }
@@ -571,7 +572,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     return FINISH_CODES[code] || 'Λουστρέ';
   }, [plating, selectedFinishes]);
 
-  // Gender Localization Helper
   const genderLabel = useMemo(() => {
       const map: Record<string, string> = {
           [Gender.Men]: 'Ανδρικό',
@@ -589,7 +589,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   useEffect(() => { if (!labor.plating_cost_x_manual_override) {
       if (productionType === ProductionType.Imported) { if (labor.plating_cost_x === 0) setLabor(prev => ({ ...prev, plating_cost_x: 0.60 })); } 
       else { 
-          // FIX: Calculate Plating X on TOTAL weight (Weight + Secondary + Components)
           let total = weight + secondaryWeight; 
           recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += sub.weight_g * item.quantity; } }); 
           setLabor(prev => ({ ...prev, plating_cost_x: parseFloat((total * 0.60).toFixed(2)) })); 
@@ -629,7 +628,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     setCostBreakdown(cost.breakdown);
   }, [currentTempProduct, settings, materials, products]);
 
-  // Derived Total Materials Cost for Step 2
   const recipeTotalCost = useMemo(() => {
       return recipe.reduce((acc, item) => {
           let itemCost = 0;
@@ -705,28 +703,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
     if (!settings) return;
     
     const updatedVariants = variants.map(v => {
-        // Recalculate cost for specific variant (stone differences etc)
         const est = estimateVariantCost(currentTempProduct, v.suffix, settings, materials, products);
-        
-        // Extract components for formula
         const silverCost = est.breakdown.silver;
         const laborCost = est.breakdown.labor;
         const materialCost = est.breakdown.materials;
         const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
 
-        // Calculate Price
         const suggested = calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
-        
         return { ...v, selling_price: suggested };
     });
 
     setVariants(updatedVariants);
-    
-    // Also update the main selling price state to reflect the first variant (as a default)
     if (updatedVariants.length > 0) {
         setSellingPrice(updatedVariants[0].selling_price || 0);
     }
-
     showToast("Εφαρμόστηκε ο Τύπος Ilios σε όλες τις παραλλαγές!", "success");
   };
 
@@ -763,7 +753,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       };
       
       const masterPlatingCode = platingMap[plating] || '';
-      const masterHasBridge = bridge === 'S'; 
 
       const sortedFinishes = [...selectedFinishes].sort((a, b) => {
           const getP = (c: string) => {
@@ -795,7 +784,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           const { total: estimatedCost } = estimateVariantCost(currentTempProduct, fullSuffix, settings!, materials, products);
           const desc = analyzeSuffix(fullSuffix, gender as Gender, plating);
           
-          // SMART PRICE PICKER: Use specific price for this finish if set, otherwise default
           const specificPrice = finishPrices[finishCode];
           const finalPrice = (specificPrice !== undefined && specificPrice > 0) ? specificPrice : sellingPrice;
 
@@ -826,10 +814,24 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
   const removeVariant = (index: number) => { setVariants(variants.filter((_, i) => i !== index)); };
 
   const handleSubmit = async () => {
-    if (!weight || weight <= 0) { showToast("Το Βάρος (g) είναι υποχρεωτικό.", "error"); setCurrentStep(1); return; }
+    // 1. Core Validation
     if (!sku) { showToast("Το SKU είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
     if (!category) { showToast("Η Κατηγορία είναι υποχρεωτική", "error"); setCurrentStep(1); return; }
     if (!gender) { showToast("Το Φύλο είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
+
+    // 2. Weight Validation logic (incorporating Assembly Logic)
+    if (!isAssembly && (!weight || weight <= 0)) {
+        showToast("Το Βάρος (g) είναι υποχρεωτικό για προϊόντα χύτευσης.", "error"); 
+        setCurrentStep(1); 
+        return; 
+    }
+    
+    // If assembly mode, enforce at least one component in recipe
+    if (isAssembly && recipe.length === 0) {
+         showToast("Ένα προϊόν συναρμολόγησης πρέπει να έχει τουλάχιστον ένα υλικό στη συνταγή.", "error");
+         setCurrentStep(2); // Redirect to Recipe Step
+         return;
+    }
 
     let finalVariants = [...variants];
     const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
@@ -860,7 +862,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
         else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
         if (onCancel) onCancel();
-        else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); }
+        else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); }
     } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error.message}`, "error"); } finally { setIsUploading(false); }
   };
 
@@ -893,19 +895,14 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       });
   };
 
-  // --- REPLACED representativeVariantInfo WITH finalStacks ---
   const finalStacks = useMemo(() => {
       const stacks = [];
-      
       const hasX = variants.some(v => v.suffix.includes('X') || v.suffix.includes('H')) || [PlatingType.GoldPlated, PlatingType.Platinum].includes(plating);
       const hasD = variants.some(v => v.suffix.includes('D')) || plating === PlatingType.TwoTone;
       
-      // Helper to generate stack data
       const getStackData = (type: 'X' | 'D' | 'Base') => {
           let est;
-          // Strategy: Use actual variant if exists to capture specific stone differences, otherwise estimation
           if (type === 'Base') {
-               // Base is master cost
                est = calculateProductCost(currentTempProduct, settings!, materials, products);
           } else {
                const variant = variants.find(v => {
@@ -919,7 +916,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
           
           const details = est.breakdown.details || {};
           const platingCost = (details.plating_cost || 0);
-          // Base labor excludes plating for visualization separation
           const baseLabor = (est.breakdown.labor || 0) - platingCost;
           
           return {
@@ -938,12 +934,9 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       if (hasX) {
           stacks.push({ ...getStackData('X'), label: 'Τελικό (X)', colorClass: 'bg-amber-100 text-amber-600', borderClass: 'border-amber-200' });
       }
-      
-      // If no plating at all (Lustre only), show standard Final
       if (stacks.length === 0) {
           stacks.push({ ...getStackData('Base'), label: 'Τελικό', colorClass: 'bg-slate-100 text-slate-500', borderClass: 'border-slate-200' });
       }
-      
       return stacks;
   }, [variants, plating, currentTempProduct, settings, materials, products, labor, masterEstimatedCost]);
 
@@ -971,7 +964,6 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
         <div className="h-full flex flex-col relative bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
             
-            {/* ... STEPS 1-4 REMAIN UNCHANGED ... */}
             {currentStep === 1 && (
                 <div className="space-y-8 animate-in slide-in-from-right duration-300 fade-in">
                     <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">
@@ -1016,11 +1008,47 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                         </div>
                                     </div>
                                 )}
-                                <div className="grid grid-cols-2 gap-5"><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Φύλο *</label><select value={gender} onChange={(e) => { setGender(e.target.value as Gender); setIsGenderManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none"><option value="" disabled>Επιλέξτε</option><option value={Gender.Women}>Γυναικείο</option><option value={Gender.Men}>Ανδρικό</option><option value={Gender.Unisex}>Unisex</option></select></div><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Κατηγορία *</label><input type="text" value={category} onChange={(e) => { setCategory(e.target.value); setIsCategoryManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" /></div></div>
+                                <div className="grid grid-cols-2 gap-5"><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Φύλο *</label><select value={gender} onChange={(e) => { setGender(e.target.value as Gender); setIsGenderManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none"><option value="" disabled>Επιλέξτε</option><option value={Gender.Women}>Γυναικεία</option><option value={Gender.Men}>Ανδρικά</option><option value={Gender.Unisex}>Unisex</option></select></div><div><label className="block text-sm font-bold text-blue-900 mb-1.5">Κατηγορία *</label><input type="text" value={category} onChange={(e) => { setCategory(e.target.value); setIsCategoryManuallySet(true); }} className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/20 outline-none" /></div></div>
                             </div>
                             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
-                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2"><Hammer size={14}/> Τεχνικά Χαρακτηριστικά</div>
-                                <div className="grid grid-cols-2 gap-5"><div><label className="block text-sm font-bold text-slate-700 mb-1.5">Βασικό Βάρος (g) *</label><input type="number" step="0.01" value={weight} onChange={e => setWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-slate-500/20 outline-none"/></div><div><label className="block text-sm font-bold text-slate-700 mb-1.5">{secondaryWeightLabel}</label><input type="number" step="0.01" value={secondaryWeight} onChange={e => setSecondaryWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-slate-500/20 outline-none"/></div></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2"><Hammer size={14}/> Τεχνικά Χαρακτηριστικά</div>
+                                    {/* ASSEMBLY TOGGLE */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] font-bold text-purple-600 uppercase cursor-pointer" htmlFor="assemblyToggle">Χωρίς Χύτευση (Assembly)</label>
+                                        <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
+                                            <input 
+                                                type="checkbox" 
+                                                name="toggle" 
+                                                id="assemblyToggle" 
+                                                className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                                                checked={isAssembly}
+                                                onChange={(e) => setIsAssembly(e.target.checked)}
+                                                style={{ left: isAssembly ? '1rem' : '0', borderColor: isAssembly ? '#9333ea' : '#ccc' }}
+                                            />
+                                            <label htmlFor="assemblyToggle" className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer ${isAssembly ? 'bg-purple-600' : 'bg-slate-300'}`}></label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                            Βασικό Βάρος (g) {isAssembly ? '(Assembly: 0)' : '*'}
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01" 
+                                            value={weight} 
+                                            onChange={e => setWeight(parseFloat(e.target.value) || 0)} 
+                                            disabled={isAssembly}
+                                            className={`w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-4 focus:ring-slate-500/20 ${isAssembly ? 'bg-slate-100 text-slate-400' : 'bg-white'}`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">{secondaryWeightLabel}</label>
+                                        <input type="number" step="0.01" value={secondaryWeight} onChange={e => setSecondaryWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-slate-500/20 outline-none"/>
+                                    </div>
+                                </div>
                                 
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Διαθέσιμα Φινιρίσματα (Παραλλαγές)</label>
