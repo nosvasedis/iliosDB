@@ -1100,14 +1100,13 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
             {/* Step 2-4 remains the same logic as previous version, included for completeness in updated file */}
             {currentStep === 2 && productionType === ProductionType.InHouse && (
                 <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">2. Συνταγή (Bill of Materials)</h3>
+                    <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">2. Συνταγή - Υλικά</h3>
                     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                 <tr>
-                                    <th className="p-3 pl-4">Είδος</th>
-                                    <th className="p-3">Όνομα / SKU</th>
-                                    <th className="p-3 text-right">Κόστος Μον.</th>
+                                    <th className="p-3 pl-4">Περιγραφή</th>
+                                    <th className="p-3 text-right">Κόστος</th>
                                     <th className="p-3 text-center">Ποσότητα</th>
                                     <th className="p-3 text-right pr-4">Σύνολο</th>
                                     <th className="w-10"></th>
@@ -1115,17 +1114,40 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {recipe.map((item, idx) => {
-                                    const itemDetails = item.type === 'raw' ? materials.find(m => m.id === item.id) : products.find(p => p.sku === item.sku);
-                                    const name = item.type === 'raw' ? (itemDetails as Material | undefined)?.name || "Άγνωστο" : (itemDetails as Product | undefined)?.sku || "Άγνωστο";
-                                    const icon = item.type === 'raw' ? getMaterialIcon((itemDetails as Material)?.type) : getMaterialIcon('Component');
-                                    const unitCost = item.type === 'raw' ? (itemDetails as Material)?.cost_per_unit || 0 : (itemDetails as Product)?.active_price || 0;
+                                    const isRaw = item.type === 'raw';
+                                    const itemDetails = isRaw ? materials.find(m => m.id === item.id) : products.find(p => p.sku === item.sku);
+                                    
+                                    const title = isRaw ? (itemDetails as Material | undefined)?.name || "Άγνωστο" : (itemDetails as Product | undefined)?.sku || "Άγνωστο";
+                                    const subtitle = isRaw ? (itemDetails as Material)?.description || (itemDetails as Material)?.type : (itemDetails as Product)?.category;
+                                    const extraDesc = (!isRaw && (itemDetails as Product)?.description) ? (itemDetails as Product).description : null;
+                                    
+                                    const imageUrl = (!isRaw && (itemDetails as Product)?.image_url) ? (itemDetails as Product).image_url : null;
+                                    const icon = isRaw ? getMaterialIcon((itemDetails as Material)?.type) : getMaterialIcon('Component');
+                                    
+                                    const unitCost = isRaw ? (itemDetails as Material)?.cost_per_unit || 0 : (itemDetails as Product)?.active_price || 0;
                                     const lineTotal = unitCost * item.quantity;
-                                    const stonesPerStrand = item.type === 'raw' ? (itemDetails as Material)?.stones_per_strand : undefined;
+                                    const stonesPerStrand = isRaw ? (itemDetails as Material)?.stones_per_strand : undefined;
 
                                     return (
-                                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-3 pl-4"><div className="p-1.5 bg-slate-100 rounded-lg w-fit text-slate-500 border border-slate-200">{icon}</div></td>
-                                            <td className="p-3 font-bold text-slate-700">{name}</td>
+                                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="p-3 pl-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
+                                                        {imageUrl ? (
+                                                            <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-slate-400">{icon}</span>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-800 text-sm">{title}</div>
+                                                        <div className="text-xs text-slate-500 font-medium">
+                                                            {subtitle}
+                                                            {extraDesc && <span className="text-slate-400 italic"> • {extraDesc}</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
                                             <td className="p-3 text-right font-mono text-slate-500">{formatCurrency(unitCost)}</td>
                                             <td className="p-3 text-center">
                                                 <SmartQuantityInput 
@@ -1135,14 +1157,18 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                                 />
                                             </td>
                                             <td className="p-3 text-right font-mono font-bold text-slate-800 pr-4">{formatCurrency(lineTotal)}</td>
-                                            <td className="p-3 text-center"><button onClick={() => removeRecipeItem(idx)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></td>
+                                            <td className="p-3 text-center">
+                                                <button onClick={() => removeRecipeItem(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
-                                {recipe.length === 0 && (<tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Δεν έχουν προστεθεί υλικά.</td></tr>)}
+                                {recipe.length === 0 && (<tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">Δεν έχουν προστεθεί υλικά.</td></tr>)}
                             </tbody>
                             <tfoot className="bg-slate-50 border-t border-slate-200">
-                                <tr><td colSpan={4} className="p-3 text-right font-bold text-slate-600 uppercase text-xs">Συνολο Υλικων:</td><td className="p-3 text-right font-black font-mono text-lg text-emerald-600 pr-4">{formatCurrency(recipeTotalCost)}</td><td></td></tr>
+                                <tr><td colSpan={3} className="p-3 text-right font-bold text-slate-600 uppercase text-xs">Συνολο Υλικων:</td><td className="p-3 text-right font-black font-mono text-lg text-emerald-600 pr-4">{formatCurrency(recipeTotalCost)}</td><td></td></tr>
                             </tfoot>
                         </table>
                     </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
@@ -229,6 +228,10 @@ export default function MobileResources() {
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Όνομα</label>
                                 <input value={editingMaterial.name} onChange={e => setEditingMaterial({...editingMaterial, name: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold text-slate-800"/>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1">Περιγραφή</label>
+                                <input value={editingMaterial.description || ''} onChange={e => setEditingMaterial({...editingMaterial, description: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-medium text-slate-800" placeholder="π.χ. Μέγεθος, χρώμα..."/>
                             </div>
                             
                             {/* Strand Calculator Logic */}
