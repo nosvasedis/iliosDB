@@ -102,7 +102,24 @@ const ProductCard: React.FC<{
         if (hasVariants) setViewIndex(prev => (prev - 1 + variantCount) % variantCount);
     };
 
-    const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+    // --- WEIGHT CALCULATIONS (In-House vs STX) ---
+    const inHouseWeight = product.weight_g + (product.secondary_weight_g || 0);
+    
+    const stxWeight = useMemo(() => {
+        if (!product.recipe) return 0;
+        return product.recipe.reduce((acc, item) => {
+            if (item.type === 'component') {
+                const comp = allProducts.find(p => p.sku === item.sku);
+                if (comp) {
+                    const compWeight = comp.weight_g + (comp.secondary_weight_g || 0);
+                    return acc + (compWeight * item.quantity);
+                }
+            }
+            return acc;
+        }, 0);
+    }, [product.recipe, allProducts]);
+
+    const totalWeight = inHouseWeight + stxWeight;
 
     return (
         <div 
@@ -158,11 +175,23 @@ const ProductCard: React.FC<{
                     )}
                 </div>
 
-                <div className="flex gap-2 mb-4">
-                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
-                        <Weight size={10}/> {totalWeight.toFixed(2)}g
+                <div className="flex gap-2 mb-4 items-start">
+                    <div className={`bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100 ${stxWeight > 0 ? 'flex flex-col gap-0.5 items-start' : 'flex items-center gap-1'}`}>
+                        <div className="flex items-center gap-1" title="In-House Metal Weight">
+                            <Weight size={10}/> <span>{inHouseWeight.toFixed(2)}g</span>
+                        </div>
+                        {stxWeight > 0 && (
+                            <>
+                                <div className="flex items-center gap-1 text-blue-500" title="Component (STX) Weight">
+                                    <Puzzle size={10}/> <span>+{stxWeight.toFixed(2)}g</span>
+                                </div>
+                                <div className="border-t border-slate-200 pt-0.5 mt-0.5 font-black text-slate-700 w-full" title="Total Metal Weight">
+                                    = {totalWeight.toFixed(2)}g
+                                </div>
+                            </>
+                        )}
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100">
+                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100 h-fit">
                         <BookOpen size={10}/> {product.recipe.length + 1} υλικά
                     </div>
                 </div>
