@@ -265,7 +265,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
       const children = new Map<string, Set<string>>();
       const allCategories = new Set(baseProducts.map(p => p.category));
       
-      const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός'];
+      const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός', 'Κολιέ'];
 
       allCategories.forEach((cat: string) => {
           const parent = parentKeywords.find(p => cat.startsWith(p));
