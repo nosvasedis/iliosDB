@@ -1015,7 +1015,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2"><Hammer size={14}/> Τεχνικά Χαρακτηριστικά</div>
                                     {/* ASSEMBLY TOGGLE */}
                                     <div className="flex items-center gap-2">
-                                        <label className="text-[10px] font-bold text-purple-600 uppercase cursor-pointer" htmlFor="assemblyToggle">Χωρίς Χύτευση (Assembly)</label>
+                                        <label className="text-[10px] font-bold text-purple-600 uppercase cursor-pointer" htmlFor="assemblyToggle">Χωρίς Χύτευση</label>
                                         <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
                                             <input 
                                                 type="checkbox" 
@@ -1033,7 +1033,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                 <div className="grid grid-cols-2 gap-5">
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                                            Βασικό Βάρος (g) {isAssembly ? '(Assembly: 0)' : '*'}
+                                            Βασικό Βάρος (g) {isAssembly ? '(Συναρμολόγηση: 0)' : '*'}
                                         </label>
                                         <input 
                                             type="number" 
