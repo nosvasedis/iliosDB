@@ -58,6 +58,7 @@ export interface Mold {
   code: string; 
   location: string; 
   description: string; 
+  weight_g?: number; // NEW: Standard weight of the casting from this mold
 }
 
 export interface ProductMold {

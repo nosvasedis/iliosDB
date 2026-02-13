@@ -1,7 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, Mold, ProductVariant, MaterialType, ProductMold, ProductionType, Supplier } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, calculatePlatingCost, estimateVariantCost, analyzeSuffix, getVariantComponents, analyzeSupplierValue, formatCurrency, SupplierAnalysis, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
-/* @FIX: Added missing 'Zap' icon import from lucide-react */
 import { Plus, Trash2, Camera, Box, Upload, Loader2, ArrowRight, ArrowLeft, CheckCircle, Lightbulb, Wand2, Percent, Search, ImageIcon, Lock, Unlock, MapPin, Tag, Layers, RefreshCw, DollarSign, Calculator, Crown, Coins, Hammer, Flame, Users, Palette, Check, X, PackageOpen, Gem, Link, Activity, Puzzle, Minus, Globe, Info, ThumbsUp, AlertTriangle, HelpCircle, BookOpen, Scroll, Zap, PieChart, TrendingUp, Sparkles, Scale, RefreshCcw, Grip } from 'lucide-react';
 import { supabase, uploadProductImage } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -665,7 +665,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       if (!newMoldCode) { showToast("Ο Κωδικός είναι υποχρεωτικός.", "error"); return; }
       setIsCreatingMold(true);
       try {
-          const newMold: Mold = { code: newMoldCode.toUpperCase(), location: newMoldLoc, description: newMoldDesc };
+          const newMold: Mold = { code: newMoldCode.toUpperCase(), location: newMoldLoc, description: newMoldDesc, weight_g: 0 };
           const { error } = await supabase.from('molds').insert(newMold);
           if (error) throw error;
           await queryClient.invalidateQueries({ queryKey: ['molds'] });
@@ -675,6 +675,21 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
       } catch (err: any) {
           showToast("Σφάλμα δημιουργίας.", "error");
       } finally { setIsCreatingMold(false); }
+  };
+  
+  // NEW: Calculate Weight from Molds
+  const calculateWeightFromMolds = () => {
+    const total = selectedMolds.reduce((sum, sm) => {
+        const mold = molds.find(m => m.code === sm.code);
+        return sum + ((mold?.weight_g || 0) * sm.quantity);
+    }, 0);
+    
+    if (total > 0) {
+        setWeight(total);
+        showToast(`Βάρος ενημερώθηκε: ${total.toFixed(2)}g`, "success");
+    } else {
+        showToast("Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.", "info");
+    }
   };
 
   const { suggestedMolds, otherMolds } = useMemo(() => {
@@ -1031,9 +1046,20 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-5">
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
-                                            Βασικό Βάρος (g) {isAssembly ? '(Συναρμολόγηση: 0)' : '*'}
+                                    <div className="relative">
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                                            <span>Βασικό Βάρος (g) {isAssembly ? '(Συναρμολόγηση: 0)' : '*'}</span>
+                                            {/* NEW: Auto-Weight Calc Button */}
+                                            {productionType === ProductionType.InHouse && selectedMolds.length > 0 && !isAssembly && (
+                                                <button 
+                                                    onClick={calculateWeightFromMolds} 
+                                                    className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 hover:bg-amber-200 flex items-center gap-1 transition-colors"
+                                                    title="Υπολογισμός από Λάστιχα"
+                                                    type="button"
+                                                >
+                                                    <Scale size={10} /> Auto
+                                                </button>
+                                            )}
                                         </label>
                                         <input 
                                             type="number" 

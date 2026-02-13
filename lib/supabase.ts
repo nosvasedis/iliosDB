@@ -389,7 +389,12 @@ export const api = {
 
     getMolds: async (): Promise<Mold[]> => {
         const data = await fetchFullTable('molds');
-        return data.map((m: any) => ({ code: m.code, location: m.location, description: m.description }));
+        return data.map((m: any) => ({ 
+            code: m.code, 
+            location: m.location, 
+            description: m.description,
+            weight_g: m.weight_g ? Number(m.weight_g) : undefined // New column mapping
+        }));
     },
 
     getSuppliers: async (): Promise<Supplier[]> => {

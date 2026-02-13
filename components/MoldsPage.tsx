@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, Save, MapPin, Loader2, Search } from 'lucide-react';
+import { Trash2, Plus, Save, MapPin, Loader2, Search, Weight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -13,7 +13,7 @@ export default function MoldsPage() {
   const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
 
   const [editableMolds, setEditableMolds] = useState<Mold[]>([]);
-  const [newMold, setNewMold] = useState<Mold>({ code: 'L', location: '', description: '' });
+  const [newMold, setNewMold] = useState<Mold>({ code: 'L', location: '', description: '', weight_g: 0 });
   const [searchTerm, setSearchTerm] = useState('');
 
   React.useEffect(() => {
@@ -37,7 +37,7 @@ export default function MoldsPage() {
           if (error) throw error;
           
           queryClient.invalidateQueries({ queryKey: ['molds'] });
-          setNewMold({ code: 'L', location: '', description: '' });
+          setNewMold({ code: 'L', location: '', description: '', weight_g: 0 });
           showToast("Το λάστιχο προστέθηκε.", 'success');
       } catch(e) {
           console.error(e);
@@ -65,7 +65,7 @@ export default function MoldsPage() {
       }
   };
 
-  const updateMold = (code: string, field: keyof Mold, value: string) => {
+  const updateMold = (code: string, field: keyof Mold, value: any) => {
     setEditableMolds(editableMolds.map(m => m.code === code ? { ...m, [field]: value } : m));
   };
 
@@ -75,7 +75,8 @@ export default function MoldsPage() {
     try {
       const { error } = await supabase.from('molds').update({
         location: moldToSave.location,
-        description: moldToSave.description
+        description: moldToSave.description,
+        weight_g: moldToSave.weight_g
       }).eq('code', moldToSave.code);
 
       if (error) throw error;
@@ -120,9 +121,15 @@ export default function MoldsPage() {
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Κωδικός</label>
                           <input type="text" value={newMold.code} onChange={e => setNewMold({...newMold, code: e.target.value.toUpperCase()})} placeholder="π.χ. L-12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
                       </div>
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Τοποθεσία</label>
-                          <input type="text" value={newMold.location} onChange={e => setNewMold({...newMold, location: e.target.value})} placeholder="π.χ. Συρτάρι 1" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Τοποθεσία</label>
+                              <input type="text" value={newMold.location} onChange={e => setNewMold({...newMold, location: e.target.value})} placeholder="π.χ. Συρτάρι 1" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"/>
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Βάρος (g)</label>
+                              <input type="number" step="0.01" value={newMold.weight_g} onChange={e => setNewMold({...newMold, weight_g: parseFloat(e.target.value) || 0})} placeholder="0.00" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all text-center"/>
+                          </div>
                       </div>
                       <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Περιγραφή</label>
@@ -137,11 +144,22 @@ export default function MoldsPage() {
 
           <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100"><tr><th className="p-4">Κωδικός</th><th className="p-4">Τοποθεσία</th><th className="p-4">Περιγραφή</th><th className="p-4 text-center"></th></tr></thead>
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-100">
+                    <tr>
+                        <th className="p-4">Κωδικός</th>
+                        <th className="p-4 w-24 text-center">Βάρος (g)</th>
+                        <th className="p-4">Τοποθεσία</th>
+                        <th className="p-4">Περιγραφή</th>
+                        <th className="p-4 text-center"></th>
+                    </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-50">
                     {filteredMolds.map(m => (
                         <tr key={m.code} className="hover:bg-slate-50/80 group transition-colors">
                             <td className="p-4 font-mono font-bold text-slate-800">{m.code}</td>
+                            <td className="p-4">
+                                <input type="number" step="0.01" value={m.weight_g || ''} onChange={(e) => updateMold(m.code, 'weight_g', parseFloat(e.target.value) || 0)} className="w-full text-center bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 rounded-none py-1 text-slate-800 outline-none transition-all font-mono font-bold placeholder-slate-300" placeholder="-"/>
+                            </td>
                             <td className="p-4"><input type="text" value={m.location} onChange={(e) => updateMold(m.code, 'location', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 rounded-none py-1 text-slate-800 outline-none transition-all"/></td>
                             <td className="p-4"><input type="text" value={m.description} onChange={(e) => updateMold(m.code, 'description', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 rounded-none py-1 text-slate-800 outline-none transition-all"/></td>
                             <td className="p-4">
@@ -152,7 +170,7 @@ export default function MoldsPage() {
                             </td>
                         </tr>
                     ))}
-                    {molds && molds.length === 0 && (<tr><td colSpan={4} className="p-16 text-center text-slate-400 italic">Κανένα λάστιχο.</td></tr>)}
+                    {molds && molds.length === 0 && (<tr><td colSpan={5} className="p-16 text-center text-slate-400 italic">Κανένα λάστιχο.</td></tr>)}
                 </tbody>
              </table>
           </div>

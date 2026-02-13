@@ -39,3 +39,6 @@ ALTER TABLE global_settings ADD COLUMN IF NOT EXISTS last_calc_silver_price NUME
 INSERT INTO global_settings (id, silver_price_gram, loss_percentage, barcode_width_mm, barcode_height_mm, retail_barcode_width_mm, retail_barcode_height_mm, last_calc_silver_price)
 SELECT 1, 0.82, 0, 50, 30, 72, 10, 0.82
 WHERE NOT EXISTS (SELECT 1 FROM global_settings WHERE id = 1);
+
+-- NEW: Mold Weight for Auto-Calc
+ALTER TABLE molds ADD COLUMN IF NOT EXISTS weight_g numeric DEFAULT 0;
