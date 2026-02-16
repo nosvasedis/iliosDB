@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
@@ -11,7 +12,7 @@ interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
-    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 const STAGES = [
@@ -510,12 +511,19 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     };
 
     const handlePrintStageLabels = () => {
-        const stageBatches = enrichedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
+        let stageBatches = enrichedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
         if (stageBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες στη Συσκευασία.", "info");
             return;
         }
   
+        // Sort by Client
+        stageBatches.sort((a, b) => {
+            const clientA = a.customer_name || '';
+            const clientB = b.customer_name || '';
+            return clientA.localeCompare(clientB, 'el', { sensitivity: 'base' });
+        });
+
         const printQueue = stageBatches.map(b => {
             const product = allProducts?.find(p => p.sku === b.sku);
             if (!product) return null;
@@ -524,13 +532,14 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 product,
                 variant,
                 quantity: b.quantity,
+                size: b.size_info || undefined,
                 format: 'standard'
             };
         }).filter(item => item !== null);
   
         if (printQueue.length > 0 && onPrintLabels) {
             onPrintLabels(printQueue as any);
-            showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση.`, "success");
+            showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση (Ταξινόμηση ανά Πελάτη).`, "success");
         }
     };
 

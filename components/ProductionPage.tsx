@@ -19,7 +19,7 @@ interface Props {
   onPrintAggregated: (batches: ProductionBatch[]) => void;
   onPrintPreparation: (batches: ProductionBatch[]) => void;
   onPrintTechnician: (batches: ProductionBatch[]) => void;
-  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+  onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 const STAGES = [
@@ -968,11 +968,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
   };
 
   const handlePrintStageLabels = (stageId: string) => {
-      const stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
+      let stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
+      
       if (stageBatches.length === 0) {
           showToast("Δεν υπάρχουν παρτίδες για εκτύπωση.", "info");
           return;
       }
+
+      // Sort by Client Name (Ascending)
+      stageBatches.sort((a, b) => {
+          const nameA = a.customer_name || '';
+          const nameB = b.customer_name || '';
+          return nameA.localeCompare(nameB, 'el', { sensitivity: 'base' });
+      });
 
       const printQueue = stageBatches.map(b => {
           const product = products.find(p => p.sku === b.sku);
@@ -986,13 +994,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
               product,
               variant,
               quantity: b.quantity,
+              size: b.size_info || undefined, // Add size here
               format: 'standard' as const // Wholesale
           };
       }).filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (printQueue.length > 0 && onPrintLabels) {
           onPrintLabels(printQueue);
-          showToast(`Στάλθηκαν ${printQueue.length} είδη ετικετών για εκτύπωση.`, "success");
+          showToast(`Στάλθηκαν ${printQueue.length} είδη ετικετών για εκτύπωση (Ταξινόμηση ανά Πελάτη).`, "success");
       } else if (printQueue.length === 0) {
           showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
       }
