@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
@@ -1065,13 +1066,18 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                      <div className="flex justify-between items-start">
                                          <div className="flex items-start gap-3">
                                             {/* Image */}
-                                            <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                            <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
                                                  {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
+                                                 {/* AMOUNT INDICATOR ADDED HERE */}
+                                                 <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg leading-none">
+                                                    x{b.quantity}
+                                                 </div>
                                             </div>
 
                                             <div>
                                                  <div className="flex items-center gap-2">
                                                      <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
+                                                     <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
                                                      {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10}/> {b.size_info}</span>}
                                                  </div>
                                                  <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
@@ -1082,8 +1088,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                  </div>
                                             </div>
                                         </div>
-                                         <div className="text-right">
-                                             <div className="text-[10px] font-mono text-slate-400 mb-1">#{b.order_id?.slice(0,6)}</div>
+                                         <div className="text-right flex flex-col items-end gap-1">
+                                             <div className="text-[10px] font-mono text-slate-400">#{b.order_id?.slice(0,6)}</div>
                                              <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClassString}`}>
                                                  {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
                                                  {stageConf?.label || b.current_stage}
