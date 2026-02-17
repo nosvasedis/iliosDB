@@ -138,7 +138,8 @@ export default function ProductionSendModal({ order, products, materials, existi
             qty: number, 
             img?: string | null,
             notes: string[],
-            gender: Gender
+            gender: Gender,
+            category: string // Added category for display
         }> = {};
 
         targetBatches.forEach(b => {
@@ -152,7 +153,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                     qty: 0,
                     img: product?.image_url,
                     notes: [],
-                    gender: product?.gender || Gender.Unisex
+                    gender: product?.gender || Gender.Unisex,
+                    category: product?.category || 'Προϊόν'
                 };
             }
             groups[key].qty += b.quantity;
@@ -895,41 +897,78 @@ export default function ProductionSendModal({ order, products, materials, existi
 
             {/* STAGE POPUP */}
             {activeStagePopup && (
-                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
-                     <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-                         <div className={`p-5 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.replace('text-', 'text-').replace('bg-', 'bg-').replace('border-', 'border-')}`}>
-                             <h3 className="font-black text-xl uppercase flex items-center gap-2">
-                                 {STAGES.find(s => s.id === activeStagePopup)?.label}
-                             </h3>
-                             <button onClick={() => setActiveStagePopup(null)} className="p-1 rounded-full hover:bg-black/10"><X size={20}/></button>
+                <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
+                     <div className="bg-white w-full max-w-5xl rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                         <div className={`p-6 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.replace('text-', 'bg-').replace('bg-', 'bg-').replace('border-', 'border-').split(' ')[0]} text-white`}>
+                             <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                     <Factory size={24} className="text-white"/>
+                                 </div>
+                                 <div>
+                                     <h3 className="font-black text-2xl uppercase tracking-tight">
+                                         {STAGES.find(s => s.id === activeStagePopup)?.label}
+                                     </h3>
+                                     <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupItems.reduce((a,b)=>a+b.qty,0)} Τεμαχια συνολικα</p>
+                                 </div>
+                             </div>
+                             <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28}/></button>
                          </div>
                          
-                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
-                             {popupItems.length > 0 ? popupItems.map((item, idx) => (
-                                 <div key={idx} className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                                     <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                                         {item.img ? <img src={item.img} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
-                                     </div>
-                                     <div className="flex-1 min-w-0">
-                                         <div className="font-black text-slate-800 text-sm">
-                                             <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
-                                             {item.size && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">{item.size}</span>}
+                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
+                             {popupItems.length > 0 ? (
+                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                     {popupItems.map((item, idx) => (
+                                         <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                                             {/* Card Header */}
+                                             <div className="p-3 flex gap-3 border-b border-slate-50">
+                                                 <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0 relative group">
+                                                     {item.img ? <img src={item.img} className="w-full h-full object-cover"/> : <ImageIcon size={24} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2"/>}
+                                                 </div>
+                                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                     <div className="text-xs font-bold text-slate-400 uppercase truncate mb-0.5">{item.category}</div>
+                                                     <div className="font-black text-slate-900 text-lg leading-none truncate">
+                                                         <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
+                                                     </div>
+                                                     {item.size && (
+                                                         <div className="mt-1">
+                                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1 w-fit">
+                                                                <Hash size={10}/> {item.size}
+                                                            </span>
+                                                         </div>
+                                                     )}
+                                                 </div>
+                                                 <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
+                                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Ποσ.</span>
+                                                     <span className="text-2xl font-black text-slate-900">{item.qty}</span>
+                                                 </div>
+                                             </div>
+
+                                             {/* Card Body - Notes */}
+                                             <div className="p-3 bg-slate-50/50 flex-1 flex flex-col justify-center min-h-[3rem]">
+                                                 {item.notes.length > 0 ? (
+                                                     <div className="space-y-1.5">
+                                                         {item.notes.map((note, nIdx) => (
+                                                             <div key={nIdx} className="flex items-start gap-2 text-[11px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-100 leading-snug">
+                                                                 <StickyNote size={12} className="shrink-0 mt-0.5 text-amber-500"/>
+                                                                 <span>{note}</span>
+                                                             </div>
+                                                         ))}
+                                                     </div>
+                                                 ) : (
+                                                     <div className="text-center">
+                                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Τυπικη Κατασκευη</span>
+                                                     </div>
+                                                 )}
+                                             </div>
                                          </div>
-                                         <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                                             {item.notes.length > 0 ? (
-                                                 <span className="text-amber-600 flex items-center gap-1"><StickyNote size={10}/> {item.notes.length} σημειώσεις</span>
-                                             ) : (
-                                                 <span>Standard</span>
-                                             )}
-                                         </div>
-                                     </div>
-                                     <div className="text-xl font-black text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
-                                         {item.qty}
-                                     </div>
+                                     ))}
                                  </div>
-                             )) : (
-                                 <div className="text-center py-10 text-slate-400 italic text-sm">
-                                     Κανένα είδος σε αυτό το στάδιο.
+                             ) : (
+                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
+                                     <div className="p-6 bg-slate-100 rounded-full">
+                                        <Package size={48} className="opacity-20"/>
+                                     </div>
+                                     <p className="font-bold text-lg">Κανένα είδος σε αυτό το στάδιο.</p>
                                  </div>
                              )}
                          </div>
