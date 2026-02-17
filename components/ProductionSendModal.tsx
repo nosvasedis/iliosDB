@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save, Palette } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -106,9 +106,6 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Note Editing State
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [noteText, setNoteText] = useState('');
-    
-    // View Options
-    const [highlightStages, setHighlightStages] = useState(false);
 
     // Order Financials
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -492,14 +489,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         {relevantCollections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 )}
-                                
-                                <button 
-                                    onClick={() => setHighlightStages(!highlightStages)}
-                                    className={`p-3 rounded-xl border transition-all ${highlightStages ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                    title="Χρωματική Κωδικοποίηση"
-                                >
-                                    <Palette size={20}/>
-                                </button>
 
                                 <div className="relative group shrink-0">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={14} />
@@ -531,14 +520,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                      return idxA - idxB;
                                  });
 
-                                 // Calculate batch distribution map for header
-                                 const batchDistribution: Record<string, number> = {};
-                                 row.batchDetails.forEach(b => {
-                                     batchDistribution[b.current_stage] = (batchDistribution[b.current_stage] || 0) + b.quantity;
-                                 });
-
                                  return (
-                                     <div key={originalIndex} className={`p-4 rounded-2xl border transition-all shadow-sm ${highlightStages && row.batchDetails.length > 0 ? 'bg-white border-indigo-100 shadow-md ring-1 ring-indigo-50' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                     <div key={originalIndex} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
                                          
                                          {/* TOP: Item Info & Send Controls */}
                                          <div className="flex items-center justify-between gap-4 mb-4">
@@ -547,23 +530,9 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                      {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
                                                  </div>
                                                  <div className="min-w-0 flex-1">
-                                                     <div className="flex items-baseline gap-1.5 flex-wrap">
+                                                     <div className="flex items-baseline gap-1.5">
                                                          <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
                                                          {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
-                                                         
-                                                         {highlightStages && row.batchDetails.length > 0 && (
-                                                            <div className="flex gap-1 items-center ml-2">
-                                                                {STAGES.map(s => {
-                                                                    const qty = batchDistribution[s.id];
-                                                                    if (!qty) return null;
-                                                                    return (
-                                                                        <span key={s.id} className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${s.color}`}>
-                                                                            {s.label}: {qty}
-                                                                        </span>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                         )}
                                                      </div>
                                                      <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
                                                      
@@ -597,10 +566,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                          {/* BOTTOM: Active Batches Management */}
                                          {row.batchDetails.length > 0 && (
                                              <div className="pt-3 border-t border-slate-100 space-y-3">
-                                                 <div className="flex justify-between items-center">
-                                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                                         <RefreshCw size={10}/> Ενεργές Παρτίδες ({row.batchDetails.length})
-                                                     </div>
+                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                     <RefreshCw size={10}/> Ενεργές Παρτίδες ({row.batchDetails.length})
                                                  </div>
                                                  
                                                  {sortedStages.map(stageId => {
@@ -624,9 +591,6 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                                              {stageBatches.map(batch => {
                                                                  const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
-                                                                 const batchRowStyle = highlightStages 
-                                                                    ? `${stageConf.color.replace('text-', 'text-opacity-80 text-')}` 
-                                                                    : 'bg-slate-50 border-slate-100';
                                                                  
                                                                  // Calculate value for this specific batch
                                                                  const batchRow = rows.find(r => r.sku === batch.sku && r.variant_suffix === batch.variant_suffix);
@@ -634,7 +598,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                  const batchVal = unitPrice * batch.quantity * discountFactor;
 
                                                                  return (
-                                                                     <div key={batch.id} className={`flex items-center justify-between p-2 rounded-lg border text-xs ${batchRowStyle}`}>
+                                                                     <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
                                                                          <div className="flex items-center gap-3">
                                                                              <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
                                                                              
