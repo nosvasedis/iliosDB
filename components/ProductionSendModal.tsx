@@ -107,6 +107,9 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [noteText, setNoteText] = useState('');
 
+    // Stage Popup State
+    const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
+
     // Order Financials
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const discountFactor = 1 - ((order.discount_percent || 0) / 100);
@@ -122,6 +125,42 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     const totalInProduction = existingBatches.reduce((sum, b) => sum + b.quantity, 0);
     // --------------------------------
+
+    // Popup Data
+    const popupItems = useMemo(() => {
+        if (!activeStagePopup) return [];
+        
+        const targetBatches = existingBatches.filter(b => b.current_stage === activeStagePopup);
+        const groups: Record<string, { 
+            sku: string, 
+            variant: string, 
+            size?: string, 
+            qty: number, 
+            img?: string | null,
+            notes: string[],
+            gender: Gender
+        }> = {};
+
+        targetBatches.forEach(b => {
+            const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
+            if (!groups[key]) {
+                const product = products.find(p => p.sku === b.sku);
+                groups[key] = {
+                    sku: b.sku,
+                    variant: b.variant_suffix || '',
+                    size: b.size_info,
+                    qty: 0,
+                    img: product?.image_url,
+                    notes: [],
+                    gender: product?.gender || Gender.Unisex
+                };
+            }
+            groups[key].qty += b.quantity;
+            if (b.notes) groups[key].notes.push(b.notes);
+        });
+
+        return Object.values(groups).sort((a,b) => a.sku.localeCompare(b.sku));
+    }, [activeStagePopup, existingBatches, products]);
 
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
@@ -437,10 +476,14 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         const count = stageCounts[stage.id] || 0;
                                         if (count === 0) return null;
                                         return (
-                                            <div key={stage.id} className={`text-[10px] px-2 py-0.5 rounded-md border font-bold flex items-center gap-1.5 ${stage.color}`}>
+                                            <button
+                                                key={stage.id}
+                                                onClick={() => setActiveStagePopup(stage.id as ProductionStage)}
+                                                className={`text-[10px] px-2 py-0.5 rounded-md border font-bold flex items-center gap-1.5 transition-transform active:scale-95 ${stage.color}`}
+                                            >
                                                 <span>{stage.label}:</span>
                                                 <span className="bg-white/50 px-1 rounded text-xs leading-none">{count}</span>
-                                            </div>
+                                            </button>
                                         );
                                     })}
                                 </div>
@@ -847,6 +890,50 @@ export default function ProductionSendModal({ order, products, materials, existi
                             <Save size={18}/> Αποθήκευση
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* STAGE POPUP */}
+            {activeStagePopup && (
+                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
+                     <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                         <div className={`p-5 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.replace('text-', 'text-').replace('bg-', 'bg-').replace('border-', 'border-')}`}>
+                             <h3 className="font-black text-xl uppercase flex items-center gap-2">
+                                 {STAGES.find(s => s.id === activeStagePopup)?.label}
+                             </h3>
+                             <button onClick={() => setActiveStagePopup(null)} className="p-1 rounded-full hover:bg-black/10"><X size={20}/></button>
+                         </div>
+                         
+                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
+                             {popupItems.length > 0 ? popupItems.map((item, idx) => (
+                                 <div key={idx} className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                     <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                         {item.img ? <img src={item.img} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                         <div className="font-black text-slate-800 text-sm">
+                                             <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
+                                             {item.size && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">{item.size}</span>}
+                                         </div>
+                                         <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
+                                             {item.notes.length > 0 ? (
+                                                 <span className="text-amber-600 flex items-center gap-1"><StickyNote size={10}/> {item.notes.length} σημειώσεις</span>
+                                             ) : (
+                                                 <span>Standard</span>
+                                             )}
+                                         </div>
+                                     </div>
+                                     <div className="text-xl font-black text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
+                                         {item.qty}
+                                     </div>
+                                 </div>
+                             )) : (
+                                 <div className="text-center py-10 text-slate-400 italic text-sm">
+                                     Κανένα είδος σε αυτό το στάδιο.
+                                 </div>
+                             )}
+                         </div>
+                     </div>
                 </div>
             )}
         </div>
