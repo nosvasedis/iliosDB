@@ -106,8 +106,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         if (!manualInput.trim()) return;
         const upper = manualInput.trim().toUpperCase();
         
+        // Only consider non-component products for manual addition
+        const existingSkus = new Set(products.filter(p => !p.is_component).map(p => p.sku));
+
         // Robust Range expansion support: [PREFIX][NUMBER][SUFFIX] - [PREFIX][NUMBER][SUFFIX]
-        const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
+        const rangeRegex = /^([A-Z-]*)([0-9]+)([A-Z]*)-([A-Z-]*)([0-9]+)([A-Z]*)$/i;
         const match = upper.match(rangeRegex);
 
         if (match) {
@@ -118,29 +121,45 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 const start = parseInt(num1Str, 10);
                 const end = parseInt(num2Str, 10);
                 if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 500) {
-                    const expanded: string[] = [];
+                    const found: string[] = [];
                     const padding = num1Str.length;
                     for (let i = start; i <= end; i++) {
-                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`);
+                        const sku = `${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`;
+                        if (existingSkus.has(sku)) {
+                            found.push(sku);
+                        }
                     }
-                    setManualSkus(prev => Array.from(new Set([...prev, ...expanded])));
+
+                    if (found.length === 0) {
+                        showToast('Δεν βρέθηκαν κωδικοί σε αυτό το εύρος.', 'error');
+                        return;
+                    }
+
+                    setManualSkus(prev => Array.from(new Set([...prev, ...found])));
                     setManualInput('');
-                    showToast(`Προστέθηκαν ${expanded.length} κωδικοί.`, 'success');
+                    showToast(`Προστέθηκαν ${found.length} κωδικοί.`, 'success');
                     return;
                 }
             }
         }
 
-        setManualSkus(prev => Array.from(new Set([...prev, upper])));
-        setManualInput('');
+        if (existingSkus.has(upper)) {
+            setManualSkus(prev => Array.from(new Set([...prev, upper])));
+            setManualInput('');
+            showToast(`Ο κωδικός ${upper} προστέθηκε.`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${upper} δεν βρέθηκε ή είναι εξάρτημα.`, 'error');
+        }
     };
 
     const handleExcludeManualSku = () => {
         if (!excludeInput.trim()) return;
         const upper = excludeInput.trim().toUpperCase();
         
+        const existingSkus = new Set(products.filter(p => !p.is_component).map(p => p.sku));
+
         // Range Logic
-        const rangeRegex = /^([A-Z-]+)(\d+)([A-Z]*)-([A-Z-]+)(\d+)([A-Z]*)$/i;
+        const rangeRegex = /^([A-Z-]*)([0-9]+)([A-Z]*)-([A-Z-]*)([0-9]+)([A-Z]*)$/i;
         const match = upper.match(rangeRegex);
 
         if (match) {
@@ -150,30 +169,43 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 const start = parseInt(num1Str, 10);
                 const end = parseInt(num2Str, 10);
                 if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 500) {
-                    const expanded: string[] = [];
+                    const found: string[] = [];
                     const padding = num1Str.length;
                     for (let i = start; i <= end; i++) {
-                        expanded.push(`${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`);
+                        const sku = `${prefix1}${i.toString().padStart(padding, '0')}${suffix1}`;
+                        if (existingSkus.has(sku)) {
+                            found.push(sku);
+                        }
                     }
+
+                    if (found.length === 0) {
+                        showToast('Δεν βρέθηκαν κωδικοί για εξαίρεση σε αυτό το εύρος.', 'error');
+                        return;
+                    }
+
                     setExcludedSkus(prev => {
                         const next = new Set(prev);
-                        expanded.forEach(s => next.add(s));
+                        found.forEach(s => next.add(s));
                         return next;
                     });
                     setExcludeInput('');
-                    showToast(`Αφαιρέθηκε ${expanded.length} κωδικοί από τη λίστα.`, 'success');
+                    showToast(`Εξαιρέθηκαν ${found.length} κωδικοί.`, 'success');
                     return;
                 }
             }
         }
 
-        setExcludedSkus(prev => {
-            const next = new Set(prev);
-            next.add(upper);
-            return next;
-        });
-        setExcludeInput('');
-        showToast(`Ο κωδικός ${upper} εξαιρέθηκε.`, 'success');
+        if (existingSkus.has(upper)) {
+            setExcludedSkus(prev => {
+                const next = new Set(prev);
+                next.add(upper);
+                return next;
+            });
+            setExcludeInput('');
+            showToast(`Ο κωδικός ${upper} εξαιρέθηκε.`, 'success');
+        } else {
+            showToast(`Ο κωδικός ${upper} δεν βρέθηκε.`, 'error');
+        }
     };
 
     const toggleExclusion = (sku: string) => {
@@ -206,17 +238,21 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         }
 
         products.forEach(p => {
+            // Strictly exclude components
             if (p.is_component) return;
-            
+
             const isManuallyInList = manualSkus.includes(p.sku);
             const isExcluded = excludedSkus.has(p.sku);
-
+            
             let shouldInclude = false;
             let tag: string | undefined = undefined;
 
-            if (isManuallyInList) {
+            // Exclusion takes precedence
+            if (isExcluded) {
+                shouldInclude = false;
+            } else if (isManuallyInList) {
                 shouldInclude = true;
-            } else if (!isExcluded) {
+            } else {
                 // Modified Logic: Check if product is in ANY of the selected collections
                 if (selectedCollectionIds.length > 0) {
                     // Check if it belongs to one of the selected collections
@@ -264,7 +300,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     }
                 }
 
-                if (hasValidPrice) {
+                // Allow manual items even if price is 0 or invalid
+                if (hasValidPrice || isManuallyInList) {
                     productMap.set(p.sku, {
                         skuBase: p.sku,
                         category: p.category,

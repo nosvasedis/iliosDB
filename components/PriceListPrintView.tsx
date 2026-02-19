@@ -84,21 +84,21 @@ export default function PriceListPrintView({ data }: Props) {
             </div>
 
             {/* CONTENT - CSS COLUMNS LAYOUT */}
-            <div className="text-xs" style={{ columnCount: 3, columnGap: '20px' }}>
+            <div className="text-sm" style={{ columnCount: 3, columnGap: '30px' }}>
                 {data.items.map((item, idx) => {
                     const isSinglePrice = item.priceGroups.length === 1;
                     
                     return (
                         <div 
                             key={idx} 
-                            className="flex justify-between items-baseline py-1 px-1 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[20px]"
+                            className="flex justify-between items-baseline py-1.5 px-1 border-b border-slate-100 break-inside-avoid odd:bg-slate-50 min-h-[24px]"
                         >
                             {/* SKU - Shrink to fit but visible */}
-                            <div className="text-[11px] font-black text-slate-800 mr-1 shrink-0 flex items-baseline gap-1">
+                            <div className="text-[12px] font-black text-slate-800 mr-1 shrink-0 flex items-baseline gap-1">
                                 {item.skuBase}
                                 {/* Discreet Collection Indicator */}
                                 {item.collectionTag && (
-                                    <span className="text-[6px] font-bold text-slate-400 border border-slate-200 px-[2px] rounded-[2px] -translate-y-[1px] inline-block leading-none">
+                                    <span className="text-[8px] font-bold text-slate-400 border border-slate-200 px-[2px] rounded-[2px] -translate-y-[1px] inline-block leading-none">
                                         {item.collectionTag}
                                     </span>
                                 )}
@@ -108,7 +108,7 @@ export default function PriceListPrintView({ data }: Props) {
                             <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5 text-right items-baseline flex-1">
                                 {isSinglePrice ? (
                                     // If all variants have the same price, hide suffixes to save space/avoid clutter
-                                    <span className="font-mono font-bold text-slate-700 text-[11px] whitespace-nowrap">
+                                    <span className="font-mono font-bold text-slate-700 text-[13px] whitespace-nowrap">
                                         {item.priceGroups[0].price.toFixed(2)}€
                                     </span>
                                 ) : (
@@ -120,7 +120,7 @@ export default function PriceListPrintView({ data }: Props) {
                                         return (
                                             <div key={pgIdx} className="inline-flex flex-wrap justify-end items-baseline gap-x-1 gap-y-0 max-w-full">
                                                 {(hasBase || visibleSuffixes.length > 0) && (
-                                                    <span className="font-semibold text-[8px] text-slate-500 tracking-tight leading-none text-right break-words">
+                                                    <span className="font-semibold text-[10px] text-slate-500 tracking-tight leading-none text-right break-words">
                                                         {hasBase && <span className="mr-0.5">•</span>}
                                                         {visibleSuffixes.map((s, i) => (
                                                             <React.Fragment key={i}>
@@ -132,7 +132,7 @@ export default function PriceListPrintView({ data }: Props) {
                                                         ))}
                                                     </span>
                                                 )}
-                                                <span className="font-mono font-bold text-slate-700 text-[11px] whitespace-nowrap">
+                                                <span className="font-mono font-bold text-slate-700 text-[13px] whitespace-nowrap">
                                                     {pg.price.toFixed(2)}€
                                                 </span>
                                             </div>
