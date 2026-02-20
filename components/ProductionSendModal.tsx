@@ -87,6 +87,16 @@ const groupBatchesByShipment = (batches: ProductionBatch[]) => {
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 };
 
+const VIBRANT_STAGES: Record<string, string> = {
+    [ProductionStage.AwaitingDelivery]: 'bg-indigo-600',
+    [ProductionStage.Waxing]: 'bg-slate-600',
+    [ProductionStage.Casting]: 'bg-orange-600',
+    [ProductionStage.Setting]: 'bg-purple-600',
+    [ProductionStage.Polishing]: 'bg-blue-600',
+    [ProductionStage.Labeling]: 'bg-yellow-600',
+    [ProductionStage.Ready]: 'bg-emerald-600'
+};
+
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
@@ -244,19 +254,25 @@ export default function ProductionSendModal({ order, products, materials, existi
     }, [rows, filterGender, filterCollection, products, searchTerm]);
 
     const currentSendValue = useMemo(() => {
-        return rows.reduce((sum, row, idx) => {
+        return order.items.reduce((sum, item, idx) => {
             const qty = toSendQuantities[idx] || 0;
-            return sum + (qty * row.price * discountFactor);
+            return sum + (qty * item.price_at_order * discountFactor);
         }, 0);
-    }, [rows, toSendQuantities, discountFactor]);
+    }, [order.items, toSendQuantities, discountFactor]);
 
     const totalToSend = (Object.values(toSendQuantities) as number[]).reduce((a, b) => a + b, 0);
 
-    const updateToSend = (idx: number, val: number) => {
-        const row = rows[idx];
+    const updateToSend = (originalIdx: number, val: number) => {
+        const item = order.items[originalIdx];
+        if (!item) return;
+        
+        // Find the row to get the correct remaining quantity (which accounts for production batches)
+        const row = rows.find(r => r.originalIndex === originalIdx);
+        const maxQty = row ? row.remainingQty : item.quantity;
+
         setToSendQuantities(prev => ({
             ...prev,
-            [idx]: Math.min(row.remainingQty, Math.max(0, val))
+            [originalIdx]: Math.min(maxQty, Math.max(0, val))
         }));
     };
 
@@ -271,10 +287,10 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleClearSelection = () => setToSendQuantities({});
 
     const handleSend = async () => {
-        const itemsToSend = rows.map((r, idx) => ({
+        const itemsToSend = rows.map((r) => ({
             sku: r.sku,
             variant: r.variant_suffix || null,
-            qty: toSendQuantities[idx] || 0,
+            qty: toSendQuantities[r.originalIndex] || 0,
             size_info: r.size_info,
             notes: r.notes
         })).filter(i => i.qty > 0);
@@ -581,6 +597,16 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                      </div>
                                                      <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
                                                      
+                                                     {/* UNIT PRICE DISPLAY */}
+                                                     <div className="text-[10px] font-mono text-slate-500 font-bold mt-1">
+                                                         Τιμή Μονάδος: {formatCurrency(row.price)}
+                                                         {discountFactor < 1 && (
+                                                             <span className="text-emerald-600 ml-2">
+                                                                 (Με έκπτωση: {formatCurrency(row.price * discountFactor)})
+                                                             </span>
+                                                         )}
+                                                     </div>
+                                                     
                                                      {/* DISPLAY ROW NOTE */}
                                                      {row.notes && (
                                                          <div className="mt-1.5 flex items-start gap-1 p-1.5 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
@@ -638,7 +664,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                  const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
                                                                  
                                                                  // Calculate value for this specific batch
-                                                                 const batchRow = rows.find(r => r.sku === batch.sku && r.variant_suffix === batch.variant_suffix);
+                                                                 const batchRow = rows.find(r => r.sku === batch.sku && (r.variant_suffix || '') === (batch.variant_suffix || '') && (r.size_info || '') === (batch.size_info || ''));
                                                                  const unitPrice = batchRow?.price || 0;
                                                                  const batchVal = unitPrice * batch.quantity * discountFactor;
 
@@ -751,7 +777,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 // Calculate Shipment Financials
                                 let shipNet = 0;
                                 batches.forEach(b => {
-                                     const item = order.items.find(i => i.sku === b.sku && i.variant_suffix === b.variant_suffix);
+                                     const item = order.items.find(i => 
+                                         i.sku === b.sku && 
+                                         (i.variant_suffix || '') === (b.variant_suffix || '') &&
+                                         (i.size_info || '') === (b.size_info || '')
+                                     );
                                      if(item) {
                                          shipNet += (item.price_at_order * b.quantity * discountFactor);
                                      }
@@ -899,7 +929,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             {activeStagePopup && (
                 <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
                      <div className="bg-white w-full max-w-5xl rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                         <div className={`p-6 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.replace('text-', 'bg-').replace('bg-', 'bg-').replace('border-', 'border-').split(' ')[0]} text-white`}>
+                         <div className={`p-6 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.split(' ')[0]} md:${VIBRANT_STAGES[activeStagePopup as string] || 'bg-slate-600'} text-white`}>
                              <div className="flex items-center gap-3">
                                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
                                      <Factory size={24} className="text-white"/>

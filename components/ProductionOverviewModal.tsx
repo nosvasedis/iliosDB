@@ -32,20 +32,20 @@ const STAGES = [
 ];
 
 const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
-    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 ring-pink-100' },
-    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
-    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
-    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
+    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-600 text-white border-pink-700 shadow-sm' },
+    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-600 text-white border-blue-700 shadow-sm' },
+    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-600 text-white border-slate-700 shadow-sm' },
+    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-600 text-white border-gray-700 shadow-sm' }
 };
 
 const STAGE_COLORS: Record<string, string> = {
-    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-800',
-    slate: 'bg-slate-50 border-slate-200 text-slate-800',
-    orange: 'bg-orange-50 border-orange-200 text-orange-800',
-    purple: 'bg-purple-50 border-purple-200 text-purple-800',
-    blue: 'bg-blue-50 border-blue-200 text-blue-800',
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    indigo: 'bg-indigo-600 border-indigo-700 text-white shadow-indigo-200',
+    slate: 'bg-slate-700 border-slate-800 text-white shadow-slate-200',
+    orange: 'bg-orange-600 border-orange-700 text-white shadow-orange-200',
+    purple: 'bg-purple-600 border-purple-700 text-white shadow-purple-200',
+    blue: 'bg-blue-600 border-blue-700 text-white shadow-blue-200',
+    yellow: 'bg-amber-500 border-amber-600 text-white shadow-amber-200',
+    emerald: 'bg-emerald-600 border-emerald-700 text-white shadow-emerald-200',
 };
 
 export default function ProductionOverviewModal({ 
@@ -129,14 +129,14 @@ export default function ProductionOverviewModal({
                         const stageData = groupedBatchesByStage[stage.id];
                         if (!stageData) return null;
 
-                        const stageColorClass = STAGE_COLORS[stage.color] || 'bg-slate-100 border-slate-200 text-slate-800';
+                        const stageColorClass = STAGE_COLORS[stage.color] || 'bg-slate-700 border-slate-800 text-white';
 
                         return (
                             <div key={stage.id} className="mb-8 last:mb-0">
                                 {/* Stage Header */}
-                                <div className={`flex items-center gap-3 p-3 rounded-2xl border mb-4 sticky top-0 z-10 shadow-sm ${stageColorClass}`}>
-                                    <h3 className="font-black uppercase tracking-wide text-sm">{stage.label}</h3>
-                                    <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-bold border border-white/20">
+                                <div className={`flex items-center gap-3 p-4 rounded-2xl border mb-4 sticky top-0 z-10 shadow-md ${stageColorClass}`}>
+                                    <h3 className="font-black uppercase tracking-widest text-sm">{stage.label}</h3>
+                                    <span className="bg-white/20 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border border-white/20 backdrop-blur-sm">
                                         {Object.values(stageData).flatMap(g => Object.values(g).flat()).length} Παρτίδες
                                     </span>
                                 </div>
