@@ -1367,7 +1367,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel }
                             <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                                 {detectedMasterSku || sku}
                                 {isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}
-                                {productionType === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Imported</span>}
+                                {productionType === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> ΕΙΣΑΓΩΜΕΝΟ</span>}
                             </h2>
                             <div className="flex gap-4 text-sm font-medium text-slate-500 mt-2">
                                 <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"><Tag size={12}/> {category}</span>
