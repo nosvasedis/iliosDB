@@ -276,7 +276,7 @@ const LaborCostCard = ({ icon, label, value, onChange, isOverridden, onToggleOve
                 type="number" step="0.01" 
                 value={value}
                 readOnly={readOnly || (onToggleOverride && !isOverridden)}
-                onChange={!readOnly && onChange ? (e => onChange(parseFloat(e.target.value) || 0)) : undefined}
+                onChange={!readOnly && onChange ? (e => onChange(parseFloat(e.target.value.replace(',', '.')) || 0)) : undefined}
                 className={`w-full bg-transparent font-mono font-bold text-lg outline-none pr-2 transition-colors ${readOnly || (onToggleOverride && !isOverridden) ? 'text-slate-500' : 'text-slate-800'}`}
             />
         </div>

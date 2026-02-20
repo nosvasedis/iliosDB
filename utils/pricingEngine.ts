@@ -206,8 +206,8 @@ export const calculateProductCost = (
       if (product.plating_type === PlatingType.TwoTone) {
           // D (Two-Tone): For Imported, plating_cost_d is stored as TOTAL COST (not rate) via UI effect.
           platingCost = product.labor.plating_cost_d || 0;
-      } else if (product.plating_type !== PlatingType.None) {
-          // X or H (Gold/Platinum): stored as RATE (per gram) in UI.
+      } else if (product.plating_type !== PlatingType.None || (product.labor.plating_cost_x || 0) > 0) {
+          // X or H (Gold/Platinum) OR Explicit Cost entered: stored as RATE (per gram) in UI.
           platingCost = totalWeight * (product.labor.plating_cost_x || 0);
       }
 
@@ -462,7 +462,7 @@ export const estimateVariantCost = (
             platingCost = labor.plating_cost_d || 0;
         } else {
             // Inherit from Master if no suffix finish
-            if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
+            if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum || (labor.plating_cost_x || 0) > 0) {
                 platingCost = totalWeight * (labor.plating_cost_x || 0);
             } else if (masterProduct.plating_type === PlatingType.TwoTone) {
                 // For TwoTone imported masters, plating_cost_d stores the TOTAL COST for secondary plating.
