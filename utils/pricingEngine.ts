@@ -216,7 +216,7 @@ export const calculateProductCost = (
       return {
           total: roundPrice(totalCost),
           rawTotal: totalCost,
-          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost_x: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
+          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
       };
   }
 
