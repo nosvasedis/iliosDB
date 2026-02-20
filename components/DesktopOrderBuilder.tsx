@@ -82,6 +82,9 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
     // Sort State
     const [sortOrder, setSortOrder] = useState<'input' | 'alpha'>('input');
     
+    // Right pane search state
+    const [itemSearchTerm, setItemSearchTerm] = useState('');
+    
     // Price Sync Indicators
     const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number } | null>(null);
 
@@ -171,10 +174,22 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         setTags(tags.filter(t => t !== tag));
     };
 
-    // --- SORTED ITEMS MEMO ---
+    // --- SORTED & FILTERED ITEMS MEMO ---
     const displayItems = useMemo(() => {
         // We clone to avoid mutating state directly during sort
-        const items = [...selectedItems];
+        let items = [...selectedItems];
+        
+        // Filter by search term
+        if (itemSearchTerm.trim()) {
+            const term = itemSearchTerm.toLowerCase().trim();
+            items = items.filter(item => {
+                const skuMatch = item.sku.toLowerCase().includes(term);
+                const suffixMatch = (item.variant_suffix || '').toLowerCase().includes(term);
+                const categoryMatch = item.product_details?.category?.toLowerCase().includes(term);
+                const notesMatch = (item.notes || '').toLowerCase().includes(term);
+                return skuMatch || suffixMatch || categoryMatch || notesMatch;
+            });
+        }
         
         if (sortOrder === 'alpha') {
             return items.sort((a, b) => {
@@ -187,7 +202,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
         // Default: 'input' (Chronological, newest on top usually, but state is array. 
         // Our Add logic uses [newItem, ...prev], so index 0 is newest)
         return items;
-    }, [selectedItems, sortOrder]);
+    }, [selectedItems, sortOrder, itemSearchTerm]);
 
     // ... (rest of search/scan logic same as before) ...
     // Note: I'm omitting re-printing the huge SkuVisualizer/SmartInput logic for brevity 
@@ -911,6 +926,28 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                             <button onClick={() => setShowScanner(true)} className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95">
                                 <Camera size={14}/>
                             </button>
+                        </div>
+                    </div>
+
+                    {/* Right Pane Search Field */}
+                    <div className="px-5 py-3 border-b border-slate-50 bg-white">
+                        <div className="relative">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input 
+                                type="text"
+                                value={itemSearchTerm}
+                                onChange={e => setItemSearchTerm(e.target.value)}
+                                placeholder="Αναζήτηση στα είδη της εντολής..."
+                                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                            />
+                            {itemSearchTerm && (
+                                <button 
+                                    onClick={() => setItemSearchTerm('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
