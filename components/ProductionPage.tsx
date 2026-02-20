@@ -41,21 +41,21 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
 };
 
 const STAGE_COLORS = {
-    indigo: { bg: 'bg-indigo-50/30', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-100', header: 'bg-indigo-600 text-white' },
-    slate: { bg: 'bg-slate-50/30', text: 'text-slate-700', border: 'border-slate-200', ring: 'ring-slate-100', header: 'bg-slate-700 text-white' },
-    orange: { bg: 'bg-orange-50/30', text: 'text-orange-700', border: 'border-orange-200', ring: 'ring-orange-100', header: 'bg-orange-600 text-white' },
-    purple: { bg: 'bg-purple-50/30', text: 'text-purple-700', border: 'border-purple-200', ring: 'ring-purple-100', header: 'bg-purple-600 text-white' },
-    blue: { bg: 'bg-blue-50/30', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-100', header: 'bg-blue-600 text-white' },
-    yellow: { bg: 'bg-amber-50/30', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-100', header: 'bg-amber-500 text-white' },
-    emerald: { bg: 'bg-emerald-50/30', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-100', header: 'bg-emerald-600 text-white' },
+    indigo: { bg: 'bg-indigo-100/40', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-100', header: 'bg-indigo-100/50' },
+    slate: { bg: 'bg-slate-100/40', text: 'text-slate-700', border: 'border-slate-200', ring: 'ring-slate-100', header: 'bg-slate-100/50' },
+    orange: { bg: 'bg-orange-100/40', text: 'text-orange-700', border: 'border-orange-200', ring: 'ring-orange-100', header: 'bg-orange-100/50' },
+    purple: { bg: 'bg-purple-100/40', text: 'text-purple-700', border: 'border-purple-200', ring: 'ring-purple-100', header: 'bg-purple-100/50' },
+    blue: { bg: 'bg-blue-100/40', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-100', header: 'bg-blue-100/50' },
+    yellow: { bg: 'bg-yellow-100/40', text: 'text-yellow-700', border: 'border-yellow-200', ring: 'ring-yellow-100', header: 'bg-yellow-100/50' },
+    emerald: { bg: 'bg-emerald-100/40', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-100', header: 'bg-emerald-100/50' },
 };
 
 // Gender Display Config
 const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
-    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-600 text-white border-pink-700 shadow-sm' },
-    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-600 text-white border-blue-700 shadow-sm' },
-    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-600 text-white border-slate-700 shadow-sm' },
-    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-600 text-white border-gray-700 shadow-sm' }
+    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 ring-pink-100' },
+    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
+    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
+    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
 
 const TEXT_FINISH_COLORS: Record<string, string> = {
@@ -1196,8 +1196,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                 onClick={() => setExpandedStageId(isExpanded ? null : stage.id)}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color === 'yellow' ? 'amber' : stage.color}-600`}>{stage.icon}</div>
-                                    <h3 className="font-bold text-white text-sm">{stage.label}</h3>
+                                    <div className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color}-600`}>{stage.icon}</div>
+                                    <h3 className={`font-bold ${colors.text} text-sm`}>{stage.label}</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {stage.id === ProductionStage.Labeling && (

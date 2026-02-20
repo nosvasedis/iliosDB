@@ -19,13 +19,13 @@ interface Props {
 }
 
 const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά', color: 'bg-slate-100 border-slate-200 text-slate-700' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'bg-orange-50 border-orange-200 text-orange-700' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'bg-purple-50 border-purple-200 text-purple-700' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' }
+    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'bg-indigo-100/60 border-indigo-200 text-indigo-800' },
+    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+    { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'bg-orange-100/60 border-orange-200 text-orange-800' },
+    { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'bg-purple-100/60 border-purple-200 text-purple-800' },
+    { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'bg-blue-100/60 border-blue-200 text-blue-800' },
+    { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'bg-yellow-100/60 border-yellow-200 text-yellow-800' },
+    { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-100/60 border-emerald-200 text-emerald-800' }
 ];
 
 const FINISH_COLORS: Record<string, string> = {
@@ -88,13 +88,13 @@ const groupBatchesByShipment = (batches: ProductionBatch[]) => {
 };
 
 const VIBRANT_STAGES: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'bg-indigo-600',
-    [ProductionStage.Waxing]: 'bg-slate-600',
-    [ProductionStage.Casting]: 'bg-orange-600',
-    [ProductionStage.Setting]: 'bg-purple-600',
-    [ProductionStage.Polishing]: 'bg-blue-600',
-    [ProductionStage.Labeling]: 'bg-yellow-600',
-    [ProductionStage.Ready]: 'bg-emerald-600'
+    [ProductionStage.AwaitingDelivery]: 'bg-indigo-500',
+    [ProductionStage.Waxing]: 'bg-slate-500',
+    [ProductionStage.Casting]: 'bg-orange-500',
+    [ProductionStage.Setting]: 'bg-purple-500',
+    [ProductionStage.Polishing]: 'bg-blue-500',
+    [ProductionStage.Labeling]: 'bg-yellow-500',
+    [ProductionStage.Ready]: 'bg-emerald-500'
 };
 
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated }: Props) {
