@@ -32,10 +32,10 @@ const STAGES = [
 ];
 
 const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
-    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-600 text-white border-pink-700 shadow-sm' },
-    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-600 text-white border-blue-700 shadow-sm' },
-    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-600 text-white border-slate-700 shadow-sm' },
-    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-600 text-white border-gray-700 shadow-sm' }
+    [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 shadow-sm' },
+    [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' },
+    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 shadow-sm' },
+    'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 shadow-sm' }
 };
 
 const STAGE_COLORS: Record<string, string> = {
