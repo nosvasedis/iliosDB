@@ -420,9 +420,9 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
  * Helper to split a full SKU into master and suffix parts for visualization
  */
 export const splitSkuComponents = (fullSku: string): { master: string, suffix: string } => {
-    // Basic heuristic: First 2 letters + numbers is master (e.g. DA100, RN2020)
-    // Everything else is suffix
-    const match = fullSku.match(/^([A-Z]{2,3}\d+)(.*)$/);
+    // Basic heuristic: First 2-3 letters + numbers is master (e.g. DA100, ΒΔΑ014)
+    // Everything else is suffix. Supports Greek characters.
+    const match = fullSku.match(/^([A-ZΑ-Ω]{2,3}\d+)(.*)$/i);
     if (match) {
         return { master: match[1], suffix: match[2] };
     }
