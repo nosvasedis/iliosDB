@@ -33,16 +33,16 @@ import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, Aggre
 import { calculateProductCost } from './utils/pricingEngine';
 
 interface MobileAppProps {
-    isOnline?: boolean;
-    isSyncing?: boolean;
-    pendingItemsCount?: number;
+  isOnline?: boolean;
+  isSyncing?: boolean;
+  pendingItemsCount?: number;
 }
 
 export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
   const [activePage, setActivePage] = useState('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  
+
   // Printing State
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
@@ -51,12 +51,12 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
-  const [printItems, setPrintItems] = useState<{product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail'}[]>([]);
+  const [printItems, setPrintItems] = useState<{ product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]>([]);
   const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
 
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  
+
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
@@ -64,72 +64,72 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
 
   const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
-      if (!settings || !materials || !products) return;
+    if (!settings || !materials || !products) return;
 
-      let totalSilverWeight = 0;
-      let totalSilverCost = 0;
-      let totalMaterialsCost = 0;
-      let totalInHouseLaborCost = 0;
-      let totalImportedLaborCost = 0;
-      let totalSubcontractCost = 0;
+    let totalSilverWeight = 0;
+    let totalSilverCost = 0;
+    let totalMaterialsCost = 0;
+    let totalInHouseLaborCost = 0;
+    let totalImportedLaborCost = 0;
+    let totalSubcontractCost = 0;
 
-      const augmentedBatches: AggregatedBatch[] = batches.map(b => {
-          const product = products.find(p => p.sku === b.sku);
-          if (!product) return { ...b, cost_per_piece: 0, total_cost: 0 };
+    const augmentedBatches: AggregatedBatch[] = batches.map(b => {
+      const product = products.find(p => p.sku === b.sku);
+      if (!product) return { ...b, cost_per_piece: 0, total_cost: 0 };
 
-          const cost = calculateProductCost(product, settings, materials, products);
-          const costPerPiece = cost.total;
-          const totalCost = costPerPiece * b.quantity;
+      const cost = calculateProductCost(product, settings, materials, products);
+      const costPerPiece = cost.total;
+      const totalCost = costPerPiece * b.quantity;
 
-          const w = product.weight_g + (product.secondary_weight_g || 0);
-          totalSilverWeight += (w * b.quantity);
-          totalSilverCost += (cost.breakdown.silver * b.quantity);
-          totalMaterialsCost += (cost.breakdown.materials * b.quantity);
-          
-          const labor = cost.breakdown.labor;
-          const sub = cost.breakdown.details?.subcontract_cost || 0;
+      const w = product.weight_g + (product.secondary_weight_g || 0);
+      totalSilverWeight += (w * b.quantity);
+      totalSilverCost += (cost.breakdown.silver * b.quantity);
+      totalMaterialsCost += (cost.breakdown.materials * b.quantity);
 
-          if (product.production_type === 'Imported') {
-             totalImportedLaborCost += (labor * b.quantity);
-          } else {
-             totalInHouseLaborCost += (labor * b.quantity);
-          }
-          totalSubcontractCost += (sub * b.quantity);
+      const labor = cost.breakdown.labor;
+      const sub = cost.breakdown.details?.subcontract_cost || 0;
 
-          return { ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product };
-      });
+      if (product.production_type === 'Imported') {
+        totalImportedLaborCost += (labor * b.quantity);
+      } else {
+        totalInHouseLaborCost += (labor * b.quantity);
+      }
+      totalSubcontractCost += (sub * b.quantity);
 
-      const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
+      return { ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product };
+    });
 
-      setAggregatedPrintData({
-          molds: new Map(), 
-          materials: new Map(),
-          components: new Map(),
-          totalSilverWeight,
-          batches: augmentedBatches,
-          totalProductionCost,
-          totalSilverCost,
-          totalMaterialsCost,
-          totalInHouseLaborCost,
-          totalImportedLaborCost,
-          totalSubcontractCost,
-          orderId: orderDetails?.orderId,
-          customerName: orderDetails?.customerName
-      });
+    const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
+
+    setAggregatedPrintData({
+      molds: new Map(),
+      materials: new Map(),
+      components: new Map(),
+      totalSilverWeight,
+      batches: augmentedBatches,
+      totalProductionCost,
+      totalSilverCost,
+      totalMaterialsCost,
+      totalInHouseLaborCost,
+      totalImportedLaborCost,
+      totalSubcontractCost,
+      orderId: orderDetails?.orderId,
+      customerName: orderDetails?.customerName
+    });
   };
 
   const handlePrintPreparation = (batches: ProductionBatch[]) => {
-      setPreparationPrintData({ batches });
+    setPreparationPrintData({ batches });
   };
 
   const handlePrintTechnician = (batches: ProductionBatch[]) => {
-      setTechnicianPrintData({ batches });
+    setTechnicianPrintData({ batches });
   };
 
   // PRINTING EFFECT
   useEffect(() => {
     const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
-    
+
     if (shouldPrint) {
       const timer = setTimeout(() => {
         const printContent = printContainerRef.current;
@@ -141,23 +141,23 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
         let docTitle = 'Ilios_Mobile_Print';
         if (priceListPrintData) {
-             docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
+          docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
         } else if (orderToPrint) {
-             docTitle = `Order_${orderToPrint.id}`;
+          docTitle = `Order_${orderToPrint.id}`;
         } else if (offerToPrint) {
-             docTitle = `Offer_${offerToPrint.id}`;
+          docTitle = `Offer_${offerToPrint.id}`;
         } else if (supplierOrderToPrint) {
-             docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
+          docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
-             docTitle = `Production_Summary_${new Date().toISOString().split('T')[0]}`;
+          docTitle = `Production_Summary_${new Date().toISOString().split('T')[0]}`;
         } else if (printItems.length > 0) {
-             docTitle = `Labels_Batch_${new Date().toISOString().split('T')[0]}`;
+          docTitle = `Labels_Batch_${new Date().toISOString().split('T')[0]}`;
         }
 
         iframeDoc.open();
         let styles = '';
         document.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
-            styles += el.outerHTML;
+          styles += el.outerHTML;
         });
 
         iframeDoc.write(`
@@ -201,16 +201,16 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         iframeDoc.close();
 
         const handleAfterPrint = () => {
-            setPriceListPrintData(null);
-            setOrderToPrint(null);
-            setOfferToPrint(null);
-            setBatchToPrint(null);
-            setAggregatedPrintData(null);
-            setPreparationPrintData(null);
-            setTechnicianPrintData(null);
-            setSupplierOrderToPrint(null);
-            setPrintItems([]);
-            window.removeEventListener('focus', handleAfterPrint);
+          setPriceListPrintData(null);
+          setOrderToPrint(null);
+          setOfferToPrint(null);
+          setBatchToPrint(null);
+          setAggregatedPrintData(null);
+          setPreparationPrintData(null);
+          setTechnicianPrintData(null);
+          setSupplierOrderToPrint(null);
+          setPrintItems([]);
+          window.removeEventListener('focus', handleAfterPrint);
         };
         window.addEventListener('focus', handleAfterPrint, { once: true });
         // Fallback cleanup
@@ -223,21 +223,21 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   }, [printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
 
   if (!settings || !products || !warehouses || !materials || !molds) {
-      return (
-          <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-              <Loader2 size={32} className="animate-spin text-emerald-600"/>
-          </div>
-      );
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <Loader2 size={32} className="animate-spin text-emerald-600" />
+      </div>
+    );
   }
 
   const handleEditOrder = (order: Order) => {
-      setEditingOrder(order);
-      setActivePage('order-builder');
+    setEditingOrder(order);
+    setActivePage('order-builder');
   };
 
   const handleCreateOrder = () => {
-      setEditingOrder(null);
-      setActivePage('order-builder');
+    setEditingOrder(null);
+    setActivePage('order-builder');
   }
 
   let content;
@@ -248,75 +248,76 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     case 'production': content = <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
-    
+
     // Sub-menu items
     case 'registry': content = <MobileRegistry products={products} onProductSelect={setSelectedProduct} />; break;
     case 'ai-studio': content = <MobileAiStudio />; break;
     case 'settings': content = <MobileSettings />; break;
     case 'resources': content = <MobileResources />; break;
-    case 'customers': content = <MobileCustomers />; break;
+    case 'customers': content = <MobileCustomers mode="customers" />; break;
+    case 'suppliers': content = <MobileCustomers mode="suppliers" />; break;
     case 'pricing': content = <MobilePricing />; break;
     case 'batch-print': content = <MobileBatchPrint />; break;
     case 'collections': content = <MobileCollections />; break;
     case 'pricelist': content = <MobilePriceList onPrint={setPriceListPrintData} />; break;
     case 'offers': content = <MobileOffers onPrintOffer={setOfferToPrint} />; break;
-    
+
     default: content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />;
   }
 
   return (
     <>
-        {/* Hidden Print Container */}
-        <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
-            {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
-            {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
-            {offerToPrint && <OfferPrintView offer={offerToPrint} />}
-            {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
-            {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
-            {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
-            {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
-            {printItems.length > 0 && (
-                <div className="print-area">
-                {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
-                    <BarcodeView 
-                        key={`${idx}`} 
-                        product={item.product} 
-                        variant={item.variant} 
-                        width={item.format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm} 
-                        height={item.format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm} 
-                        format={item.format} 
-                        size={item.size}
-                    />
-                ))}
-                </div>
-            )}
-        </div>
-        <iframe 
-            ref={iframeRef} 
-            id="print-iframe" 
-            style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }} 
-            title="Print Bridge"
-        ></iframe>
-
-        <MobileLayout 
-            activePage={activePage} 
-            onNavigate={setActivePage}
-            isOnline={isOnline}
-            isSyncing={isSyncing}
-            pendingCount={pendingItemsCount}
-        >
-            {content}
-        </MobileLayout>
-        
-        {/* Overlay for Product Details */}
-        {selectedProduct && (
-            <MobileProductDetails 
-                product={selectedProduct} 
-                onClose={() => setSelectedProduct(null)} 
-                warehouses={warehouses}
-                setPrintItems={setPrintItems}
-            />
+      {/* Hidden Print Container */}
+      <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
+        {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
+        {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+        {offerToPrint && <OfferPrintView offer={offerToPrint} />}
+        {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
+        {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
+        {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
+        {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
+        {printItems.length > 0 && (
+          <div className="print-area">
+            {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard' }))).map((item, idx) => (
+              <BarcodeView
+                key={`${idx}`}
+                product={item.product}
+                variant={item.variant}
+                width={item.format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm}
+                height={item.format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm}
+                format={item.format}
+                size={item.size}
+              />
+            ))}
+          </div>
         )}
+      </div>
+      <iframe
+        ref={iframeRef}
+        id="print-iframe"
+        style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }}
+        title="Print Bridge"
+      ></iframe>
+
+      <MobileLayout
+        activePage={activePage}
+        onNavigate={setActivePage}
+        isOnline={isOnline}
+        isSyncing={isSyncing}
+        pendingCount={pendingItemsCount}
+      >
+        {content}
+      </MobileLayout>
+
+      {/* Overlay for Product Details */}
+      {selectedProduct && (
+        <MobileProductDetails
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          warehouses={warehouses}
+          setPrintItems={setPrintItems}
+        />
+      )}
     </>
   );
 }

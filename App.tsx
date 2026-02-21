@@ -33,7 +33,8 @@ import {
   ScrollText,
   ShieldAlert,
   TrendingUp,
-  FileBadge
+  FileBadge,
+  Globe
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
@@ -73,6 +74,7 @@ import BatchPrintPage from './components/BatchPrintPage';
 import OrdersPage from './components/OrdersPage';
 import ProductionPage from './components/ProductionPage';
 import CustomersPage from './components/CustomersPage';
+import SuppliersPage from './components/SuppliersPage';
 import AiStudio from './components/AiStudio';
 import OrderInvoiceView from './components/OrderInvoiceView';
 import ProductionWorkerView from './components/ProductionWorkerView';
@@ -91,7 +93,7 @@ import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 import { PrintProvider, usePrint } from './components/PrintContext';
 
 
-type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
 
 
 
@@ -475,7 +477,8 @@ function AppContent() {
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
-                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμηθευτές" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
+                <NavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
+                <NavItem icon={<Globe size={22} />} label="Προμηθευτές" isActive={activePage === 'suppliers'} isCollapsed={isCollapsed} onClick={() => handleNav('suppliers')} />
               </>
             )}
             <div className="my-2 border-t border-white/10 mx-2"></div>
@@ -523,6 +526,7 @@ function AppContent() {
               {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
+              {activePage === 'suppliers' && <SuppliersPage />}
               {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}
               {activePage === 'resources' && (
                 <div className="space-y-6">

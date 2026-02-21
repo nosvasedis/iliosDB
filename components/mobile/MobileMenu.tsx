@@ -1,18 +1,19 @@
 
 import React from 'react';
-import { 
-  Settings, 
-  Users, 
-  Database, 
-  LogOut, 
-  ChevronRight, 
-  Layers, 
-  DollarSign, 
-  ScanBarcode, 
+import {
+  Settings,
+  Users,
+  Database,
+  LogOut,
+  ChevronRight,
+  Layers,
+  DollarSign,
+  ScanBarcode,
   Sparkles,
   FolderKanban,
   ScrollText,
-  FileText
+  FileText,
+  Globe
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -36,7 +37,8 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
     { id: 'registry', label: 'Μητρώο Κωδικών', icon: Database, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'collections', label: 'Συλλογές', icon: FolderKanban, color: 'text-pink-500', bg: 'bg-pink-50' },
     { id: 'pricelist', label: 'Τιμοκατάλογος', icon: ScrollText, color: 'text-teal-500', bg: 'bg-teal-50' },
-    { id: 'customers', label: 'Πελάτες & Προμ.', icon: Users, color: 'text-orange-500', bg: 'bg-orange-50' },
+    { id: 'customers', label: 'Πελάτες', icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
+    { id: 'suppliers', label: 'Προμηθευτές', icon: Globe, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'resources', label: 'Υλικά & Λάστιχα', icon: Layers, color: 'text-indigo-500', bg: 'bg-indigo-50' },
     { id: 'pricing', label: 'Τιμολόγηση', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-50' },
     { id: 'batch-print', label: 'Εκτυπώσεις', icon: ScanBarcode, color: 'text-slate-500', bg: 'bg-slate-50' },
@@ -47,11 +49,11 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
     <div className="p-6 animate-in slide-in-from-bottom-10 duration-300 pb-24">
       <div className="flex items-center gap-4 mb-8">
         <div className="w-16 h-16 bg-white rounded-full shadow-lg p-2 flex items-center justify-center">
-            <img src={APP_LOGO} alt="Ilios" className="w-full h-full object-contain"/>
+          <img src={APP_LOGO} alt="Ilios" className="w-full h-full object-contain" />
         </div>
         <div>
-            <h2 className="text-xl font-black text-slate-900">{profile?.full_name || 'Χρήστης'}</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Ilios Kosmima ERP</p>
+          <h2 className="text-xl font-black text-slate-900">{profile?.full_name || 'Χρήστης'}</h2>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Ilios Kosmima ERP</p>
         </div>
       </div>
 
@@ -74,11 +76,11 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
       </div>
 
       <div className="mt-8 pt-8 border-t border-slate-100">
-        <button 
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-red-50 text-red-600 font-bold text-sm hover:bg-red-100 transition-colors"
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-red-50 text-red-600 font-bold text-sm hover:bg-red-100 transition-colors"
         >
-            <LogOut size={18} /> Αποσύνδεση
+          <LogOut size={18} /> Αποσύνδεση
         </button>
         <p className="text-center text-[10px] text-slate-300 mt-4 font-mono">v1.2.1-mobile</p>
       </div>

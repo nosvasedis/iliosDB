@@ -1,12 +1,10 @@
-
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus, VatRegime } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash, Percent, X, Clock, Wallet, Calculator } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
-import SuppliersPage, { SuppliersPageHandle } from './SuppliersPage';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -461,7 +459,6 @@ const CustomerDetailsModal = ({
 export default function CustomersPage({ onPrintOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
 
@@ -469,7 +466,6 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const suppliersRef = useRef<SuppliersPageHandle>(null);
 
     // Filter Logic
     const filteredCustomers = useMemo(() => {
@@ -540,66 +536,43 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             {/* Header Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
                 <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl shadow-sm transition-colors ${activeTab === 'customers' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                        {activeTab === 'customers' ? <Users size={28} /> : <Globe size={28} />}
+                    <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 shadow-sm transition-colors">
+                        <Users size={28} />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-                            {activeTab === 'customers' ? 'Πελάτες' : 'Προμηθευτές'}
-                        </h1>
-                        <p className="text-slate-500 text-sm font-medium">
-                            {activeTab === 'customers' ? 'Διαχείριση πελατολογίου και ιστορικού.' : 'Διαχείριση προμηθευτών και υλικών.'}
-                        </p>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Πελάτες</h1>
+                        <p className="text-slate-500 text-sm font-medium">Διαχείριση πελατολογίου και ιστορικού.</p>
                     </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                    <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50">
-                        <button
-                            onClick={() => { setActiveTab('customers'); setSearchTerm(''); }}
-                            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'customers' ? 'bg-white text-blue-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <User size={16} /> Πελάτες
-                        </button>
-                        <button
-                            onClick={() => { setActiveTab('suppliers'); setSearchTerm(''); }}
-                            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'suppliers' ? 'bg-white text-purple-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <Globe size={16} /> Προμηθευτές
-                        </button>
-                    </div>
-
                     <div className="relative group flex-1 md:flex-none">
                         <input
                             type="text"
-                            placeholder={activeTab === 'customers' ? "Αναζήτηση πελάτη..." : "Αναζήτηση προμηθευτή..."}
+                            placeholder="Αναζήτηση πελάτη..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className={`pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 transition-all w-full md:w-64 shadow-inner font-bold text-sm ${activeTab === 'customers' ? 'focus:ring-blue-500/10 focus:border-blue-500' : 'focus:ring-purple-500/10 focus:border-purple-500'}`}
+                            className="pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all w-full md:w-64 shadow-inner font-bold text-sm"
                         />
-                        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${activeTab === 'customers' ? 'text-slate-400 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-purple-500'}`} size={18} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
                     </div>
 
                     <button
                         onClick={() => {
-                            if (activeTab === 'customers') {
-                                setSelectedCustomer({
-                                    id: crypto.randomUUID(),
-                                    full_name: '',
-                                    phone: '',
-                                    vat_number: '',
-                                    vat_rate: VatRegime.Standard,
-                                    address: '',
-                                    notes: '',
-                                    created_at: new Date().toISOString()
-                                });
-                                setIsCreating(true);
-                            } else {
-                                suppliersRef.current?.openCreateModal();
-                            }
+                            setSelectedCustomer({
+                                id: crypto.randomUUID(),
+                                full_name: '',
+                                phone: '',
+                                vat_number: '',
+                                vat_rate: VatRegime.Standard,
+                                address: '',
+                                notes: '',
+                                created_at: new Date().toISOString()
+                            });
+                            setIsCreating(true);
                         }}
-                        className={`p-3.5 rounded-xl text-white shadow-lg transition-all hover:-translate-y-0.5 active:scale-95 ${activeTab === 'customers' ? 'bg-[#060b00] hover:bg-black' : 'bg-purple-600 hover:bg-purple-700'}`}
-                        title={activeTab === 'customers' ? "Νέος Πελάτης" : "Νέος Προμηθευτής"}
+                        className="p-3.5 rounded-xl text-white shadow-lg bg-[#060b00] hover:bg-black transition-all hover:-translate-y-0.5 active:scale-95"
+                        title="Νέος Πελάτης"
                     >
                         <Plus size={22} strokeWidth={3} />
                     </button>
@@ -608,25 +581,21 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">
-                {activeTab === 'customers' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {filteredCustomers.map(c => (
-                            <CustomerCard
-                                key={c.id}
-                                customer={c}
-                                onClick={() => { setSelectedCustomer(c); setIsCreating(false); }}
-                                latestOrderDate={latestOrdersMap[c.id]}
-                            />
-                        ))}
-                        {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}
-                    </div>
-                ) : (
-                    <SuppliersPage ref={suppliersRef} searchTerm={searchTerm} />
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredCustomers.map(c => (
+                        <CustomerCard
+                            key={c.id}
+                            customer={c}
+                            onClick={() => { setSelectedCustomer(c); setIsCreating(false); }}
+                            latestOrderDate={latestOrdersMap[c.id]}
+                        />
+                    ))}
+                    {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}
+                </div>
             </div>
 
             {/* View/Edit Modal */}
-            {selectedCustomer && activeTab === 'customers' && !isCreating && orders && (
+            {selectedCustomer && !isCreating && orders && (
                 <CustomerDetailsModal
                     customer={selectedCustomer}
                     orders={orders}
@@ -638,7 +607,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             )}
 
             {/* Create Modal */}
-            {isCreating && activeTab === 'customers' && selectedCustomer && (
+            {isCreating && selectedCustomer && (
                 <CustomerDetailsModal
                     customer={selectedCustomer}
                     orders={[]}
