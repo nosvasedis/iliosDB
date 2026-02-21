@@ -3,23 +3,24 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage } from '../../types';
-import { 
-    Clock, 
-    CheckCircle, 
-    Factory, 
-    MoveRight, 
-    Loader2, 
-    Hammer, 
-    Tag, 
-    Package 
+import {
+    Clock,
+    CheckCircle,
+    Factory,
+    MoveRight,
+    Loader2,
+    Hammer,
+    Tag,
+    Package
 } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import { formatOrderId } from '../../utils/orderUtils';
 
 const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionBatch, target: ProductionStage) => void, isLoading: boolean }> = ({ batch, onMove, isLoading }) => {
     // Determine possible actions based on current stage
     let nextAction = null;
     let buttonLabel = '';
-    
+
     // Store clerks only care about Labeling -> Ready workflow usually
     // Or potentially receiving from Polishing if they do the packaging
     if (batch.current_stage === ProductionStage.Polishing) {
@@ -40,22 +41,22 @@ const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionB
                     </div>
                 </div>
                 {batch.order_id && (
-                    <div className="text-[10px] font-mono text-slate-400">Order #{batch.order_id.slice(0,6)}</div>
+                    <div className="text-[10px] font-mono text-slate-400">Order #{formatOrderId(batch.order_id)}</div>
                 )}
             </div>
-            
+
             <div className="flex justify-between items-center pt-3 border-t border-slate-50 mt-auto">
                 <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                    <Clock size={12}/> {new Date(batch.updated_at).toLocaleDateString('el-GR')}
+                    <Clock size={12} /> {new Date(batch.updated_at).toLocaleDateString('el-GR')}
                 </div>
-                
+
                 {nextAction && (
-                    <button 
+                    <button
                         onClick={() => onMove(batch, nextAction!)}
                         disabled={isLoading}
                         className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all hover:bg-emerald-700 disabled:opacity-50"
                     >
-                        {isLoading ? <Loader2 size={14} className="animate-spin"/> : <MoveRight size={14}/>}
+                        {isLoading ? <Loader2 size={14} className="animate-spin" /> : <MoveRight size={14} />}
                         {buttonLabel}
                     </button>
                 )}
@@ -85,7 +86,7 @@ export default function EmployeeProduction() {
         }
     };
 
-    if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-slate-400"/></div>;
+    if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-slate-400" /></div>;
 
     // Filter batches relevant to the store clerk
     // 1. Coming from Polishing (Arriving at store/packaging)
@@ -97,24 +98,24 @@ export default function EmployeeProduction() {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                <Factory className="text-emerald-600"/> Ροή Παραγωγής Καταστήματος
+                <Factory className="text-emerald-600" /> Ροή Παραγωγής Καταστήματος
             </h1>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
+
                 {/* COLUMN 1: ARRIVING (From Technician) */}
                 <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
                     <h3 className="font-bold text-blue-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
-                        <Hammer size={16}/> Αναμονη απο Τεχνιτη
+                        <Hammer size={16} /> Αναμονη απο Τεχνιτη
                         <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-blue-600">{arrivingBatches.length}</span>
                     </h3>
                     <div className="space-y-3">
                         {arrivingBatches.map(b => (
-                            <ClerkBatchCard 
-                                key={b.id} 
-                                batch={b} 
-                                onMove={handleMoveStage} 
-                                isLoading={processingId === b.id} 
+                            <ClerkBatchCard
+                                key={b.id}
+                                batch={b}
+                                onMove={handleMoveStage}
+                                isLoading={processingId === b.id}
                             />
                         ))}
                         {arrivingBatches.length === 0 && <div className="text-center py-10 text-blue-300 text-sm italic">Κανένα προϊόν σε αναμονή.</div>}
@@ -124,16 +125,16 @@ export default function EmployeeProduction() {
                 {/* COLUMN 2: IN PACKAGING (Labeling) */}
                 <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-100">
                     <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
-                        <Tag size={16}/> Συσκευασια & Barcode
+                        <Tag size={16} /> Συσκευασια & Barcode
                         <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-amber-600">{packagingBatches.length}</span>
                     </h3>
                     <div className="space-y-3">
                         {packagingBatches.map(b => (
-                            <ClerkBatchCard 
-                                key={b.id} 
-                                batch={b} 
-                                onMove={handleMoveStage} 
-                                isLoading={processingId === b.id} 
+                            <ClerkBatchCard
+                                key={b.id}
+                                batch={b}
+                                onMove={handleMoveStage}
+                                isLoading={processingId === b.id}
                             />
                         ))}
                         {packagingBatches.length === 0 && <div className="text-center py-10 text-amber-300 text-sm italic">Κανένα προϊόν στη συσκευασία.</div>}
@@ -143,7 +144,7 @@ export default function EmployeeProduction() {
                 {/* COLUMN 3: READY */}
                 <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 opacity-80 hover:opacity-100 transition-opacity">
                     <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
-                        <CheckCircle size={16}/> Ετοιμα για Παραδοση
+                        <CheckCircle size={16} /> Ετοιμα για Παραδοση
                         <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-emerald-600">{readyBatches.length}</span>
                     </h3>
                     <div className="space-y-3">

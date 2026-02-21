@@ -8,6 +8,7 @@ import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import BatchBuildModal from './BatchBuildModal';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
 import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
@@ -141,7 +142,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
             const key = b.order_id || 'no_order';
             if (!groups[key]) {
                 groups[key] = {
-                    name: b.customer_name ? `${b.customer_name} (#${b.order_id?.slice(0, 6)})` : (b.order_id ? `Order #${b.order_id.slice(0, 6)}` : 'Χωρίς Εντολή'),
+                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Order #${formatOrderId(b.order_id)}` : 'Χωρίς Εντολή'),
                     items: []
                 };
             }
@@ -1095,7 +1096,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                     </div>
                                                 </div>
                                                 <div className="text-right flex flex-col items-end gap-1">
-                                                    <div className="text-[10px] font-mono text-slate-400">#{b.order_id?.slice(0, 6)}</div>
+                                                    <div className="text-[10px] font-mono text-slate-400">#{formatOrderId(b.order_id)}</div>
                                                     <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClassString}`}>
                                                         {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
                                                         {stageConf?.label || b.current_stage}
