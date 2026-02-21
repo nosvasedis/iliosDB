@@ -49,7 +49,7 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'KR': 'Κορνεόλη',
   'LA': 'Λάπις',
   'LE': 'Χαολίτης',
-  'AX': 'Πράσινος Αχάτης', 
+  'AX': 'Πράσινος Αχάτης',
   'TG': 'Μάτι Τίγρης',
   'QN': 'Όνυχας',
   'TY': 'Τυρκουάζ',
@@ -60,7 +60,8 @@ export const STONE_CODES_MEN: Record<string, string> = {
   'MA': 'Μαλαχίτης',
   'FI': 'Φίλντισι',
   'OP': 'Οπάλιο',
-  'NF': 'Νεφρίτης'
+  'NF': 'Νεφρίτης',
+  'SD': 'Σοδαλίτης'
 };
 
 export const FINISH_CODES: Record<string, string> = {
@@ -92,13 +93,13 @@ export const MOCK_PRODUCTS: Product[] = [
     production_type: ProductionType.InHouse,
     active_price: 5.50,
     draft_price: 5.50,
-    selling_price: 0, 
+    selling_price: 0,
     stock_qty: 100,
     sample_qty: 5,
     molds: [{ code: 'A-12', quantity: 1 }],
     is_component: true,
     recipe: [
-        { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
+      { type: 'raw', id: '1', quantity: 1 } // Uses 1 Zircon
     ],
     // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
     // @FIX: Add missing 'subcontract_cost' property.
@@ -129,8 +130,8 @@ export const MOCK_PRODUCTS: Product[] = [
     molds: [{ code: 'B-05', quantity: 1 }],
     is_component: false,
     variants: [
-        { suffix: 'P', description: 'Πατίνα (Σκέτο)', stock_qty: 2 },
-        { suffix: 'X', description: 'Επίхρυσο', stock_qty: 3 }
+      { suffix: 'P', description: 'Πατίνα (Σκέτο)', stock_qty: 2 },
+      { suffix: 'X', description: 'Επίхρυσο', stock_qty: 3 }
     ],
     recipe: [
       { type: 'raw', id: '1', quantity: 10 }
@@ -164,12 +165,12 @@ export const MOCK_PRODUCTS: Product[] = [
     molds: [{ code: 'C-01', quantity: 1 }, { code: 'C-02', quantity: 1 }],
     is_component: false,
     variants: [
-        { suffix: 'PKR', description: 'Πατίνα - Κορνεόλη', stock_qty: 2 }, 
-        { suffix: 'TG', description: 'Λουστρέ - Μάτι Τίγρης', stock_qty: 3 } 
+      { suffix: 'PKR', description: 'Πατίνα - Κορνεόλη', stock_qty: 2 },
+      { suffix: 'TG', description: 'Λουστρέ - Μάτι Τίγρης', stock_qty: 3 }
     ],
     recipe: [
-        { type: 'raw', id: '3', quantity: 1 }, 
-        { type: 'component', sku: 'STX-505', quantity: 2 } 
+      { type: 'raw', id: '3', quantity: 1 },
+      { type: 'component', sku: 'STX-505', quantity: 2 }
     ],
     // @FIX: 'plating_cost' does not exist on type 'LaborCost'. Replaced with 'plating_cost_x' and 'plating_cost_d'.
     // @FIX: Add missing 'subcontract_cost' property.

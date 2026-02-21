@@ -5,7 +5,7 @@ import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
-export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev'; 
+export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
 
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
@@ -22,7 +22,7 @@ export const isLocalMode = localStorage.getItem('ILIOS_LOCAL_MODE') === 'true';
 export const isConfigured = (!!SUPABASE_URL && !!SUPABASE_KEY) || isLocalMode;
 
 export const supabase = createClient(
-    SUPABASE_URL || 'https://placeholder.supabase.co', 
+    SUPABASE_URL || 'https://placeholder.supabase.co',
     SUPABASE_KEY || 'placeholder'
 );
 
@@ -31,8 +31,8 @@ export const supabase = createClient(
  */
 export const resolveImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
-    if (url.startsWith('data:')) return url; 
-    if (url.includes('picsum.photos')) return url; 
+    if (url.startsWith('data:')) return url;
+    if (url.includes('picsum.photos')) return url;
 
     try {
         const parts = url.split('/');
@@ -52,21 +52,21 @@ export const resolveImageUrl = (url: string | null | undefined): string | null =
  */
 const sanitizeProductData = (data: any) => {
     const validColumns = [
-        'sku', 'prefix', 'category', 'description', 'gender', 'image_url', 
+        'sku', 'prefix', 'category', 'description', 'gender', 'image_url',
         'weight_g', 'secondary_weight_g', 'plating_type', 'production_type',
         'active_price', 'draft_price', 'selling_price', 'stock_qty', 'sample_qty',
         'is_component', 'supplier_id', 'supplier_sku', 'supplier_cost',
-        'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x', 
+        'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x',
         'labor_plating_d', 'labor_subcontract', 'labor_stone_setting',
         'labor_casting_manual_override', 'labor_technician_manual_override',
         'labor_plating_x_manual_override', 'labor_plating_d_manual_override'
     ];
-    
+
     const sanitized: any = {};
     validColumns.forEach(col => {
         if (data[col] !== undefined) sanitized[col] = data[col];
     });
-    
+
     if (data.labor) {
         if (data.labor.casting_cost !== undefined) sanitized.labor_casting = data.labor.casting_cost;
         if (data.labor.setter_cost !== undefined) sanitized.labor_setter = data.labor.setter_cost;
@@ -77,7 +77,7 @@ const sanitizeProductData = (data: any) => {
         if (data.labor.subcontract_cost !== undefined) sanitized.labor_subcontract = data.labor.subcontract_cost;
         if (data.labor.stone_setting_cost !== undefined) sanitized.labor_stone_setting = data.labor.stone_setting_cost;
     }
-    
+
     return sanitized;
 };
 
@@ -96,16 +96,16 @@ const sanitizeBatchData = (data: any) => {
 };
 
 async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
     );
     return Promise.race([query, timeoutPromise]);
 }
 
 async function safeMutate(
-    tableName: string, 
-    method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', 
-    data: any, 
+    tableName: string,
+    method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT',
+    data: any,
     options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean }
 ): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
@@ -115,7 +115,7 @@ async function safeMutate(
 
         if (method === 'INSERT') {
             newTable = [...newTable, ...payload];
-        } 
+        }
         else if (method === 'UPDATE' || method === 'UPSERT') {
             if (options?.match) {
                 const matchEntries = Object.entries(options.match);
@@ -137,12 +137,12 @@ async function safeMutate(
                     else if (method === 'UPSERT') newTable.push(item);
                 });
             }
-        } 
+        }
         else if (method === 'DELETE') {
             if (options?.match) newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
             else if (data) {
-                 const targets = Array.isArray(data) ? data : [data];
-                 newTable = newTable.filter(row => !targets.some(t => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
+                const targets = Array.isArray(data) ? data : [data];
+                newTable = newTable.filter(row => !targets.some(t => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
             }
         }
 
@@ -150,12 +150,12 @@ async function safeMutate(
         return { data: data, error: null, queued: false };
     }
 
-    const queueId = await offlineDb.enqueue({ 
-        type: 'MUTATION', 
-        table: tableName, 
-        method, 
-        data, 
-        match: options?.match, 
+    const queueId = await offlineDb.enqueue({
+        type: 'MUTATION',
+        table: tableName,
+        method,
+        data,
+        match: options?.match,
         onConflict: options?.onConflict,
         ignoreDuplicates: options?.ignoreDuplicates
     });
@@ -169,11 +169,11 @@ async function safeMutate(
         if (method === 'INSERT') query = supabase.from(tableName).insert(data).select();
         else if (method === 'UPDATE') query = supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku }).select();
         else if (method === 'DELETE') query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
-        else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, { 
-            onConflict: options?.onConflict, 
-            ignoreDuplicates: options?.ignoreDuplicates 
+        else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, {
+            onConflict: options?.onConflict,
+            ignoreDuplicates: options?.ignoreDuplicates
         }).select();
-        
+
         const { data: resData, error } = await query!;
         if (error) throw error;
         await offlineDb.dequeue(queueId);
@@ -227,7 +227,7 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
         const payload = Array.isArray(op.data) ? op.data : (op.data ? [op.data] : []);
         if (op.method === 'INSERT') {
             mergedData = [...mergedData, ...payload];
-        } 
+        }
         else if (op.method === 'UPDATE' || op.method === 'UPSERT') {
             if (op.match) {
                 const matchEntries = Object.entries(op.match);
@@ -254,8 +254,8 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             if (op.match) {
                 mergedData = mergedData.filter((row: any) => !Object.entries(op.match).every(([k, v]) => row[k] === v));
             } else if (op.data) {
-                 const targets = payload;
-                 mergedData = mergedData.filter((row: any) => !targets.some((t: any) => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
+                const targets = payload;
+                mergedData = mergedData.filter((row: any) => !targets.some((t: any) => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
             }
         }
     });
@@ -288,7 +288,7 @@ export const SYSTEM_IDS = {
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
     if (!navigator.onLine || isLocalMode) throw new Error("Image upload requires internet.");
-    const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); 
+    const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const fileName = `${safeSku.toUpperCase()}_${Date.now()}.jpg`;
     const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
     const response = await fetch(uploadUrl, {
@@ -308,7 +308,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         await safeMutate('product_molds', 'DELETE', null, { match: { product_sku: sku } });
         await safeMutate('product_collections', 'DELETE', null, { match: { product_sku: sku } });
         await safeMutate('product_stock', 'DELETE', null, { match: { product_sku: sku } });
-        
+
         const { error } = await safeMutate('products', 'DELETE', null, { match: { sku: sku } });
         if (error) throw error;
         return { success: true };
@@ -329,7 +329,7 @@ export const api = {
             const res = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
             if (!res.ok) throw new Error("Network error");
             const data = await res.json();
-            if (!data.valid) return null; 
+            if (!data.valid) return null;
             return { name: data.name, address: data.address };
         } catch (e) {
             console.error("AFM Lookup failed:", e);
@@ -343,14 +343,14 @@ export const api = {
         try {
             const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
             if (error || !data) throw new Error('Data Error');
-            const settings = { 
-              silver_price_gram: Number(data.silver_price_gram), 
-              loss_percentage: Number(data.loss_percentage), 
-              barcode_width_mm: Number(data.barcode_width_mm) || INITIAL_SETTINGS.barcode_width_mm, 
-              barcode_height_mm: Number(data.barcode_height_mm) || INITIAL_SETTINGS.barcode_height_mm,
-              retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || INITIAL_SETTINGS.retail_barcode_width_mm,
-              retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || INITIAL_SETTINGS.retail_barcode_height_mm,
-              last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
+            const settings = {
+                silver_price_gram: Number(data.silver_price_gram),
+                loss_percentage: Number(data.loss_percentage),
+                barcode_width_mm: Number(data.barcode_width_mm) || INITIAL_SETTINGS.barcode_width_mm,
+                barcode_height_mm: Number(data.barcode_height_mm) || INITIAL_SETTINGS.barcode_height_mm,
+                retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || INITIAL_SETTINGS.retail_barcode_width_mm,
+                retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || INITIAL_SETTINGS.retail_barcode_height_mm,
+                last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
             };
             offlineDb.saveTable('global_settings', [settings]);
             return settings;
@@ -369,29 +369,29 @@ export const api = {
 
     getMaterials: async (): Promise<Material[]> => {
         const data = await fetchFullTable('materials');
-        return data.map((m: any) => ({ 
-            id: m.id, 
-            name: m.name, 
+        return data.map((m: any) => ({
+            id: m.id,
+            name: m.name,
             description: m.description || '', // Map description
-            type: m.type, 
-            cost_per_unit: Number(m.cost_per_unit), 
-            unit: m.unit, 
+            type: m.type,
+            cost_per_unit: Number(m.cost_per_unit),
+            unit: m.unit,
             variant_prices: m.variant_prices || {},
             supplier_id: m.supplier_id || null,
             stock_qty: Number(m.stock_qty || 0),
             stones_per_strand: m.stones_per_strand ? Number(m.stones_per_strand) : undefined
         }));
     },
-    
+
     saveMaterial: async (m: Material) => {
         return safeMutate('materials', m.id ? 'UPDATE' : 'INSERT', m, m.id ? { match: { id: m.id } } : undefined);
     },
 
     getMolds: async (): Promise<Mold[]> => {
         const data = await fetchFullTable('molds');
-        return data.map((m: any) => ({ 
-            code: m.code, 
-            location: m.location, 
+        return data.map((m: any) => ({
+            code: m.code,
+            location: m.location,
             description: m.description,
             weight_g: m.weight_g ? Number(m.weight_g) : undefined // New column mapping
         }));
@@ -400,31 +400,31 @@ export const api = {
     getSuppliers: async (): Promise<Supplier[]> => {
         return fetchFullTable('suppliers', '*', (q) => q.order('name'));
     },
-    
+
     getSupplierOrders: async (): Promise<SupplierOrder[]> => {
         return fetchFullTable('supplier_orders', '*', (q) => q.order('created_at', { ascending: false }));
     },
-    
+
     saveSupplierOrder: async (order: SupplierOrder): Promise<void> => {
         await safeMutate('supplier_orders', 'INSERT', order);
     },
-    
+
     updateSupplierOrder: async (order: SupplierOrder): Promise<void> => {
         await safeMutate('supplier_orders', 'UPDATE', order, { match: { id: order.id } });
     },
-    
+
     receiveSupplierOrder: async (order: SupplierOrder): Promise<void> => {
         // 1. Mark Order as Received
         const receivedOrder = { ...order, status: 'Received', received_at: new Date().toISOString() };
         await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
-        
+
         // 2. Update Stock for each item
         for (const item of order.items) {
             if (item.item_type === 'Product') {
                 const { data: prod } = await supabase.from('products').select('stock_qty').eq('sku', item.item_id).single();
                 if (prod) {
                     await safeMutate('products', 'UPDATE', { stock_qty: (prod.stock_qty || 0) + item.quantity }, { match: { sku: item.item_id } });
-                    await recordStockMovement(item.item_id, item.quantity, `Supplier Order #${order.id.slice(0,6)}`);
+                    await recordStockMovement(item.item_id, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`);
                 }
             } else if (item.item_type === 'Material') {
                 const { data: mat } = await supabase.from('materials').select('stock_qty').eq('id', item.item_id).single();
@@ -454,9 +454,9 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
-        const prodData = await fetchFullTable('products', '*, suppliers(*)'); 
+        const prodData = await fetchFullTable('products', '*, suppliers(*)');
         if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
-        
+
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
             fetchFullTable('product_variants'),
             fetchFullTable('recipes'),
@@ -465,33 +465,71 @@ export const api = {
             fetchFullTable('product_stock')
         ]);
 
+        const stockMap = new Map();
+        stockData?.forEach((s: any) => {
+            const key = s.variant_suffix ? `${s.product_sku}::${s.variant_suffix}` : s.product_sku;
+            if (!stockMap.has(key)) stockMap.set(key, []);
+            stockMap.get(key).push(s);
+        });
+
+        const variantMap = new Map();
+        varData?.forEach((v: any) => {
+            if (!variantMap.has(v.product_sku)) variantMap.set(v.product_sku, []);
+            variantMap.get(v.product_sku).push(v);
+        });
+
+        const recipeMap = new Map();
+        recData?.forEach((r: any) => {
+            if (!recipeMap.has(r.parent_sku)) recipeMap.set(r.parent_sku, []);
+            recipeMap.get(r.parent_sku).push(r);
+        });
+
+        const moldsMap = new Map();
+        prodMoldsData?.forEach((pm: any) => {
+            if (!moldsMap.has(pm.product_sku)) moldsMap.set(pm.product_sku, []);
+            moldsMap.get(pm.product_sku).push(pm);
+        });
+
+        const collectionsMap = new Map();
+        prodCollData?.forEach((pc: any) => {
+            if (!collectionsMap.has(pc.product_sku)) collectionsMap.set(pc.product_sku, []);
+            collectionsMap.get(pc.product_sku).push(pc.collection_id);
+        });
+
         return prodData.map((p: any) => {
             const customStock: Record<string, number> = {};
-            stockData?.filter((s: any) => s.product_sku === p.sku && !s.variant_suffix).forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
+            const pStock = stockMap.get(p.sku) || [];
+            pStock.forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
             customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
             customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
 
-            const pVariants: ProductVariant[] = varData?.filter((v: any) => v.product_sku === p.sku).map((v: any) => {
+            const baseVariants = variantMap.get(p.sku) || [];
+            const pVariants: ProductVariant[] = baseVariants.map((v: any) => {
                 const vCustomStock: Record<string, number> = {};
-                stockData?.filter((s: any) => s.product_sku === p.sku && s.variant_suffix === v.suffix).forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
+                const vStock = stockMap.get(`${p.sku}::${v.suffix}`) || [];
+                vStock.forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
                 vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
                 return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
-            }) || [];
+            });
 
+            const pBaseMolds = moldsMap.get(p.sku) || [];
             const uniqueMoldsMap = new Map<string, { code: string, quantity: number }>();
-            prodMoldsData?.filter((pm: any) => pm.product_sku === p.sku).forEach((pm: any) => {
+            pBaseMolds.forEach((pm: any) => {
                 uniqueMoldsMap.set(pm.mold_code, { code: pm.mold_code, quantity: pm.quantity || 1 });
             });
             const pMolds = Array.from(uniqueMoldsMap.values());
 
+            const pBaseRecipes = recipeMap.get(p.sku) || [];
+            const mappedRecipes = pBaseRecipes.map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) }));
+
             return {
-                sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender, 
+                sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender,
                 image_url: resolveImageUrl(p.image_url),
-                weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id, 
+                weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id,
                 supplier_sku: p.supplier_sku,
-                supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock, 
-                molds: pMolds, 
-                is_component: p.is_component, variants: pVariants, recipe: (recData?.filter((r: any) => r.parent_sku === p.sku) || []).map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) })), collections: prodCollData?.filter((pc: any) => pc.product_sku === p.sku).map((pc: any) => pc.collection_id) || [],
+                supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock,
+                molds: pMolds,
+                is_component: p.is_component, variants: pVariants, recipe: mappedRecipes, collections: collectionsMap.get(p.sku) || [],
                 labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) }
             };
         });
@@ -523,11 +561,11 @@ export const api = {
         return fetchFullTable('price_snapshot_items', '*', (q) => q.eq('snapshot_id', snapshotId));
     },
 
-    saveProduct: async (productData: any) => { 
+    saveProduct: async (productData: any) => {
         const sanitized = sanitizeProductData(productData);
-        return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' }); 
+        return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' });
     },
-    
+
     renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
         if (isLocalMode) {
             // ... (Same as before)
@@ -550,7 +588,7 @@ export const api = {
             supabase.from('stock_movements').select('*').eq('product_sku', oldSku)
         ]);
 
-        const { id, ...productData } = product; 
+        const { id, ...productData } = product;
         const newProductPayload = { ...productData, sku: newSku };
         const { error: createError } = await supabase.from('products').insert(newProductPayload);
         if (createError) throw createError;
@@ -577,9 +615,9 @@ export const api = {
         }
     },
 
-    saveProductVariant: async (variantData: any) => { 
+    saveProductVariant: async (variantData: any) => {
         const { location_stock, stock_by_size, ...cleanVariant } = variantData;
-        return safeMutate('product_variants', 'UPSERT', cleanVariant, { onConflict: 'product_sku, suffix' }); 
+        return safeMutate('product_variants', 'UPSERT', cleanVariant, { onConflict: 'product_sku, suffix' });
     },
     deleteProductVariants: async (sku: string) => { return safeMutate('product_variants', 'DELETE', null, { match: { product_sku: sku } }); },
     deleteProductRecipes: async (sku: string) => { return safeMutate('recipes', 'DELETE', null, { match: { parent_sku: sku } }); },
@@ -592,51 +630,51 @@ export const api = {
     deleteWarehouse: async (id: string): Promise<void> => { await safeMutate('warehouses', 'DELETE', null, { match: { id } }); },
     saveSupplier: async (s: Partial<Supplier>): Promise<void> => { await safeMutate('suppliers', s.id ? 'UPDATE' : 'INSERT', s, s.id ? { match: { id: s.id } } : undefined); },
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { match: { id } }); },
-    
-    saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => { 
+
+    saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => {
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
         const payload = { ...c };
         if (payload.id === '') delete payload.id;
-        
-        const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' }); 
+
+        const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' });
         return result.data;
     },
-    
+
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
         await safeMutate('customers', 'UPDATE', updates, { match: { id } });
     },
-    
+
     deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
     saveOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'INSERT', o); },
-    
+
     // NEW: Modified updateOrder to check for production batch sync
-    updateOrder: async (o: Order): Promise<void> => { 
-        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } }); 
-        
+    updateOrder: async (o: Order): Promise<void> => {
+        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } });
+
         // Smart Reconciliation: If order is in production, sync items to batches
         // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
         await api.reconcileOrderBatches(o);
     },
-    
-    deleteOrder: async (id: string): Promise<void> => { 
+
+    deleteOrder: async (id: string): Promise<void> => {
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
-        await safeMutate('orders', 'DELETE', null, { match: { id: id } }); 
+        await safeMutate('orders', 'DELETE', null, { match: { id: id } });
     },
-    
+
     updateBatchStage: async (id: string, stage: ProductionStage): Promise<void> => { await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } }); },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
 
     // NEW: Toggle Hold Status
     toggleBatchHold: async (id: string, isHeld: boolean, reason?: string): Promise<void> => {
-        await safeMutate('production_batches', 'UPDATE', { 
-            on_hold: isHeld, 
-            on_hold_reason: reason || null, 
-            updated_at: new Date().toISOString() 
+        await safeMutate('production_batches', 'UPDATE', {
+            on_hold: isHeld,
+            on_hold_reason: reason || null,
+            updated_at: new Date().toISOString()
         }, { match: { id } });
     },
-    
-    updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => { 
-        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } }); 
+
+    updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {
+        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } });
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
@@ -652,7 +690,7 @@ export const api = {
 
     addProductsToCollection: async (items: { product_sku: string, collection_id: number }[]): Promise<void> => {
         if (items.length === 0) return;
-        await safeMutate('product_collections', 'UPSERT', items, { 
+        await safeMutate('product_collections', 'UPSERT', items, {
             onConflict: 'product_sku, collection_id',
             ignoreDuplicates: true
         });
@@ -706,7 +744,7 @@ export const api = {
                 const { data } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
                 existingBatches = data || [];
             }
-            
+
             if (existingBatches.length === 0 && order.status !== OrderStatus.InProduction && order.status !== OrderStatus.Ready) {
                 // If no batches exist and we aren't "In Production", do nothing
                 return;
@@ -725,9 +763,9 @@ export const api = {
             // 4. Map Demand (What the order says NOW)
             const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
-                 const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info);
-                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
-                 demandMap[key].qty += item.quantity;
+                const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info);
+                if (!demandMap[key]) demandMap[key] = { qty: 0, item };
+                demandMap[key].qty += item.quantity;
             });
 
             // 5. Map Supply (What batches currently exist)
@@ -740,30 +778,30 @@ export const api = {
 
             // 6. RECONCILE: Iterate all unique keys from both maps
             const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
-            
+
             for (const key of allKeys) {
                 const targetQty = demandMap[key]?.qty || 0;
                 const existingList = supplyMap[key] || [];
                 const currentQty = existingList.reduce((s, b) => s + b.quantity, 0);
-                
+
                 // CASE A: Deficit (Need more items)
                 if (targetQty > currentQty) {
                     const diff = targetQty - currentQty;
                     const { item } = demandMap[key];
                     const product = allProducts.find(p => p.sku === item.sku);
-                    
-                    if (product) {
-                         const suffix = item.variant_suffix || '';
-                         const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
-                                 product.recipe.some((r: any) => {
-                                     if (r.type !== 'raw') return false;
-                                     const material = allMaterials.find(m => m.id === r.id);
-                                     return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                                 });
-                         
-                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
 
-                         await safeMutate('production_batches', 'INSERT', {
+                    if (product) {
+                        const suffix = item.variant_suffix || '';
+                        const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
+                            product.recipe.some((r: any) => {
+                                if (r.type !== 'raw') return false;
+                                const material = allMaterials.find(m => m.id === r.id);
+                                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                            });
+
+                        const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+
+                        await safeMutate('production_batches', 'INSERT', {
                             id: crypto.randomUUID(),
                             order_id: order.id,
                             sku: item.sku,
@@ -777,13 +815,13 @@ export const api = {
                             requires_setting: hasZircons,
                             created_at: new Date().toISOString(),
                             updated_at: new Date().toISOString()
-                         });
+                        });
                     }
                 }
                 // CASE B: Surplus (Too many items) or Item Removed
                 else if (currentQty > targetQty) {
                     let surplus = currentQty - targetQty;
-                    
+
                     // Sort existing batches by progress (Stage index) - we want to delete/reduce EARLIEST stages first
                     const sortedSupply = [...existingList].sort((a, b) => {
                         const stages = Object.values(ProductionStage);
@@ -799,7 +837,7 @@ export const api = {
                             surplus -= batch.quantity;
                         } else {
                             // Reduce batch quantity
-                            await safeMutate('production_batches', 'UPDATE', { 
+                            await safeMutate('production_batches', 'UPDATE', {
                                 quantity: batch.quantity - surplus,
                                 updated_at: new Date().toISOString()
                             }, { match: { id: batch.id } });
@@ -824,10 +862,10 @@ export const api = {
         }
 
         if (!order) throw new Error("Order not found.");
-        
+
         // Mark as In Production first
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
-        
+
         // Delegate to the bulletproof reconciliation logic
         // This prevents the "Four instead of Two" issue by checking existing supply first.
         await api.reconcileOrderBatches(order);
@@ -836,28 +874,28 @@ export const api = {
     // NEW: PARTIAL SEND TO PRODUCTION
     sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[]): Promise<void> => {
         if (itemsToSend.length === 0) return;
-        
+
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const batches: any[] = [];
-        
+
         for (const item of itemsToSend) {
             if (item.qty <= 0) continue;
 
             const product = allProducts.find(p => p.sku === item.sku);
             if (!product) continue;
-            
+
             const suffix = item.variant || '';
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) || 
-                               product.recipe.some(r => {
-                                   if (r.type !== 'raw') return false;
-                                   const material = allMaterials.find(m => m.id === r.id);
-                                   return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                               });
-            
+            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
+                product.recipe.some(r => {
+                    if (r.type !== 'raw') return false;
+                    const material = allMaterials.find(m => m.id === r.id);
+                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                });
+
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-            
+
             batches.push({
-                id: crypto.randomUUID(), 
+                id: crypto.randomUUID(),
                 order_id: orderId,
                 sku: item.sku,
                 variant_suffix: item.variant || null,
@@ -872,7 +910,7 @@ export const api = {
                 updated_at: new Date().toISOString()
             });
         }
-        
+
         if (batches.length > 0) {
             await safeMutate('production_batches', 'UPSERT', batches);
         }
@@ -972,7 +1010,7 @@ export const api = {
             }
         }
     },
-    
+
     getOffers: async (): Promise<Offer[]> => { return fetchFullTable('offers', '*', (q) => q.order('created_at', { ascending: false })); },
     saveOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'INSERT', offer); },
     updateOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'UPDATE', offer, { match: { id: offer.id } }); },

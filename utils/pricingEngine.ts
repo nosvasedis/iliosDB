@@ -22,8 +22,8 @@ export const formatCurrency = (num: number | null | undefined): string => {
  * Rounds a price to the nearest 10 cents (e.g., 21.54 -> 21.50, 21.56 -> 21.60).
  */
 export const roundPrice = (price: number): number => {
-  if (price === 0) return 0;
-  return parseFloat((Math.round(price * 10) / 10).toFixed(2));
+    if (price === 0) return 0;
+    return parseFloat((Math.round(price * 10) / 10).toFixed(2));
 };
 
 /**
@@ -55,18 +55,18 @@ export const calculateSuggestedWholesalePrice = (
 };
 
 export const calculateTechnicianCost = (weight_g: number): number => {
-  let cost = 0;
-  if (weight_g <= 0) return 0;
-  if (weight_g <= 2.2) {
-    cost = weight_g * 1.30;
-  } else if (weight_g <= 4.2) {
-    cost = weight_g * 0.90;
-  } else if (weight_g <= 8.2) {
-    cost = weight_g * 0.70;
-  } else {
-    cost = weight_g * 0.50;
-  }
-  return cost;
+    let cost = 0;
+    if (weight_g <= 0) return 0;
+    if (weight_g <= 2.2) {
+        cost = weight_g * 1.30;
+    } else if (weight_g <= 4.2) {
+        cost = weight_g * 0.90;
+    } else if (weight_g <= 8.2) {
+        cost = weight_g * 0.70;
+    } else {
+        cost = weight_g * 0.50;
+    }
+    return cost;
 };
 
 export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
@@ -101,7 +101,7 @@ export const analyzeSupplierValue = (
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-    reportedLabor: LaborCost 
+    reportedLabor: LaborCost
 ): SupplierAnalysis => {
     const silverCost = weight * settings.silver_price_gram;
     let materialCost = 0;
@@ -121,9 +121,9 @@ export const analyzeSupplierValue = (
     const intrinsicValue = silverCost + materialCost;
     const estCasting = weight * 0.15;
     const estTechnician = calculateTechnicianCost(weight);
-    const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0) 
-        ? calculatePlatingCost(weight, PlatingType.GoldPlated) 
-        : 0; 
+    const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0)
+        ? calculatePlatingCost(weight, PlatingType.GoldPlated)
+        : 0;
 
     const estimatedInternalLabor = estCasting + estTechnician + estPlating;
     const theoreticalMakeCost = intrinsicValue + estimatedInternalLabor;
@@ -143,14 +143,14 @@ export const analyzeSupplierValue = (
     const platingDiff = reportedPlatingTotal - estPlating;
     if (reportedTotalExtras > 0 && weight > 0) {
         const residualForMetal = supplierCost - materialCost - reportedTotalExtras;
-        const effectiveSilverPrice = residualForMetal / weight; 
-        
+        const effectiveSilverPrice = residualForMetal / weight;
+
         const supplierPremium = supplierCost - intrinsicValue;
         const premiumPercent = supplierCost > 0 ? (supplierPremium / supplierCost) * 100 : 0;
-        
+
         let verdict: SupplierAnalysis['verdict'] = 'Fair';
-        if (supplierCost <= theoreticalMakeCost * 0.95) verdict = 'Excellent'; 
-        else if (supplierCost <= theoreticalMakeCost * 1.3) verdict = 'Fair'; 
+        if (supplierCost <= theoreticalMakeCost * 0.95) verdict = 'Excellent';
+        else if (supplierCost <= theoreticalMakeCost * 1.3) verdict = 'Fair';
         else if (supplierCost <= theoreticalMakeCost * 1.8) verdict = 'Expensive';
         else verdict = 'Overpriced';
 
@@ -182,92 +182,94 @@ export const analyzeSupplierValue = (
 };
 
 export const calculateProductCost = (
-  product: Product,
-  settings: GlobalSettings,
-  allMaterials: Material[],
-  allProducts: Product[],
-  depth: number = 0,
-  visitedSkus: Set<string> = new Set(),
-  silverPriceOverride?: number
+    product: Product,
+    settings: GlobalSettings,
+    allMaterials: Material[],
+    allProducts: Product[],
+    depth: number = 0,
+    visitedSkus: Set<string> = new Set(),
+    silverPriceOverride?: number,
+    productsMap?: Map<string, Product>,
+    materialsMap?: Map<string, Material>
 ): { total: number; rawTotal: number; breakdown: any } => {
-  if (visitedSkus.has(product.sku)) return { total: 0, rawTotal: 0, breakdown: { error: 'Circular Dependency' } };
-  const newVisited = new Set(visitedSkus);
-  newVisited.add(product.sku);
-  if (depth > 10) return { total: 0, rawTotal: 0, breakdown: {} };
-  const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
+    if (visitedSkus.has(product.sku)) return { total: 0, rawTotal: 0, breakdown: { error: 'Circular Dependency' } };
+    const newVisited = new Set(visitedSkus);
+    newVisited.add(product.sku);
+    if (depth > 10) return { total: 0, rawTotal: 0, breakdown: {} };
+    const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
 
-  if (product.production_type === ProductionType.Imported) {
-      // For Imported Products: Use Total Weight (Basic + Secondary) for Silver and Technician cost.
-      const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-      const silverCost = totalWeight * silverPrice;
-      const technicianCost = totalWeight * (product.labor.technician_cost || 0); 
-      
-      let platingCost = 0;
-      if (product.plating_type === PlatingType.TwoTone) {
-          // D (Two-Tone): For Imported, plating_cost_d is stored as TOTAL COST (not rate) via UI effect.
-          platingCost = product.labor.plating_cost_d || 0;
-      } else if (product.plating_type !== PlatingType.None || (product.labor.plating_cost_x || 0) > 0) {
-          // X or H (Gold/Platinum) OR Explicit Cost entered: stored as RATE (per gram) in UI.
-          platingCost = totalWeight * (product.labor.plating_cost_x || 0);
-      }
+    if (product.production_type === ProductionType.Imported) {
+        // For Imported Products: Use Total Weight (Basic + Secondary) for Silver and Technician cost.
+        const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+        const silverCost = totalWeight * silverPrice;
+        const technicianCost = totalWeight * (product.labor.technician_cost || 0);
 
-      const stoneCost = product.labor.stone_setting_cost || 0;
-      const totalCost = silverCost + technicianCost + platingCost + stoneCost;
-      return {
-          total: roundPrice(totalCost),
-          rawTotal: totalCost,
-          breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
-      };
-  }
+        let platingCost = 0;
+        if (product.plating_type === PlatingType.TwoTone) {
+            // D (Two-Tone): For Imported, plating_cost_d is stored as TOTAL COST (not rate) via UI effect.
+            platingCost = product.labor.plating_cost_d || 0;
+        } else if (product.plating_type !== PlatingType.None || (product.labor.plating_cost_x || 0) > 0) {
+            // X or H (Gold/Platinum) OR Explicit Cost entered: stored as RATE (per gram) in UI.
+            platingCost = totalWeight * (product.labor.plating_cost_x || 0);
+        }
 
-  const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
-  const silverBaseCost = totalWeight * silverPrice;
-  
-  let materialsCost = 0;
-  product.recipe.forEach(item => {
-    if (item.type === 'raw') {
-      const mat = allMaterials.find(m => m.id === item.id);
-      if (mat) {
-          // Accumulate with 4-decimal precision to avoid float drift (e.g. 2.70 -> 2.62)
-          const lineCost = mat.cost_per_unit * item.quantity;
-          materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
-      }
-    } else if (item.type === 'component') {
-      const subProduct = allProducts.find(p => p.sku === item.sku);
-      if (subProduct) {
-        const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1, newVisited, silverPriceOverride);
-        // Use rawTotal for accumulation to prevent premature rounding errors
-        const lineCost = subCost.rawTotal * item.quantity;
-        materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
-      }
+        const stoneCost = product.labor.stone_setting_cost || 0;
+        const totalCost = silverCost + technicianCost + platingCost + stoneCost;
+        return {
+            total: roundPrice(totalCost),
+            rawTotal: totalCost,
+            breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
+        };
     }
-  });
 
-  const labor: Partial<LaborCost> = product.labor || {};
-  let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (product.is_component ? product.weight_g * 0.50 : calculateTechnicianCost(totalWeight));
-  let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
-  
-  // Master calculation determines plating based on its own type
-  let platingCost = 0;
-  if (product.plating_type === PlatingType.GoldPlated || product.plating_type === PlatingType.Platinum) {
-      platingCost = labor.plating_cost_x || 0;
-  } else if (product.plating_type === PlatingType.TwoTone) {
-      platingCost = labor.plating_cost_d || 0;
-  }
+    const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+    const silverBaseCost = totalWeight * silverPrice;
 
-  const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
-  const totalCost = silverBaseCost + materialsCost + laborTotal;
-  
-  return { 
-      total: roundPrice(totalCost), 
-      rawTotal: totalCost, 
-      breakdown: { 
-          silver: silverBaseCost, 
-          materials: parseFloat(materialsCost.toFixed(2)), // Final visual rounding
-          labor: laborTotal, 
-          details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost } 
-      } 
-  };
+    let materialsCost = 0;
+    product.recipe.forEach(item => {
+        if (item.type === 'raw') {
+            const mat = materialsMap ? materialsMap.get(item.id) : allMaterials.find(m => m.id === item.id);
+            if (mat) {
+                // Accumulate with 4-decimal precision to avoid float drift (e.g. 2.70 -> 2.62)
+                const lineCost = mat.cost_per_unit * item.quantity;
+                materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
+            }
+        } else if (item.type === 'component') {
+            const subProduct = productsMap ? productsMap.get(item.sku) : allProducts.find(p => p.sku === item.sku);
+            if (subProduct) {
+                const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, depth + 1, newVisited, silverPriceOverride, productsMap, materialsMap);
+                // Use rawTotal for accumulation to prevent premature rounding errors
+                const lineCost = subCost.rawTotal * item.quantity;
+                materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
+            }
+        }
+    });
+
+    const labor: Partial<LaborCost> = product.labor || {};
+    let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (product.is_component ? product.weight_g * 0.50 : calculateTechnicianCost(totalWeight));
+    let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
+
+    // Master calculation determines plating based on its own type
+    let platingCost = 0;
+    if (product.plating_type === PlatingType.GoldPlated || product.plating_type === PlatingType.Platinum) {
+        platingCost = labor.plating_cost_x || 0;
+    } else if (product.plating_type === PlatingType.TwoTone) {
+        platingCost = labor.plating_cost_d || 0;
+    }
+
+    const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
+    const totalCost = silverBaseCost + materialsCost + laborTotal;
+
+    return {
+        total: roundPrice(totalCost),
+        rawTotal: totalCost,
+        breakdown: {
+            silver: silverBaseCost,
+            materials: parseFloat(materialsCost.toFixed(2)), // Final visual rounding
+            labor: laborTotal,
+            details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost }
+        }
+    };
 };
 
 /**
@@ -291,7 +293,7 @@ export const transliterateForBarcode = (input: string): string => {
  */
 export const findProductByScannedCode = (scanned: string, products: Product[]) => {
     const cleanScanned = scanned.trim().toUpperCase();
-    
+
     for (const p of products) {
         if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: undefined };
         if (transliterateForBarcode(p.sku).toUpperCase() === cleanScanned) return { product: p, variant: undefined };
@@ -320,7 +322,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
 
     const cleanSuffix = suffix.toUpperCase();
     let workingString = cleanSuffix;
-    
+
     let detectedStoneCode = '';
     let detectedFinishCode = '';
     let detectedBridge = '';
@@ -331,7 +333,7 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     const possibleFinishes = ['P', 'X', 'D', 'H'];
     const firstChar = workingString.charAt(0);
     const restOfSuffix = workingString.substring(1);
-    
+
     if (possibleFinishes.includes(firstChar)) {
         let potentialStone = restOfSuffix;
         let potentialBridge = '';
@@ -345,16 +347,16 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             detectedFinishCode = firstChar;
             detectedStoneCode = potentialStone;
             detectedBridge = potentialBridge;
-            
+
             return {
-                finish: { 
-                    code: detectedFinishCode, 
-                    name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] 
+                finish: {
+                    code: detectedFinishCode,
+                    name: FINISH_CODES[detectedFinishCode] || FINISH_CODES['']
                 },
                 bridge: detectedBridge,
-                stone: { 
-                    code: detectedStoneCode, 
-                    name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || '' 
+                stone: {
+                    code: detectedStoneCode,
+                    name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || ''
                 }
             };
         }
@@ -391,25 +393,25 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
             if (workingString.startsWith(fCode)) {
                 detectedFinishCode = fCode;
                 if (!detectedStoneCode) {
-                     const potentialStone = workingString.substring(fCode.length);
-                     if (potentialStone) {
-                         detectedStoneCode = potentialStone;
-                     }
+                    const potentialStone = workingString.substring(fCode.length);
+                    if (potentialStone) {
+                        detectedStoneCode = potentialStone;
+                    }
                 }
                 break;
             }
         }
     }
-    
+
     return {
-        finish: { 
-            code: detectedFinishCode, 
-            name: FINISH_CODES[detectedFinishCode] || FINISH_CODES[''] 
+        finish: {
+            code: detectedFinishCode,
+            name: FINISH_CODES[detectedFinishCode] || FINISH_CODES['']
         },
         bridge: detectedBridge,
-        stone: { 
-            code: detectedStoneCode, 
-            name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || '' 
+        stone: {
+            code: detectedStoneCode,
+            name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || ''
         }
     };
 };
@@ -431,12 +433,14 @@ export const splitSkuComponents = (fullSku: string): { master: string, suffix: s
  * ESTIMATE VARIANT COST
  */
 export const estimateVariantCost = (
-    masterProduct: Product, 
+    masterProduct: Product,
     variantSuffix: string,
     settings: GlobalSettings,
     allMaterials: Material[],
     allProducts: Product[],
-    silverPriceOverride?: number
+    silverPriceOverride?: number,
+    productsMap?: Map<string, Product>,
+    materialsMap?: Map<string, Material>
 ): { total: number; rawTotal: number; breakdown: any } => {
     const silverPrice = silverPriceOverride !== undefined ? silverPriceOverride : settings.silver_price_gram;
     const { finish, stone } = getVariantComponents(variantSuffix, masterProduct.gender);
@@ -448,9 +452,9 @@ export const estimateVariantCost = (
         const silverCost = totalWeight * silverPrice;
         const technicianCost = totalWeight * (labor.technician_cost || 0);
         const stoneCost = labor.stone_setting_cost || 0;
-        
+
         let platingCost = 0;
-        
+
         // PLATING LOGIC FOR IMPORTED
         if (finish.code === 'P') {
             platingCost = 0; // Force 0 for Patina
@@ -474,16 +478,16 @@ export const estimateVariantCost = (
         return {
             total: roundPrice(totalCost),
             rawTotal: totalCost,
-            breakdown: { 
-                silver: silverCost, 
-                labor: technicianCost + platingCost, 
-                materials: stoneCost, 
-                details: { 
-                    technician_cost: technicianCost, 
-                    plating_cost: platingCost, 
+            breakdown: {
+                silver: silverCost,
+                labor: technicianCost + platingCost,
+                materials: stoneCost,
+                details: {
+                    technician_cost: technicianCost,
+                    plating_cost: platingCost,
                     stone_setting_cost: stoneCost,
                     total_weight: totalWeight
-                } 
+                }
             }
         };
     }
@@ -492,10 +496,9 @@ export const estimateVariantCost = (
     const silverCost = totalWeight * silverPrice;
     let materialsCost = 0;
     let stoneDifferential = 0;
-    
     masterProduct.recipe.forEach(item => {
         if (item.type === 'raw') {
-            const mat = allMaterials.find(m => m.id === item.id);
+            const mat = materialsMap ? materialsMap.get(item.id) : allMaterials.find(m => m.id === item.id);
             if (mat) {
                 let unitCost = Number(mat.cost_per_unit);
                 if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] !== undefined) {
@@ -509,9 +512,9 @@ export const estimateVariantCost = (
                 materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
             }
         } else if (item.type === 'component') {
-            const subProduct = allProducts.find(p => p.sku === item.sku);
+            const subProduct = productsMap ? productsMap.get(item.sku) : allProducts.find(p => p.sku === item.sku);
             if (subProduct) {
-                const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride);
+                const subCost = calculateProductCost(subProduct, settings, allMaterials, allProducts, 0, new Set(), silverPriceOverride, productsMap, materialsMap);
                 // Use rawTotal for accumulation
                 const lineCost = subCost.rawTotal * item.quantity;
                 materialsCost = parseFloat((materialsCost + lineCost).toFixed(4));
@@ -521,9 +524,9 @@ export const estimateVariantCost = (
 
     let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (finish.code === 'D' ? (masterProduct.weight_g * (totalWeight <= 2.2 ? 1.3 : (totalWeight <= 4.2 ? 0.9 : (totalWeight <= 8.2 ? 0.7 : 0.5)))) + calculateTechnicianCost(masterProduct.secondary_weight_g || 0) : calculateTechnicianCost(totalWeight));
     const castingCost = totalWeight * 0.15;
-    
+
     let platingLabor = 0;
-    
+
     // STRICT PLATING LOGIC
     // P = Patina (Explicitly unplated)
     // X = Gold Plated
@@ -549,23 +552,23 @@ export const estimateVariantCost = (
     const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingLabor;
     const totalCost = silverCost + materialsCost + laborTotal;
 
-    return { 
-        total: roundPrice(totalCost), 
-        rawTotal: totalCost, 
-        breakdown: { 
-            silver: silverCost, 
-            materials: parseFloat(materialsCost.toFixed(2)), 
-            labor: laborTotal, 
-            details: { 
-                casting_cost: castingCost, 
-                setter_cost: labor.setter_cost || 0, 
-                technician_cost: technicianCost, 
-                subcontract_cost: labor.subcontract_cost || 0, 
-                plating_cost: platingLabor, 
+    return {
+        total: roundPrice(totalCost),
+        rawTotal: totalCost,
+        breakdown: {
+            silver: silverCost,
+            materials: parseFloat(materialsCost.toFixed(2)),
+            labor: laborTotal,
+            details: {
+                casting_cost: castingCost,
+                setter_cost: labor.setter_cost || 0,
+                technician_cost: technicianCost,
+                subcontract_cost: labor.subcontract_cost || 0,
+                plating_cost: platingLabor,
                 stone_diff: stoneDifferential,
-                total_weight: totalWeight 
-            } 
-        } 
+                total_weight: totalWeight
+            }
+        }
     };
 };
 
@@ -575,46 +578,46 @@ export const getPrevalentVariant = (variants: ProductVariant[] | undefined): Pro
 };
 
 export const parseSku = (sku: string) => {
-  const prefix = sku.substring(0, 2).toUpperCase();
-  const triPrefix = sku.substring(0, 3).toUpperCase();
-  const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
-  if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
-  
-  if (prefix === 'RZ') return { gender: Gender.Unisex, category: 'Ροζάριο' };
+    const prefix = sku.substring(0, 2).toUpperCase();
+    const triPrefix = sku.substring(0, 3).toUpperCase();
+    const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
+    if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };
 
-  if (prefix === 'KL' && !isNaN(numPart) && numPart >= 100 && numPart <= 500) {
-    return { gender: Gender.Unisex, category: 'Κολιέ Πετράτο' };
-  }
+    if (prefix === 'RZ') return { gender: Gender.Unisex, category: 'Ροζάριο' };
 
-  if (prefix === 'XR' && !isNaN(numPart)) {
-    // Specific high-priority ranges for stone bracelets as requested
-    if ((numPart >= 1 && numPart <= 35) || (numPart >= 750 && numPart <= 763)) {
-        return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
+    if (prefix === 'KL' && !isNaN(numPart) && numPart >= 100 && numPart <= 500) {
+        return { gender: Gender.Unisex, category: 'Κολιέ Πετράτο' };
     }
-    
-    if (numPart <= 100) return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
-    if (numPart <= 199) return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
-    if (numPart <= 700) return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
-    if (numPart >= 1100 && numPart <= 1149) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Θρησκευτικό' };
-    if (numPart <= 1199) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Πολύχρωμο' };
-    if (numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
-    return { gender: Gender.Men, category: 'Βραχιόλι' };
-  }
 
-  // BR Special Logic for W suffix (Stone Bracelets)
-  if (prefix === 'BR' && sku.toUpperCase().endsWith('W') && !isNaN(numPart)) {
-      if (
-          (numPart >= 1 && numPart <= 36) || 
-          (numPart >= 750 && numPart <= 763) ||
-          (numPart >= 901 && numPart <= 909)
-      ) {
-          return { gender: Gender.Women, category: 'Βραχιόλι με Πέτρες' };
-      }
-  }
-  
-  const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
-  if (maps[prefix]) return { gender: ['DA','SK','MN','BR'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
-  return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
+    if (prefix === 'XR' && !isNaN(numPart)) {
+        // Specific high-priority ranges for stone bracelets as requested
+        if ((numPart >= 1 && numPart <= 35) || (numPart >= 750 && numPart <= 763)) {
+            return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
+        }
+
+        if (numPart <= 100) return { gender: Gender.Men, category: 'Βραχιόλι Δερμάτινο' };
+        if (numPart <= 199) return { gender: Gender.Men, category: 'Βραχιόλι Μασίφ' };
+        if (numPart <= 700) return { gender: Gender.Unisex, category: 'Βραχιόλι με Πέτρες' };
+        if (numPart >= 1100 && numPart <= 1149) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Θρησκευτικό' };
+        if (numPart <= 1199) return { gender: Gender.Unisex, category: 'Βραχιόλι Μακραμέ Πολύχρωμο' };
+        if (numPart <= 1290) return { gender: Gender.Unisex, category: 'Βραχιόλι Δερμάτινο Θρησκευτικό' };
+        return { gender: Gender.Men, category: 'Βραχιόλι' };
+    }
+
+    // BR Special Logic for W suffix (Stone Bracelets)
+    if (prefix === 'BR' && sku.toUpperCase().endsWith('W') && !isNaN(numPart)) {
+        if (
+            (numPart >= 1 && numPart <= 36) ||
+            (numPart >= 750 && numPart <= 763) ||
+            (numPart >= 901 && numPart <= 909)
+        ) {
+            return { gender: Gender.Women, category: 'Βραχιόλι με Πέτρες' };
+        }
+    }
+
+    const maps: any = { 'CR': 'Σταυρός', 'RN': 'Δαχτυλίδι', 'PN': 'Μενταγιόν', 'DA': 'Δαχτυλίδι', 'SK': 'Σκουλαρίκια', 'MN': 'Μενταγιόν', 'BR': 'Βραχιόλι' };
+    if (maps[prefix]) return { gender: ['DA', 'SK', 'MN', 'BR'].includes(prefix) ? Gender.Women : Gender.Men, category: maps[prefix] };
+    return { gender: Gender.Unisex, category: prefix === 'ST' ? 'Σταυρός' : 'Γενικό' };
 };
 
 /**
@@ -625,14 +628,14 @@ export const parseSku = (sku: string) => {
 export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
     const cleanSku = rawSku.trim().toUpperCase();
     let gender = forcedGender || (parseSku(cleanSku).gender as Gender);
-    
+
     // MAP PLATING
-    const platingMap: any = { 
-        'P': PlatingType.None, 
-        'X': PlatingType.GoldPlated, 
-        'D': PlatingType.TwoTone, 
-        'H': PlatingType.Platinum, 
-        '': PlatingType.None 
+    const platingMap: any = {
+        'P': PlatingType.None,
+        'X': PlatingType.GoldPlated,
+        'D': PlatingType.TwoTone,
+        'H': PlatingType.Platinum,
+        '': PlatingType.None
     };
 
     // SEARCH FOR BRIDGE PATTERN [ROOT][FINISH]S (e.g., MN050XS)
@@ -667,27 +670,27 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
 
     // Default exhaustive analysis for complex or stone-bearing suffixes (e.g., MN050XSPR)
     let bestMatch = { isVariant: false, masterSku: cleanSku, suffix: '', detectedPlating: PlatingType.None, detectedBridge: '', variantDescription: '' };
-    
+
     for (let i = cleanSku.length - 1; i >= 3; i--) {
         const potentialMaster = cleanSku.substring(0, i);
         const potentialSuffix = cleanSku.substring(i);
         const components = getVariantComponents(potentialSuffix, gender);
-        
+
         if (components.finish.code || components.stone.code) {
-             const desc = analyzeSuffix(potentialSuffix, gender, platingMap[components.finish.code]);
-             bestMatch = {
-                 isVariant: true,
-                 masterSku: potentialMaster,
-                 suffix: potentialSuffix,
-                 detectedPlating: platingMap[components.finish.code] || PlatingType.None,
-                 detectedBridge: components.bridge,
-                 variantDescription: desc || ''
-             };
-             // If potential master ends in a number, this is likely the intended root
-             if (/\d$/.test(potentialMaster)) break; 
+            const desc = analyzeSuffix(potentialSuffix, gender, platingMap[components.finish.code]);
+            bestMatch = {
+                isVariant: true,
+                masterSku: potentialMaster,
+                suffix: potentialSuffix,
+                detectedPlating: platingMap[components.finish.code] || PlatingType.None,
+                detectedBridge: components.bridge,
+                variantDescription: desc || ''
+            };
+            // If potential master ends in a number, this is likely the intended root
+            if (/\d$/.test(potentialMaster)) break;
         }
     }
-    
+
     return bestMatch;
 };
 
@@ -696,7 +699,7 @@ export const analyzeSku = (rawSku: string, forcedGender?: Gender) => {
  */
 export const analyzeSuffix = (suffix: string, gender?: Gender, plating?: PlatingType): string | null => {
     const { finish, stone } = getVariantComponents(suffix, gender);
-    
+
     let finishName = '';
     if (finish.code) {
         finishName = finish.name;
@@ -714,7 +717,7 @@ export const analyzeSuffix = (suffix: string, gender?: Gender, plating?: Plating
     if (stone.code) {
         return finishName ? `${finishName} - ${stone.name}` : stone.name;
     }
-    
+
     // FIX: Return finishName even if suffix is empty (for Lustre variants)
     if (finishName) {
         return finishName;
@@ -770,7 +773,7 @@ export const expandSkuRange = (token: string): string[] => {
         if (shouldPad) {
             numPart = numPart.padStart(paddingLength, '0');
         } else if (numPart.length < paddingLength && num1Str.length === num2Str.length) {
-             numPart = numPart.padStart(paddingLength, '0');
+            numPart = numPart.padStart(paddingLength, '0');
         }
         expanded.push(`${prefix1.toUpperCase()}${numPart}${suffix1.toUpperCase()}`);
     }

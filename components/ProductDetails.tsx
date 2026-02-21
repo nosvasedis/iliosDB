@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
-import { FINISH_CODES } from '../constants'; 
+import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
@@ -22,26 +22,27 @@ const PLATING_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  product: Product;
-  allProducts: Product[];
-  allMaterials: Material[];
-  onClose: () => void;
-  onSave?: (updatedProduct: Product) => void;
-  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
-  settings: GlobalSettings;
-  collections: Collection[];
-  allMolds: Mold[];
-  viewMode?: 'registry' | 'warehouse';
+    product: Product;
+    allProducts: Product[];
+    allMaterials: Material[];
+    onClose: () => void;
+    onSave?: (updatedProduct: Product) => void;
+    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    settings: GlobalSettings;
+    collections: Collection[];
+    allMolds: Mold[];
+    viewMode?: 'registry' | 'warehouse';
+    onDuplicate?: (product: Product) => void;
 }
 
-const SmartQuantityInput = ({ 
-    value, 
-    onChange, 
-    stonesPerStrand 
-}: { 
-    value: number, 
-    onChange: (val: number) => void, 
-    stonesPerStrand?: number 
+const SmartQuantityInput = React.memo(({
+    value,
+    onChange,
+    stonesPerStrand
+}: {
+    value: number,
+    onChange: (val: number) => void,
+    stonesPerStrand?: number
 }) => {
     const [strandInput, setStrandInput] = useState<string>('');
     const [showStrandInput, setShowStrandInput] = useState(false);
@@ -57,29 +58,29 @@ const SmartQuantityInput = ({
 
     return (
         <div className="flex items-center gap-2 relative">
-            <input 
-                type="number" 
-                value={value} 
-                onChange={(e) => onChange(parseFloat(e.target.value))} 
+            <input
+                type="number"
+                value={value}
+                onChange={(e) => onChange(parseFloat(e.target.value))}
                 className="w-16 p-1 text-center font-bold bg-white rounded border border-slate-200 outline-none focus:border-blue-400"
             />
             {stonesPerStrand && stonesPerStrand > 1 && (
                 <div className="relative">
-                    <button 
+                    <button
                         onClick={() => setShowStrandInput(!showStrandInput)}
                         className="p-1 bg-blue-50 text-blue-600 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
                         title="Εισαγωγή ως Κορδόνια"
                     >
-                        <RefreshCcw size={14}/>
+                        <RefreshCcw size={14} />
                     </button>
                     {showStrandInput && (
                         <div className="absolute top-full right-0 mt-2 z-50 bg-white p-3 rounded-xl shadow-xl border border-slate-100 w-48 animate-in zoom-in-95">
                             <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({stonesPerStrand} πέτρες)</div>
                             <div className="flex gap-2">
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    placeholder="1.5" 
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="1.5"
                                     value={strandInput}
                                     onChange={e => setStrandInput(e.target.value)}
                                     className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"
@@ -87,7 +88,7 @@ const SmartQuantityInput = ({
                                     onKeyDown={e => e.key === 'Enter' && applyStrands()}
                                 />
                                 <button onClick={applyStrands} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700">
-                                    <Check size={14}/>
+                                    <Check size={14} />
                                 </button>
                             </div>
                         </div>
@@ -96,10 +97,10 @@ const SmartQuantityInput = ({
             )}
         </div>
     );
-};
+});
 
 // --- RECIPE ITEM SELECTOR MODAL ---
-const RecipeItemSelectorModal = ({
+const RecipeItemSelectorModal = React.memo(({
     type, productCategory, allMaterials, allProducts, onClose, onSelect
 }: {
     type: 'raw' | 'component',
@@ -121,7 +122,7 @@ const RecipeItemSelectorModal = ({
 
     const { suggestions, others } = useMemo(() => {
         const keywords = Object.entries(suggestionKeywords).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
-        
+
         let allItems: any[] = [];
         if (type === 'raw') {
             allItems = [...allMaterials];
@@ -132,11 +133,11 @@ const RecipeItemSelectorModal = ({
 
         const suggestedItems: any[] = [];
         const otherItems: any[] = [];
-        
+
         allItems.forEach(item => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
             const description = type === 'component' ? (item.description || '').toLowerCase() : '';
-            
+
             const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
             if (isSuggested) {
                 suggestedItems.push(item);
@@ -153,8 +154,8 @@ const RecipeItemSelectorModal = ({
         };
 
         return {
-            suggestions: suggestedItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
-            others: otherItems.filter(filterFn).sort((a,b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
+            suggestions: suggestedItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
+            others: otherItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
         };
     }, [type, productCategory, allMaterials, allProducts, searchTerm]);
 
@@ -165,17 +166,17 @@ const RecipeItemSelectorModal = ({
             onSelect({ type: 'component', sku: item.sku });
         }
     };
-    
+
     const renderListItem = (item: any) => {
         const isComponent = type === 'component';
         const name = isComponent ? item.sku : item.name;
         const description = isComponent ? item.description : null;
         const imageUrl = isComponent ? item.image_url : null;
         // Cost formatting
-        const cost = isComponent 
-            ? `${(item.active_price || 0).toFixed(2)}€` 
+        const cost = isComponent
+            ? `${(item.active_price || 0).toFixed(2)}€`
             : `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}`;
-        
+
         const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;
 
         return (
@@ -204,18 +205,18 @@ const RecipeItemSelectorModal = ({
                             </span>
                         )}
                     </div>
-                    
+
                     {description ? (
                         <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
                     ) : (
                         <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : item.type}</div>
                     )}
-                    
+
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
                 </div>
 
                 <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
-                   <Plus size={16}/>
+                    <Plus size={16} />
                 </div>
             </div>
         );
@@ -226,11 +227,11 @@ const RecipeItemSelectorModal = ({
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col h-[70vh] animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"><X size={20}/></button>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-4 border-b border-slate-100">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
                             placeholder={type === 'component' ? "Αναζήτηση SKU ή Περιγραφής..." : "Αναζήτηση..."}
@@ -251,33 +252,33 @@ const RecipeItemSelectorModal = ({
                         </div>
                     )}
                     {(suggestions.length > 0 || searchTerm) && (
-                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 ml-2">Όλα</h4>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 ml-2">Όλα</h4>
                     )}
                     <div className="space-y-1">
                         {others.map(renderListItem)}
                     </div>
                     {suggestions.length === 0 && others.length === 0 && (
-                         <div className="text-center text-slate-400 py-10">
-                             <p>Δεν βρέθηκαν αποτελέσματα.</p>
-                         </div>
+                        <div className="text-center text-slate-400 py-10">
+                            <p>Δεν βρέθηκαν αποτελέσματα.</p>
+                        </div>
                     )}
                 </div>
             </div>
         </div>
     );
-};
+});
 
-const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
+const SmartAnalysisCard = React.memo(({ analysis }: { analysis: SupplierAnalysis }) => {
     // ... (unchanged)
-    const color = 
-        analysis.verdict === 'Excellent' ? 'emerald' : 
-        analysis.verdict === 'Fair' ? 'blue' : 
-        analysis.verdict === 'Expensive' ? 'orange' : 'rose';
+    const color =
+        analysis.verdict === 'Excellent' ? 'emerald' :
+            analysis.verdict === 'Fair' ? 'blue' :
+                analysis.verdict === 'Expensive' ? 'orange' : 'rose';
 
-    const Icon = 
-        analysis.verdict === 'Excellent' ? ThumbsUp : 
-        analysis.verdict === 'Fair' ? CheckCircle : 
-        analysis.verdict === 'Expensive' ? Info : AlertTriangle;
+    const Icon =
+        analysis.verdict === 'Excellent' ? ThumbsUp :
+            analysis.verdict === 'Fair' ? CheckCircle :
+                analysis.verdict === 'Expensive' ? Info : AlertTriangle;
 
     const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
 
@@ -313,16 +314,15 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
             {hasReportedLabor && (
                 <div className="bg-white/60 p-3 rounded-xl border border-slate-100 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-100 pb-1 mb-2">Ανάλυση Εργατικών (Forensics)</h5>
-                    
+
                     <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
                         <div className="flex items-center gap-2">
                             <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
-                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' : 
-                                'bg-slate-100 text-slate-600'
-                            }`}>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
+                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' :
+                                    'bg-slate-100 text-slate-600'
+                                }`}>
                                 {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
                             </span>
                         </div>
@@ -335,7 +335,7 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
                                 <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
                                     {analysis.effectiveSilverPrice.toFixed(2)}€/g
                                 </span>
-                                {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500"/></span>}
+                                {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500" /></span>}
                             </div>
                         </div>
                     )}
@@ -358,9 +358,9 @@ const SmartAnalysisCard = ({ analysis }: { analysis: SupplierAnalysis }) => {
             </div>
         </div>
     );
-};
+});
 
-const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
+const AnalysisExplainerModal = React.memo(({ onClose }: { onClose: () => void }) => (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -373,9 +373,9 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                         <p className="text-sm text-slate-500">Οδηγός Ανάλυσης Κόστους Προμηθευτή</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm transition-all"><X size={20}/></button>
+                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm transition-all"><X size={20} /></button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 <div className="space-y-4">
                     <p className="text-slate-600 leading-relaxed">
@@ -385,13 +385,13 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Coins size={18} className="text-amber-500"/> Melt Value (Αξία Υλικών)</h3>
+                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Coins size={18} className="text-amber-500" /> Melt Value (Αξία Υλικών)</h3>
                         <p className="text-sm text-slate-500">
                             Είναι η "σκληρή" αξία του προϊόντος αν το λιώναμε. Υπολογίζεται από το Βάρος x Τιμή Ασημιού + Κόστος Πετρών. Αυτό είναι το ελάχιστο δυνατό κόστος.
                         </p>
                     </div>
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Hammer size={18} className="text-blue-500"/> Make Cost (Θεωρητικό)</h3>
+                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Hammer size={18} className="text-blue-500" /> Make Cost (Θεωρητικό)</h3>
                         <p className="text-sm text-slate-500">
                             Πόσο θα κόστιζε να το φτιάξουμε εμείς; Υπολογίζεται προσθέτοντας στην Αξία Υλικών τα τυπικά κοστολόγια εργαστηρίου (Χύτευση, Τεχνίτης, Καρφωτής).
                         </p>
@@ -405,13 +405,13 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                     </p>
                     <ul className="space-y-3">
                         <li className="flex gap-3 text-sm text-slate-700 bg-red-50 p-3 rounded-xl border border-red-100">
-                            <AlertTriangle className="text-red-500 shrink-0" size={20}/>
+                            <AlertTriangle className="text-red-500 shrink-0" size={20} />
                             <span>
                                 <strong>Effective Silver Price:</strong> Αφαιρώντας τα εργατικά και τις πέτρες από την Τιμή Αγοράς, βρίσκουμε πόσο σας χρεώνει τελικά το γραμμάριο το μέταλλο. Αν βγει π.χ. 1.20€/g ενώ η αγορά είναι 0.85€/g, υπάρχει κρυφό "καπέλο" στο μέταλλο.
                             </span>
                         </li>
                         <li className="flex gap-3 text-sm text-slate-700 bg-blue-50 p-3 rounded-xl border border-blue-100">
-                            <Activity className="text-blue-500 shrink-0" size={20}/>
+                            <Activity className="text-blue-500 shrink-0" size={20} />
                             <span>
                                 <strong>Labor Efficiency:</strong> Συγκρίνει τα εργατικά του προμηθευτή με τα δικά μας. Αν είναι πολύ υψηλότερα, ίσως είναι υπερκοστολογημένα.
                             </span>
@@ -426,7 +426,7 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
                     </p>
                 </div>
             </div>
-            
+
             <div className="p-6 border-t border-slate-100 bg-slate-50 text-center">
                 <button onClick={onClose} className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg">
                     Κατάλαβα
@@ -434,30 +434,30 @@ const AnalysisExplainerModal = ({ onClose }: { onClose: () => void }) => (
             </div>
         </div>
     </div>
-);
+));
 
-const LaborCostInput = ({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14}/> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
+const LaborCostInput = React.memo(({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14} /> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
     <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
         <span className="text-sm text-slate-600 font-medium flex items-center gap-2">{icon} {label}</span>
         <div className="flex items-center gap-2">
-            <input 
-                type="number" step="0.01" 
-                value={value} 
-                onChange={(e) => onChange(parseFloat(e.target.value) || 0)} 
+            <input
+                type="number" step="0.01"
+                value={value}
+                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
                 readOnly={readOnly || (onToggleOverride && !override)}
                 className={`w-20 text-right bg-white border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-500 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
             />
             {onToggleOverride && (
                 <button onClick={onToggleOverride} className="text-slate-400 hover:text-amber-600 transition-colors">
-                    {override ? <Unlock size={14}/> : <Lock size={14}/>}
+                    {override ? <Unlock size={14} /> : <Lock size={14} />}
                 </button>
             )}
             <span className="text-xs text-slate-400">€</span>
         </div>
     </div>
-);
+));
 
-const SummaryRow = ({ label, value, sub, color }: { label: string, value: string, sub?: string, color: string }) => (
+const SummaryRow = React.memo(({ label, value, sub, color }: { label: string, value: string, sub?: string, color: string }) => (
     <div className="flex items-center justify-between py-1">
         <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${color}`}></div>
@@ -468,9 +468,9 @@ const SummaryRow = ({ label, value, sub, color }: { label: string, value: string
             {sub && <div className="text-[10px] text-slate-400 font-medium">{sub}</div>}
         </div>
     </div>
-);
+));
 
-const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Product; variants: ProductVariant[]; onPrint: (items: any[]) => void; settings: GlobalSettings; }) => {
+const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { product: Product; variants: ProductVariant[]; onPrint: (items: any[]) => void; settings: GlobalSettings; }) => {
     const [format, setFormat] = useState<'standard' | 'retail'>('standard');
 
     const handlePrintItem = (variant: ProductVariant | null, qty: number) => {
@@ -483,14 +483,14 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
     };
 
     const handlePrintAll = () => {
-        const items = variants.length > 0 
+        const items = variants.length > 0
             ? variants.map(v => ({ product, variant: v, quantity: 1, format: format }))
             : [{ product, quantity: 1, format: format }];
         onPrint(items);
     };
 
-    const items = variants.length > 0 
-        ? variants.map(v => ({ variant: v, key: v.suffix })) 
+    const items = variants.length > 0
+        ? variants.map(v => ({ variant: v, key: v.suffix }))
         : [{ variant: null, key: 'master' }];
 
     return (
@@ -498,17 +498,17 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
             <div className="flex flex-col sm:flex-row justify-between items-center mb-2 gap-4">
                 <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
                     <button onClick={() => setFormat('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <Tag size={14}/> Χονδρική
+                        <Tag size={14} /> Χονδρική
                     </button>
                     <button onClick={() => setFormat('retail')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <ShoppingBag size={14}/> Λιανική
+                        <ShoppingBag size={14} /> Λιανική
                     </button>
                 </div>
                 <button onClick={handlePrintAll} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">
-                    <Printer size={16}/> Εκτύπωση Όλων (1x)
+                    <Printer size={16} /> Εκτύπωση Όλων (1x)
                 </button>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
                 {items.map(({ variant, key }) => (
                     <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
@@ -520,24 +520,24 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
                         */}
                         <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full relative overflow-x-auto custom-scrollbar">
                             <div className={`${format === 'retail' ? 'scale-125 origin-center p-4' : ''} transition-transform`}>
-                                <BarcodeView 
-                                    product={product} 
-                                    variant={variant || undefined} 
-                                    width={format === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm} 
-                                    height={format === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm} 
+                                <BarcodeView
+                                    product={product}
+                                    variant={variant || undefined}
+                                    width={format === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm}
+                                    height={format === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm}
                                     format={format}
                                 />
                             </div>
                         </div>
-                        
+
                         <div className="w-full text-center">
                             <div className="font-bold text-slate-800 text-lg">{variant ? `${product.sku}${variant.suffix}` : product.sku}</div>
                             <div className="text-xs text-slate-500">{variant ? variant.description : product.category}</div>
                         </div>
 
                         <div className="flex items-center gap-2 w-full mt-auto pt-4 border-t border-slate-50">
-                            <button 
-                                onClick={() => handlePrintItem(variant, 1)} 
+                            <button
+                                onClick={() => handlePrintItem(variant, 1)}
                                 className="flex-1 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-black transition-colors shadow-sm"
                             >
                                 <Printer size={14} /> Εκτύπωση
@@ -548,1642 +548,1648 @@ const BarcodeGallery = ({ product, variants, onPrint, settings }: { product: Pro
             </div>
         </div>
     );
-};
+});
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry' }: Props) {
-  const queryClient = useQueryClient();
-  const { showToast, confirm } = useUI();
-  const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
-  
-  const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [viewIndex, setViewIndex] = useState(0);
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate }: Props) {
+    const queryClient = useQueryClient();
+    const { showToast, confirm } = useUI();
+    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
 
-  // Rename SKU State
-  const [isEditingSku, setIsEditingSku] = useState(false);
-  const [tempSku, setTempSku] = useState(product.sku);
-  const [isRenaming, setIsRenaming] = useState(false);
+    const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [viewIndex, setViewIndex] = useState(0);
 
-  // Modal State
-  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
+    // Rename SKU State
+    const [isEditingSku, setIsEditingSku] = useState(false);
+    const [tempSku, setTempSku] = useState(product.sku);
+    const [isRenaming, setIsRenaming] = useState(false);
 
-  const [editedProduct, setEditedProduct] = useState<Product>(() => {
-    const initialLabor: Partial<LaborCost> = product.labor || {};
-    return { 
-        ...product,
-        variants: product.variants || [],
-        selling_price: product.selling_price || 0,
-        molds: product.molds || [],
-        collections: product.collections || [],
-        secondary_weight_g: product.secondary_weight_g || 0,
-        production_type: product.production_type || ProductionType.InHouse,
-        supplier_id: product.supplier_id,
-        supplier_sku: product.supplier_sku,
-        supplier_cost: product.supplier_cost || 0,
-        description: product.description || '',
-        labor: {
-            casting_cost: 0,
-            setter_cost: 0,
-            technician_cost: 0,
-            stone_setting_cost: 0,
-            plating_cost_x: 0,
-            plating_cost_d: 0,
-            subcontract_cost: 0,
-            casting_cost_manual_override: false,
-            technician_cost_manual_override: false,
-            plating_cost_x_manual_override: false,
-            plating_cost_d_manual_override: false,
-            ...initialLabor,
-        }
-    };
-  });
-  
-  const [showRepriceTool, setShowRepriceTool] = useState(false);
-  const [targetMargin, setTargetMargin] = useState(50);
-  const [calculatedPrice, setCalculatedPrice] = useState(0);
+    // Modal State
+    const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
 
-  const [isAddingMold, setIsAddingMold] = useState(false);
-  const [moldSearch, setMoldSearch] = useState('');
-  const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
-  
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [smartAddSuffix, setSmartAddSuffix] = useState(''); 
-  const [newVariantSuffix, setNewVariantSuffix] = useState('');
-  const [newVariantDesc, setNewVariantDesc] = useState('');
-  const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
-  
-  const TABS = useMemo(() => {
-    const baseTabs = [
-        { id: 'overview', label: 'Στοιχεία', icon: Info },
-    ];
-    if (editedProduct.production_type === ProductionType.InHouse) {
-        baseTabs.push({ id: 'recipe', label: 'Συνταγή', icon: Box });
-        baseTabs.push({ id: 'labor', label: 'Εργατικά', icon: Hammer });
-    }
-    baseTabs.push({ id: 'variants', label: `Παραλλαγές (${editedProduct.variants?.length || 0})`, icon: Layers });
-    baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
-    return baseTabs;
-  }, [editedProduct.production_type, editedProduct.variants?.length]);
-
-  useEffect(() => {
-    const initialLabor: Partial<LaborCost> = product.labor || {};
-    setEditedProduct({ 
-      ...product,
-      variants: product.variants || [],
-      selling_price: product.selling_price || 0,
-      molds: product.molds || [],
-      collections: product.collections || [],
-      secondary_weight_g: product.secondary_weight_g || 0,
-      production_type: product.production_type || ProductionType.InHouse,
-      supplier_id: product.supplier_id,
-      supplier_sku: product.supplier_sku,
-      supplier_cost: product.supplier_cost || 0,
-      description: product.description || '',
-      labor: {
-            casting_cost: 0,
-            setter_cost: 0,
-            technician_cost: 0,
-            stone_setting_cost: 0,
-            plating_cost_x: 0,
-            plating_cost_d: 0,
-            subcontract_cost: 0,
-            casting_cost_manual_override: false,
-            technician_cost_manual_override: false,
-            plating_cost_x_manual_override: false,
-            plating_cost_d_manual_override: false,
-            ...initialLabor,
-        }
-    });
-    setTempSku(product.sku); // Reset SKU field
-    setViewIndex(0);
-  }, [product]);
-
-  useEffect(() => {
-    if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.technician_cost_manual_override) {
-        const techCost = calculateTechnicianCost(editedProduct.weight_g);
-        setEditedProduct(prev => ({
-            ...prev,
-            labor: { ...prev.labor, technician_cost: techCost }
-        }));
-    }
-  }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
-  
-  useEffect(() => {
-    if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
-        const baseCastingCost = editedProduct.weight_g * 0.15;
-        const secondaryCastingCost = (editedProduct.secondary_weight_g || 0) * 0.15;
-        const castCost = baseCastingCost + secondaryCastingCost;
-        setEditedProduct(prev => ({
-            ...prev,
-            labor: { ...prev.labor, casting_cost: castCost }
-        }));
-    }
-  }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type, editedProduct.labor.casting_cost_manual_override]);
-
-  useEffect(() => {
-    if (!editedProduct.labor.plating_cost_x_manual_override) {
-        if (editedProduct.production_type === ProductionType.Imported) {
-            if (editedProduct.labor.plating_cost_x === 0) {
-                setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: 0.60 } }));
+    const [editedProduct, setEditedProduct] = useState<Product>(() => {
+        const initialLabor: Partial<LaborCost> = product.labor || {};
+        return {
+            ...product,
+            variants: product.variants || [],
+            selling_price: product.selling_price || 0,
+            molds: product.molds || [],
+            collections: product.collections || [],
+            secondary_weight_g: product.secondary_weight_g || 0,
+            production_type: product.production_type || ProductionType.InHouse,
+            supplier_id: product.supplier_id,
+            supplier_sku: product.supplier_sku,
+            supplier_cost: product.supplier_cost || 0,
+            description: product.description || '',
+            labor: {
+                casting_cost: 0,
+                setter_cost: 0,
+                technician_cost: 0,
+                stone_setting_cost: 0,
+                plating_cost_x: 0,
+                plating_cost_d: 0,
+                subcontract_cost: 0,
+                casting_cost_manual_override: false,
+                technician_cost_manual_override: false,
+                plating_cost_x_manual_override: false,
+                plating_cost_d_manual_override: false,
+                ...initialLabor,
             }
-        } else {
-            let totalPlatingWeight = editedProduct.weight_g;
+        };
+    });
+
+    const [showRepriceTool, setShowRepriceTool] = useState(false);
+    const [targetMargin, setTargetMargin] = useState(50);
+    const [calculatedPrice, setCalculatedPrice] = useState(0);
+
+    const [isAddingMold, setIsAddingMold] = useState(false);
+    const [moldSearch, setMoldSearch] = useState('');
+    const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
+
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [smartAddSuffix, setSmartAddSuffix] = useState('');
+    const [newVariantSuffix, setNewVariantSuffix] = useState('');
+    const [newVariantDesc, setNewVariantDesc] = useState('');
+    const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
+
+    const TABS = useMemo(() => {
+        const baseTabs = [
+            { id: 'overview', label: 'Στοιχεία', icon: Info },
+        ];
+        if (editedProduct.production_type === ProductionType.InHouse) {
+            baseTabs.push({ id: 'recipe', label: 'Συνταγή', icon: Box });
+            baseTabs.push({ id: 'labor', label: 'Εργατικά', icon: Hammer });
+        }
+        baseTabs.push({ id: 'variants', label: `Παραλλαγές (${editedProduct.variants?.length || 0})`, icon: Layers });
+        baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
+        return baseTabs;
+    }, [editedProduct.production_type, editedProduct.variants?.length]);
+
+    useEffect(() => {
+        const initialLabor: Partial<LaborCost> = product.labor || {};
+        setEditedProduct({
+            ...product,
+            variants: product.variants || [],
+            selling_price: product.selling_price || 0,
+            molds: product.molds || [],
+            collections: product.collections || [],
+            secondary_weight_g: product.secondary_weight_g || 0,
+            production_type: product.production_type || ProductionType.InHouse,
+            supplier_id: product.supplier_id,
+            supplier_sku: product.supplier_sku,
+            supplier_cost: product.supplier_cost || 0,
+            description: product.description || '',
+            labor: {
+                casting_cost: 0,
+                setter_cost: 0,
+                technician_cost: 0,
+                stone_setting_cost: 0,
+                plating_cost_x: 0,
+                plating_cost_d: 0,
+                subcontract_cost: 0,
+                casting_cost_manual_override: false,
+                technician_cost_manual_override: false,
+                plating_cost_x_manual_override: false,
+                plating_cost_d_manual_override: false,
+                ...initialLabor,
+            }
+        });
+        setTempSku(product.sku); // Reset SKU field
+        setViewIndex(0);
+    }, [product]);
+
+    useEffect(() => {
+        if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.technician_cost_manual_override) {
+            const techCost = calculateTechnicianCost(editedProduct.weight_g);
+            setEditedProduct(prev => ({
+                ...prev,
+                labor: { ...prev.labor, technician_cost: techCost }
+            }));
+        }
+    }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
+
+    useEffect(() => {
+        if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
+            const baseCastingCost = editedProduct.weight_g * 0.15;
+            const secondaryCastingCost = (editedProduct.secondary_weight_g || 0) * 0.15;
+            const castCost = baseCastingCost + secondaryCastingCost;
+            setEditedProduct(prev => ({
+                ...prev,
+                labor: { ...prev.labor, casting_cost: castCost }
+            }));
+        }
+    }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type, editedProduct.labor.casting_cost_manual_override]);
+
+    useEffect(() => {
+        if (!editedProduct.labor.plating_cost_x_manual_override) {
+            if (editedProduct.production_type === ProductionType.Imported) {
+                if (editedProduct.labor.plating_cost_x === 0) {
+                    setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: 0.60 } }));
+                }
+            } else {
+                let totalPlatingWeight = editedProduct.weight_g;
+                editedProduct.recipe.forEach(item => {
+                    if (item.type === 'component') {
+                        const subProduct = allProducts.find(p => p.sku === item.sku);
+                        if (subProduct) {
+                            totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                        }
+                    }
+                });
+                const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
+                setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+            }
+        }
+    }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override, editedProduct.production_type]);
+
+    useEffect(() => {
+        if (!editedProduct.labor.plating_cost_d_manual_override) {
+            let totalSecondaryWeight = editedProduct.secondary_weight_g || 0;
             editedProduct.recipe.forEach(item => {
                 if (item.type === 'component') {
                     const subProduct = allProducts.find(p => p.sku === item.sku);
                     if (subProduct) {
-                        totalPlatingWeight += (subProduct.weight_g * item.quantity);
+                        totalSecondaryWeight += ((subProduct.secondary_weight_g || 0) * item.quantity);
                     }
                 }
             });
-            const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
-            setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+            const costD = parseFloat((totalSecondaryWeight * 0.60).toFixed(2));
+            setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
         }
-    }
-  }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override, editedProduct.production_type]);
+    }, [editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_d_manual_override]);
 
-  useEffect(() => {
-    if (!editedProduct.labor.plating_cost_d_manual_override) {
-        let totalSecondaryWeight = editedProduct.secondary_weight_g || 0;
-        editedProduct.recipe.forEach(item => {
-            if (item.type === 'component') {
-                const subProduct = allProducts.find(p => p.sku === item.sku);
-                if (subProduct) {
-                    totalSecondaryWeight += ((subProduct.secondary_weight_g || 0) * item.quantity);
-                }
-            }
-        });
-        const costD = parseFloat((totalSecondaryWeight * 0.60).toFixed(2));
-        setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
-    }
-  }, [editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_d_manual_override]);
+    useEffect(() => {
+        setEditedProduct(prev => {
+            if (!prev.variants || prev.variants.length === 0) return prev;
 
-  useEffect(() => {
-      setEditedProduct(prev => {
-          if (!prev.variants || prev.variants.length === 0) return prev;
-
-          let hasChanges = false;
-          const updatedVariants = prev.variants.map(v => {
-              const { total: estimated } = estimateVariantCost(
-                  prev, 
-                  v.suffix,
-                  settings,
-                  allMaterials,
-                  allProducts
-              );
-              
-              if (Math.abs((v.active_price || 0) - estimated) > 0.005) {
-                  hasChanges = true;
-                  return { ...v, active_price: estimated };
-              }
-              return v;
-          });
-
-          if (hasChanges) {
-              return { ...prev, variants: updatedVariants };
-          }
-          return prev;
-      });
-  }, [
-      editedProduct.weight_g,
-      editedProduct.secondary_weight_g,
-      editedProduct.labor.casting_cost,
-      editedProduct.labor.setter_cost,
-      editedProduct.labor.technician_cost,
-      editedProduct.labor.stone_setting_cost,
-      editedProduct.labor.plating_cost_x,
-      editedProduct.labor.plating_cost_d,
-      editedProduct.labor.subcontract_cost,
-      editedProduct.plating_type,
-      editedProduct.recipe,
-      editedProduct.variants?.length,
-      editedProduct.supplier_cost, 
-      settings, allMaterials, allProducts
-  ]);
-
-  // LIVE PREVIEW CALCULATOR FOR SMART ADD
-  const smartPreview = useMemo(() => {
-      if (!smartAddSuffix) return null;
-      const clean = smartAddSuffix.trim().toUpperCase();
-      
-      // 1. Analyze Components (Stone + Finish)
-      const { finish, stone } = getVariantComponents(clean, editedProduct.gender);
-      
-      // 2. Generate Description based on Components
-      let desc = '';
-      if (['X','H','D','P'].includes(finish.code)) desc = finish.name;
-      else desc = 'Λουστρέ'; // Default for empty finish code (if user types just stone code)
-      
-      if (stone.name) desc += ` - ${stone.name}`;
-      
-      // 3. Estimate Cost using strict Pricing Engine logic
-      // This implicitly handles plating costs: if finish.code is 'P' or '', plating cost is 0.
-      const est = estimateVariantCost(editedProduct, clean, settings, allMaterials, allProducts);
-      
-      // Calculate Diff for Display
-      const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-      const masterCost = currentCostCalc.total;
-      const diff = est.total - masterCost;
-
-      return { 
-          description: desc, 
-          cost: est.total, 
-          diff: diff,
-          breakdown: est.breakdown 
-      };
-  }, [smartAddSuffix, editedProduct, settings, allMaterials, allProducts]);
-
-  const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-  const masterCost = currentCostCalc.total;
-
-  const updateCalculatedPrice = (margin: number) => {
-      const marginDecimal = margin / 100;
-      if (marginDecimal >= 1) {
-          setCalculatedPrice(0);
-          return;
-      }
-      const price = masterCost / (1 - marginDecimal);
-      setCalculatedPrice(roundPrice(price));
-  };
-
-  const handleStandardFormula = () => {
-      const breakdown = currentCostCalc.breakdown;
-      const weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-      const suggested = calculateSuggestedWholesalePrice(weight, breakdown.silver, breakdown.labor, breakdown.materials);
-      setCalculatedPrice(suggested);
-      
-      if (suggested > 0 && suggested > masterCost) {
-          const impliedMargin = ((suggested - masterCost) / suggested) * 100;
-          setTargetMargin(parseFloat(impliedMargin.toFixed(1)));
-      }
-  };
-
-  const applyReprice = () => {
-      setEditedProduct(prev => ({ ...prev, selling_price: calculatedPrice }));
-  };
-  
-  const variants = editedProduct.variants || [];
-  const hasVariants = variants.length > 0;
-  
-  const sortedVariantsList = useMemo(() => {
-      if (!hasVariants) return [];
-      
-      const getPriority = (suffix: string) => {
-        const { finish } = getVariantComponents(suffix, editedProduct.gender);
-        // Priority Order: Lustre > P > D > X > H
-        switch (finish.code) {
-            case '': return 1;
-            case 'P': return 2;
-            case 'D': return 3;
-            case 'X': return 4;
-            case 'H': return 5;
-            default: return 6;
-        }
-      };
-      
-      return [...variants].sort((a, b) => {
-          const priorityA = getPriority(a.suffix);
-          const priorityB = getPriority(b.suffix);
-          if (priorityA !== priorityB) {
-              return priorityA - priorityB;
-          }
-          return a.suffix.localeCompare(b.suffix);
-      });
-  }, [variants, editedProduct.gender]);
-
-  const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
-  const showPager = hasVariants && variants.length > 1;
-  const initialViewIndex = 0; 
-
-  useEffect(() => {
-      setViewIndex(initialViewIndex);
-  }, [product.sku]);
-
-  const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
-  const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
-  
-  const currentViewVariant = hasVariants ? sortedVariantsList[viewIndex % maxViews] : null;
-  
-  let displayedSku = editedProduct.sku;
-  let displayedLabel = 'Βασικό';
-  let displayedCost = masterCost;
-  let displayedPrice = editedProduct.selling_price;
-  let isVariantView = !!currentViewVariant;
-
-  if (currentViewVariant) {
-      displayedSku = `${editedProduct.sku}${currentViewVariant.suffix}`;
-      displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
-      
-      if (currentViewVariant.active_price != null) displayedCost = currentViewVariant.active_price;
-      if (currentViewVariant.selling_price != null) displayedPrice = currentViewVariant.selling_price;
-  }
-
-  const displayedProfit = displayedPrice - displayedCost;
-  const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
-
-  const { displayPlating, displayStones } = React.useMemo(() => {
-      if (!editedProduct.variants || editedProduct.variants.length === 0) {
-          return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: '' };
-      }
-
-      const finishCodes = new Set<string>();
-      const stones = new Set<string>();
-      
-      editedProduct.variants.forEach(v => {
-          const { finish, stone } = getVariantComponents(v.suffix, editedProduct.gender);
-          if (finish.code) finishCodes.add(finish.code);
-          else if (v.suffix === '') finishCodes.add(''); 
-          
-          if (stone.name) stones.add(stone.name);
-      });
-
-      if (finishCodes.size === 0 && editedProduct.plating_type) {
-          return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
-      }
-      
-      const getPriority = (code: string) => {
-        switch (code) {
-          case '': return 0;
-          case 'P': return 1;
-          case 'D': return 2;
-          case 'X': return 3;
-          case 'H': return 4;
-          default: return 5;
-        }
-      };
-
-      const sortedFinishNames = Array.from(finishCodes)
-        .sort((a, b) => getPriority(a) - getPriority(b))
-        .map(code => FINISH_CODES[code] || FINISH_CODES['']);
-
-      return {
-          displayPlating: sortedFinishNames.join(', '),
-          displayStones: Array.from(stones).join(', ')
-      };
-  }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
-
-  // Group variants by finish code for the pricing section
-  const finishGroups = useMemo(() => {
-      if (!hasVariants) return {};
-      const groups: Record<string, ProductVariant[]> = {};
-      // Use sorted list to ensure base variants (shorter suffixes) likely come first
-      sortedVariantsList.forEach(v => {
-          const { finish } = getVariantComponents(v.suffix, editedProduct.gender);
-          // Normalize: if suffix is empty or minimal, code matches finish code
-          const code = finish.code || '';
-          if (!groups[code]) groups[code] = [];
-          groups[code].push(v);
-      });
-      return groups;
-  }, [sortedVariantsList, editedProduct.gender, hasVariants]);
-
-  const sortedFinishCodes = useMemo(() => {
-      return Object.keys(finishGroups).sort((a, b) => {
-          const order = { '': 1, 'P': 2, 'D': 3, 'X': 4, 'H': 5 };
-          return (order[a as keyof typeof order] || 9) - (order[b as keyof typeof order] || 9);
-      });
-  }, [finishGroups]);
-
-  // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
-  const getSuggestedPriceForVariant = (suffix: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
-      const est = estimateVariantCost(editedProduct, suffix, settings, allMaterials, allProducts);
-      const costBreakdown = est.breakdown;
-      const weight = est.breakdown.details?.total_weight || (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
-
-      if (mode === 'formula') {
-          return calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
-      } else {
-          // Margin Mode
-          const totalCost = est.total;
-          const marginDecimal = margin / 100;
-          if (marginDecimal >= 1) return 0;
-          return roundPrice(totalCost / (1 - marginDecimal));
-      }
-  };
-
-  // Helper for Group Suggestions (keeping it for the overview hint, using representative)
-  const getSuggestedPriceForFinishGroup = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
-      const groupVariants = finishGroups[finishCode] || [];
-      const representative = groupVariants.length > 0 ? groupVariants[0] : null; 
-      if (representative) return getSuggestedPriceForVariant(representative.suffix, mode, margin);
-      // Fallback to master if no variants
-      return getSuggestedPriceForVariant('', mode, margin);
-  };
-
-  const handleApplyAllSuggestions = (mode: 'formula' | 'margin') => {
-      const updates = [...(editedProduct.variants || [])];
-      let masterPriceUpdate = editedProduct.selling_price;
-      let updateCount = 0;
-
-      // Update Variants Individually to capture stone/material diffs
-      updates.forEach((variant, idx) => {
-          const suggested = getSuggestedPriceForVariant(variant.suffix, mode, targetMargin);
-          if (Math.abs((variant.selling_price || 0) - suggested) > 0.01) {
-              updates[idx] = { ...variant, selling_price: suggested };
-              updateCount++;
-          }
-      });
-
-      // Update Master if needed (Simple Product)
-      if (!hasVariants) {
-          const suggested = getSuggestedPriceForVariant('', mode, targetMargin);
-          if (Math.abs(masterPriceUpdate - suggested) > 0.01) {
-             masterPriceUpdate = suggested;
-             updateCount++;
-          }
-      }
-
-      setEditedProduct(prev => ({
-          ...prev,
-          variants: updates,
-          selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price
-      }));
-      
-      if (updateCount > 0) {
-          showToast(`Ενημερώθηκαν ${updateCount} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
-      } else {
-          showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
-      }
-  };
-
-  const applyFormulaToSingleVariant = (index: number) => {
-      const variant = sortedVariantsList[index];
-      const realIndex = editedProduct.variants.findIndex(v => v.suffix === variant.suffix);
-      if (realIndex === -1) return;
-      
-      const suggested = getSuggestedPriceForVariant(variant.suffix, 'formula');
-      
-      const newVariants = [...editedProduct.variants];
-      newVariants[realIndex] = { ...newVariants[realIndex], selling_price: suggested };
-      setEditedProduct(prev => ({ ...prev, variants: newVariants }));
-      showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
-  };
-
-  const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
-    let newItem: RecipeItem;
-    if (item.type === 'raw') {
-        newItem = { type: 'raw', id: item.id, quantity: 1 };
-    } else {
-        newItem = { type: 'component', sku: item.sku, quantity: 1 };
-    }
-    setEditedProduct(prev => ({
-        ...prev,
-        recipe: [...prev.recipe, newItem]
-    }));
-    setIsRecipeModalOpen(false);
-  };
-
-  const updateRecipeItem = (index: number, field: string, value: any) => {
-    const newRecipe = [...editedProduct.recipe];
-    const item = { ...newRecipe[index] };
-    if (field === 'quantity') {
-        item.quantity = parseFloat(value) || 0;
-    } else if (field === 'id' && item.type === 'raw') {
-        item.id = value;
-    } else if (field === 'sku' && item.type === 'component') {
-        item.sku = value;
-    }
-    newRecipe[index] = item;
-    setEditedProduct(prev => ({ ...prev, recipe: newRecipe }));
-  };
-
-  const removeRecipeItem = (index: number) => {
-    setEditedProduct(prev => ({
-        ...prev,
-        recipe: prev.recipe.filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleSave = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    try {
-        let finalEditedProduct = { ...editedProduct };
-
-        if (finalEditedProduct.sku.startsWith('ST') && finalEditedProduct.variants.some(v => v.suffix === 'H')) {
-            const hasLustreVariant = finalEditedProduct.variants.some(v => v.suffix === '');
-            if (!hasLustreVariant) {
-                const { total: estimatedCost } = estimateVariantCost(
-                    finalEditedProduct,
-                    '',
+            let hasChanges = false;
+            const updatedVariants = prev.variants.map(v => {
+                const { total: estimated } = estimateVariantCost(
+                    prev,
+                    v.suffix,
                     settings,
                     allMaterials,
                     allProducts
                 );
-                const lustreDescription = analyzeSuffix('', finalEditedProduct.gender, finalEditedProduct.plating_type) || 'Λουστρέ';
-                const newLustreVariant: ProductVariant = {
-                    suffix: '',
-                    description: lustreDescription,
-                    stock_qty: 0,
-                    active_price: parseFloat(estimatedCost.toFixed(2)),
-                    selling_price: finalEditedProduct.is_component ? 0 : finalEditedProduct.selling_price
-                };
-                finalEditedProduct = {
-                    ...finalEditedProduct,
-                    variants: [...finalEditedProduct.variants, newLustreVariant]
-                };
-                showToast("Αυτόματη προσθήκη παραλλαγής Λουστρέ για ST κωδικό.", "info");
+
+                if (Math.abs((v.active_price || 0) - estimated) > 0.005) {
+                    hasChanges = true;
+                    return { ...v, active_price: estimated };
+                }
+                return v;
+            });
+
+            if (hasChanges) {
+                return { ...prev, variants: updatedVariants };
             }
+            return prev;
+        });
+    }, [
+        editedProduct.weight_g,
+        editedProduct.secondary_weight_g,
+        editedProduct.labor.casting_cost,
+        editedProduct.labor.setter_cost,
+        editedProduct.labor.technician_cost,
+        editedProduct.labor.stone_setting_cost,
+        editedProduct.labor.plating_cost_x,
+        editedProduct.labor.plating_cost_d,
+        editedProduct.labor.subcontract_cost,
+        editedProduct.plating_type,
+        editedProduct.recipe,
+        editedProduct.variants?.length,
+        editedProduct.supplier_cost,
+        settings, allMaterials, allProducts
+    ]);
+
+    // LIVE PREVIEW CALCULATOR FOR SMART ADD
+    const smartPreview = useMemo(() => {
+        if (!smartAddSuffix) return null;
+        const clean = smartAddSuffix.trim().toUpperCase();
+
+        // 1. Analyze Components (Stone + Finish)
+        const { finish, stone } = getVariantComponents(clean, editedProduct.gender);
+
+        // 2. Generate Description based on Components
+        let desc = '';
+        if (['X', 'H', 'D', 'P'].includes(finish.code)) desc = finish.name;
+        else desc = 'Λουστρέ'; // Default for empty finish code (if user types just stone code)
+
+        if (stone.name) desc += ` - ${stone.name}`;
+
+        // 3. Estimate Cost using strict Pricing Engine logic
+        // This implicitly handles plating costs: if finish.code is 'P' or '', plating cost is 0.
+        const est = estimateVariantCost(editedProduct, clean, settings, allMaterials, allProducts);
+
+        // Calculate Diff for Display
+        const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+        const masterCost = currentCostCalc.total;
+        const diff = est.total - masterCost;
+
+        return {
+            description: desc,
+            cost: est.total,
+            diff: diff,
+            breakdown: est.breakdown
+        };
+    }, [smartAddSuffix, editedProduct, settings, allMaterials, allProducts]);
+
+    const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
+    const masterCost = currentCostCalc.total;
+
+    const updateCalculatedPrice = (margin: number) => {
+        const marginDecimal = margin / 100;
+        if (marginDecimal >= 1) {
+            setCalculatedPrice(0);
+            return;
+        }
+        const price = masterCost / (1 - marginDecimal);
+        setCalculatedPrice(roundPrice(price));
+    };
+
+    const handleStandardFormula = () => {
+        const breakdown = currentCostCalc.breakdown;
+        const weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+        const suggested = calculateSuggestedWholesalePrice(weight, breakdown.silver, breakdown.labor, breakdown.materials);
+        setCalculatedPrice(suggested);
+
+        if (suggested > 0 && suggested > masterCost) {
+            const impliedMargin = ((suggested - masterCost) / suggested) * 100;
+            setTargetMargin(parseFloat(impliedMargin.toFixed(1)));
+        }
+    };
+
+    const applyReprice = () => {
+        setEditedProduct(prev => ({ ...prev, selling_price: calculatedPrice }));
+    };
+
+    const variants = editedProduct.variants || [];
+    const hasVariants = variants.length > 0;
+
+    const sortedVariantsList = useMemo(() => {
+        if (!hasVariants) return [];
+
+        const getPriority = (suffix: string) => {
+            const { finish } = getVariantComponents(suffix, editedProduct.gender);
+            // Priority Order: Lustre > P > D > X > H
+            switch (finish.code) {
+                case '': return 1;
+                case 'P': return 2;
+                case 'D': return 3;
+                case 'X': return 4;
+                case 'H': return 5;
+                default: return 6;
+            }
+        };
+
+        return [...variants].sort((a, b) => {
+            const priorityA = getPriority(a.suffix);
+            const priorityB = getPriority(b.suffix);
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+            return a.suffix.localeCompare(b.suffix);
+        });
+    }, [variants, editedProduct.gender]);
+
+    const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
+    const showPager = hasVariants && variants.length > 1;
+    const initialViewIndex = 0;
+
+    useEffect(() => {
+        setViewIndex(initialViewIndex);
+    }, [product.sku]);
+
+    const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
+    const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
+
+    const currentViewVariant = hasVariants ? sortedVariantsList[viewIndex % maxViews] : null;
+
+    let displayedSku = editedProduct.sku;
+    let displayedLabel = 'Βασικό';
+    let displayedCost = masterCost;
+    let displayedPrice = editedProduct.selling_price;
+    let isVariantView = !!currentViewVariant;
+
+    if (currentViewVariant) {
+        displayedSku = `${editedProduct.sku}${currentViewVariant.suffix}`;
+        displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
+
+        if (currentViewVariant.active_price != null) displayedCost = currentViewVariant.active_price;
+        if (currentViewVariant.selling_price != null) displayedPrice = currentViewVariant.selling_price;
+    }
+
+    const displayedProfit = displayedPrice - displayedCost;
+    const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
+
+    const { displayPlating, displayStones } = React.useMemo(() => {
+        if (!editedProduct.variants || editedProduct.variants.length === 0) {
+            return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: '' };
         }
 
-        const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
-        const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
+        const finishCodes = new Set<string>();
+        const stones = new Set<string>();
 
-        // Use api service for reliable local/offline persistence
-        const { queued: prodQueued } = await api.saveProduct({
-            sku: finalEditedProduct.sku,
-            prefix: finalEditedProduct.sku.substring(0, 2),
-            category: finalEditedProduct.category,
-            description: isComponent ? finalEditedProduct.description : null,
-            gender: finalEditedProduct.gender,
-            image_url: finalEditedProduct.image_url,
-            weight_g: finalEditedProduct.weight_g,
-            secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
-            selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
-            plating_type: finalEditedProduct.plating_type,
-            labor_casting: finalEditedProduct.labor.casting_cost,
-            labor_setter: finalEditedProduct.labor.setter_cost,
-            labor_technician: finalEditedProduct.labor.technician_cost,
-            labor_plating_x: finalEditedProduct.labor.plating_cost_x,
-            labor_plating_d: finalEditedProduct.labor.plating_cost_d,
-            labor_subcontract: finalEditedProduct.labor.subcontract_cost,
-            labor_casting_manual_override: finalEditedProduct.labor.casting_cost_manual_override,
-            labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
-            labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
-            labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
-            active_price: currentCost,
-            draft_price: currentCost,
-            is_component: isComponent,
-            production_type: finalEditedProduct.production_type,
-            supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : null,
-            supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
-            supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
-            labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null 
+        editedProduct.variants.forEach(v => {
+            const { finish, stone } = getVariantComponents(v.suffix, editedProduct.gender);
+            if (finish.code) finishCodes.add(finish.code);
+            else if (v.suffix === '') finishCodes.add('');
+
+            if (stone.name) stones.add(stone.name);
         });
 
-        await api.deleteProductRecipes(finalEditedProduct.sku);
-        if (finalEditedProduct.recipe.length > 0) {
-            for (const r of finalEditedProduct.recipe) {
-                await api.insertRecipe({
-                    parent_sku: finalEditedProduct.sku,
-                    type: r.type,
-                    material_id: r.type === 'raw' ? r.id : null,
-                    component_sku: r.type === 'component' ? r.sku : null,
-                    quantity: r.quantity
-                });
-            }
-        }
-        
-        await api.deleteProductMolds(finalEditedProduct.sku);
-        if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
-            const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
-                index === self.findIndex((t) => t.code === m.code)
-            );
-            for (const m of uniqueMolds) {
-                await api.insertProductMold({
-                    product_sku: finalEditedProduct.sku,
-                    mold_code: m.code,
-                    quantity: m.quantity
-                });
-            }
+        if (finishCodes.size === 0 && editedProduct.plating_type) {
+            return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
         }
 
-        await api.deleteProductVariants(finalEditedProduct.sku);
-        if (finalEditedProduct.variants && finalEditedProduct.variants.length > 0) {
-            for (const v of finalEditedProduct.variants) {
-                await api.saveProductVariant({
-                    product_sku: finalEditedProduct.sku,
-                    suffix: v.suffix,
-                    description: v.description,
-                    stock_qty: v.stock_qty || 0,
-                    active_price: v.active_price || null,
-                    selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
-                });
+        const getPriority = (code: string) => {
+            switch (code) {
+                case '': return 0;
+                case 'P': return 1;
+                case 'D': return 2;
+                case 'X': return 3;
+                case 'H': return 4;
+                default: return 5;
             }
+        };
+
+        const sortedFinishNames = Array.from(finishCodes)
+            .sort((a, b) => getPriority(a) - getPriority(b))
+            .map(code => FINISH_CODES[code] || FINISH_CODES['']);
+
+        return {
+            displayPlating: sortedFinishNames.join(', '),
+            displayStones: Array.from(stones).join(', ')
+        };
+    }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
+
+    // Group variants by finish code for the pricing section
+    const finishGroups = useMemo(() => {
+        if (!hasVariants) return {};
+        const groups: Record<string, ProductVariant[]> = {};
+        // Use sorted list to ensure base variants (shorter suffixes) likely come first
+        sortedVariantsList.forEach(v => {
+            const { finish } = getVariantComponents(v.suffix, editedProduct.gender);
+            // Normalize: if suffix is empty or minimal, code matches finish code
+            const code = finish.code || '';
+            if (!groups[code]) groups[code] = [];
+            groups[code].push(v);
+        });
+        return groups;
+    }, [sortedVariantsList, editedProduct.gender, hasVariants]);
+
+    const sortedFinishCodes = useMemo(() => {
+        return Object.keys(finishGroups).sort((a, b) => {
+            const order = { '': 1, 'P': 2, 'D': 3, 'X': 4, 'H': 5 };
+            return (order[a as keyof typeof order] || 9) - (order[b as keyof typeof order] || 9);
+        });
+    }, [finishGroups]);
+
+    // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
+    const getSuggestedPriceForVariant = (suffix: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
+        const est = estimateVariantCost(editedProduct, suffix, settings, allMaterials, allProducts);
+        const costBreakdown = est.breakdown;
+        const weight = est.breakdown.details?.total_weight || (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
+
+        if (mode === 'formula') {
+            return calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
+        } else {
+            // Margin Mode
+            const totalCost = est.total;
+            const marginDecimal = margin / 100;
+            if (marginDecimal >= 1) return 0;
+            return roundPrice(totalCost / (1 - marginDecimal));
         }
-        
-        await queryClient.refetchQueries({ queryKey: ['products'] });
-
-        if (onSave) onSave(finalEditedProduct);
-        showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
-        onClose();
-    } catch (err: any) {
-        showToast(`Σφάλμα αποθήκευσης: ${err.message}`, "error");
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
-  const requestDelete = async () => {
-      const confirmed = await confirm({
-          title: 'Διαγραφή Προϊόντος',
-          message: `Διαγραφή οριστικά ${editedProduct.sku}; Αυτή η ενέργεια θα διαγράψει και όλες τις παραλλαγές του.`,
-          confirmText: 'Διαγραφή',
-          isDestructive: true
-      });
-      if (!confirmed) return;
-      setIsDeleting(true);
-      const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
-      
-      if (result.success) {
-          await queryClient.refetchQueries({ queryKey: ['products'] });
-          onClose(); 
-          showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
-      } else {
-          showToast(`Σφάλμα: ${result.error}`, "error");
-      }
-      setIsDeleting(false);
-  };
-
-  const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-          const file = e.target.files[0];
-          setIsUploadingImage(true);
-          try {
-              const compressedBlob = await compressImage(file);
-              const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
-              if (publicUrl) {
-                  setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
-                  await api.saveProduct({ ...editedProduct, image_url: publicUrl });
-                  queryClient.invalidateQueries({ queryKey: ['products'] });
-                  showToast("Η φωτογραφία ενημερώθηκε.", "success");
-              }
-          } catch (error) {
-              console.error(error);
-              showToast("Σφάλμα κατά την ενημέρωση.", "error");
-          } finally {
-              setIsUploadingImage(false);
-          }
-      }
-  };
-
-  const handleSmartAdd = () => {
-    if (!smartAddSuffix.trim()) {
-        showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
-        return;
-    }
-
-    // 1. Validation & Clean
-    const rawSuffix = smartAddSuffix.trim().toUpperCase();
-    
-    // 2. Duplication Check
-    if (editedProduct.variants.some(v => v.suffix === rawSuffix)) {
-      showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
-      return;
-    }
-
-    // 3. Smart Preview Data (Re-calculate for final add)
-    // We already have smartPreview memo, but we need to capture current state
-    const { finish, stone } = getVariantComponents(rawSuffix, editedProduct.gender);
-    
-    // Description Logic: Finish + Stone
-    let description = '';
-    if (['X','H','D','P'].includes(finish.code)) description = finish.name;
-    else description = 'Λουστρέ';
-    
-    if (stone.name) description += ` - ${stone.name}`;
-
-    // Cost Estimation
-    const { total: estimatedCost } = estimateVariantCost(
-        editedProduct, 
-        rawSuffix, 
-        settings, 
-        allMaterials, 
-        allProducts
-    );
-
-    const newVariant: ProductVariant = {
-      suffix: rawSuffix,
-      description: description,
-      stock_qty: 0,
-      active_price: estimatedCost,
-      selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
     };
-    
-    setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
-    setSmartAddSuffix('');
-    showToast(`Παραλλαγή ${rawSuffix} προστέθηκε!`, 'success');
-  };
 
-  const handleManualAdd = () => {
-      if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", 'error'); return; }
-      const upperSuffix = newVariantSuffix.toUpperCase();
-      if (editedProduct.variants.some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
-      
-      const { total: estimatedCost } = estimateVariantCost(
-          editedProduct, 
-          upperSuffix, 
-          settings, 
-          allMaterials, 
-          allProducts
-      );
+    // Helper for Group Suggestions (keeping it for the overview hint, using representative)
+    const getSuggestedPriceForFinishGroup = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
+        const groupVariants = finishGroups[finishCode] || [];
+        const representative = groupVariants.length > 0 ? groupVariants[0] : null;
+        if (representative) return getSuggestedPriceForVariant(representative.suffix, mode, margin);
+        // Fallback to master if no variants
+        return getSuggestedPriceForVariant('', mode, margin);
+    };
 
-      const newVariant: ProductVariant = {
-        suffix: upperSuffix,
-        description: newVariantDesc || manualSuffixAnalysis || '',
-        stock_qty: 0,
-        active_price: estimatedCost,
-        selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
-      };
-      setEditedProduct(prev => ({ ...prev, variants: [...prev.variants, newVariant] }));
-      setNewVariantSuffix('');
-      setNewVariantDesc('');
-      showToast(`Παραλλαγή ${upperSuffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
-  };
-  
-  const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
-      const variantToUpdate = sortedVariantsList[index];
-      const realIndex = editedProduct.variants.findIndex(v => v.suffix === variantToUpdate.suffix);
-      if (realIndex === -1) return;
-      const newVariants = [...editedProduct.variants];
-      newVariants[realIndex] = { ...newVariants[realIndex], [field]: value };
-      setEditedProduct(prev => ({ ...prev, variants: newVariants }));
-  };
+    const handleApplyAllSuggestions = (mode: 'formula' | 'margin') => {
+        const updates = [...(editedProduct.variants || [])];
+        let masterPriceUpdate = editedProduct.selling_price;
+        let updateCount = 0;
 
-  const deleteVariant = (index: number) => {
-      const variantToDelete = sortedVariantsList[index];
-      setEditedProduct(prev => ({
-          ...prev,
-          variants: prev.variants.filter(v => v.suffix !== variantToDelete.suffix)
-      }));
-  };
+        // Update Variants Individually to capture stone/material diffs
+        updates.forEach((variant, idx) => {
+            const suggested = getSuggestedPriceForVariant(variant.suffix, mode, targetMargin);
+            if (Math.abs((variant.selling_price || 0) - suggested) > 0.01) {
+                updates[idx] = { ...variant, selling_price: suggested };
+                updateCount++;
+            }
+        });
 
-  const addMold = (code: string) => {
-      if (editedProduct.molds.some(m => m.code === code)) return;
-      setEditedProduct(prev => ({
-          ...prev,
-          molds: [...prev.molds, { code, quantity: 1 }]
-      }));
-  };
+        // Update Master if needed (Simple Product)
+        if (!hasVariants) {
+            const suggested = getSuggestedPriceForVariant('', mode, targetMargin);
+            if (Math.abs(masterPriceUpdate - suggested) > 0.01) {
+                masterPriceUpdate = suggested;
+                updateCount++;
+            }
+        }
 
-  const updateMoldQuantity = (code: string, delta: number) => {
-      setEditedProduct(prev => ({
-          ...prev,
-          molds: prev.molds.map(m => m.code === code ? { ...m, quantity: Math.max(1, m.quantity + delta) } : m)
-      }));
-  };
-
-  const removeMold = (code: string) => {
-      setEditedProduct(prev => ({
-          ...prev,
-          molds: prev.molds.filter(m => m.code !== code)
-      }));
-  };
-
-  const availableMolds = useMemo(() => {
-      const usedCodes = new Set(editedProduct.molds.map(m => m.code));
-      return allMolds
-        .filter(m => !usedCodes.has(m.code))
-        .filter(m => 
-            m.code.includes(moldSearch.toUpperCase()) || 
-            m.description.toLowerCase().includes(moldSearch.toLowerCase())
-        )
-        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-  }, [allMolds, editedProduct.molds, moldSearch]);
-
-  const secondaryWeightLabel = useMemo(() => {
-    if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
-        return "Βάρος Καπακιού (g)";
-    }
-    return "Β' Βáρος (g)";
-  }, [editedProduct.gender, editedProduct.category]);
-
-  const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-
-  const analyticalCostingItems = useMemo(() => {
-    if (hasVariants) {
-        return sortedVariantsList.map(v => ({
-            key: v.suffix,
-            title: `${product.sku}${v.suffix} (${v.description})`,
-            costResult: estimateVariantCost(editedProduct, v.suffix, settings, allMaterials, allProducts)
+        setEditedProduct(prev => ({
+            ...prev,
+            variants: updates,
+            selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price
         }));
-    } else {
-        return [{
-            key: 'master-lustre',
-            title: `${product.sku} (Λουστρέ)`,
-            costResult: currentCostCalc
-        }];
-    }
-  }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
 
-  const handleRenameSku = async () => {
-      if (!tempSku || tempSku === product.sku) {
-          setIsEditingSku(false);
-          return;
-      }
-      
-      const newSku = tempSku.trim().toUpperCase();
-      if (newSku.length < 3) {
-          showToast("SKU must be at least 3 characters", "error");
-          return;
-      }
+        if (updateCount > 0) {
+            showToast(`Ενημερώθηκαν ${updateCount} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
+        } else {
+            showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
+        }
+    };
 
-      // Check existence
-      if (allProducts.some(p => p.sku === newSku)) {
-          showToast(`SKU ${newSku} already exists.`, "error");
-          return;
-      }
+    const applyFormulaToSingleVariant = (index: number) => {
+        const variant = sortedVariantsList[index];
+        const realIndex = (editedProduct.variants || []).findIndex(v => v.suffix === variant.suffix);
+        if (realIndex === -1) return;
 
-      const confirmed = await confirm({
-          title: 'Μετονομασία SKU',
-          message: `Είστε σίγουροι ότι θέλετε να αλλάξετε το SKU από ${product.sku} σε ${newSku}; Αυτό θα ενημερώσει όλες τις σχετικές εγγραφές (Stock, Orders, Variants).`,
-          confirmText: 'Μετονομασία',
-          isDestructive: true
-      });
+        const suggested = getSuggestedPriceForVariant(variant.suffix, 'formula');
 
-      if (!confirmed) {
-          setTempSku(product.sku);
-          setIsEditingSku(false);
-          return;
-      }
+        const newVariants = [...(editedProduct.variants || [])];
+        newVariants[realIndex] = { ...newVariants[realIndex], selling_price: suggested };
+        setEditedProduct(prev => ({ ...prev, variants: newVariants }));
+        showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
+    };
 
-      setIsRenaming(true);
-      try {
-          await api.renameProduct(product.sku, newSku);
-          
-          // Update local state to reflect change immediately without full reload if possible, 
-          // but react-query invalidation will handle it best.
-          setEditedProduct(prev => ({ ...prev, sku: newSku }));
-          
-          await queryClient.invalidateQueries({ queryKey: ['products'] });
-          showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
-      } catch (e: any) {
-          console.error(e);
-          showToast(`Σφάλμα: ${e.message || 'Αποτυχία μετονομασίας'}`, "error");
-          setTempSku(product.sku); // Revert
-      } finally {
-          setIsRenaming(false);
-          setIsEditingSku(false);
-      }
-  };
+    const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
+        let newItem: RecipeItem;
+        if (item.type === 'raw') {
+            newItem = { type: 'raw', id: item.id, quantity: 1 };
+        } else {
+            newItem = { type: 'component', sku: item.sku, quantity: 1 };
+        }
+        setEditedProduct(prev => ({
+            ...prev,
+            recipe: [...prev.recipe, newItem]
+        }));
+        setIsRecipeModalOpen(false);
+    };
 
-  return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
-        {isRecipeModalOpen && (
-            <RecipeItemSelectorModal 
-                type={isRecipeModalOpen}
-                productCategory={editedProduct.category}
-                allMaterials={allMaterials}
-                allProducts={allProducts}
-                onClose={() => setIsRecipeModalOpen(false)}
-                onSelect={handleSelectRecipeItem}
-            />
-        )}
-        {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-        <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
-           
-           <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
-               {/* ... (Existing header code) ... */}
-               <div>
-                   <div className="flex items-center gap-3">
-                       {isEditingSku ? (
-                           <div className="flex items-center gap-2">
-                               <input 
-                                   value={tempSku}
-                                   onChange={e => setTempSku(e.target.value.toUpperCase())}
-                                   className="text-2xl font-black text-slate-900 tracking-tight border-b-2 border-emerald-500 outline-none w-48 uppercase"
-                                   autoFocus
-                                   onKeyDown={e => e.key === 'Enter' && handleRenameSku()}
-                               />
-                               <button onClick={handleRenameSku} disabled={isRenaming} className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200">
-                                   {isRenaming ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>}
-                               </button>
-                               <button onClick={() => { setIsEditingSku(false); setTempSku(product.sku); }} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200">
-                                   <X size={18}/>
-                                </button>
-                           </div>
-                       ) : (
-                           <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3 group">
-                               <span>{displayedSku}</span>
-                               {viewMode === 'registry' && (
-                                   <button 
-                                       onClick={() => setIsEditingSku(true)} 
-                                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                                       title="Μετονομασία SKU"
-                                   >
-                                       <Edit size={16}/>
-                                   </button>
-                               )}
-                           </h2>
-                       )}
-                       
-                       {showPager && (
-                            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                                <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <span className="text-xs font-mono text-slate-500 w-10 text-center">
-                                    {viewIndex + 1}/{maxViews}
-                                </span>
-                                <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
+    const updateRecipeItem = (index: number, field: string, value: any) => {
+        const newRecipe = [...editedProduct.recipe];
+        const item = { ...newRecipe[index] };
+        if (field === 'quantity') {
+            item.quantity = parseFloat(value) || 0;
+        } else if (field === 'id' && item.type === 'raw') {
+            item.id = value;
+        } else if (field === 'sku' && item.type === 'component') {
+            item.sku = value;
+        }
+        newRecipe[index] = item;
+        setEditedProduct(prev => ({ ...prev, recipe: newRecipe }));
+    };
+
+    const removeRecipeItem = (index: number) => {
+        setEditedProduct(prev => ({
+            ...prev,
+            recipe: prev.recipe.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleSave = async () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            let finalEditedProduct = { ...editedProduct };
+
+            if (finalEditedProduct.sku.startsWith('ST') && (finalEditedProduct.variants || []).some(v => v.suffix === 'H')) {
+                const hasLustreVariant = (finalEditedProduct.variants || []).some(v => v.suffix === '');
+                if (!hasLustreVariant) {
+                    const { total: estimatedCost } = estimateVariantCost(
+                        finalEditedProduct,
+                        '',
+                        settings,
+                        allMaterials,
+                        allProducts
+                    );
+                    const lustreDescription = analyzeSuffix('', finalEditedProduct.gender, finalEditedProduct.plating_type) || 'Λουστρέ';
+                    const newLustreVariant: ProductVariant = {
+                        suffix: '',
+                        description: lustreDescription,
+                        stock_qty: 0,
+                        active_price: parseFloat(estimatedCost.toFixed(2)),
+                        selling_price: finalEditedProduct.is_component ? 0 : finalEditedProduct.selling_price
+                    };
+                    finalEditedProduct = {
+                        ...finalEditedProduct,
+                        variants: [...(finalEditedProduct.variants || []), newLustreVariant]
+                    };
+                    showToast("Αυτόματη προσθήκη παραλλαγής Λουστρέ για ST κωδικό.", "info");
+                }
+            }
+
+            const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
+            const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
+
+            // Use api service for reliable local/offline persistence
+            const { queued: prodQueued } = await api.saveProduct({
+                sku: finalEditedProduct.sku,
+                prefix: finalEditedProduct.sku.substring(0, 2),
+                category: finalEditedProduct.category,
+                description: isComponent ? finalEditedProduct.description : null,
+                gender: finalEditedProduct.gender,
+                image_url: finalEditedProduct.image_url,
+                weight_g: finalEditedProduct.weight_g,
+                secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
+                selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
+                plating_type: finalEditedProduct.plating_type,
+                labor_casting: finalEditedProduct.labor.casting_cost,
+                labor_setter: finalEditedProduct.labor.setter_cost,
+                labor_technician: finalEditedProduct.labor.technician_cost,
+                labor_plating_x: finalEditedProduct.labor.plating_cost_x,
+                labor_plating_d: finalEditedProduct.labor.plating_cost_d,
+                labor_subcontract: finalEditedProduct.labor.subcontract_cost,
+                labor_casting_manual_override: finalEditedProduct.labor.casting_cost_manual_override,
+                labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
+                labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
+                labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
+                active_price: currentCost,
+                draft_price: currentCost,
+                is_component: isComponent,
+                production_type: finalEditedProduct.production_type,
+                supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : undefined,
+                supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
+                supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
+                labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null
+            });
+
+            await api.deleteProductRecipes(finalEditedProduct.sku);
+            if (finalEditedProduct.recipe.length > 0) {
+                for (const r of finalEditedProduct.recipe) {
+                    await api.insertRecipe({
+                        parent_sku: finalEditedProduct.sku,
+                        type: r.type,
+                        material_id: r.type === 'raw' ? r.id : null,
+                        component_sku: r.type === 'component' ? r.sku : null,
+                        quantity: r.quantity
+                    });
+                }
+            }
+
+            await api.deleteProductMolds(finalEditedProduct.sku);
+            if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
+                const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
+                    index === self.findIndex((t) => t.code === m.code)
+                );
+                for (const m of uniqueMolds) {
+                    await api.insertProductMold({
+                        product_sku: finalEditedProduct.sku,
+                        mold_code: m.code,
+                        quantity: m.quantity
+                    });
+                }
+            }
+
+            await api.deleteProductVariants(finalEditedProduct.sku);
+            if (finalEditedProduct.variants && finalEditedProduct.variants.length > 0) {
+                for (const v of finalEditedProduct.variants) {
+                    await api.saveProductVariant({
+                        product_sku: finalEditedProduct.sku,
+                        suffix: v.suffix,
+                        description: v.description,
+                        stock_qty: v.stock_qty || 0,
+                        active_price: v.active_price || null,
+                        selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
+                    });
+                }
+            }
+
+            await queryClient.refetchQueries({ queryKey: ['products'] });
+
+            if (onSave) onSave(finalEditedProduct);
+            showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
+            onClose();
+        } catch (err: any) {
+            showToast(`Σφάλμα αποθήκευσης: ${err.message}`, "error");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const requestDelete = async () => {
+        const confirmed = await confirm({
+            title: 'Διαγραφή Προϊόντος',
+            message: `Διαγραφή οριστικά ${editedProduct.sku}; Αυτή η ενέργεια θα διαγράψει και όλες τις παραλλαγές του.`,
+            confirmText: 'Διαγραφή',
+            isDestructive: true
+        });
+        if (!confirmed) return;
+        setIsDeleting(true);
+        const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
+
+        if (result.success) {
+            await queryClient.refetchQueries({ queryKey: ['products'] });
+            onClose();
+            showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
+        } else {
+            showToast(`Σφάλμα: ${result.error}`, "error");
+        }
+        setIsDeleting(false);
+    };
+
+    const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setIsUploadingImage(true);
+            try {
+                const compressedBlob = await compressImage(file);
+                const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
+                if (publicUrl) {
+                    setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
+                    await api.saveProduct({ ...editedProduct, image_url: publicUrl });
+                    queryClient.invalidateQueries({ queryKey: ['products'] });
+                    showToast("Η φωτογραφία ενημερώθηκε.", "success");
+                }
+            } catch (error) {
+                console.error(error);
+                showToast("Σφάλμα κατά την ενημέρωση.", "error");
+            } finally {
+                setIsUploadingImage(false);
+            }
+        }
+    };
+
+    const handleSmartAdd = () => {
+        if (!smartAddSuffix.trim()) {
+            showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
+            return;
+        }
+
+        // 1. Validation & Clean
+        const rawSuffix = smartAddSuffix.trim().toUpperCase();
+
+        // 2. Duplication Check
+        if ((editedProduct.variants || []).some(v => v.suffix === rawSuffix)) {
+            showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
+            return;
+        }
+
+        // 3. Smart Preview Data (Re-calculate for final add)
+        // We already have smartPreview memo, but we need to capture current state
+        const { finish, stone } = getVariantComponents(rawSuffix, editedProduct.gender);
+
+        // Description Logic: Finish + Stone
+        let description = '';
+        if (['X', 'H', 'D', 'P'].includes(finish.code)) description = finish.name;
+        else description = 'Λουστρέ';
+
+        if (stone.name) description += ` - ${stone.name}`;
+
+        // Cost Estimation
+        const { total: estimatedCost } = estimateVariantCost(
+            editedProduct,
+            rawSuffix,
+            settings,
+            allMaterials,
+            allProducts
+        );
+
+        const newVariant: ProductVariant = {
+            suffix: rawSuffix,
+            description: description,
+            stock_qty: 0,
+            active_price: estimatedCost,
+            selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
+        };
+
+        setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVariant] }));
+        setSmartAddSuffix('');
+        showToast(`Παραλλαγή ${rawSuffix} προστέθηκε!`, 'success');
+    };
+
+    const handleManualAdd = () => {
+        if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", 'error'); return; }
+        const upperSuffix = newVariantSuffix.toUpperCase();
+        if ((editedProduct.variants || []).some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
+
+        const { total: estimatedCost } = estimateVariantCost(
+            editedProduct,
+            upperSuffix,
+            settings,
+            allMaterials,
+            allProducts
+        );
+
+        const newVariant: ProductVariant = {
+            suffix: upperSuffix,
+            description: newVariantDesc || manualSuffixAnalysis || '',
+            stock_qty: 0,
+            active_price: estimatedCost,
+            selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
+        };
+        setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVariant] }));
+        setNewVariantSuffix('');
+        setNewVariantDesc('');
+        showToast(`Παραλλαγή ${upperSuffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
+    };
+
+    const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
+        const variantToUpdate = sortedVariantsList[index];
+        const realIndex = (editedProduct.variants || []).findIndex(v => v.suffix === variantToUpdate.suffix);
+        if (realIndex === -1) return;
+        const newVariants = [...(editedProduct.variants || [])];
+        newVariants[realIndex] = { ...newVariants[realIndex], [field]: value };
+        setEditedProduct(prev => ({ ...prev, variants: newVariants }));
+    };
+
+    const deleteVariant = (index: number) => {
+        const variantToDelete = sortedVariantsList[index];
+        setEditedProduct(prev => ({
+            ...prev,
+            variants: (prev.variants || []).filter(v => v.suffix !== variantToDelete.suffix)
+        }));
+    };
+
+    const addMold = (code: string) => {
+        if (editedProduct.molds.some(m => m.code === code)) return;
+        setEditedProduct(prev => ({
+            ...prev,
+            molds: [...prev.molds, { code, quantity: 1 }]
+        }));
+    };
+
+    const updateMoldQuantity = (code: string, delta: number) => {
+        setEditedProduct(prev => ({
+            ...prev,
+            molds: prev.molds.map(m => m.code === code ? { ...m, quantity: Math.max(1, m.quantity + delta) } : m)
+        }));
+    };
+
+    const removeMold = (code: string) => {
+        setEditedProduct(prev => ({
+            ...prev,
+            molds: prev.molds.filter(m => m.code !== code)
+        }));
+    };
+
+    const availableMolds = useMemo(() => {
+        const usedCodes = new Set(editedProduct.molds.map(m => m.code));
+        return allMolds
+            .filter(m => !usedCodes.has(m.code))
+            .filter(m =>
+                m.code.includes(moldSearch.toUpperCase()) ||
+                m.description.toLowerCase().includes(moldSearch.toLowerCase())
+            )
+            .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    }, [allMolds, editedProduct.molds, moldSearch]);
+
+    const secondaryWeightLabel = useMemo(() => {
+        if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
+            return "Βάρος Καπακιού (g)";
+        }
+        return "Β' Βáρος (g)";
+    }, [editedProduct.gender, editedProduct.category]);
+
+    const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+
+    const analyticalCostingItems = useMemo(() => {
+        if (hasVariants) {
+            return sortedVariantsList.map(v => ({
+                key: v.suffix,
+                title: `${product.sku}${v.suffix} (${v.description})`,
+                costResult: estimateVariantCost(editedProduct, v.suffix, settings, allMaterials, allProducts)
+            }));
+        } else {
+            return [{
+                key: 'master-lustre',
+                title: `${product.sku} (Λουστρέ)`,
+                costResult: currentCostCalc
+            }];
+        }
+    }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
+
+    const handleRenameSku = async () => {
+        if (!tempSku || tempSku === product.sku) {
+            setIsEditingSku(false);
+            return;
+        }
+
+        const newSku = tempSku.trim().toUpperCase();
+        if (newSku.length < 3) {
+            showToast("SKU must be at least 3 characters", "error");
+            return;
+        }
+
+        // Check existence
+        if (allProducts.some(p => p.sku === newSku)) {
+            showToast(`SKU ${newSku} already exists.`, "error");
+            return;
+        }
+
+        const confirmed = await confirm({
+            title: 'Μετονομασία SKU',
+            message: `Είστε σίγουροι ότι θέλετε να αλλάξετε το SKU από ${product.sku} σε ${newSku}; Αυτό θα ενημερώσει όλες τις σχετικές εγγραφές (Stock, Orders, Variants).`,
+            confirmText: 'Μετονομασία',
+            isDestructive: true
+        });
+
+        if (!confirmed) {
+            setTempSku(product.sku);
+            setIsEditingSku(false);
+            return;
+        }
+
+        setIsRenaming(true);
+        try {
+            await api.renameProduct(product.sku, newSku);
+
+            // Update local state to reflect change immediately without full reload if possible, 
+            // but react-query invalidation will handle it best.
+            setEditedProduct(prev => ({ ...prev, sku: newSku }));
+
+            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
+        } catch (e: any) {
+            console.error(e);
+            showToast(`Σφάλμα: ${e.message || 'Αποτυχία μετονομασίας'}`, "error");
+            setTempSku(product.sku); // Revert
+        } finally {
+            setIsRenaming(false);
+            setIsEditingSku(false);
+        }
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
+            {isRecipeModalOpen && (
+                <RecipeItemSelectorModal
+                    type={isRecipeModalOpen}
+                    productCategory={editedProduct.category}
+                    allMaterials={allMaterials}
+                    allProducts={allProducts}
+                    onClose={() => setIsRecipeModalOpen(false)}
+                    onSelect={handleSelectRecipeItem}
+                />
+            )}
+            {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+
+                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10 shrink-0">
+                    {/* ... (Existing header code) ... */}
+                    <div>
+                        <div className="flex items-center gap-3">
+                            {isEditingSku ? (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        value={tempSku}
+                                        onChange={e => setTempSku(e.target.value.toUpperCase())}
+                                        className="text-2xl font-black text-slate-900 tracking-tight border-b-2 border-emerald-500 outline-none w-48 uppercase"
+                                        autoFocus
+                                        onKeyDown={e => e.key === 'Enter' && handleRenameSku()}
+                                    />
+                                    <button onClick={handleRenameSku} disabled={isRenaming} className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200">
+                                        {isRenaming ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                                    </button>
+                                    <button onClick={() => { setIsEditingSku(false); setTempSku(product.sku); }} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3 group">
+                                    <span>{displayedSku}</span>
+                                    {viewMode === 'registry' && (
+                                        <button
+                                            onClick={() => setIsEditingSku(true)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                                            title="Μετονομασία SKU"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                    )}
+                                </h2>
+                            )}
+
+                            {showPager && (
+                                <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                                    <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <span className="text-xs font-mono text-slate-500 w-10 text-center">
+                                        {viewIndex + 1}/{maxViews}
+                                    </span>
+                                    <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                        <ChevronRight size={18} />
+                                    </button>
+                                </div>
+                            )}
+                            {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
+                            {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12} /> Εισαγόμενο</span>}
+                        </div>
+                        <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
+                            <span>{editedProduct.category}</span>
+                            <span>•</span>
+                            <span className="font-bold text-slate-600">{displayedLabel}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {onDuplicate && (
+                            <button onClick={() => onDuplicate(product)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors mr-2 relative group">
+                                <Copy size={20} />
+                                <span className="absolute -bottom-8 right-0 w-max text-[10px] bg-slate-800 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Κλωνοποίηση</span>
+                            </button>
                         )}
-                       {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
-                       {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12}/> Εισαγόμενο</span>}
-                   </div>
-                   <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
-                       <span>{editedProduct.category}</span>
-                       <span>•</span>
-                       <span className="font-bold text-slate-600">{displayedLabel}</span>
-                   </div>
-               </div>
-               <div className="flex items-center gap-2">
-                   {viewMode === 'registry' && (
-                       <button onClick={requestDelete} disabled={isDeleting} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors mr-2">
-                           <Trash2 size={20}/>
-                       </button>
-                   )}
-                   <button onClick={onClose} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors">
-                       <X size={20}/>
-                   </button>
-               </div>
-           </div>
+                        {viewMode === 'registry' && (
+                            <button onClick={requestDelete} disabled={isDeleting} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors mr-2">
+                                <Trash2 size={20} />
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
 
-           <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
-               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                   <div className="lg:col-span-4 space-y-6">
-                       {/* ... (Existing left column code) ... */}
-                       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group">
-                           <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
-                               {editedProduct.image_url ? (
-                                   <img src={editedProduct.image_url} className="w-full h-full object-cover" alt={editedProduct.sku}/>
-                               ) : (
-                                   <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={48}/></div>
-                               )}
-                               
-                               <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                   <div className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-white/30">
-                                       <Camera size={18}/> {isUploadingImage ? 'Μεταφόρτωση...' : 'Αλλαγή'}
-                                   </div>
-                                   <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate} disabled={isUploadingImage}/>
-                               </label>
-                           </div>
-                       </div>
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-4 space-y-6">
+                            {/* ... (Existing left column code) ... */}
+                            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group">
+                                <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
+                                    {editedProduct.image_url ? (
+                                        <img src={editedProduct.image_url} className="w-full h-full object-cover" alt={editedProduct.sku} />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={48} /></div>
+                                    )}
 
-                       <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                           <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
-                               <TrendingUp size={18} className="text-emerald-500"/> Οικονομικά
-                           </h3>
-                           
-                           <div className="flex justify-between items-center text-sm">
-                               <span className="text-slate-500">Κόστος</span>
-                               <span className="font-mono font-bold text-slate-800">{formatCurrency(displayedCost)}</span>
-                           </div>
-                           
-                           {!editedProduct.is_component && (
-                               <>
-                               <div className="flex justify-between items-center text-sm">
-                                   <span className="text-slate-500">Τιμή Πώλησης</span>
-                                   <span className="font-mono font-bold text-emerald-600">{formatCurrency(displayedPrice)}</span>
-                               </div>
-                               <div className="w-full h-px bg-slate-100"></div>
-                               <div className="flex justify-between items-center text-xs">
-                                   <span className="font-bold text-slate-400 uppercase">Περιθωριο</span>
-                                   <span className={`font-black ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{displayedMargin.toFixed(0)}%</span>
-                               </div>
-                               </>
-                           )}
-                       </div>
-                   </div>
+                                    <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                                        <div className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-white/30">
+                                            <Camera size={18} /> {isUploadingImage ? 'Μεταφόρτωση...' : 'Αλλαγή'}
+                                        </div>
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate} disabled={isUploadingImage} />
+                                    </label>
+                                </div>
+                            </div>
 
-                   <div className="lg:col-span-8 space-y-6">
-                       
-                       <div className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
-                           {TABS.map(tab => (
-                               <button 
-                                   key={tab.id}
-                                   onClick={() => setActiveTab(tab.id as any)}
-                                   className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                               >
-                                   <tab.icon size={16} className={activeTab === tab.id ? 'text-amber-500' : ''}/> {tab.label}
-                               </button>
-                           ))}
-                       </div>
+                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                    <TrendingUp size={18} className="text-emerald-500" /> Οικονομικά
+                                </h3>
 
-                       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
-                           {activeTab === 'overview' && (
-                               <div className="space-y-6 animate-in fade-in">
-                                   {/* ... (Existing Overview code) ... */}
-                                   {editedProduct.production_type === ProductionType.InHouse ? (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">Κόστος</span>
+                                    <span className="font-mono font-bold text-slate-800">{formatCurrency(displayedCost)}</span>
+                                </div>
+
+                                {!editedProduct.is_component && (
                                     <>
-                                       <div className="grid grid-cols-2 gap-6">
-                                           <div>
-                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
-                                               <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({...editedProduct, category: e.target.value})} />
-                                           </div>
-                                           <div>
-                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος (g)</label>
-                                               <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
-                                           </div>
-                                           <div>
-                                               <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
-                                               <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0})} />
-                                           </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
-                                                <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({...editedProduct, gender: e.target.value as Gender})}>
-                                                    <option value={Gender.Women}>Γυναικείο</option>
-                                                    <option value={Gender.Men}>Ανδρικό</option>
-                                                    <option value={Gender.Unisex}>Unisex</option>
-                                                </select>
-                                            </div>
-                                            {editedProduct.is_component && (
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιγραφή STX</label>
-                                                    <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.description || ''} onChange={e => setEditedProduct({...editedProduct, description: e.target.value})} placeholder="π.χ. Μικρή Πεταλούδα" />
-                                                </div>
-                                            )}
-                                            {hasVariants ? (
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Διαθέσιμες Επιμεταλλώσεις</label>
-                                                    <div className="w-full p-3 bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-xl mt-1">
-                                                        {displayPlating}
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-500">Τιμή Πώλησης</span>
+                                            <span className="font-mono font-bold text-emerald-600">{formatCurrency(displayedPrice)}</span>
+                                        </div>
+                                        <div className="w-full h-px bg-slate-100"></div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="font-bold text-slate-400 uppercase">Περιθωριο</span>
+                                            <span className={`font-black ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{displayedMargin.toFixed(0)}%</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-8 space-y-6">
+
+                            <div className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
+                                {TABS.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <tab.icon size={16} className={activeTab === tab.id ? 'text-amber-500' : ''} /> {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
+                                {activeTab === 'overview' && (
+                                    <div className="space-y-6 animate-in fade-in">
+                                        {/* ... (Existing Overview code) ... */}
+                                        {editedProduct.production_type === ProductionType.InHouse ? (
+                                            <>
+                                                <div className="grid grid-cols-2 gap-6">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
+                                                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
                                                     </div>
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
-                                                    <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({...editedProduct, plating_type: e.target.value as PlatingType})}>
-                                                        <option value={PlatingType.None}>Λουστρέ</option>
-                                                        <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                        <option value={PlatingType.TwoTone}>Δίχρωμο</option>
-                                                        <option value={PlatingType.Platinum}>Πλατίνα</option>
-                                                    </select>
-                                                </div>
-                                            )}
-                                       </div>
-                                       
-                                       {!editedProduct.is_component && (
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Coins size={14}/> Τιμές Πώλησης ανά Φινίρισμα</label>
-                                                    <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`text-slate-400 hover:text-emerald-600 transition-colors ${showRepriceTool ? 'text-emerald-500 bg-emerald-100 p-1 rounded' : ''}`}><Calculator size={16}/></button>
-                                                </div>
-                                                
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {/* CASE 1: NO VARIANTS (Simple Product) */}
-                                                    {!hasVariants && (
+                                                    <div>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος (g)</label>
+                                                        <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
+                                                        <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
+                                                        <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
+                                                            <option value={Gender.Women}>Γυναικείο</option>
+                                                            <option value={Gender.Men}>Ανδρικό</option>
+                                                            <option value={Gender.Unisex}>Unisex</option>
+                                                        </select>
+                                                    </div>
+                                                    {editedProduct.is_component && (
                                                         <div>
-                                                            <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">
-                                                                Λουστρέ
-                                                            </label>
-                                                            <div className="relative">
-                                                                <input 
-                                                                    type="number" step="0.01" 
-                                                                    className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
-                                                                    value={editedProduct.selling_price} 
-                                                                    onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} 
-                                                                />
-                                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium">€</span>
-                                                            </div>
-                                                            {showRepriceTool && (
-                                                                <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                    <ArrowUpRight size={10} className="text-blue-400"/> {getSuggestedPriceForFinishGroup('', 'formula', targetMargin).toFixed(2)}€
-                                                                </div>
-                                                            )}
+                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιγραφή STX</label>
+                                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
                                                         </div>
                                                     )}
-
-                                                    {/* CASE 2: VARIANTS EXIST (Grouped by Finish) */}
-                                                    {hasVariants && sortedFinishCodes.map(code => {
-                                                        const group = finishGroups[code];
-                                                        const price = group[0]?.selling_price || 0;
-                                                        const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
-                                                        const suggested = getSuggestedPriceForFinishGroup(code, 'formula', targetMargin);
-                                                        
-                                                        return (
-                                                            <div key={code}>
-                                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">
-                                                                    {label}
-                                                                </label>
-                                                                <div className="relative">
-                                                                    <input 
-                                                                        type="number" step="0.01" 
-                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold font-mono text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm" 
-                                                                        value={price} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value) || 0;
-                                                                            const newVars = [...editedProduct.variants];
-                                                                            group.forEach(gVar => {
-                                                                                const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
-                                                                                if (idx !== -1) newVars[idx] = { ...newVars[idx], selling_price: val };
-                                                                            });
-                                                                            setEditedProduct({ ...editedProduct, variants: newVars });
-                                                                        }} 
-                                                                    />
-                                                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">€</span>
-                                                                </div>
-                                                                {showRepriceTool && (
-                                                                    <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                        <ArrowUpRight size={10} className="text-blue-400"/> {suggested.toFixed(2)}€
-                                                                    </div>
-                                                                )}
+                                                    {hasVariants ? (
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Διαθέσιμες Επιμεταλλώσεις</label>
+                                                            <div className="w-full p-3 bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-xl mt-1">
+                                                                {displayPlating}
                                                             </div>
-                                                        );
-                                                    })}
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
+                                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
+                                                                <option value={PlatingType.None}>Λουστρέ</option>
+                                                                <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
+                                                                <option value={PlatingType.TwoTone}>Δίχρωμο</option>
+                                                                <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                                            </select>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                
-                                                {showRepriceTool && (
-                                                   <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2">
-                                                       <h4 className="font-bold text-slate-700 text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2 py-1 rounded text-blue-700 border border-blue-100">
-                                                           <Wand2 size={12}/> Μαζική Ανατιμολόγηση
-                                                       </h4>
-                                                       
-                                                       <div className="flex items-center gap-4 mb-4">
-                                                           <div className="flex-1">
-                                                               <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Στόχος Margin</label>
-                                                               <div className="flex items-center gap-2">
-                                                                   <input 
-                                                                        type="range" min="10" max="90" step="5" 
-                                                                        value={targetMargin} 
-                                                                        onChange={e => setTargetMargin(parseInt(e.target.value))}
-                                                                        className="w-full accent-blue-500 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                                                                   />
-                                                                   <span className="text-xs font-bold text-slate-700 w-8">{targetMargin}%</span>
-                                                               </div>
-                                                           </div>
-                                                           <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                                                               Εφαρμογή Margin
-                                                           </button>
-                                                       </div>
 
-                                                       <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
-                                                           <Calculator size={16}/> Εφαρμογή Τύπου Ilios (Smart)
-                                                       </button>
-                                                       <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
-                                                   </div>
-                                               )}
-                                            </div>
-                                       )}
+                                                {!editedProduct.is_component && (
+                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Coins size={14} /> Τιμές Πώλησης ανά Φινίρισμα</label>
+                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`text-slate-400 hover:text-emerald-600 transition-colors ${showRepriceTool ? 'text-emerald-500 bg-emerald-100 p-1 rounded' : ''}`}><Calculator size={16} /></button>
+                                                        </div>
 
-                                       <div>
-                                            <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
-                                                <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500"/> Λάστιχα</span>
-                                                <button onClick={() => setIsAddingMold(prev => !prev)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors">
-                                                    {isAddingMold ? 'Ακύρωση' : 'Προσθήκη'}
-                                                </button>
-                                            </h4>
-                                           <div className="flex flex-wrap gap-2 mb-4">
-                                                {editedProduct.molds.map(m => {
-                                                    const moldDetails = allMolds.find(mold => mold.code === m.code);
-                                                    const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
-                                                    return (
-                                                        <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1 py-1 rounded-lg text-sm font-bold flex items-center gap-2">
-                                                            <span>{m.code}</span>
-                                                            <div className="flex items-center bg-amber-100/50 rounded border border-amber-200">
-                                                                <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-100 text-amber-600 rounded-l ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
-                                                                    <Minus size={12}/>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            {/* CASE 1: NO VARIANTS (Simple Product) */}
+                                                            {!hasVariants && (
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">
+                                                                        Λουστρέ
+                                                                    </label>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="number" step="0.01"
+                                                                            className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
+                                                                            value={editedProduct.selling_price}
+                                                                            onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0 })}
+                                                                        />
+                                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium">€</span>
+                                                                    </div>
+                                                                    {showRepriceTool && (
+                                                                        <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                            <ArrowUpRight size={10} className="text-blue-400" /> {getSuggestedPriceForFinishGroup('', 'formula', targetMargin).toFixed(2)}€
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            {/* CASE 2: VARIANTS EXIST (Grouped by Finish) */}
+                                                            {hasVariants && sortedFinishCodes.map(code => {
+                                                                const group = finishGroups[code];
+                                                                const price = group[0]?.selling_price || 0;
+                                                                const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
+                                                                const suggested = getSuggestedPriceForFinishGroup(code, 'formula', targetMargin);
+
+                                                                return (
+                                                                    <div key={code}>
+                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">
+                                                                            {label}
+                                                                        </label>
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="number" step="0.01"
+                                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold font-mono text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
+                                                                                value={price}
+                                                                                onChange={e => {
+                                                                                    const val = parseFloat(e.target.value) || 0;
+                                                                                    const newVars = [...editedProduct.variants];
+                                                                                    group.forEach(gVar => {
+                                                                                        const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
+                                                                                        if (idx !== -1) newVars[idx] = { ...newVars[idx], selling_price: val };
+                                                                                    });
+                                                                                    setEditedProduct({ ...editedProduct, variants: newVars });
+                                                                                }}
+                                                                            />
+                                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">€</span>
+                                                                        </div>
+                                                                        {showRepriceTool && (
+                                                                            <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <ArrowUpRight size={10} className="text-blue-400" /> {suggested.toFixed(2)}€
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {showRepriceTool && (
+                                                            <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2">
+                                                                <h4 className="font-bold text-slate-700 text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2 py-1 rounded text-blue-700 border border-blue-100">
+                                                                    <Wand2 size={12} /> Μαζική Ανατιμολόγηση
+                                                                </h4>
+
+                                                                <div className="flex items-center gap-4 mb-4">
+                                                                    <div className="flex-1">
+                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Στόχος Margin</label>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="range" min="10" max="90" step="5"
+                                                                                value={targetMargin}
+                                                                                onChange={e => setTargetMargin(parseInt(e.target.value))}
+                                                                                className="w-full accent-blue-500 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                                                            />
+                                                                            <span className="text-xs font-bold text-slate-700 w-8">{targetMargin}%</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                                                                        Εφαρμογή Margin
+                                                                    </button>
+                                                                </div>
+
+                                                                <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
+                                                                    <Calculator size={16} /> Εφαρμογή Τύπου Ilios (Smart)
                                                                 </button>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="1" 
-                                                                    value={m.quantity} 
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value) || 1;
-                                                                        setEditedProduct(prev => ({
-                                                                            ...prev,
-                                                                            molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
-                                                                        }));
-                                                                    }}
-                                                                    className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
-                                                                />
-                                                                <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-100 text-amber-600 rounded-r">
-                                                                    <Plus size={12}/>
-                                                                </button>
+                                                                <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
                                                             </div>
-                                                            <button onClick={() => removeMold(m.code)} className="p-1 text-slate-300 hover:text-red-500 ml-1 hover:bg-red-50 rounded transition-colors"><X size={14}/></button>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
+                                                        <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500" /> Λάστιχα</span>
+                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors">
+                                                            {isAddingMold ? 'Ακύρωση' : 'Προσθήκη'}
+                                                        </button>
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        {editedProduct.molds.map(m => {
+                                                            const moldDetails = allMolds.find(mold => mold.code === m.code);
+                                                            const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
+                                                            return (
+                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1 py-1 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                                    <span>{m.code}</span>
+                                                                    <div className="flex items-center bg-amber-100/50 rounded border border-amber-200">
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-100 text-amber-600 rounded-l ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
+                                                                            <Minus size={12} />
+                                                                        </button>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={m.quantity}
+                                                                            onChange={(e) => {
+                                                                                const val = parseInt(e.target.value) || 1;
+                                                                                setEditedProduct(prev => ({
+                                                                                    ...prev,
+                                                                                    molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
+                                                                                }));
+                                                                            }}
+                                                                            className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
+                                                                        />
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-100 text-amber-600 rounded-r">
+                                                                            <Plus size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                    <button onClick={() => removeMold(m.code)} className="p-1 text-slate-300 hover:text-red-500 ml-1 hover:bg-red-50 rounded transition-colors"><X size={14} /></button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic">Κανένα λάστιχο.</span>}
+                                                    </div>
+                                                    {isAddingMold && (
+                                                        <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-2 animate-in fade-in">
+                                                            <div className="relative">
+                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Αναζήτηση..."
+                                                                    value={moldSearch}
+                                                                    onChange={e => setMoldSearch(e.target.value)}
+                                                                    className="w-full pl-9 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                            <div className="max-h-40 overflow-y-auto space-y-1">
+                                                                {availableMolds.map(m => (
+                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
+                                                                        <span className="font-bold text-slate-700">{m.code}</span>
+                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
+                                                                    </button>
+                                                                ))}
+                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
+                                                            <Calculator size={14} /> Κοστολόγηση Εισαγωγής
+                                                        </h4>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12} /> Βάρος (g)</label>
+                                                            <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Προμηθευτής</label>
+                                                            <select
+                                                                value={editedProduct.supplier_id || ''}
+                                                                onChange={(e) => setEditedProduct({ ...editedProduct, supplier_id: e.target.value || undefined })}
+                                                                className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold outline-none"
+                                                            >
+                                                                <option value="">Επιλογή...</option>
+                                                                {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Κωδικός Προμηθευτή</label>
+                                                            <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({ ...editedProduct, supplier_sku: e.target.value })} placeholder="π.χ. ITEM-123" />
+                                                        </div>
+                                                        <LaborCostInput icon={<Hammer size={14} />} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, technician_cost: val } }))} />
+                                                        <LaborCostInput icon={<Coins size={14} />} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_x: val } }))} />
+                                                        <LaborCostInput icon={<Gem size={14} />} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, stone_setting_cost: val } }))} />
+                                                    </div>
+                                                    <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col">
+                                                        <h4 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200 pb-2">
+                                                            <Calculator size={14} /> Ανάλυση Κόστους
+                                                        </h4>
+                                                        <div className="space-y-1 flex-1">
+                                                            <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
+                                                            <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
+                                                            <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
+                                                            <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                                        </div>
+                                                        <div className="pt-3 mt-3 border-t border-emerald-200 flex justify-between items-center">
+                                                            <span className="font-bold text-emerald-700 text-sm uppercase">Τελικο Κοστος</span>
+                                                            <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm">
+                                                    <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
+                                                        <DollarSign size={14} /> Εμπορική Πολιτική
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 gap-6 items-end">
+                                                        <div>
+                                                            <label className="text-xs font-bold text-slate-500 uppercase">Τιμή Πώλησης (€)</label>
+                                                            <div className="flex gap-2">
+                                                                <input type="number" step="0.01" className="w-full p-3 bg-white border border-amber-200 text-amber-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0 })} />
+                                                                <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-white hover:bg-amber-50 border border-amber-200 rounded-xl text-slate-600"><Calculator size={20} /></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {showRepriceTool && (
+                                                        <div className="bg-amber-100/50 p-4 rounded-xl border border-amber-200 animate-in slide-in-from-top-2 mt-4">
+                                                            <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16} /> Εργαλείο Ανατιμολόγησης</h4>
+                                                            <div className="flex items-end gap-4">
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Margin (%)</label>
+                                                                    <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white" />
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={handleStandardFormula} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
+                                                                        <Calculator size={12} /> Standard
+                                                                    </button>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
+                                                                    <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
+                                                                </div>
+                                                                <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'recipe' && (
+                                    <div className="space-y-4 animate-in fade-in">
+                                        {/* ... (Existing Recipe code) ... */}
+                                        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
+                                            <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
+                                                <Coins size={16} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
+                                                <div className="text-xs text-slate-400 font-mono">
+                                                    {totalWeightForSilver > editedProduct.weight_g
+                                                        ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
+                                                        : `${formatDecimal(totalWeightForSilver)}g`
+                                                    } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-mono font-bold text-slate-800 text-lg">
+                                                    {formatCurrency(currentCostCalc.breakdown.silver)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {editedProduct.recipe.map((item, idx) => {
+                                            const isRaw = item.type === 'raw';
+                                            const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+
+                                            let itemCost = 0;
+                                            if (isRaw) {
+                                                const mat = details as Material | undefined;
+                                                if (mat) {
+                                                    let unitCost = mat.cost_per_unit;
+                                                    if (currentViewVariant?.suffix) {
+                                                        const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
+                                                        if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
+                                                            unitCost = mat.variant_prices[stone.code];
+                                                        }
+                                                    }
+                                                    itemCost = unitCost * item.quantity;
+                                                }
+                                            } else {
+                                                const subProduct = details as Product | undefined;
+                                                if (subProduct) {
+                                                    itemCost = (subProduct.active_price || 0) * item.quantity;
+                                                }
+                                            }
+
+                                            const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
+
+                                            return (
+                                                <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                    <div className="p-2 bg-white rounded-lg border border-slate-100">
+                                                        {isRaw ? <Gem size={16} className="text-emerald-500" /> : <Puzzle size={16} className="text-blue-500" />}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        {isRaw ? (
+                                                            <select
+                                                                className="bg-transparent font-bold text-slate-800 outline-none w-full"
+                                                                value={item.id}
+                                                                onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
+                                                            >
+                                                                {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                            </select>
+                                                        ) : (
+                                                            <select
+                                                                className="bg-transparent font-bold text-slate-800 outline-none w-full"
+                                                                value={item.sku}
+                                                                onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
+                                                            >
+                                                                {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                    <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <SmartQuantityInput
+                                                            value={item.quantity}
+                                                            onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
+                                                            stonesPerStrand={stonesPerStrand}
+                                                        />
+                                                        <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
+                                                    </div>
+                                                    <button onClick={() => removeRecipeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
+                                                </div>
+                                            );
+                                        })}
+                                        <div className="flex gap-2 pt-4">
+                                            <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14} /> Υλικό</button>
+                                            <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14} /> Εξάρτημα</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'labor' && (
+                                    <div className="space-y-6 animate-in fade-in">
+                                        {/* ... (Existing Labor code) ... */}
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών</h3>
+                                            <div className="space-y-2">
+                                                <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, casting_cost: v } })} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override } }))} icon={<Flame size={14} />} />
+                                                <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
+                                                <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, technician_cost: v } })} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override } }))} icon={<Hammer size={14} />} />
+                                                <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, plating_cost_x: v } })} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override } }))} icon={<Coins size={14} />} />
+                                                <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, plating_cost_d: v } })} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override } }))} icon={<Coins size={14} />} />
+                                                <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, subcontract_cost: v } })} icon={<Users size={14} />} />
+                                            </div>
+                                        </div>
+                                        <div className="mt-8 pt-6 border-t border-slate-100">
+                                            <h3 className="font-bold text-slate-800 mb-4">Αναλυτική Κοστολόγηση Παραλλαγών</h3>
+                                            <div className="space-y-4">
+                                                {analyticalCostingItems.map(item => {
+                                                    const { key, title, costResult } = item;
+                                                    return (
+                                                        <div key={key} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                            <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
+                                                                <span className="font-bold text-slate-800 text-sm">{title}</span>
+                                                                <span className="font-black text-lg text-emerald-700">{formatCurrency(costResult.total)}</span>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400">ΑΣΗΜΙ</div>
+                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.silver)}</div>
+                                                                </div>
+                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400">ΥΛΙΚΑ</div>
+                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.materials)}</div>
+                                                                </div>
+                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400">ΕΡΓΑΤΙΚΑ</div>
+                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.labor)}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-2 text-xs text-slate-500 font-mono bg-white rounded p-2 border border-slate-100">
+                                                                Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)} |
+                                                                Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)} |
+                                                                Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)} |
+                                                                Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)} |
+                                                                Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
-                                               {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic">Κανένα λάστιχο.</span>}
-                                           </div>
-                                           {isAddingMold && (
-                                               <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-2 animate-in fade-in">
-                                                   <div className="relative">
-                                                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
-                                                       <input 
-                                                           type="text" 
-                                                           placeholder="Αναζήτηση..." 
-                                                           value={moldSearch} 
-                                                           onChange={e => setMoldSearch(e.target.value)} 
-                                                           className="w-full pl-9 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500"
-                                                           autoFocus
-                                                       />
-                                                   </div>
-                                                   <div className="max-h-40 overflow-y-auto space-y-1">
-                                                       {availableMolds.map(m => (
-                                                           <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
-                                                               <span className="font-bold text-slate-700">{m.code}</span>
-                                                               <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
-                                                           </button>
-                                                       ))}
-                                                       {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
-                                                   </div>
-                                               </div>
-                                           )}
-                                       </div>
-                                    </>
-                                   ) : (
-                                    <div className="space-y-6">
-                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
-                                                <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2">
-                                                    <Calculator size={14}/> Κοστολόγηση Εισαγωγής
-                                                </h4>
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Weight size={12}/> Βάρος (g)</label>
-                                                    <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({...editedProduct, weight_g: parseFloat(e.target.value) || 0})} />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Προμηθευτής</label>
-                                                    <select 
-                                                        value={editedProduct.supplier_id || ''} 
-                                                        onChange={(e) => setEditedProduct({...editedProduct, supplier_id: e.target.value || null})} 
-                                                        className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold outline-none"
-                                                    >
-                                                        <option value="">Επιλογή...</option>
-                                                        {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">Κωδικός Προμηθευτή</label>
-                                                    <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({...editedProduct, supplier_sku: e.target.value})} placeholder="π.χ. ITEM-123"/>
-                                                </div>
-                                                <LaborCostInput icon={<Hammer size={14}/>} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, technician_cost: val}}))} />
-                                                <LaborCostInput icon={<Coins size={14}/>} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, plating_cost_x: val}}))} />
-                                                <LaborCostInput icon={<Gem size={14}/>} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({...p, labor: {...p.labor, stone_setting_cost: val}}))} />
-                                           </div>
-                                           <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col">
-                                                <h4 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200 pb-2">
-                                                    <Calculator size={14}/> Ανάλυση Κόστους
-                                                </h4>
-                                                <div className="space-y-1 flex-1">
-                                                    <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
-                                                    <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
-                                                    <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
-                                                    <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
-                                                </div>
-                                                <div className="pt-3 mt-3 border-t border-emerald-200 flex justify-between items-center">
-                                                    <span className="font-bold text-emerald-700 text-sm uppercase">Τελικο Κοστος</span>
-                                                    <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
-                                                </div>
-                                           </div>
-                                       </div>
-                                       <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm">
-                                            <h4 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-amber-200 pb-2">
-                                                <DollarSign size={14}/> Εμπορική Πολιτική
-                                            </h4>
-                                            <div className="grid grid-cols-2 gap-6 items-end">
-                                               <div>
-                                                   <label className="text-xs font-bold text-slate-500 uppercase">Τιμή Πώλησης (€)</label>
-                                                   <div className="flex gap-2">
-                                                       <input type="number" step="0.01" className="w-full p-3 bg-white border border-amber-200 text-amber-800 rounded-xl mt-1 font-bold font-mono" value={editedProduct.selling_price} onChange={e => setEditedProduct({...editedProduct, selling_price: parseFloat(e.target.value) || 0})} />
-                                                       <button onClick={() => setShowRepriceTool(!showRepriceTool)} className="mt-1 p-3 bg-white hover:bg-amber-50 border border-amber-200 rounded-xl text-slate-600"><Calculator size={20}/></button>
-                                                   </div>
-                                               </div>
                                             </div>
-                                            {showRepriceTool && (
-                                               <div className="bg-amber-100/50 p-4 rounded-xl border border-amber-200 animate-in slide-in-from-top-2 mt-4">
-                                                   <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16}/> Εργαλείο Ανατιμολόγησης</h4>
-                                                   <div className="flex items-end gap-4">
-                                                       <div>
-                                                           <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Margin (%)</label>
-                                                           <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white"/>
-                                                       </div>
-                                                       <div className="flex items-center gap-2">
-                                                           <button onClick={handleStandardFormula} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
-                                                               <Calculator size={12}/> Standard
-                                                           </button>
-                                                       </div>
-                                                       <div>
-                                                           <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
-                                                           <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
-                                                       </div>
-                                                       <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Εφαρμογή</button>
-                                                   </div>
-                                               </div>
-                                           )}
-                                       </div>
-                                    </div>
-                                   )}
-                               </div>
-                           )}
-
-                           {activeTab === 'recipe' && (
-                               <div className="space-y-4 animate-in fade-in">
-                                   {/* ... (Existing Recipe code) ... */}
-                                   <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
-                                       <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
-                                           <Coins size={16} />
-                                       </div>
-                                       <div className="flex-1">
-                                           <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
-                                           <div className="text-xs text-slate-400 font-mono">
-                                                {totalWeightForSilver > editedProduct.weight_g
-                                                    ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
-                                                    : `${formatDecimal(totalWeightForSilver)}g`
-                                                } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
-                                           </div>
-                                       </div>
-                                       <div className="text-right">
-                                           <div className="font-mono font-bold text-slate-800 text-lg">
-                                               {formatCurrency(currentCostCalc.breakdown.silver)}
-                                           </div>
-                                       </div>
-                                   </div>
-                                   {editedProduct.recipe.map((item, idx) => {
-                                       const isRaw = item.type === 'raw';
-                                       const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-                                       
-                                        let itemCost = 0;
-                                        if (isRaw) {
-                                            const mat = details as Material | undefined;
-                                            if (mat) {
-                                                let unitCost = mat.cost_per_unit;
-                                                if (currentViewVariant?.suffix) {
-                                                    const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
-                                                    if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
-                                                        unitCost = mat.variant_prices[stone.code];
-                                                    }
-                                                }
-                                                itemCost = unitCost * item.quantity;
-                                            }
-                                        } else { 
-                                            const subProduct = details as Product | undefined;
-                                            if (subProduct) {
-                                                itemCost = (subProduct.active_price || 0) * item.quantity;
-                                            }
-                                        }
-
-                                       const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
-
-                                       return (
-                                           <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                               <div className="p-2 bg-white rounded-lg border border-slate-100">
-                                                   {isRaw ? <Gem size={16} className="text-emerald-500"/> : <Puzzle size={16} className="text-blue-500"/>}
-                                               </div>
-                                               <div className="flex-1">
-                                                   {isRaw ? (
-                                                       <select 
-                                                           className="bg-transparent font-bold text-slate-800 outline-none w-full"
-                                                           value={item.id}
-                                                           onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
-                                                       >
-                                                           {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                                       </select>
-                                                   ) : (
-                                                       <select 
-                                                           className="bg-transparent font-bold text-slate-800 outline-none w-full"
-                                                           value={item.sku}
-                                                           onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
-                                                       >
-                                                           {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
-                                                       </select>
-                                                   )}
-                                               </div>
-                                                <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
-                                               <div className="flex items-center gap-2">
-                                                   <SmartQuantityInput 
-                                                       value={item.quantity} 
-                                                       onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
-                                                       stonesPerStrand={stonesPerStrand}
-                                                   />
-                                                   <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
-                                               </div>
-                                               <button onClick={() => removeRecipeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={18}/></button>
-                                           </div>
-                                       );
-                                   })}
-                                   <div className="flex gap-2 pt-4">
-                                       <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Υλικό</button>
-                                       <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14}/> Εξάρτημα</button>
-                                   </div>
-                               </div>
-                           )}
-
-                           {activeTab === 'labor' && (
-                               <div className="space-y-6 animate-in fade-in">
-                                   {/* ... (Existing Labor code) ... */}
-                                   <div>
-                                       <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών</h3>
-                                       <div className="space-y-2">
-                                            <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, casting_cost: v}})} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override}}))} icon={<Flame size={14}/>}/>
-                                            <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, setter_cost: v}})} icon={<Gem size={14}/>}/>
-                                            <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, technician_cost: v}})} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override}}))} icon={<Hammer size={14}/>}/>
-                                            <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_x: v}})} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override}}))} icon={<Coins size={14}/>}/>
-                                            <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, plating_cost_d: v}})} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p=>({...p, labor: {...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override}}))} icon={<Coins size={14}/>}/>
-                                            <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({...editedProduct, labor: {...editedProduct.labor, subcontract_cost: v}})} icon={<Users size={14}/>}/>
-                                       </div>
-                                   </div>
-                                    <div className="mt-8 pt-6 border-t border-slate-100">
-                                        <h3 className="font-bold text-slate-800 mb-4">Αναλυτική Κοστολόγηση Παραλλαγών</h3>
-                                        <div className="space-y-4">
-                                            {analyticalCostingItems.map(item => {
-                                                const { key, title, costResult } = item;
-                                                return (
-                                                    <div key={key} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
-                                                        <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
-                                                            <span className="font-bold text-slate-800 text-sm">{title}</span>
-                                                            <span className="font-black text-lg text-emerald-700">{formatCurrency(costResult.total)}</span>
-                                                        </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                <div className="text-[10px] font-bold text-slate-400">ΑΣΗΜΙ</div>
-                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.silver)}</div>
-                                                            </div>
-                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                <div className="text-[10px] font-bold text-slate-400">ΥΛΙΚΑ</div>
-                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.materials)}</div>
-                                                            </div>
-                                                            <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                <div className="text-[10px] font-bold text-slate-400">ΕΡΓΑΤΙΚΑ</div>
-                                                                <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.labor)}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="mt-2 text-xs text-slate-500 font-mono bg-white rounded p-2 border border-slate-100">
-                                                            Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)} |
-                                                            Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)} |
-                                                            Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)} |
-                                                            Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)} |
-                                                            Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
                                         </div>
                                     </div>
-                               </div>
-                           )}
+                                )}
 
-                           {activeTab === 'variants' && (
-                               <div className="space-y-6 animate-in fade-in">
-                                   {/* --- REVAMPED SMART ADD SECTION --- */}
-                                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative overflow-hidden">
-                                       <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
-                                           <Wand2 size={120}/>
-                                       </div>
-                                       
-                                       <h4 className="font-black text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
-                                           <Wand2 size={16} className="text-amber-500 fill-current"/> Έξυπνη Προσθήκη
-                                       </h4>
-                                       
-                                       <div className="flex gap-2 mb-4 relative z-10">
-                                           <input 
-                                               type="text" 
-                                               placeholder="Εισάγετε Suffix (π.χ. P, X, BSU)..." 
-                                               value={smartAddSuffix} 
-                                               onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())} 
-                                               className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"
-                                           />
-                                           <button onClick={handleSmartAdd} disabled={!smartAddSuffix} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100">
-                                               <Plus size={24}/>
-                                           </button>
-                                       </div>
+                                {activeTab === 'variants' && (
+                                    <div className="space-y-6 animate-in fade-in">
+                                        {/* --- REVAMPED SMART ADD SECTION --- */}
+                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                                                <Wand2 size={120} />
+                                            </div>
 
-                                       {/* LIVE PREVIEW CARD */}
-                                       {smartPreview && (
-                                           <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
-                                               <div className="flex justify-between items-start mb-2">
-                                                   <div>
-                                                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Πρόβλεψη Περιγραφής</div>
-                                                       <div className="font-bold text-slate-800 text-sm">{smartPreview.description}</div>
-                                                   </div>
-                                                   <div className="text-right">
-                                                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Εκτίμηση Κόστους</div>
-                                                       <div className="font-black text-lg text-emerald-600">{formatCurrency(smartPreview.cost)}</div>
-                                                   </div>
-                                               </div>
-                                               
-                                               <div className="pt-2 border-t border-slate-50 flex items-center justify-between text-xs font-mono">
-                                                   <span className="text-slate-500">Διαφορά από Master:</span>
-                                                   <span className={`font-bold ${smartPreview.diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                                       {smartPreview.diff > 0 ? '+' : ''}{formatCurrency(smartPreview.diff)}
-                                                   </span>
-                                               </div>
-                                               
-                                               {/* Breakdown Badges */}
-                                               <div className="flex gap-2 mt-2 flex-wrap">
-                                                   {smartPreview.breakdown.details.plating_cost === 0 && (
-                                                       <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">No Plating</span>
-                                                   )}
-                                                   {smartPreview.breakdown.details.plating_cost > 0 && (
-                                                       <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
-                                                           +{formatCurrency(smartPreview.breakdown.details.plating_cost)} Plating
-                                                       </span>
-                                                   )}
-                                                   {Math.abs(smartPreview.breakdown.details.stone_diff || 0) > 0.01 && (
-                                                       <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
-                                                           {smartPreview.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(smartPreview.breakdown.details.stone_diff)} Stone Diff
-                                                       </span>
-                                                   )}
-                                               </div>
-                                           </div>
-                                       )}
-                                   </div>
-                                   
-                                   {/* MANUAL ADD SECTION */}
-                                   <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                                       <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
-                                           <Edit size={14} className="text-slate-400"/> Χειροκίνητη Προσθήκη
-                                       </h4>
-                                       <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
-                                           <div>
-                                               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Suffix</label>
-                                               <input 
-                                                   type="text" 
-                                                   value={newVariantSuffix} 
-                                                   onChange={e => {
-                                                       const val = e.target.value.toUpperCase();
-                                                       setNewVariantSuffix(val); 
-                                                       setManualSuffixAnalysis(analyzeSuffix(val, editedProduct.gender, editedProduct.plating_type)); 
-                                                   }} 
-                                                   className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                               />
-                                           </div>
-                                           <div>
-                                               <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Περιγραφή</label>
-                                               <input 
-                                                   type="text" 
-                                                   value={newVariantDesc} 
-                                                   onChange={e => setNewVariantDesc(e.target.value)} 
-                                                   placeholder={manualSuffixAnalysis || "Περιγραφή..."}
-                                                   className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                               />
-                                           </div>
-                                           <button onClick={handleManualAdd} className="bg-white border-2 border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors">
-                                               <Plus size={20}/>
-                                           </button>
-                                       </div>
-                                       {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2 ml-1 font-medium flex items-center gap-1"><Info size={10}/> Προτεινόμενη: {manualSuffixAnalysis}</div>}
-                                   </div>
-                                   
-                                   {/* EXISTING VARIANTS LIST */}
-                                   <div className="space-y-2">
-                                       <div className="flex justify-between items-end mb-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
-                                            <button 
-                                                onClick={() => handleApplyAllSuggestions('formula')}
-                                                className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 hover:bg-emerald-100 transition-colors"
-                                            >
-                                                <Calculator size={10}/> Αυτόματη Τιμολόγηση
-                                            </button>
-                                       </div>
-                                       {sortedVariantsList.map((v, index) => (
-                                           <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
-                                               <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
-                                               <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300"/>
-                                               <div className="text-right">
-                                                   <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
-                                                   <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
-                                               </div>
-                                               {!editedProduct.is_component && (
-                                                   <div className="flex items-center gap-1">
-                                                       <input 
-                                                           type="number" step="0.1" 
-                                                           value={v.selling_price || ''} 
-                                                           onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))} 
-                                                           className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
-                                                       />
-                                                       <button 
-                                                            onClick={() => applyFormulaToSingleVariant(index)}
-                                                            className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                            title="Υπολογισμός Τιμής"
-                                                       >
-                                                           <Wand2 size={14}/>
-                                                       </button>
-                                                   </div>
-                                               )}
-                                               <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
-                                           </div>
-                                       ))}
-                                   </div>
-                               </div>
-                           )}
+                                            <h4 className="font-black text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
+                                                <Wand2 size={16} className="text-amber-500 fill-current" /> Έξυπνη Προσθήκη
+                                            </h4>
 
-                            {activeTab === 'barcodes' && (
-                                <div className="animate-in fade-in h-full">
-                                    <BarcodeGallery product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems} settings={settings}/>
-                                </div>
-                            )}
-                       </div>
-                   </div>
-               </div>
-           </div>
+                                            <div className="flex gap-2 mb-4 relative z-10">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Εισάγετε Suffix (π.χ. P, X, BSU)..."
+                                                    value={smartAddSuffix}
+                                                    onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
+                                                    className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"
+                                                />
+                                                <button onClick={handleSmartAdd} disabled={!smartAddSuffix} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100">
+                                                    <Plus size={24} />
+                                                </button>
+                                            </div>
 
-           <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm shrink-0">
-               <div className="flex gap-2">
-               </div>
-               <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed">
-                   {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} 
-                   {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
-               </button>
-           </div>
-        </div>
-      </div>,
-      document.body
-  );
+                                            {/* LIVE PREVIEW CARD */}
+                                            {smartPreview && (
+                                                <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Πρόβλεψη Περιγραφής</div>
+                                                            <div className="font-bold text-slate-800 text-sm">{smartPreview.description}</div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Εκτίμηση Κόστους</div>
+                                                            <div className="font-black text-lg text-emerald-600">{formatCurrency(smartPreview.cost)}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-2 border-t border-slate-50 flex items-center justify-between text-xs font-mono">
+                                                        <span className="text-slate-500">Διαφορά από Master:</span>
+                                                        <span className={`font-bold ${smartPreview.diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                            {smartPreview.diff > 0 ? '+' : ''}{formatCurrency(smartPreview.diff)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Breakdown Badges */}
+                                                    <div className="flex gap-2 mt-2 flex-wrap">
+                                                        {smartPreview.breakdown.details.plating_cost === 0 && (
+                                                            <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">No Plating</span>
+                                                        )}
+                                                        {smartPreview.breakdown.details.plating_cost > 0 && (
+                                                            <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
+                                                                +{formatCurrency(smartPreview.breakdown.details.plating_cost)} Plating
+                                                            </span>
+                                                        )}
+                                                        {Math.abs(smartPreview.breakdown.details.stone_diff || 0) > 0.01 && (
+                                                            <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
+                                                                {smartPreview.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(smartPreview.breakdown.details.stone_diff)} Stone Diff
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* MANUAL ADD SECTION */}
+                                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
+                                                <Edit size={14} className="text-slate-400" /> Χειροκίνητη Προσθήκη
+                                            </h4>
+                                            <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Suffix</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newVariantSuffix}
+                                                        onChange={e => {
+                                                            const val = e.target.value.toUpperCase();
+                                                            setNewVariantSuffix(val);
+                                                            setManualSuffixAnalysis(analyzeSuffix(val, editedProduct.gender, editedProduct.plating_type));
+                                                        }}
+                                                        className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Περιγραφή</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newVariantDesc}
+                                                        onChange={e => setNewVariantDesc(e.target.value)}
+                                                        placeholder={manualSuffixAnalysis || "Περιγραφή..."}
+                                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    />
+                                                </div>
+                                                <button onClick={handleManualAdd} className="bg-white border-2 border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                                                    <Plus size={20} />
+                                                </button>
+                                            </div>
+                                            {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2 ml-1 font-medium flex items-center gap-1"><Info size={10} /> Προτεινόμενη: {manualSuffixAnalysis}</div>}
+                                        </div>
+
+                                        {/* EXISTING VARIANTS LIST */}
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-end mb-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
+                                                <button
+                                                    onClick={() => handleApplyAllSuggestions('formula')}
+                                                    className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                                                >
+                                                    <Calculator size={10} /> Αυτόματη Τιμολόγηση
+                                                </button>
+                                            </div>
+                                            {sortedVariantsList.map((v, index) => (
+                                                <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
+                                                    <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
+                                                    <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
+                                                    <div className="text-right">
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
+                                                        <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
+                                                    </div>
+                                                    {!editedProduct.is_component && (
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="number" step="0.1"
+                                                                value={v.selling_price || ''}
+                                                                onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))}
+                                                                className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
+                                                            />
+                                                            <button
+                                                                onClick={() => applyFormulaToSingleVariant(index)}
+                                                                className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                                title="Υπολογισμός Τιμής"
+                                                            >
+                                                                <Wand2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'barcodes' && (
+                                    <div className="animate-in fade-in h-full">
+                                        <BarcodeGallery product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems} settings={settings} />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm shrink-0">
+                    <div className="flex gap-2">
+                    </div>
+                    <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                        {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
 }

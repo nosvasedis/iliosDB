@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, Coins, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera } from 'lucide-react';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType, ProductionType } from '../types';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
@@ -12,7 +12,19 @@ import { calculateProductCost, getPrevalentVariant, getVariantComponents, format
 import { useUI } from './UIProvider';
 
 interface Props {
-    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
+    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+}
+
+interface TableVariant {
+    masterSku: string;
+    variantSku: string;
+    product: Product;
+    variant: ProductVariant | null;
+    label: string;
+    price: number;
+    cost: number;
+    weight: number;
+    image: string | null;
 }
 
 const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNode }[] = [
@@ -24,9 +36,10 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
 
 const platingFilters = [
     { label: 'Όλα', value: 'all' },
-    { label: 'Λουστρέ / Πατίνα', value: 'lustre' },
+    { label: 'Λουστρέ', value: 'lustre' },
+    { label: 'Πατίνα', value: 'patina' },
     { label: 'Επίχρυσο', value: 'gold' },
-    { label: 'Επιπλατινωμένο', value: 'platinum' }
+    { label: 'Επιπλατινωμένο', value: 'platinum' },
 ];
 
 const stoneFilters = [
@@ -35,15 +48,85 @@ const stoneFilters = [
     { label: 'Χωρίς Πέτρες', value: 'without' }
 ];
 
-const ProductCard: React.FC<{
-    product: Product;
-    onClick: () => void;
-    settings: GlobalSettings;
-    materials: Material[];
-    allProducts: Product[];
-}> = ({ product, onClick, settings, materials, allProducts }) => {
-    const [viewIndex, setViewIndex] = useState(0); 
-    
+// Per stone-code colour chips (keyed by variant suffix stone code from STONE_CODES_WOMEN/MEN)
+const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
+    // Women — Zircon family
+    'LE': { bg: 'bg-slate-50', text: 'text-slate-700', dot: 'bg-slate-300' },   // Λευκά Ζιργκόν
+    'MP': { bg: 'bg-blue-50', text: 'text-blue-800', dot: 'bg-blue-400' },    // Μπλε Ζιργκόν
+    'PR': { bg: 'bg-green-50', text: 'text-green-800', dot: 'bg-green-500' },   // Πράσινα Ζιργκόν
+    'KO': { bg: 'bg-red-50', text: 'text-red-800', dot: 'bg-red-400' },     // Κόκκινα Ζιργκόν
+    'MV': { bg: 'bg-purple-50', text: 'text-purple-800', dot: 'bg-purple-400' },  // Μωβ Ζιργκόν
+    'RZ': { bg: 'bg-pink-50', text: 'text-pink-800', dot: 'bg-pink-300' },    // Ροζ Ζιργκόν
+    'AK': { bg: 'bg-cyan-50', text: 'text-cyan-800', dot: 'bg-cyan-400' },    // Άκουα Ζιργκόν
+    // Women — Agate family
+    'PAX': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },   // Πράσινος Αχάτης
+    'MAX': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },    // Μπλε Αχάτης
+    'KAX': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Κόκκινος Αχάτης
+    // Women — Copper family (these ARE turquoise/teal in appearance)
+    'CO': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Κόπερ (turquoise)
+    'PCO': { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-500' }, // Πράσινο Κόπερ
+    'MCO': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },  // Μωβ Κόπερ
+    // Women — Triplets
+    'TPR': { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' }, // Τριπλέτα Πράσινη
+    'TKO': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Τριπλέτα Κόκκινη
+    'TMP': { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-400' },  // Τριπλέτα Μπλε
+    // Women — Other
+    'AI': { bg: 'bg-zinc-100', text: 'text-zinc-700', dot: 'bg-zinc-500' },    // Αιματίτης (dark metallic)
+    'AP': { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-300' },    // Απατίτης
+    'AM': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Αμαζονίτης
+    'LR': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-300' },    // Λαμπραδορίτης
+    'LA': { bg: 'bg-blue-100', text: 'text-blue-900', dot: 'bg-blue-600' },    // Λάπις (deep blue)
+    'FI': { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-200' },   // Φίλντισι (ivory)
+    'BST': { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-400' },     // Blue Sky Topaz
+    'XAL': { bg: 'bg-blue-50', text: 'text-blue-600', dot: 'bg-blue-200' },    // Χαλκηδόνιο
+    // Men
+    'KR': { bg: 'bg-orange-50', text: 'text-orange-800', dot: 'bg-orange-400' },  // Κορνεόλη (orange-red)
+    'AX': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },   // Πράσινος Αχάτης
+    'TG': { bg: 'bg-amber-50', text: 'text-amber-800', dot: 'bg-amber-500' },   // Μάτι Τίγρης (golden)
+    'QN': { bg: 'bg-zinc-100', text: 'text-zinc-800', dot: 'bg-zinc-700' },    // Όνυχας (black)
+    'TY': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Τυρκουάζ
+    'IA': { bg: 'bg-rose-50', text: 'text-rose-800', dot: 'bg-rose-400' },    // Ίασπης
+    'BSU': { bg: 'bg-zinc-100', text: 'text-zinc-800', dot: 'bg-zinc-600' },    // Μαύρος Σουλεμάνης
+    'GSU': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },   // Πράσινος Σουλεμάνης
+    'RSU': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Κόκκινος Σουλεμάνης
+    'MA': { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-500' }, // Μαλαχίτης
+    'OP': { bg: 'bg-stone-50', text: 'text-stone-600', dot: 'bg-stone-300' },   // Οπάλιο
+    'NF': { bg: 'bg-green-50', text: 'text-green-800', dot: 'bg-green-600' },   // Νεφρίτης
+    'SD': { bg: 'bg-indigo-50', text: 'text-indigo-900', dot: 'bg-indigo-600' },  // Σοδαλίτης (deep blue)
+};
+const DEFAULT_STONE_STYLE = { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-300' };
+
+function getStoneChipStyle(code: string) {
+    return STONE_CHIP_STYLES[code] ?? DEFAULT_STONE_STYLE;
+}
+
+const getPaginationRange = (current: number, total: number) => {
+    const range: (number | string)[] = [];
+    const delta = 4;
+
+    for (let i = 0; i < total; i++) {
+        if (
+            i === 0 ||
+            i === total - 1 ||
+            (i >= current - delta && i <= current + delta)
+        ) {
+            range.push(i);
+        } else if (
+            (i === current - delta - 1 && i > 0) ||
+            (i === current + delta + 1 && i < total - 1)
+        ) {
+            range.push('...');
+        }
+    }
+    return range.filter((item, pos, self) => item !== '...' || self[pos - 1] !== '...');
+};
+
+// ==========================================
+// GRID VIEW PRODUCT CARD - MEMOIZED
+// ==========================================
+const ProductCard: React.FC<{ product: Product; settings: GlobalSettings; materials: Material[]; allProducts: Product[]; productsMap?: Map<string, Product>; onClick: () => void; isSelected: boolean }> = React.memo(({ product, settings, materials, allProducts, productsMap, onClick, isSelected }) => {
+    const [viewIndex, setViewIndex] = useState(0);
+
     const variants = product.variants || [];
     const hasVariants = variants.length > 0;
     const variantCount = variants.length;
@@ -53,7 +136,7 @@ const ProductCard: React.FC<{
         return [...variants].sort((a, b) => {
             const priority = (suffix: string) => {
                 // Priority Order: Lustre > P > D > X > H
-                if (suffix === '' || !['P','D','X','H'].some(c => suffix.startsWith(c))) return 0; 
+                if (suffix === '' || !['P', 'D', 'X', 'H'].some(c => suffix.startsWith(c))) return 0;
                 if (suffix.startsWith('P')) return 1;
                 if (suffix.startsWith('D')) return 2;
                 if (suffix.startsWith('X')) return 3;
@@ -81,7 +164,7 @@ const ProductCard: React.FC<{
         displaySku = `${product.sku}${currentVariant.suffix}`;
         displayLabel = currentVariant.description || currentVariant.suffix;
         if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
-        
+
         // DYNAMIC COST CALCULATION FIX:
         // Instead of using stored `currentVariant.active_price` (which might be stale),
         // we calculate it on the fly using the current global settings (silver price).
@@ -94,22 +177,22 @@ const ProductCard: React.FC<{
 
     const nextView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev + 1) % variantCount);
+        if (hasVariants) setViewIndex((prev: number) => (prev + 1) % variantCount);
     };
 
     const prevView = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev - 1 + variantCount) % variantCount);
+        if (hasVariants) setViewIndex((prev: number) => (prev - 1 + variantCount) % variantCount);
     };
 
     // --- WEIGHT CALCULATIONS (In-House vs STX) ---
     const inHouseWeight = product.weight_g + (product.secondary_weight_g || 0);
-    
+
     const stxWeight = useMemo(() => {
         if (!product.recipe) return 0;
         return product.recipe.reduce((acc, item) => {
             if (item.type === 'component') {
-                const comp = allProducts.find(p => p.sku === item.sku);
+                const comp = productsMap ? productsMap.get(item.sku) : allProducts.find(p => p.sku === item.sku);
                 if (comp) {
                     const compWeight = comp.weight_g + (comp.secondary_weight_g || 0);
                     return acc + (compWeight * item.quantity);
@@ -117,14 +200,14 @@ const ProductCard: React.FC<{
             }
             return acc;
         }, 0);
-    }, [product.recipe, allProducts]);
+    }, [product.recipe, allProducts, productsMap]);
 
     const totalWeight = inHouseWeight + stxWeight;
 
     return (
-        <div 
+        <div
             onClick={onClick}
-            className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative h-full"
+            className={`group bg-white rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative h-full ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'}`}
         >
             {hasVariants && (
                 <div className="absolute top-3 left-3 z-10 bg-[#060b00]/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
@@ -135,17 +218,17 @@ const ProductCard: React.FC<{
 
             <div className="aspect-square bg-slate-50 relative overflow-hidden shrink-0">
                 {product.image_url ? (
-                    <img 
-                        src={product.image_url} 
-                        alt={product.sku} 
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out" 
+                    <img
+                        src={product.image_url}
+                        alt={product.sku}
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300">
                         <ImageIcon size={40} />
                     </div>
                 )}
-                
+
                 <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100 max-w-[calc(100%-1.5rem)] truncate">
                     {product.category}
                 </div>
@@ -178,12 +261,12 @@ const ProductCard: React.FC<{
                 <div className="flex gap-2 mb-4 items-start">
                     <div className={`bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100 ${stxWeight > 0 ? 'flex flex-col gap-0.5 items-start' : 'flex items-center gap-1'}`}>
                         <div className="flex items-center gap-1" title="In-House Metal Weight">
-                            <Weight size={10}/> <span>{inHouseWeight.toFixed(2)}g</span>
+                            <Weight size={10} /> <span>{inHouseWeight.toFixed(2)}g</span>
                         </div>
                         {stxWeight > 0 && (
                             <>
                                 <div className="flex items-center gap-1 text-blue-500" title="Component (STX) Weight">
-                                    <Puzzle size={10}/> <span>+{stxWeight.toFixed(2)}g</span>
+                                    <Puzzle size={10} /> <span>+{stxWeight.toFixed(2)}g</span>
                                 </div>
                                 <div className="border-t border-slate-200 pt-0.5 mt-0.5 font-black text-slate-700 w-full" title="Total Metal Weight">
                                     = {totalWeight.toFixed(2)}g
@@ -192,7 +275,7 @@ const ProductCard: React.FC<{
                         )}
                     </div>
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100 h-fit">
-                        <BookOpen size={10}/> {product.recipe.length + 1} υλικά
+                        <BookOpen size={10} /> {product.recipe.length + 1} υλικά
                     </div>
                 </div>
 
@@ -219,14 +302,14 @@ const ProductCard: React.FC<{
             </div>
         </div>
     );
-};
+}); // ProductCard End
 
 const SubFilterButton: React.FC<{
     label: string;
     value: string;
     activeValue: string;
     onClick: (value: string) => void;
-}> = ({ label, value, activeValue, onClick }) => (
+}> = React.memo(({ label, value, activeValue, onClick }) => (
     <button
         onClick={() => onClick(value)}
         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
@@ -237,317 +320,899 @@ const SubFilterButton: React.FC<{
     >
         {label}
     </button>
-);
+));
 
 export default function ProductRegistry({ setPrintItems }: Props) {
-  const queryClient = useQueryClient();
-  const { showToast } = useUI();
-  const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-  const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-  const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-  const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const queryClient = useQueryClient();
+    const { showToast } = useUI();
+    const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+    const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+    const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterParentCategory, setFilterParentCategory] = useState<string>('All');
-  const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
-  
-  const [subFilters, setSubFilters] = useState({
-      category: 'all',
-      stone: 'all',
-      plating: 'all',
-  });
-  
-  const [showSubFilters, setShowSubFilters] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showStxOnly, setShowStxOnly] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  
-  const [showFab, setShowFab] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
+    const [searchTermInput, setSearchTermInput] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
-  // Virtualization calculations
-  const [columns, setColumns] = useState(5);
-  useEffect(() => {
-    const updateCols = () => {
-        const w = window.innerWidth;
-        if (w < 640) setColumns(1);
-        else if (w < 1024) setColumns(2);
-        else if (w < 1280) setColumns(4);
-        else setColumns(5);
-    };
-    updateCols();
-    window.addEventListener('resize', updateCols);
-    return () => window.removeEventListener('resize', updateCols);
-  }, []);
+    useEffect(() => {
+        const timer = setTimeout(() => setSearchTerm(searchTermInput), 300);
+        return () => clearTimeout(timer);
+    }, [searchTermInput]);
 
-  const baseProducts = useMemo(() => {
-    if (!products) return [];
-    return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
-  }, [products, showStxOnly]);
+    const [filterCategory, setFilterCategory] = useState<string>('All');
+    const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
 
-  const groupedCategories = useMemo(() => {
-      if (!baseProducts) return { parents: [], children: new Map() };
-      const parents = new Set<string>();
-      const children = new Map<string, Set<string>>();
-      const allCategories = new Set(baseProducts.map(p => p.category));
-      
-      const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός', 'Κολιέ'];
-
-      allCategories.forEach((cat: string) => {
-          const parent = parentKeywords.find(p => cat.startsWith(p));
-          if (parent) {
-              parents.add(parent);
-              if (!children.has(parent)) children.set(parent, new Set());
-              if (cat !== parent) children.get(parent)!.add(cat);
-          } else {
-              parents.add(cat);
-          }
-      });
-      return { parents: Array.from(parents).sort(), children };
-  }, [baseProducts]);
-
-  const filteredProducts = useMemo(() => {
-    if (!baseProducts || !materials) return [];
-    
-    const productHasStones = (p: Product): boolean => {
-        return p.recipe.some(item => {
-            if (item.type !== 'raw') return false;
-            const mat = materials.find(m => m.id === item.id);
-            return mat?.type === MaterialType.Stone;
-        });
-    };
-
-    const getProductPlatingTypes = (p: Product): Set<string> => {
-        const types = new Set<string>();
-        const { finish: masterFinish } = getVariantComponents(p.sku, p.gender);
-        if (p.plating_type === PlatingType.GoldPlated) types.add('X');
-        if (p.plating_type === PlatingType.Platinum) types.add('H');
-        if (p.plating_type === PlatingType.None) types.add(masterFinish.code || '');
-
-        (p.variants || []).forEach(v => {
-            const { finish } = getVariantComponents(v.suffix, p.gender);
-            types.add(finish.code);
-        });
-        return types;
-    };
-    
-    const filtered = baseProducts.filter(p => {
-        const matchesGender = filterGender === 'All' || p.gender === filterGender;
-        const matchesParentCat = filterParentCategory === 'All' || p.category.startsWith(filterParentCategory);
-        const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        if (!matchesGender || !matchesParentCat || !matchesSearch) return false;
-
-        if (subFilters.category !== 'all' && p.category !== subFilters.category) return false;
-        if (subFilters.stone === 'with' && !productHasStones(p)) return false;
-        if (subFilters.stone === 'without' && productHasStones(p)) return false;
-        if (subFilters.plating !== 'all') {
-            const platingTypes = getProductPlatingTypes(p);
-            if (subFilters.plating === 'lustre' && !platingTypes.has('') && !platingTypes.has('P')) return false;
-            if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
-            if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
-        }
-        
-        return true;
+    const [subFilters, setSubFilters] = useState({
+        stone: 'all',          // 'all' | 'with' | 'without' | materialId
+        plating: 'all',
+        productionType: 'all', // 'all' | 'InHouse' | 'Imported'
+        collection: 'all',     // 'all' | collectionId string
     });
 
-    const naturalSort = (a: Product, b: Product) => {
-        const regex = /^([A-Z-]+)(\d+)$/i;
-        const matchA = a.sku.match(regex);
-        const matchB = b.sku.match(regex);
-        if (!matchA || !matchB) return a.sku.localeCompare(b.sku);
-        const [, prefixA, numStrA] = matchA;
-        const [, prefixB, numStrB] = matchB;
-        const numA = parseInt(numStrA, 10);
-        const numB = parseInt(numStrB, 10);
-        const prefixCompare = prefixA.localeCompare(prefixB);
-        if (prefixCompare !== 0) return prefixCompare;
-        return numA - numB;
+    const [showFiltersSidebar, setShowFiltersSidebar] = useState(false);
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isCreating, setIsCreating] = useState(false);
+    const [productToDuplicate, setProductToDuplicate] = useState<Product | null>(null);
+    const [showStxOnly, setShowStxOnly] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+    const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
+    const [editingPrice, setEditingPrice] = useState<{ sku: string, price: string } | null>(null);
+
+    const [showFab, setShowFab] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+
+    // Virtualization calculations
+    const [columns, setColumns] = useState(5);
+    useEffect(() => {
+        const updateCols = () => {
+            const w = window.innerWidth;
+            if (w < 640) setColumns(1);
+            else if (w < 1024) setColumns(2);
+            else if (w < 1280) setColumns(4);
+            else setColumns(5);
+        };
+        updateCols();
+        window.addEventListener('resize', updateCols);
+        return () => window.removeEventListener('resize', updateCols);
+    }, []);
+
+    const productsMap = useMemo(() => {
+        const map = new Map<string, Product>();
+        if (products) {
+            products.forEach(p => map.set(p.sku, p));
+        }
+        return map;
+    }, [products]);
+
+    const baseProducts = useMemo(() => {
+        if (!products) return [];
+        return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
+    }, [products, showStxOnly]);
+
+    const groupedCategories = useMemo(() => {
+        if (!baseProducts) return { parents: [], children: new Map() };
+        const parents = new Set<string>();
+        const children = new Map<string, Set<string>>();
+        const allCategories = new Set(baseProducts.map(p => p.category));
+
+        const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός', 'Κολιέ'];
+
+        allCategories.forEach((cat: string) => {
+            const parent = parentKeywords.find(p => cat.startsWith(p));
+            if (parent) {
+                parents.add(parent);
+                if (!children.has(parent)) children.set(parent, new Set());
+                if (cat !== parent) children.get(parent)!.add(cat);
+            } else {
+                parents.add(cat);
+            }
+        });
+        return { parents: Array.from(parents).sort(), children };
+    }, [baseProducts]);
+
+    // Compute distinct stone codes (from variant suffixes) present in gender-filtered base products
+    const availableStones = useMemo(() => {
+        if (!baseProducts) return [];
+        const stoneMap = new Map<string, { id: string; name: string; count: number }>();
+        const genderFiltered = filterGender === 'All' ? baseProducts : baseProducts.filter(p => p.gender === filterGender);
+        genderFiltered.forEach(p => {
+            (p.variants || []).forEach(v => {
+                if (!v.suffix) return;
+                const { stone } = getVariantComponents(v.suffix, p.gender);
+                if (stone.code && stone.name) {
+                    const key = stone.code;
+                    if (stoneMap.has(key)) stoneMap.get(key)!.count++;
+                    else stoneMap.set(key, { id: key, name: stone.name, count: 1 });
+                }
+            });
+        });
+        return Array.from(stoneMap.values()).sort((a, b) => b.count - a.count);
+    }, [baseProducts, filterGender]);
+
+    const filteredProducts = useMemo(() => {
+        if (!baseProducts || !materials) return [];
+
+        const getProductPlatingTypes = (p: Product): Set<string> => {
+            const types = new Set<string>();
+            const { finish: masterFinish } = getVariantComponents(p.sku, p.gender);
+            if (p.plating_type === PlatingType.GoldPlated) types.add('X');
+            if (p.plating_type === PlatingType.Platinum) types.add('H');
+            if (p.plating_type === PlatingType.None) types.add(masterFinish.code || '');
+            (p.variants || []).forEach(v => {
+                const { finish } = getVariantComponents(v.suffix, p.gender);
+                types.add(finish.code);
+            });
+            return types;
+        };
+
+        const stoneIds = new Set(materials.filter(m => m.type === MaterialType.Stone).map(m => m.id));
+
+        const filtered = baseProducts.filter(p => {
+            const matchesGender = filterGender === 'All' || p.gender === filterGender;
+            const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCategory = filterCategory === 'All' || p.category === filterCategory || p.category.startsWith(filterCategory);
+            if (!matchesGender || !matchesSearch || !matchesCategory) return false;
+
+            // Stone filter: 'all' | 'with' | 'without' | specific stone code (e.g. 'KR', 'QN')
+            if (subFilters.stone === 'with') {
+                if (!p.recipe.some(i => i.type === 'raw' && stoneIds.has(i.id))) return false;
+            } else if (subFilters.stone === 'without') {
+                if (p.recipe.some(i => i.type === 'raw' && stoneIds.has(i.id))) return false;
+            } else if (subFilters.stone !== 'all') {
+                // specific stone code from variant suffix
+                const hasStoneCode = (p.variants || []).some(v => {
+                    const { stone } = getVariantComponents(v.suffix, p.gender);
+                    return stone.code === subFilters.stone;
+                });
+                if (!hasStoneCode) return false;
+            }
+
+            // Plating filter
+            if (subFilters.plating !== 'all') {
+                const platingTypes = getProductPlatingTypes(p);
+                // 'lustre' = has no-suffix AND has NO other finish variants (P/D/X/H)
+                if (subFilters.plating === 'lustre' && (!platingTypes.has('') || ['P', 'D', 'X', 'H'].some(c => platingTypes.has(c)))) return false;
+                // 'patina' = only P suffix
+                if (subFilters.plating === 'patina' && !platingTypes.has('P')) return false;
+                if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
+                if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
+            }
+
+            // Production type filter
+            if (subFilters.productionType !== 'all') {
+                if (subFilters.productionType === 'InHouse' && p.production_type !== ProductionType.InHouse) return false;
+                if (subFilters.productionType === 'Imported' && p.production_type !== ProductionType.Imported) return false;
+            }
+
+            // Collection filter
+            if (subFilters.collection !== 'all') {
+                const colId = parseInt(subFilters.collection);
+                if (!p.collections?.includes(colId)) return false;
+            }
+
+            return true;
+        });
+
+        return filtered.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [baseProducts, searchTerm, filterCategory, filterGender, subFilters, materials]);
+
+    // Pagination state for table mode
+    const [tablePage, setTablePage] = useState(0);
+    const TABLE_PAGE_SIZE = 50;
+
+    // Reset page when filters change
+    useEffect(() => { setTablePage(0); }, [filteredProducts, viewMode]);
+
+    const allTableVariants = useMemo(() => {
+        if (viewMode !== 'table' || !settings || !materials || !products) return [];
+        const items: TableVariant[] = [];
+        filteredProducts.forEach(p => {
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const estCost = estimateVariantCost(p, v.suffix, settings, materials, products!);
+                    items.push({
+                        masterSku: p.sku,
+                        variantSku: `${p.sku}${v.suffix}`,
+                        product: p,
+                        variant: v,
+                        label: v.description || v.suffix || 'Λουστρέ',
+                        price: v.selling_price || p.selling_price,
+                        cost: estCost.total,
+                        weight: p.weight_g,
+                        image: p.image_url
+                    });
+                });
+            } else {
+                const costCalc = calculateProductCost(p, settings, materials, products!);
+                items.push({
+                    masterSku: p.sku,
+                    variantSku: p.sku,
+                    product: p,
+                    variant: null,
+                    label: 'Βασικό',
+                    price: p.selling_price,
+                    cost: costCalc.total,
+                    weight: p.weight_g,
+                    image: p.image_url
+                });
+            }
+        });
+        return items;
+    }, [filteredProducts, viewMode, settings, materials, products]);
+
+    // Grid pagination
+    const [gridPage, setGridPage] = useState(0);
+    const GRID_PAGE_SIZE = 60;
+
+    // Reset pages when filters change
+    useEffect(() => { setTablePage(0); setGridPage(0); }, [filteredProducts, viewMode]);
+
+    const pagedProducts = useMemo(() => {
+        const start = gridPage * GRID_PAGE_SIZE;
+        return filteredProducts.slice(start, start + GRID_PAGE_SIZE);
+    }, [filteredProducts, gridPage]);
+
+    const totalGridPages = Math.ceil(filteredProducts.length / GRID_PAGE_SIZE);
+
+    // Only the current page slice is fed to the virtualizer
+    const tableVariants = useMemo(() => {
+        const start = tablePage * TABLE_PAGE_SIZE;
+        return allTableVariants.slice(start, start + TABLE_PAGE_SIZE);
+    }, [allTableVariants, tablePage]);
+
+    const totalTablePages = Math.ceil(allTableVariants.length / TABLE_PAGE_SIZE);
+
+    const rowCount = tableVariants.length;
+
+    const rowVirtualizer = useVirtualizer({
+        count: rowCount,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: () => 72,
+        overscan: 5,
+    });
+
+    useEffect(() => {
+        setSelectedSkus(new Set());
+    }, [viewMode, showStxOnly]);
+
+    useEffect(() => {
+        const scrollContainer = document.querySelector('main > div.overflow-y-auto');
+        if (!scrollContainer) return;
+        const handleScroll = () => {
+            if (headerRef.current) {
+                const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
+                setShowFab(headerBottomPosition < 20);
+            }
+        };
+        scrollContainer.addEventListener('scroll', handleScroll);
+        return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    const handleGlobalScan = (code: string) => {
+        if (!products) return;
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            setSelectedProduct(match.product);
+            setShowScanner(false);
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
     };
-    
-    return filtered.sort(naturalSort);
-  }, [baseProducts, searchTerm, filterParentCategory, filterGender, subFilters, materials]);
 
-  const rowCount = Math.ceil(filteredProducts.length / columns);
-  
-  const rowVirtualizer = useVirtualizer({
-    count: rowCount,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 480, // Estimated height of a row + gap
-    overscan: 5,
-  });
-
-  useEffect(() => {
-    const scrollContainer = document.querySelector('main > div.overflow-y-auto');
-    if (!scrollContainer) return;
-    const handleScroll = () => {
-      if (headerRef.current) {
-        const headerBottomPosition = headerRef.current.getBoundingClientRect().bottom;
-        setShowFab(headerBottomPosition < 20);
-      }
-    };
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const handleGlobalScan = (code: string) => {
-    if (!products) return;
-    const match = findProductByScannedCode(code, products);
-    if (match) {
-        setSelectedProduct(match.product);
-        setShowScanner(false);
-    } else {
-        showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+    if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
+        return null;
     }
-  };
 
-  if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
-      return null; 
-  }
+    const toggleSelection = (sku: string) => {
+        const newSet = new Set(selectedSkus);
+        if (newSet.has(sku)) newSet.delete(sku);
+        else newSet.add(sku);
+        setSelectedSkus(newSet);
+    };
 
-  if (isCreating) {
-      return <NewProduct products={products} materials={materials} molds={molds} onCancel={() => setIsCreating(false)} />;
-  }
+    const handleSelectAll = () => {
+        if (viewMode === 'table') {
+            if (selectedSkus.size === tableVariants.length) {
+                setSelectedSkus(new Set());
+            } else {
+                setSelectedSkus(new Set(tableVariants.map(t => t.variantSku)));
+            }
+        } else {
+            if (selectedSkus.size === filteredProducts.length) {
+                setSelectedSkus(new Set());
+            } else {
+                setSelectedSkus(new Set(filteredProducts.map(p => p.sku)));
+            }
+        }
+    };
 
-  return (
-    <div className="flex flex-col h-full space-y-6">
-      <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
-         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-            <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                    <Database size={24} />
+    const handleBulkPrint = (format: 'standard' | 'retail') => {
+        if (!setPrintItems || !products || !settings || !materials) return;
+        const itemsToPrint = Array.from(selectedSkus).map(sku => {
+            if (viewMode === 'table') {
+                let foundProduct: Product | undefined;
+                let foundVariant: ProductVariant | undefined;
+                for (const p of products) {
+                    if (sku === p.sku) { foundProduct = p; break; }
+                    if (p.variants) {
+                        const v = p.variants.find(v => `${p.sku}${v.suffix}` === sku);
+                        if (v) { foundProduct = p; foundVariant = v; break; }
+                    }
+                }
+                if (foundProduct) return { product: foundProduct, variant: foundVariant, quantity: 1, format };
+                return null;
+            } else {
+                const product = products.find(p => p.sku === sku);
+                return product ? { product, quantity: 1, format } : null;
+            }
+        }).filter(Boolean) as any[];
+        setPrintItems(itemsToPrint);
+        setSelectedSkus(new Set());
+        setShowPrintModal(false);
+    };
+
+    const handleSavePrice = async (sku: string) => {
+        if (!editingPrice || editingPrice.sku !== sku || !products) return;
+        const newPrice = parseFloat(editingPrice.price.replace(',', '.'));
+        if (isNaN(newPrice) || newPrice < 0) {
+            setEditingPrice(null);
+            return;
+        }
+
+        if (viewMode === 'table') {
+            const tableItem = tableVariants.find(t => t.variantSku === sku);
+            if (tableItem) {
+                const masterProduct = { ...tableItem.product };
+                if (tableItem.variant && masterProduct.variants) {
+                    const vIndex = masterProduct.variants.findIndex(v => v.suffix === tableItem.variant!.suffix);
+                    if (vIndex !== -1) {
+                        const newVariants = [...masterProduct.variants];
+                        newVariants[vIndex] = { ...newVariants[vIndex], selling_price: newPrice };
+                        masterProduct.variants = newVariants;
+                        try {
+                            await api.saveProduct(masterProduct);
+                            queryClient.invalidateQueries({ queryKey: ['products'] });
+                            showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
+                        } catch (e) {
+                            showToast('Σφάλμα αποθήκευσης τιμής', 'error');
+                        }
+                    }
+                } else {
+                    masterProduct.selling_price = newPrice;
+                    try {
+                        await api.saveProduct(masterProduct);
+                        queryClient.invalidateQueries({ queryKey: ['products'] });
+                        showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
+                    } catch (e) {
+                        showToast('Σφάλμα αποθήκευσης τιμής', 'error');
+                    }
+                }
+            }
+        } else {
+            const product = products.find(p => p.sku === sku);
+            if (product && product.selling_price !== newPrice) {
+                try {
+                    await api.saveProduct({ ...product, selling_price: newPrice });
+                    queryClient.invalidateQueries({ queryKey: ['products'] });
+                    showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
+                } catch (error) {
+                    showToast('Σφάλμα αποθήκευσης τιμής', 'error');
+                }
+            }
+        }
+        setEditingPrice(null);
+    };
+
+    if (isCreating) {
+        return <NewProduct
+            products={products}
+            materials={materials}
+            molds={molds}
+            duplicateTemplate={productToDuplicate || undefined}
+            onCancel={() => {
+                setIsCreating(false);
+                setProductToDuplicate(null);
+            }}
+        />;
+    }
+
+    return (
+        <div className="flex flex-col space-y-6">
+            <div ref={headerRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                            <Database size={24} />
+                        </div>
+                        Μητρώο Κωδικών
+                    </h1>
+                    <p className="text-slate-500 mt-1 ml-14">
+                        {showStxOnly ? `Προβολή εξαρτημάτων (STX).` : `Διαχείριση προδιαγραφών και κοστολόγησης.`}
+                    </p>
                 </div>
-                Μητρώο Κωδικών
-            </h1>
-            <p className="text-slate-500 mt-1 ml-14">
-                {showStxOnly ? `Προβολή εξαρτημάτων (STX).` : `Διαχείριση προδιαγραφών και κοστολόγησης.`}
-            </p>
-         </div>
-         <div className="flex items-center gap-3 self-stretch md:self-auto w-full md:w-auto">
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setShowStxOnly(false)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                    <Database size={16}/> Προϊόντα
-                </button>
-                <button onClick={() => setShowStxOnly(true)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                    <Puzzle size={16}/> Εξαρτήματα
-                </button>
+                <div className="flex items-center gap-3 self-stretch md:self-auto w-full md:w-auto">
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button onClick={() => setViewMode('grid')} className={`p-2.5 flex items-center justify-center rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <LayoutGrid size={20} />
+                        </button>
+                        <button onClick={() => setViewMode('table')} className={`p-2.5 flex items-center justify-center rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <List size={20} />
+                        </button>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200 hidden md:block mx-1"></div>
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button onClick={() => setShowStxOnly(false)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Database size={16} /> Προϊόντα
+                        </button>
+                        <button onClick={() => setShowStxOnly(true)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Puzzle size={16} /> Εξαρτήματα
+                        </button>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:bg-slate-50">
+                            <Camera size={20} /> <span className="hidden sm:inline">Σάρωση</span>
+                        </button>
+                        <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                            <PackagePlus size={20} /> <span className="whitespace-nowrap">Νέο</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div className="flex gap-2">
-                <button onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:bg-slate-50">
-                    <Camera size={20}/> <span className="hidden sm:inline">Σάρωση</span>
-                </button>
-                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
-                    <PackagePlus size={20}/> <span className="whitespace-nowrap">Νέο</span>
-                </button>
-            </div>
-         </div>
-      </div>
-      
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4 shrink-0">
-          {!showStxOnly && (
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide ml-1 mb-2 block">Φύλο</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                  {genderFilters.map(filter => (
-                      <button key={filter.value} onClick={() => setFilterGender(filter.value)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${filterGender === filter.value ? 'bg-[#060b00] text-white border-[#060b00] shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}`}>
-                          {filter.icon} {filter.label}
-                      </button>
-                  ))}
-              </div>
-            </div>
-          )}
-          <div className="grid sm:grid-cols-2 gap-4">
-              <div className="relative group">
-                  <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <select value={filterParentCategory} onChange={(e) => { setFilterParentCategory(e.target.value); setSubFilters({category: 'all', stone: 'all', plating: 'all'}); }} className="pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white appearance-none cursor-pointer text-slate-700 font-medium">
-                      <option value="All">Όλες οι Κατηγορίες</option>
-                      {groupedCategories.parents.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative group flex-1">
+
+            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center shrink-0">
+                <div className="relative group flex-1 w-full">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                    <input type="text" placeholder="Αναζήτηση Κωδικού..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-white transition-all text-slate-900" />
+                    <input type="text" placeholder="Αναζήτηση Κωδικού (π.χ. K14300) ή Κατηγορίας..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-slate-50 focus:bg-white transition-all text-slate-900 font-medium" />
                 </div>
-                {filterParentCategory !== 'All' && (
-                    <button onClick={() => setShowSubFilters(prev => !prev)} className={`relative shrink-0 px-4 py-3 rounded-xl font-bold text-sm transition-all border flex items-center gap-2 ${(showSubFilters || Object.values(subFilters).some(v => v !== 'all')) ? 'bg-[#060b00] text-white shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Filter size={16} /> <span>Φίλτρα</span>
+                <div className="flex gap-2 w-full md:w-auto">
+                    <button onClick={() => setShowFiltersSidebar(true)} className={`flex-1 md:flex-none relative px-6 py-3 rounded-xl font-bold text-sm transition-all border flex items-center justify-center gap-2 ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'bg-[#060b00] text-white shadow-md border-black' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                        <Filter size={18} />
+                        <span>Φίλτρα</span>
+                        {(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') && (
+                            <span className="flex items-center justify-center w-5 h-5 ml-1 text-[10px] bg-emerald-500 text-white rounded-full">!</span>
+                        )}
                     </button>
+                </div>
+            </div>
+
+            <div ref={scrollContainerRef} className="overflow-y-auto custom-scrollbar pr-1 relative" style={{ maxHeight: 'calc(100dvh - 14rem)' }}>
+                {viewMode === 'grid' ? (
+                    /* ── GRID (PAGINATED) ── */
+                    filteredProducts.length > 0 ? (
+                        <div
+                            className="grid gap-6"
+                            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                        >
+                            {pagedProducts.map(product => (
+                                <div key={product.sku}>
+                                    <ProductCard
+                                        product={product}
+                                        settings={settings}
+                                        materials={materials}
+                                        allProducts={products}
+                                        productsMap={productsMap}
+                                        onClick={() => setSelectedProduct(product)}
+                                        isSelected={selectedSkus.has(product.sku)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-slate-400">
+                            <Database size={48} className="mx-auto mb-4 opacity-20" />
+                            <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
+                        </div>
+                    )
+                ) : (
+                    /* ── TABLE (VIRTUALIZED) ── */
+                    allTableVariants.length > 0 ? (
+                        <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const item = tableVariants[virtualRow.index];
+                                if (!item) return null;
+                                const isSelected = selectedSkus.has(item.variantSku);
+                                const profit = item.price - item.cost;
+                                const margin = item.price > 0 ? (profit / item.price) * 100 : 0;
+
+                                return (
+                                    <div key={item.variantSku} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+                                        <div className={`flex items-center justify-between p-4 bg-white border-b border-slate-100 hover:bg-slate-50 transition-colors h-[72px] ${isSelected ? 'bg-emerald-50/50' : ''}`}>
+                                            <div className="flex items-center gap-4 flex-1">
+                                                <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.variantSku); }} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSelected ? 'text-emerald-600' : ''}`}>
+                                                    <CheckSquare size={20} className={isSelected ? 'fill-emerald-100' : ''} />
+                                                </button>
+                                                <div className="h-12 w-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
+                                                    {item.image ? <img src={item.image} alt={item.variantSku} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>}
+                                                </div>
+                                                <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
+                                                    <div className="font-black text-slate-800 text-sm truncate flex items-center gap-2">
+                                                        <span>{item.variantSku}</span>
+                                                        {item.variant && <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Παραλλαγή</span>}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 truncate flex items-center gap-2">
+                                                        <span>{item.product.category}</span>
+                                                        <span className="text-slate-300">•</span>
+                                                        <span className="font-medium text-slate-600">{item.label}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="hidden md:flex items-center gap-8 px-4 flex-1 justify-center">
+                                                <div className="text-center">
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400">Βάρος</div>
+                                                    <div className="text-sm font-bold text-slate-700">{item.weight.toFixed(2)}g</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400">Κόστος</div>
+                                                    <div className="text-sm font-bold text-slate-700">{formatCurrency(item.cost)}</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400">Περιθώριο</div>
+                                                    <div className={`text-sm font-bold flex items-center gap-1 justify-center ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                        <TrendingUp size={12} /> {margin.toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-end flex-1 min-w-[120px]">
+                                                <div className="text-right flex flex-col items-end">
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
+                                                    {editingPrice?.sku === item.variantSku ? (
+                                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                            <input autoFocus type="text" className="w-20 text-right font-black text-lg bg-emerald-50 text-emerald-700 border border-emerald-500 rounded-lg px-2 py-1 outline-none"
+                                                                value={editingPrice.price}
+                                                                onChange={e => setEditingPrice({ sku: item.variantSku, price: e.target.value })}
+                                                                onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(item.variantSku); if (e.key === 'Escape') setEditingPrice(null); }}
+                                                                onBlur={() => handleSavePrice(item.variantSku)}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-lg font-black text-slate-900 group relative flex items-center justify-end gap-2 cursor-pointer hover:text-emerald-600 transition-colors"
+                                                            onClick={(e) => { e.stopPropagation(); setEditingPrice({ sku: item.variantSku, price: item.price.toString() }); }}>
+                                                            {formatCurrency(item.price)}
+                                                            <Edit3 size={12} className="opacity-0 group-hover:opacity-100 absolute -left-4 text-emerald-500 transition-opacity" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-slate-400">
+                            <Database size={48} className="mx-auto mb-4 opacity-20" />
+                            <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
+                        </div>
+                    )
                 )}
-              </div>
-          </div>
-          
-          {showSubFilters && filterParentCategory !== 'All' && (
-              <div className="relative border-t border-slate-100 pt-4 space-y-4 animate-in fade-in">
-                  <button onClick={() => setShowSubFilters(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full z-10"><X size={16}/></button>
-                  {groupedCategories.children.get(filterParentCategory) && (
-                      <div className="flex items-center gap-3 flex-wrap">
-                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0">Τύπος:</span>
-                          <SubFilterButton label="Όλα" value="all" activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
-                          {Array.from(groupedCategories.children.get(filterParentCategory)!).map((subCat: string) => (
-                              <SubFilterButton key={subCat} label={subCat.replace(filterParentCategory, '').trim()} value={subCat} activeValue={subFilters.category} onClick={(v) => setSubFilters(p => ({...p, category: v}))}/>
-                          ))}
-                      </div>
-                  )}
-                  <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0 flex items-center gap-1"><Gem size={12}/> Πέτρες:</span>
-                      {stoneFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone} onClick={(v) => setSubFilters(p => ({...p, stone: v}))}/>)}
-                  </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide shrink-0 flex items-center gap-1"><Palette size={12}/> Φινίρισμα:</span>
-                      {platingFilters.map(f => <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({...p, plating: v}))}/>)}
-                  </div>
-              </div>
-          )}
-      </div>
+            </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
-          {filteredProducts.length > 0 ? (
-              <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const startIndex = virtualRow.index * columns;
-                      const rowItems = filteredProducts.slice(startIndex, startIndex + columns);
-                      return (
-                          <div 
-                              key={virtualRow.key}
-                              className="grid gap-6 absolute top-0 left-0 w-full"
-                              style={{ 
-                                  height: `${virtualRow.size}px`, 
-                                  transform: `translateY(${virtualRow.start}px)`,
-                                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`
-                              }}
-                          >
-                              {rowItems.map(product => (
-                                  <div key={product.sku} className="h-[460px]">
-                                      <ProductCard product={product} settings={settings} materials={materials} allProducts={products} onClick={() => setSelectedProduct(product)} />
-                                  </div>
-                              ))}
-                          </div>
-                      );
-                  })}
-              </div>
-          ) : (
-              <div className="text-center py-20 text-slate-400">
-                  <Database size={48} className="mx-auto mb-4 opacity-20"/>
-                  <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
-              </div>
-          )}
-      </div>
+            {/* Grid Pagination Controls */}
+            {viewMode === 'grid' && totalGridPages > 1 && (
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
+                    <span className="text-xs font-bold text-slate-400">
+                        {filteredProducts.length} προϊόντα · σελίδα {gridPage + 1} / {totalGridPages}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => { setGridPage(p => Math.max(0, p - 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                            disabled={gridPage === 0}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        {getPaginationRange(gridPage, totalGridPages).map((val, idx) => (
+                            val === '...' ? (
+                                <span key={`sep-${idx}`} className="px-1 text-slate-300 font-bold text-xs select-none">...</span>
+                            ) : (
+                                <button
+                                    key={val}
+                                    onClick={() => { setGridPage(val as number); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === gridPage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'}`}
+                                >
+                                    {(val as number) + 1}
+                                </button>
+                            )
+                        ))}
+                        <button
+                            onClick={() => { setGridPage(p => Math.min(totalGridPages - 1, p + 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                            disabled={gridPage >= totalGridPages - 1}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
-      {selectedProduct && (
-        <ProductDetails product={selectedProduct} allProducts={products} allMaterials={materials} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems || (() => {})} settings={settings} collections={collections} allMolds={molds} viewMode="registry" />
-      )}
+            {/* Table Pagination Controls */}
+            {viewMode === 'table' && totalTablePages > 1 && (
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
+                    <span className="text-xs font-bold text-slate-400">
+                        {allTableVariants.length} παραλλαγές · σελίδα {tablePage + 1} / {totalTablePages}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => { setTablePage(p => Math.max(0, p - 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                            disabled={tablePage === 0}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        {getPaginationRange(tablePage, totalTablePages).map((val, idx) => (
+                            val === '...' ? (
+                                <span key={`sep-${idx}`} className="px-1 text-slate-300 font-bold text-xs select-none">...</span>
+                            ) : (
+                                <button
+                                    key={val}
+                                    onClick={() => { setTablePage(val as number); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === tablePage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'
+                                        }`}
+                                >
+                                    {(val as number) + 1}
+                                </button>
+                            )
+                        ))}
+                        <button
+                            onClick={() => { setTablePage(p => Math.min(totalTablePages - 1, p + 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                            disabled={tablePage >= totalTablePages - 1}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
-      {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
+            {selectedProduct && (
+                <ProductDetails
+                    product={selectedProduct}
+                    allProducts={products}
+                    allMaterials={materials}
+                    onClose={() => setSelectedProduct(null)}
+                    setPrintItems={setPrintItems || (() => { })}
+                    settings={settings}
+                    collections={collections}
+                    allMolds={molds}
+                    viewMode="registry"
+                    onDuplicate={(prod) => {
+                        setProductToDuplicate(prod);
+                        setSelectedProduct(null);
+                        setIsCreating(true);
+                    }}
+                />
+            )}
 
-      <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-          <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4">
-            <PackagePlus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
-          </button>
-      </div>
-    </div>
-  );
+            {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
+
+            {viewMode === 'table' && selectedSkus.size > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 md:left-72 z-[100] bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-8">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl font-black text-lg">
+                            {selectedSkus.size} <span className="text-emerald-600/70 text-sm font-bold">Επιλεγμένα</span>
+                        </div>
+                        <button onClick={() => setSelectedSkus(new Set())} className="text-slate-500 hover:text-slate-800 font-bold text-sm transition-colors">
+                            Ακύρωση
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <button onClick={handleSelectAll} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
+                            <CheckSquare size={18} /> {selectedSkus.size === filteredProducts.length ? 'Αποεπιλογή' : 'Όλα'}
+                        </button>
+                        <button onClick={() => setShowPrintModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold bg-[#060b00] hover:bg-black text-white shadow-lg transition-all hover:-translate-y-0.5">
+                            <Printer size={18} /> Εκτύπωση
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab && selectedSkus.size === 0 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4">
+                    <PackagePlus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
+                </button>
+            </div>
+
+            {/* Print Format Modal */}
+            {showPrintModal && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowPrintModal(false)}>
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                            <Printer size={28} className="text-slate-700" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 mb-1">Εκτύπωση Ετικετών</h3>
+                        <p className="text-sm text-slate-400 mb-6">{selectedSkus.size} κωδικοί επιλεγμένοι</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => handleBulkPrint('standard')}
+                                className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-slate-200 hover:border-slate-900 hover:bg-slate-50 transition-all group"
+                            >
+                                <span className="text-3xl">🏷️</span>
+                                <span className="font-black text-slate-800 text-sm">Χονδρική</span>
+                                <span className="text-[10px] text-slate-400 font-medium">Τιμή χονδρικής</span>
+                            </button>
+                            <button
+                                onClick={() => handleBulkPrint('retail')}
+                                className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
+                            >
+                                <span className="text-3xl">🛍️</span>
+                                <span className="font-black text-slate-800 text-sm">Λιανική</span>
+                                <span className="text-[10px] text-slate-400 font-medium">Τιμή λιανικής</span>
+                            </button>
+                        </div>
+                        <button onClick={() => setShowPrintModal(false)} className="mt-4 text-xs text-slate-400 hover:text-slate-600 font-bold transition-colors">Ακύρωση</button>
+                    </div>
+                </div>
+            )}
+
+            {/* Sidebar Filters Drawer */}
+            {showFiltersSidebar && (
+                <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setShowFiltersSidebar(false)}>
+                    <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                            <h2 className="text-xl font-bold flex items-center gap-2"><Filter size={20} /> Προηγμένα Φίλτρα</h2>
+                            <button onClick={() => setShowFiltersSidebar(false)} className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full transition-colors"><X size={16} /></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                            {!showStxOnly && (
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο / Είδος</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {genderFilters.map(f => (
+                                            <button
+                                                key={f.value}
+                                                onClick={() => setFilterGender(f.value)}
+                                                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition-all border ${filterGender === f.value ? 'bg-[#060b00] text-white border-black' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                            >
+                                                {f.icon} {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
+                                <div className="space-y-1 border border-slate-200 rounded-xl overflow-hidden bg-white max-h-60 overflow-y-auto custom-scrollbar">
+                                    <div
+                                        className={`px-4 py-3 text-sm font-bold cursor-pointer transition-colors ${filterCategory === 'All' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                        onClick={() => setFilterCategory('All')}
+                                    >Όλες οι Κατηγορίες</div>
+                                    {groupedCategories.parents.map(c => (
+                                        <div key={c}>
+                                            <div
+                                                className={`px-4 py-3 text-sm font-bold border-t border-slate-100 cursor-pointer transition-colors ${filterCategory === c ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50 text-slate-700 bg-slate-50/50'}`}
+                                                onClick={() => setFilterCategory(c)}
+                                            >
+                                                {c}
+                                            </div>
+                                            {(groupedCategories.children.get(c) || new Set()).size > 0 && Array.from(groupedCategories.children.get(c) as Set<string>).map(subC => (
+                                                <div
+                                                    key={subC}
+                                                    className={`px-4 py-2 pl-8 text-sm cursor-pointer transition-colors ${filterCategory === subC ? 'bg-emerald-50/50 text-emerald-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}
+                                                    onClick={() => setFilterCategory(subC as string)}
+                                                >
+                                                    - {(subC as string).replace(c, '').trim()}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Πέτρες ── */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Gem size={14} /> Πέτρες</label>
+                                {/* Quick toggles */}
+                                <div className="flex gap-2 flex-wrap">
+                                    {stoneFilters.map(f => (
+                                        <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.stone !== 'all' && subFilters.stone !== 'with' && subFilters.stone !== 'without' ? '_specific_' : subFilters.stone} onClick={(v) => setSubFilters(p => ({ ...p, stone: v }))} />
+                                    ))}
+                                </div>
+                                {/* Dynamic stone chips */}
+                                {availableStones.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {availableStones.map(s => {
+                                            const style = getStoneChipStyle(s.id);
+                                            const isActive = subFilters.stone === s.id;
+                                            return (
+                                                <button
+                                                    key={s.id}
+                                                    onClick={() => setSubFilters(p => ({ ...p, stone: isActive ? 'all' : s.id }))}
+                                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${isActive
+                                                        ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow`
+                                                        : `${style.bg} ${style.text} border-transparent hover:border-current/40 opacity-80 hover:opacity-100`
+                                                        }`}
+                                                >
+                                                    <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`}></span>
+                                                    {s.name}
+                                                    <span className="opacity-50 text-[10px]">({s.count})</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── Φινίρισμα ── */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Palette size={14} /> Φινίρισμα</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {platingFilters.map(f => (
+                                        <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({ ...p, plating: v }))} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Τύπος Παραγωγής ── */}
+                            {!showStxOnly && (
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Factory size={14} /> Τύπος Παραγωγής</label>
+                                    <div className="flex gap-2">
+                                        {[
+                                            { label: 'Όλα', value: 'all', icon: null },
+                                            { label: 'Ιδιοπαραγωγή', value: 'InHouse', icon: <Factory size={12} /> },
+                                            { label: 'Εισαγωγή', value: 'Imported', icon: <ShoppingBag size={12} /> },
+                                        ].map(f => (
+                                            <button
+                                                key={f.value}
+                                                onClick={() => setSubFilters(p => ({ ...p, productionType: f.value }))}
+                                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border flex-1 justify-center ${subFilters.productionType === f.value
+                                                    ? 'bg-[#060b00] text-white border-black'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                    }`}
+                                            >
+                                                {f.icon} {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Συλλογή ── */}
+                            {!showStxOnly && collections && collections.length > 0 && (
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><FolderOpen size={14} /> Συλλογή</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        <SubFilterButton label="Όλες" value="all" activeValue={subFilters.collection} onClick={(v) => setSubFilters(p => ({ ...p, collection: v }))} />
+                                        {collections.map(col => (
+                                            <SubFilterButton
+                                                key={col.id}
+                                                label={col.name}
+                                                value={String(col.id)}
+                                                activeValue={subFilters.collection}
+                                                onClick={(v) => setSubFilters(p => ({ ...p, collection: v }))}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setFilterGender('All');
+                                    setFilterCategory('All');
+                                    setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+                                }}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                            >
+                                Καθαρισμός
+                            </button>
+                            <button
+                                onClick={() => setShowFiltersSidebar(false)}
+                                className="flex-[2] px-4 py-3 rounded-xl font-bold text-white bg-[#060b00] hover:bg-black transition-colors shadow-md"
+                            >
+                                Εφαρμογή ({filteredProducts.length})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
