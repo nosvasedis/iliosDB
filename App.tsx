@@ -475,7 +475,7 @@ function AppContent() {
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
-                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμ." isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
+                <NavItem icon={<Users size={22} />} label="Πελάτες & Προμηθευτές" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
               </>
             )}
             <div className="my-2 border-t border-white/10 mx-2"></div>
