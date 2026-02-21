@@ -8,8 +8,10 @@ import BarcodeScanner from './BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, calculateSuggestedWholesalePrice, splitSkuComponents } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
+import { FINISH_COLORS, STONE_TEXT_COLORS } from '../hooks/useOrderState';
+import { Info } from 'lucide-react';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -23,6 +25,7 @@ interface TableVariant {
     label: string;
     price: number;
     cost: number;
+    costBreakdown: any;
     suggestedPrice: number;
     weight: number;
     image: string | null;
@@ -97,9 +100,31 @@ const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: string 
 };
 const DEFAULT_STONE_STYLE = { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-300' };
 
-function getStoneChipStyle(code: string) {
-    return STONE_CHIP_STYLES[code] ?? DEFAULT_STONE_STYLE;
-}
+const getStoneChipStyle = (code: string) => STONE_CHIP_STYLES[code] ?? DEFAULT_STONE_STYLE;
+
+/* ── SKU COLORIZER COMPONENT ── */
+const SkuColorizer = ({ sku, gender }: { sku: string, gender?: Gender }) => {
+    const { master, suffix } = splitSkuComponents(sku);
+    const { finish, stone } = getVariantComponents(suffix, gender);
+
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
+
+    const renderSuffixChars = () =>
+        suffix.split('').map((char, i) => {
+            let colorClass = 'text-slate-400';
+            if (finish.code && i < finish.code.length) colorClass = fColor;
+            else if (stone.code && i >= (suffix.length - stone.code.length)) colorClass = sColor;
+            return <span key={i} className={colorClass}>{char}</span>;
+        });
+
+    return (
+        <span className="font-mono tracking-tight cursor-default">
+            <span className="text-slate-900 font-black">{master}</span>
+            <span className="font-black">{renderSuffixChars()}</span>
+        </span>
+    );
+};
 
 const getPaginationRange = (current: number, total: number) => {
     const range: (number | string)[] = [];
@@ -524,8 +549,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         label: v.description || v.suffix || 'Λουστρέ',
                         price: v.selling_price || p.selling_price,
                         cost: estCost.total,
+                        costBreakdown: estCost.breakdown,
                         suggestedPrice,
-                        weight: p.weight_g,
+                        weight: weight,
                         image: p.image_url
                     });
                 });
@@ -541,8 +567,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     label: 'Βασικό',
                     price: p.selling_price,
                     cost: costCalc.total,
+                    costBreakdown: costCalc.breakdown,
                     suggestedPrice,
-                    weight: p.weight_g,
+                    weight: weight,
                     image: p.image_url
                 });
             }
@@ -826,6 +853,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 const profit = item.price - item.cost;
                                 const margin = item.price > 0 ? (profit / item.price) * 100 : 0;
 
+                                const prevItem = virtualRow.index > 0 ? tableVariants[virtualRow.index - 1] : null;
+                                const isFirstInTeam = !prevItem || prevItem.masterSku !== item.masterSku;
+
                                 return (
                                     <div key={item.variantSku} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
                                         <div className={`flex items-center justify-between p-4 bg-white border-b border-slate-100 hover:bg-slate-50 transition-colors h-[72px] ${isSelected ? 'bg-emerald-50/50' : ''}`}>
@@ -834,28 +864,72 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     <CheckSquare size={20} className={isSelected ? 'fill-emerald-100' : ''} />
                                                 </button>
                                                 <div className="h-12 w-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
-                                                    {item.image ? <img src={item.image} alt={item.variantSku} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>}
+                                                    {isFirstInTeam ? (
+                                                        item.image ? <img src={item.image} alt={item.variantSku} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
                                                     <div className="font-black text-slate-800 text-sm truncate flex items-center gap-2">
-                                                        <span>{item.variantSku}</span>
-                                                        {item.variant && <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Παραλλαγή</span>}
+                                                        <SkuColorizer sku={item.variantSku} gender={item.product.gender} />
                                                     </div>
                                                     <div className="text-xs text-slate-500 truncate flex items-center gap-2">
-                                                        <span>{item.product.category}</span>
-                                                        <span className="text-slate-300">•</span>
+                                                        {isFirstInTeam && (
+                                                            <>
+                                                                <span>{item.product.category}</span>
+                                                                <span className="text-slate-300">•</span>
+                                                            </>
+                                                        )}
                                                         <span className="font-medium text-slate-600">{item.label}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="hidden md:flex items-center gap-8 px-4 flex-1 justify-center">
-                                                <div className="text-center">
+                                                <div className="text-center w-16">
                                                     <div className="text-[10px] uppercase font-bold text-slate-400">Βάρος</div>
-                                                    <div className="text-sm font-bold text-slate-700">{item.weight.toFixed(2)}g</div>
+                                                    <div className="text-sm font-bold text-slate-700">
+                                                        {isFirstInTeam ? `${item.weight.toFixed(2)}g` : <span className="text-slate-200">-</span>}
+                                                    </div>
                                                 </div>
-                                                <div className="text-center">
-                                                    <div className="text-[10px] uppercase font-bold text-slate-400">Κόστος</div>
+                                                <div className="text-center relative group/cost cursor-help">
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
+                                                        Κόστος <Info size={8} />
+                                                    </div>
                                                     <div className="text-sm font-bold text-slate-700">{formatCurrency(item.cost)}</div>
+
+                                                    {/* Detailed Cost Tooltip */}
+                                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover/cost:block z-[100] w-48 bg-[#060b00] text-white p-3 rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 border border-white/10">
+                                                        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2 border-b border-white/10 pb-1">Ανάλυση Κόστους</div>
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between text-[11px]">
+                                                                <span className="text-white/60">Μέταλλο:</span>
+                                                                <span className="font-black">{formatCurrency(item.costBreakdown.silver)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-[11px]">
+                                                                <span className="text-white/60">Εργατικά:</span>
+                                                                <span className="font-black">{formatCurrency(item.costBreakdown.labor)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-[11px]">
+                                                                <span className="text-white/60">Πέτρες/Υλικά:</span>
+                                                                <span className="font-black">{formatCurrency(item.costBreakdown.materials)}</span>
+                                                            </div>
+                                                            {item.costBreakdown.components > 0 && (
+                                                                <div className="flex justify-between text-[11px]">
+                                                                    <span className="text-white/60">STX Components:</span>
+                                                                    <span className="font-black">{formatCurrency(item.costBreakdown.components)}</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="pt-1 mt-1 border-t border-white/10 flex justify-between text-xs font-black text-emerald-400 uppercase">
+                                                                <span>Σύνολο:</span>
+                                                                <span>{formatCurrency(item.cost)}</span>
+                                                            </div>
+                                                        </div>
+                                                        {/* Tooltip Arrow */}
+                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#060b00]"></div>
+                                                    </div>
                                                 </div>
                                                 <div className="text-center">
                                                     <div className="text-[10px] uppercase font-bold text-slate-400">Περιθώριο</div>
