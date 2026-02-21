@@ -13,10 +13,10 @@ import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 
 // --- VISUAL CONSTANTS ---
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-700 border-amber-200', 
-    'P': 'bg-stone-100 text-stone-600 border-stone-200', 
-    'D': 'bg-orange-100 text-orange-700 border-orange-200', 
-    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200', 
+    'X': 'bg-amber-100 text-amber-700 border-amber-200',
+    'P': 'bg-stone-100 text-stone-600 border-stone-200',
+    'D': 'bg-orange-100 text-orange-700 border-orange-200',
+    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
     '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
 };
 
@@ -24,11 +24,13 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
     'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
     'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
-    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
-    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500',
-    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
-    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
+    'AX': 'text-emerald-700'
 };
 
 // --- INTERFACES ---
@@ -48,11 +50,11 @@ interface InventoryItem {
 }
 
 interface Props {
-  products: Product[];
-  setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
-  settings: any;
-  collections: any[];
-  molds: Mold[];
+    products: Product[];
+    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' }[]) => void;
+    settings: any;
+    collections: any[];
+    molds: Mold[];
 }
 
 interface QuickActionHistory {
@@ -69,7 +71,7 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string, gender: Gender }) => 
     const { finish, stone } = getVariantComponents(suffix, gender);
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    
+
     // Localization Override: "BAS" or empty -> "Λουστρέ"
     const finishLabel = (finish.code === '' || !finish.code) ? 'Λουστρέ' : (finish.code);
 
@@ -87,16 +89,16 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string, gender: Gender }) => 
 };
 
 // --- STOCK MANAGEMENT MODAL ---
-const StockManagementModal = ({ 
-    item, 
-    warehouses, 
-    onClose, 
-    onSave 
-}: { 
-    item: InventoryItem, 
-    warehouses: Warehouse[], 
-    onClose: () => void, 
-    onSave: (updates: Record<string, number>) => Promise<void> 
+const StockManagementModal = ({
+    item,
+    warehouses,
+    onClose,
+    onSave
+}: {
+    item: InventoryItem,
+    warehouses: Warehouse[],
+    onClose: () => void,
+    onSave: (updates: Record<string, number>) => Promise<void>
 }) => {
     const [stockMap, setStockMap] = useState<Record<string, number>>(item.locationStock);
     const [isSaving, setIsSaving] = useState(false);
@@ -120,27 +122,27 @@ const StockManagementModal = ({
                         <h3 className="text-lg font-black text-slate-800">Διαχείριση Αποθέματος</h3>
                         <p className="text-sm font-mono font-bold text-slate-500 mt-1">{item.masterSku}{item.suffix}</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
                 </div>
-                
+
                 <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     {warehouses.map(wh => (
                         <div key={wh.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-lg ${wh.is_system ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
-                                    <MapPin size={18}/>
+                                    <MapPin size={18} />
                                 </div>
                                 <span className="font-bold text-slate-700 text-sm">{wh.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) - 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Minus size={14}/></button>
-                                <input 
-                                    type="number" 
-                                    value={stockMap[wh.id] || 0} 
+                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) - 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Minus size={14} /></button>
+                                <input
+                                    type="number"
+                                    value={stockMap[wh.id] || 0}
                                     onChange={(e) => handleUpdate(wh.id, parseInt(e.target.value) || 0)}
                                     className="w-16 text-center font-black text-lg text-slate-800 outline-none bg-transparent"
                                 />
-                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) + 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Plus size={14}/></button>
+                                <button onClick={() => handleUpdate(wh.id, (stockMap[wh.id] || 0) + 1)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all"><Plus size={14} /></button>
                             </div>
                         </div>
                     ))}
@@ -149,7 +151,7 @@ const StockManagementModal = ({
                 <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
                     <button onClick={onClose} disabled={isSaving} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Ακύρωση</button>
                     <button onClick={handleConfirm} disabled={isSaving} className="flex-[2] py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-lg">
-                        {isSaving ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
+                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                         Αποθήκευση
                     </button>
                 </div>
@@ -159,20 +161,20 @@ const StockManagementModal = ({
 };
 
 // --- NEW INVENTORY DETAILS MODAL ---
-const InventoryDetailsModal = ({ 
-    product, 
-    warehouses, 
+const InventoryDetailsModal = ({
+    product,
+    warehouses,
     orders,
     onClose,
     onManageStock
-}: { 
-    product: Product, 
-    warehouses: Warehouse[], 
+}: {
+    product: Product,
+    warehouses: Warehouse[],
     orders: Order[] | undefined,
     onClose: () => void,
     onManageStock: (item: InventoryItem) => void
 }) => {
-    
+
     // Helper to build rows
     const rows = useMemo(() => {
         const result: InventoryItem[] = [];
@@ -192,20 +194,20 @@ const InventoryDetailsModal = ({
                 }
             });
         }
-        
+
         // Helper to construct InventoryItem
         const buildItem = (v: ProductVariant | null): InventoryItem => {
             const suffix = v ? v.suffix : '';
             const key = product.sku + suffix;
-            
+
             const locStock: Record<string, number> = {};
             // Merge system stock
             locStock[SYSTEM_IDS.CENTRAL] = v ? (v.stock_qty || 0) : (product.stock_qty || 0);
             locStock[SYSTEM_IDS.SHOWROOM] = v ? (v.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : (product.sample_qty || 0);
-            
+
             // Merge other warehouses
             warehouses.filter(w => !w.is_system).forEach(w => {
-                 locStock[w.id] = v ? (v.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0);
+                locStock[w.id] = v ? (v.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0);
             });
 
             const total = Object.values(locStock).reduce((a, b) => a + b, 0);
@@ -232,7 +234,7 @@ const InventoryDetailsModal = ({
             result.push(buildItem(null));
         }
 
-        return result.sort((a,b) => a.suffix.localeCompare(b.suffix));
+        return result.sort((a, b) => a.suffix.localeCompare(b.suffix));
     }, [product, warehouses, orders]);
 
     return (
@@ -245,7 +247,7 @@ const InventoryDetailsModal = ({
                             {product.image_url ? (
                                 <img src={product.image_url} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
+                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24} /></div>
                             )}
                         </div>
                         <div>
@@ -256,17 +258,17 @@ const InventoryDetailsModal = ({
                                     {rows.length} {rows.length === 1 ? 'Είδος' : 'Παραλλαγές'}
                                 </span>
                                 <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
-                                    {rows.reduce((a,b) => a + b.totalStock, 0)} Σύνολο
+                                    {rows.reduce((a, b) => a + b.totalStock, 0)} Σύνολο
                                 </span>
                                 {rows.some(r => r.demandQty > 0) && (
                                     <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                                        <Activity size={10}/> {rows.reduce((a,b) => a + b.demandQty, 0)} Ζήτηση
+                                        <Activity size={10} /> {rows.reduce((a, b) => a + b.demandQty, 0)} Ζήτηση
                                     </span>
                                 )}
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-white hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors shadow-sm"><X size={20}/></button>
+                    <button onClick={onClose} className="p-2 bg-white hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors shadow-sm"><X size={20} /></button>
                 </div>
 
                 {/* Table */}
@@ -318,12 +320,12 @@ const InventoryDetailsModal = ({
                                         </td>
                                     ))}
                                     <td className="p-4 text-center">
-                                        <button 
+                                        <button
                                             onClick={() => onManageStock(row)}
                                             className="p-2 bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 rounded-lg shadow-sm transition-all"
                                             title="Επεξεργασία Αποθέματος"
                                         >
-                                            <Edit2 size={16}/>
+                                            <Edit2 size={16} />
                                         </button>
                                     </td>
                                 </tr>
@@ -337,247 +339,247 @@ const InventoryDetailsModal = ({
 };
 
 export default function Inventory({ products, setPrintItems, settings, collections, molds }: Props) {
-  const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // New state for hiding empty stock items
-  const [showEmpty, setShowEmpty] = useState(false);
-  
-  // Replaced selectedProduct logic with selectedMaster for the new modal
-  const [selectedMaster, setSelectedMaster] = useState<Product | null>(null);
-  
-  const [managingItem, setManagingItem] = useState<InventoryItem | null>(null); // For Stock Modal
-  const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
-  const [showScanner, setShowScanner] = useState(false);
-  const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
-  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-  const queryClient = useQueryClient();
-  const { showToast, confirm } = useUI();
-  const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
-  const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
-  const [sourceId, setSourceId] = useState<string>(SYSTEM_IDS.CENTRAL);
-  const [targetId, setTargetId] = useState<string>(SYSTEM_IDS.SHOWROOM);
-  const [transferQty, setTransferQty] = useState(1);
-  const [isTransferring, setIsTransferring] = useState(false);
-  
-  // --- SMART ENTRY STATE ---
-  const [scanInput, setScanInput] = useState('');
-  const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
-  const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
-  const [filteredVariants, setFilteredVariants] = useState<{variant: ProductVariant, suffix: string, desc: string}[]>([]);
+    const [activeTab, setActiveTab] = useState<'stock' | 'warehouses'>('stock');
+    const [searchTerm, setSearchTerm] = useState('');
 
-  const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
-  const [scanQty, setScanQty] = useState(1);
-  const [scanSize, setScanSize] = useState('');
-  const [quickMode, setQuickMode] = useState<'add' | 'subtract'>('add');
-  const [recentActions, setRecentActions] = useState<QuickActionHistory[]>([]);
-  
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listParentRef = useRef<HTMLDivElement>(null);
+    // New state for hiding empty stock items
+    const [showEmpty, setShowEmpty] = useState(false);
 
-  const getWarehouseNameClean = (w: Warehouse) => w.id === SYSTEM_IDS.CENTRAL ? 'Κεντρική Αποθήκη' : (w.id === SYSTEM_IDS.SHOWROOM || w.type === 'Showroom' || w.name === 'Showroom' ? 'Δειγματολόγιο' : w.name);
+    // Replaced selectedProduct logic with selectedMaster for the new modal
+    const [selectedMaster, setSelectedMaster] = useState<Product | null>(null);
 
-  // NEW: Aggregated Master List for the main view
-  const masterInventory = useMemo(() => {
-      if (!products) return [];
-      
-      // Filter out Components (STX)
-      const sellableProducts = products.filter(p => !p.is_component);
+    const [managingItem, setManagingItem] = useState<InventoryItem | null>(null); // For Stock Modal
+    const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
+    const [showScanner, setShowScanner] = useState(false);
+    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const queryClient = useQueryClient();
+    const { showToast, confirm } = useUI();
+    const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
+    const [warehouseForm, setWarehouseForm] = useState<Partial<Warehouse>>({ name: '', type: 'Store', address: '' });
+    const [transferModalOpen, setTransferModalOpen] = useState(false);
+    const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
+    const [sourceId, setSourceId] = useState<string>(SYSTEM_IDS.CENTRAL);
+    const [targetId, setTargetId] = useState<string>(SYSTEM_IDS.SHOWROOM);
+    const [transferQty, setTransferQty] = useState(1);
+    const [isTransferring, setIsTransferring] = useState(false);
 
-      // Pre-calculate demand map for performance
-      const demandMap: Record<string, number> = {}; 
-      if (orders) {
-          orders.forEach(o => {
-              if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
-                  o.items.forEach(item => {
-                      demandMap[item.sku] = (demandMap[item.sku] || 0) + item.quantity;
-                  });
-              }
-          });
-      }
+    // --- SMART ENTRY STATE ---
+    const [scanInput, setScanInput] = useState('');
+    const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
+    const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
+    const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
 
-      return sellableProducts.map(p => {
-          let totalStock = (p.stock_qty || 0) + (p.sample_qty || 0);
-          
-          // Add warehouse stocks for master
-          if (p.location_stock) {
-              totalStock += Object.values(p.location_stock).reduce((a, b) => a + b, 0);
-          }
+    const [scanTargetId, setScanTargetId] = useState<string>(SYSTEM_IDS.CENTRAL);
+    const [scanQty, setScanQty] = useState(1);
+    const [scanSize, setScanSize] = useState('');
+    const [quickMode, setQuickMode] = useState<'add' | 'subtract'>('add');
+    const [recentActions, setRecentActions] = useState<QuickActionHistory[]>([]);
 
-          // Add variant stocks
-          if (p.variants && p.variants.length > 0) {
-              p.variants.forEach(v => {
-                  totalStock += (v.stock_qty || 0);
-                  if (v.location_stock) {
-                      totalStock += Object.values(v.location_stock).reduce((a, b) => a + b, 0);
-                  }
-              });
-          }
+    const inputRef = useRef<HTMLInputElement>(null);
+    const listParentRef = useRef<HTMLDivElement>(null);
 
-          return {
-              product: p,
-              totalStock,
-              totalDemand: demandMap[p.sku] || 0,
-              variantCount: p.variants?.length || 0
-          };
-      }).sort((a,b) => b.totalStock - a.totalStock); // Show high stock first
-  }, [products, orders]);
+    const getWarehouseNameClean = (w: Warehouse) => w.id === SYSTEM_IDS.CENTRAL ? 'Κεντρική Αποθήκη' : (w.id === SYSTEM_IDS.SHOWROOM || w.type === 'Showroom' || w.name === 'Showroom' ? 'Δειγματολόγιο' : w.name);
 
-  const filteredMasterInventory = useMemo(() => {
-      const term = searchTerm.toUpperCase();
-      return masterInventory.filter(item => {
-          // Hide items with 0 stock unless 'showEmpty' is true
-          if (!showEmpty && item.totalStock <= 0) return false;
-          
-          if (viewWarehouseId !== 'ALL') {
-              // Warehouse filter logic is tricky for aggregated view. 
-              // Simplification: Allow all in Master view, detailed breakdown shows specifics.
-          }
-          return !term || item.product.sku.includes(term) || item.product.category.toUpperCase().includes(term);
-      });
-  }, [masterInventory, searchTerm, viewWarehouseId, showEmpty]);
+    // NEW: Aggregated Master List for the main view
+    const masterInventory = useMemo(() => {
+        if (!products) return [];
 
-  const rowVirtualizer = useVirtualizer({ count: filteredMasterInventory.length, getScrollElement: () => listParentRef.current, estimateSize: () => 100, overscan: 10 });
+        // Filter out Components (STX)
+        const sellableProducts = products.filter(p => !p.is_component);
 
-  // --- SMART INPUT LOGIC ---
-  const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value.toUpperCase();
-      setScanInput(val);
-      setScanSize('');
+        // Pre-calculate demand map for performance
+        const demandMap: Record<string, number> = {};
+        if (orders) {
+            orders.forEach(o => {
+                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
+                    o.items.forEach(item => {
+                        demandMap[item.sku] = (demandMap[item.sku] || 0) + item.quantity;
+                    });
+                }
+            });
+        }
 
-      if (val.length < 2) {
-          setCandidateProducts([]);
-          setActiveMasterProduct(null);
-          setFilteredVariants([]);
-          return;
-      }
+        return sellableProducts.map(p => {
+            let totalStock = (p.stock_qty || 0) + (p.sample_qty || 0);
 
-      // Exact Match Logic
-      const match = findProductByScannedCode(val, products);
-      if (match) {
-          if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
-              setActiveMasterProduct(match.product);
-              setCandidateProducts([match.product]);
-              setFilteredVariants([]); 
-              return;
-          }
-      }
+            // Add warehouse stocks for master
+            if (p.location_stock) {
+                totalStock += Object.values(p.location_stock).reduce((a, b) => a + b, 0);
+            }
 
-      // Partial / Search Logic
-      let bestMaster: Product | null = null;
-      let suffixPart = '';
-      
-      const potentialMasters = products.filter(p => !p.is_component && val.startsWith(p.sku));
-      const longestPrefixMaster = potentialMasters.sort((a,b) => b.sku.length - a.sku.length)[0];
+            // Add variant stocks
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    totalStock += (v.stock_qty || 0);
+                    if (v.location_stock) {
+                        totalStock += Object.values(v.location_stock).reduce((a, b) => a + b, 0);
+                    }
+                });
+            }
 
-      if (longestPrefixMaster) {
-          bestMaster = longestPrefixMaster;
-          suffixPart = val.replace(longestPrefixMaster.sku, '');
-      }
+            return {
+                product: p,
+                totalStock,
+                totalDemand: demandMap[p.sku] || 0,
+                variantCount: p.variants?.length || 0
+            };
+        }).sort((a, b) => b.totalStock - a.totalStock); // Show high stock first
+    }, [products, orders]);
 
-      let candidates: Product[] = [];
-      if (bestMaster) {
-          candidates = [bestMaster];
-      } else {
-          candidates = products.filter(p => !p.is_component && p.sku.startsWith(val)).slice(0, 6);
-      }
-      setCandidateProducts(candidates);
+    const filteredMasterInventory = useMemo(() => {
+        const term = searchTerm.toUpperCase();
+        return masterInventory.filter(item => {
+            // Hide items with 0 stock unless 'showEmpty' is true
+            if (!showEmpty && item.totalStock <= 0) return false;
 
-      if (bestMaster) {
-          setActiveMasterProduct(bestMaster);
-          if (bestMaster.variants) {
-              const validVariants = bestMaster.variants
-                  .filter(v => v.suffix.startsWith(suffixPart))
-                  .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
-              setFilteredVariants(validVariants);
-          } else {
-              setFilteredVariants([]);
-          }
-      } else {
-          setActiveMasterProduct(null);
-          setFilteredVariants([]);
-      }
-  };
+            if (viewWarehouseId !== 'ALL') {
+                // Warehouse filter logic is tricky for aggregated view. 
+                // Simplification: Allow all in Master view, detailed breakdown shows specifics.
+            }
+            return !term || item.product.sku.includes(term) || item.product.category.toUpperCase().includes(term);
+        });
+    }, [masterInventory, searchTerm, viewWarehouseId, showEmpty]);
 
-  const selectProductCandidate = (product: Product) => {
-      setScanInput(product.sku);
-      setActiveMasterProduct(product);
-      setCandidateProducts([product]);
-      if (product.variants) {
-          setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
-      } else {
-          setFilteredVariants([]);
-      }
-      inputRef.current?.focus();
-  };
+    const rowVirtualizer = useVirtualizer({ count: filteredMasterInventory.length, getScrollElement: () => listParentRef.current, estimateSize: () => 100, overscan: 10 });
 
-  const selectSuffix = (suffix: string) => {
-      if (activeMasterProduct) {
-          const fullCode = activeMasterProduct.sku + suffix;
-          setScanInput(fullCode);
-          setFilteredVariants([]); 
-          inputRef.current?.focus();
-      }
-  };
+    // --- SMART INPUT LOGIC ---
+    const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value.toUpperCase();
+        setScanInput(val);
+        setScanSize('');
 
-  const executeQuickAdd = async () => {
-      if (!scanInput) return;
-      const match = findProductByScannedCode(scanInput, products);
-      if (!match) { 
-          showToast(`Ο κωδικός δεν βρέθηκε.`, "error"); 
-          return; 
-      }
+        if (val.length < 2) {
+            setCandidateProducts([]);
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+            return;
+        }
 
-      const { product, variant } = match;
-      
-      if (product.is_component) {
-          showToast(`Το ${product.sku} είναι εξάρτημα και δεν εμφανίζεται στα αποθέματα πώλησης.`, "error");
-          return;
-      }
+        // Exact Match Logic
+        const match = findProductByScannedCode(val, products);
+        if (match) {
+            if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
+                setActiveMasterProduct(match.product);
+                setCandidateProducts([match.product]);
+                setFilteredVariants([]);
+                return;
+            }
+        }
 
-      const sizing = isSizable(product) ? getSizingInfo(product) : null;
-      if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
-      
-      const changeAmount = quickMode === 'add' ? scanQty : -scanQty;
-      const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
+        // Partial / Search Logic
+        let bestMaster: Product | null = null;
+        let suffixPart = '';
 
-      try {
-          if (variant) {
-               if (scanTargetId === SYSTEM_IDS.CENTRAL) {
-                   const map = variant.stock_by_size ? { ...variant.stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount;
-                   await supabase.from('product_variants').update({ stock_qty: Math.max(0, (variant.stock_qty || 0) + changeAmount), stock_by_size: map }).match({ product_sku: product.sku, suffix: variant.suffix });
-               } else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: variant.suffix, warehouse_id: scanTargetId, quantity: Math.max(0, (variant.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-               await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`, variant.suffix);
-          } else {
-              if (scanTargetId === SYSTEM_IDS.CENTRAL) { 
-                  const map = product.stock_by_size ? { ...product.stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
-                  await supabase.from('products').update({ stock_qty: Math.max(0, (product.stock_qty || 0) + changeAmount), stock_by_size: map }).eq('sku', product.sku); 
-              } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) { 
-                  const map = product.sample_stock_by_size ? { ...product.sample_stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount; 
-                  await supabase.from('products').update({ sample_qty: Math.max(0, (product.sample_qty || 0) + changeAmount), sample_stock_by_size: map }).eq('sku', product.sku); 
-              } else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: Math.max(0, (product.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-              await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`);
-          }
-          
-          setRecentActions(prev => [{ id: Math.random().toString(36), sku: scanInput, amount: scanQty, target: whName, timestamp: new Date(), type: quickMode }, ...prev].slice(0, 5));
-          queryClient.invalidateQueries({ queryKey: ['products'] }); 
-          showToast(`${quickMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${scanQty} τεμ. στο ${scanInput}`, "success");
-          
-          // Reset relevant state
-          setScanInput(''); 
-          setScanSize(''); 
-          setScanQty(1); 
-          setCandidateProducts([]);
-          setActiveMasterProduct(null);
-          setFilteredVariants([]);
-          inputRef.current?.focus();
-      } catch (err) { showToast("Σφάλμα ενημέρωσης.", "error"); }
-  };
+        const potentialMasters = products.filter(p => !p.is_component && val.startsWith(p.sku));
+        const longestPrefixMaster = potentialMasters.sort((a, b) => b.sku.length - a.sku.length)[0];
 
-  // --- UPDATED STOCK HANDLER FOR NEW MODAL ---
-  const handleStockUpdate = async (updates: Record<string, number>) => {
+        if (longestPrefixMaster) {
+            bestMaster = longestPrefixMaster;
+            suffixPart = val.replace(longestPrefixMaster.sku, '');
+        }
+
+        let candidates: Product[] = [];
+        if (bestMaster) {
+            candidates = [bestMaster];
+        } else {
+            candidates = products.filter(p => !p.is_component && p.sku.startsWith(val)).slice(0, 6);
+        }
+        setCandidateProducts(candidates);
+
+        if (bestMaster) {
+            setActiveMasterProduct(bestMaster);
+            if (bestMaster.variants) {
+                const validVariants = bestMaster.variants
+                    .filter(v => v.suffix.startsWith(suffixPart))
+                    .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
+                setFilteredVariants(validVariants);
+            } else {
+                setFilteredVariants([]);
+            }
+        } else {
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+        }
+    };
+
+    const selectProductCandidate = (product: Product) => {
+        setScanInput(product.sku);
+        setActiveMasterProduct(product);
+        setCandidateProducts([product]);
+        if (product.variants) {
+            setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+        } else {
+            setFilteredVariants([]);
+        }
+        inputRef.current?.focus();
+    };
+
+    const selectSuffix = (suffix: string) => {
+        if (activeMasterProduct) {
+            const fullCode = activeMasterProduct.sku + suffix;
+            setScanInput(fullCode);
+            setFilteredVariants([]);
+            inputRef.current?.focus();
+        }
+    };
+
+    const executeQuickAdd = async () => {
+        if (!scanInput) return;
+        const match = findProductByScannedCode(scanInput, products);
+        if (!match) {
+            showToast(`Ο κωδικός δεν βρέθηκε.`, "error");
+            return;
+        }
+
+        const { product, variant } = match;
+
+        if (product.is_component) {
+            showToast(`Το ${product.sku} είναι εξάρτημα και δεν εμφανίζεται στα αποθέματα πώλησης.`, "error");
+            return;
+        }
+
+        const sizing = isSizable(product) ? getSizingInfo(product) : null;
+        if (sizing && !scanSize) { showToast(`Επιλέξτε ${sizing.type}.`, "error"); return; }
+
+        const changeAmount = quickMode === 'add' ? scanQty : -scanQty;
+        const whName = warehouses?.find(w => w.id === scanTargetId)?.name || 'Αποθήκη';
+
+        try {
+            if (variant) {
+                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                    const map = variant.stock_by_size ? { ...variant.stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount;
+                    await supabase.from('product_variants').update({ stock_qty: Math.max(0, (variant.stock_qty || 0) + changeAmount), stock_by_size: map }).match({ product_sku: product.sku, suffix: variant.suffix });
+                } else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: variant.suffix, warehouse_id: scanTargetId, quantity: Math.max(0, (variant.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`, variant.suffix);
+            } else {
+                if (scanTargetId === SYSTEM_IDS.CENTRAL) {
+                    const map = product.stock_by_size ? { ...product.stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount;
+                    await supabase.from('products').update({ stock_qty: Math.max(0, (product.stock_qty || 0) + changeAmount), stock_by_size: map }).eq('sku', product.sku);
+                } else if (scanTargetId === SYSTEM_IDS.SHOWROOM) {
+                    const map = product.sample_stock_by_size ? { ...product.sample_stock_by_size } : {}; if (scanSize) map[scanSize] = (map[scanSize] || 0) + changeAmount;
+                    await supabase.from('products').update({ sample_qty: Math.max(0, (product.sample_qty || 0) + changeAmount), sample_stock_by_size: map }).eq('sku', product.sku);
+                } else await supabase.from('product_stock').upsert({ product_sku: product.sku, warehouse_id: scanTargetId, quantity: Math.max(0, (product.location_stock?.[scanTargetId] || 0) + changeAmount), size_info: scanSize || null }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                await recordStockMovement(product.sku, changeAmount, `Ταχεία Κίνηση: ${whName}`);
+            }
+
+            setRecentActions(prev => [{ id: Math.random().toString(36), sku: scanInput, amount: scanQty, target: whName, timestamp: new Date(), type: quickMode }, ...prev].slice(0, 5));
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            showToast(`${quickMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${scanQty} τεμ. στο ${scanInput}`, "success");
+
+            // Reset relevant state
+            setScanInput('');
+            setScanSize('');
+            setScanQty(1);
+            setCandidateProducts([]);
+            setActiveMasterProduct(null);
+            setFilteredVariants([]);
+            inputRef.current?.focus();
+        } catch (err) { showToast("Σφάλμα ενημέρωσης.", "error"); }
+    };
+
+    // --- UPDATED STOCK HANDLER FOR NEW MODAL ---
+    const handleStockUpdate = async (updates: Record<string, number>) => {
         if (!managingItem) return;
         const sku = managingItem.masterSku;
         const suffix = managingItem.suffix;
@@ -586,14 +588,14 @@ export default function Inventory({ products, setPrintItems, settings, collectio
         for (const [whId, qty] of Object.entries(updates)) {
             const currentQty = managingItem.locationStock[whId] || 0;
             if (currentQty === qty) continue;
-            
+
             const diff = qty - currentQty;
             const whName = warehouses?.find(w => w.id === whId)?.name || 'Unknown';
 
             if (managingItem.isSingleVariantMode) {
-                 if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku);
-                 else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
-                 else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+                if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku);
+                else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
+                else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
             } else if (suffix) {
                 // Variant
                 if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: suffix });
@@ -604,295 +606,295 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                 else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
                 else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
             }
-            
+
             await recordStockMovement(sku, diff, `Manual Set: ${whName}`, suffix || undefined);
         }
         queryClient.invalidateQueries({ queryKey: ['products'] });
         showToast("Το απόθεμα ενημερώθηκε.", "success");
-  };
+    };
 
-  const handleSaveWarehouse = async () => { if (!warehouseForm.name) return; try { if (warehouseForm.id) { await api.updateWarehouse(warehouseForm.id, warehouseForm); showToast("Ο χώρος ενημερώθηκε.", "success"); } else { await api.saveWarehouse(warehouseForm); showToast("Ο χώρος δημιουργήθηκε.", "success"); } queryClient.invalidateQueries({ queryKey: ['warehouses'] }); setIsEditingWarehouse(false); } catch (err) { showToast("Σφάλμα αποθήκευσης.", "error"); } };
-  const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
-  const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
-  const handleDeleteWarehouse = async (id: string) => { if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν μπορείτε να διαγράψετε συστημικούς χώρους.", "error"); return; } if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον χώρο;', isDestructive: true, confirmText: 'Διαγραφή' })) { await api.deleteWarehouse(id); queryClient.invalidateQueries({ queryKey: ['warehouses'] }); } };
+    const handleSaveWarehouse = async () => { if (!warehouseForm.name) return; try { if (warehouseForm.id) { await api.updateWarehouse(warehouseForm.id, warehouseForm); showToast("Ο χώρος ενημερώθηκε.", "success"); } else { await api.saveWarehouse(warehouseForm); showToast("Ο χώρος δημιουργήθηκε.", "success"); } queryClient.invalidateQueries({ queryKey: ['warehouses'] }); setIsEditingWarehouse(false); } catch (err) { showToast("Σφάλμα αποθήκευσης.", "error"); } };
+    const handleCreateWarehouse = () => { setWarehouseForm({ name: '', type: 'Store', address: '' }); setIsEditingWarehouse(true); }
+    const handleEditWarehouse = (w: Warehouse) => { setWarehouseForm(w); setIsEditingWarehouse(true); }
+    const handleDeleteWarehouse = async (id: string) => { if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν μπορείτε να διαγράψετε συστημικούς χώρους.", "error"); return; } if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον χώρο;', isDestructive: true, confirmText: 'Διαγραφή' })) { await api.deleteWarehouse(id); queryClient.invalidateQueries({ queryKey: ['warehouses'] }); } };
 
-  const executeTransfer = async () => {
-      if (!transferItem || sourceId === targetId) return; const currentSourceQty = transferItem.locationStock[sourceId] || 0;
-      if (transferQty > currentSourceQty) { showToast("Ανεπαρκές απόθεμα.", "error"); return; }
-      setIsTransferring(true);
-      try {
-          const variantSuffix = transferItem.suffix; const sku = transferItem.masterSku;
-          const updateStock = async (whId: string, qty: number) => {
-               if (whId === SYSTEM_IDS.CENTRAL) { if (variantSuffix) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: variantSuffix }); else await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku); }
-               else if (whId === SYSTEM_IDS.SHOWROOM && !variantSuffix) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
-               else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: variantSuffix || null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-          };
-          await updateStock(sourceId, currentSourceQty - transferQty); await updateStock(targetId, (transferItem.locationStock[targetId] || 0) + transferQty);
-          await recordStockMovement(sku, transferQty, `Transfer: ${getWarehouseNameClean(warehouses!.find(w=>w.id===sourceId)!)} -> ${getWarehouseNameClean(warehouses!.find(w=>w.id===targetId)!)}`, variantSuffix);
-          queryClient.invalidateQueries({ queryKey: ['products'] }); showToast("Η μεταφορά ολοκληρώθηκε.", "success"); setTransferModalOpen(false);
-      } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, "error"); } finally { setIsTransferring(false); }
-  };
+    const executeTransfer = async () => {
+        if (!transferItem || sourceId === targetId) return; const currentSourceQty = transferItem.locationStock[sourceId] || 0;
+        if (transferQty > currentSourceQty) { showToast("Ανεπαρκές απόθεμα.", "error"); return; }
+        setIsTransferring(true);
+        try {
+            const variantSuffix = transferItem.suffix; const sku = transferItem.masterSku;
+            const updateStock = async (whId: string, qty: number) => {
+                if (whId === SYSTEM_IDS.CENTRAL) { if (variantSuffix) await supabase.from('product_variants').update({ stock_qty: qty }).match({ product_sku: sku, suffix: variantSuffix }); else await supabase.from('products').update({ stock_qty: qty }).eq('sku', sku); }
+                else if (whId === SYSTEM_IDS.SHOWROOM && !variantSuffix) await supabase.from('products').update({ sample_qty: qty }).eq('sku', sku);
+                else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: variantSuffix || null, warehouse_id: whId, quantity: qty }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
+            };
+            await updateStock(sourceId, currentSourceQty - transferQty); await updateStock(targetId, (transferItem.locationStock[targetId] || 0) + transferQty);
+            await recordStockMovement(sku, transferQty, `Transfer: ${getWarehouseNameClean(warehouses!.find(w => w.id === sourceId)!)} -> ${getWarehouseNameClean(warehouses!.find(w => w.id === targetId)!)}`, variantSuffix);
+            queryClient.invalidateQueries({ queryKey: ['products'] }); showToast("Η μεταφορά ολοκληρώθηκε.", "success"); setTransferModalOpen(false);
+        } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, "error"); } finally { setIsTransferring(false); }
+    };
 
-  const openTransfer = (item: InventoryItem) => { setTransferItem(item); setSourceId(SYSTEM_IDS.CENTRAL); setTargetId(SYSTEM_IDS.SHOWROOM); setTransferQty(1); setTransferModalOpen(true); }
+    const openTransfer = (item: InventoryItem) => { setTransferItem(item); setSourceId(SYSTEM_IDS.CENTRAL); setTargetId(SYSTEM_IDS.SHOWROOM); setTransferQty(1); setTransferModalOpen(true); }
 
-  const handleGlobalScan = (code: string) => {
-    const match = findProductByScannedCode(code, products);
-    if (match) {
-        // Open details modal directly if scan matches
-        setSelectedMaster(match.product);
-        setShowScanner(false);
-    } else {
-        showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
-    }
-  };
+    const handleGlobalScan = (code: string) => {
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            // Open details modal directly if scan matches
+            setSelectedMaster(match.product);
+            setShowScanner(false);
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
 
-  return (
-    <div className="flex flex-col h-full space-y-6">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
-         <div>
-            <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-slate-800 text-white rounded-xl"><Store size={24} /></div>
-                Κέντρο Αποθήκης
-            </h1>
-         </div>
-         <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button onClick={() => setActiveTab('stock')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16}/> Απόθεμα</button>
-            <button onClick={() => setActiveTab('warehouses')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16}/> Χώροι</button>
-         </div>
-      </div>
+    return (
+        <div className="flex flex-col h-full space-y-6">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
+                <div>
+                    <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
+                        <div className="p-2 bg-slate-800 text-white rounded-xl"><Store size={24} /></div>
+                        Κέντρο Αποθήκης
+                    </h1>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button onClick={() => setActiveTab('stock')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16} /> Απόθεμα</button>
+                    <button onClick={() => setActiveTab('warehouses')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16} /> Χώροι</button>
+                </div>
+            </div>
 
-      {activeTab === 'stock' && (
-          <div className="flex-1 flex flex-col min-h-0 space-y-6 animate-in slide-in-from-bottom-2">
-              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shrink-0 flex flex-col lg:flex-row">
-                  <div className="flex-1 p-8 bg-slate-50 border-r border-slate-100 flex flex-col gap-6 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem]">
-                      <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                              <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
-                                  <ScanBarcode size={22} className="animate-pulse" />
-                              </div>
-                              <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Εισαγωγή</h2>
-                          </div>
-                          <div className="flex gap-2">
-                              <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 shadow-sm" title="Σάρωση Barcode"><Camera size={20}/></button>
-                              <div className="flex bg-slate-200 p-1 rounded-xl">
-                                    <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
-                                        <Plus size={14}/> Εισαγωγή
-                                    </button>
-                                    <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
-                                        <Minus size={14}/> Αφαίρεση
-                                    </button>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-                            <div className="md:col-span-3">
-                                <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Χώρος Στόχος</label>
-                                <select value={scanTargetId} onChange={(e) => setScanTargetId(e.target.value)} className="w-full bg-white text-slate-800 font-bold p-3.5 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 outline-none cursor-pointer transition-all shadow-sm">
-                                    {warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}
-                                </select>
-                            </div>
-                            <div className="md:col-span-5 relative">
-                                <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
-                                <div className="relative">
-                                    <input 
-                                        ref={inputRef} type="text" value={scanInput} onChange={handleSmartInput} 
-                                        onKeyDown={e => { if(e.key==='Enter'){e.preventDefault();executeQuickAdd();} }} 
-                                        placeholder="Σκανάρετε..." className="w-full p-3.5 bg-white font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm text-slate-800 relative z-10"
-                                    />
-                                </div>
-                                {/* Candidate Strip */}
-                                {(candidateProducts.length > 0 || filteredVariants.length > 0) && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-[100] bg-white rounded-2xl border border-slate-100 shadow-2xl p-3 ring-4 ring-black/5">
-                                        
-                                        {/* Candidates */}
-                                        {candidateProducts.length > 0 && (
-                                            <div className="mb-2">
-                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-blue-500"/> {activeMasterProduct ? 'ΕΠΙΛΕΓΜΕΝΟ ΠΡΟΪΟΝ' : 'ΠΡΟΤΑΣΕΙΣ'}</div>
-                                                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                                                    {candidateProducts.map(p => (
-                                                        <div 
-                                                            key={p.sku} 
-                                                            onClick={() => selectProductCandidate(p)}
-                                                            className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer min-w-[140px] transition-all group ${activeMasterProduct?.sku === p.sku ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-100' : 'bg-slate-50 border-slate-200 hover:bg-white'}`}
-                                                        >
-                                                            <div className="w-8 h-8 bg-white rounded overflow-hidden shrink-0 border border-slate-100">
-                                                                {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={14} className="m-auto text-slate-300"/>}
-                                                            </div>
-                                                            <div>
-                                                                <div className={`font-black text-xs leading-none ${activeMasterProduct?.sku === p.sku ? 'text-emerald-800' : 'text-slate-700'}`}>{p.sku}</div>
-                                                                <div className="text-[9px] text-slate-400 truncate max-w-[80px]">{p.category}</div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Variants */}
-                                        {filteredVariants.length > 0 && (
-                                            <div className="max-h-40 overflow-y-auto custom-scrollbar">
-                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500"/> ΔΙΑΘΕΣΙΜΕΣ ΠΑΡΑΛΛΑΓΕΣ</div>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {filteredVariants.map(s => {
-                                                        return (
-                                                            <button 
-                                                                key={s.suffix} 
-                                                                onClick={() => selectSuffix(s.suffix)} 
-                                                                className="bg-white hover:bg-emerald-50 shadow-sm border border-slate-200 hover:border-emerald-200 rounded-lg active:scale-95 transition-all"
-                                                                title={s.desc}
-                                                            >
-                                                                <SuffixBadge suffix={s.suffix} gender={activeMasterProduct!.gender} />
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
+            {activeTab === 'stock' && (
+                <div className="flex-1 flex flex-col min-h-0 space-y-6 animate-in slide-in-from-bottom-2">
+                    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shrink-0 flex flex-col lg:flex-row">
+                        <div className="flex-1 p-8 bg-slate-50 border-r border-slate-100 flex flex-col gap-6 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem]">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
+                                        <ScanBarcode size={22} className="animate-pulse" />
                                     </div>
-                                )}
+                                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Εισαγωγή</h2>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 shadow-sm" title="Σάρωση Barcode"><Camera size={20} /></button>
+                                    <div className="flex bg-slate-200 p-1 rounded-xl">
+                                        <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <Plus size={14} /> Εισαγωγή
+                                        </button>
+                                        <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <Minus size={14} /> Αφαίρεση
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            {activeMasterProduct && isSizable(activeMasterProduct) && (
-                                <div className="md:col-span-2 animate-in zoom-in-95">
-                                    <label className="text-[10px] text-amber-600 font-black uppercase mb-1.5 ml-1 block tracking-widest">{getSizingInfo(activeMasterProduct)!.type}</label>
-                                    <select value={scanSize} onChange={e => setScanSize(e.target.value)} className="w-full bg-amber-50 text-amber-700 font-black p-3.5 rounded-2xl border border-amber-200 focus:ring-4 focus:ring-amber-500/10 outline-none transition-all shadow-sm">
-                                        <option value="">-</option>
-                                        {getSizingInfo(activeMasterProduct)!.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Χώρος Στόχος</label>
+                                    <select value={scanTargetId} onChange={(e) => setScanTargetId(e.target.value)} className="w-full bg-white text-slate-800 font-bold p-3.5 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 outline-none cursor-pointer transition-all shadow-sm">
+                                        {warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}
                                     </select>
                                 </div>
-                            )}
-                            <div className="md:col-span-2 flex gap-3 h-full items-end">
-                                <div className="w-20 shrink-0">
-                                    <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
-                                    <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
-                                </div>
-                                <button onClick={executeQuickAdd} className={`flex-1 h-[54px] ${quickMode === 'add' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'} text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95`}><Plus size={28}/></button>
-                            </div>
-                      </div>
-                  </div>
-                  <div className="w-full lg:w-96 p-8 bg-white flex flex-col rounded-b-[2rem] lg:rounded-bl-none lg:rounded-r-[2rem]">
-                      {activeMasterProduct ? (
-                          <div className="flex-1 animate-in slide-in-from-right duration-500">
-                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Προεπισκόπηση</h3>
-                                <div className="flex items-start gap-4 mb-6">
-                                    <div className="w-24 h-24 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shrink-0 shadow-sm">{activeMasterProduct.image_url ? <img src={activeMasterProduct.image_url!} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}</div>
-                                    <div className="min-w-0">
-                                        <div className="font-black text-slate-800 text-xl leading-none truncate mb-1">
-                                            {activeMasterProduct.sku}
+                                <div className="md:col-span-5 relative">
+                                    <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
+                                    <div className="relative">
+                                        <input
+                                            ref={inputRef} type="text" value={scanInput} onChange={handleSmartInput}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeQuickAdd(); } }}
+                                            placeholder="Σκανάρετε..." className="w-full p-3.5 bg-white font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm text-slate-800 relative z-10"
+                                        />
+                                    </div>
+                                    {/* Candidate Strip */}
+                                    {(candidateProducts.length > 0 || filteredVariants.length > 0) && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 z-[100] bg-white rounded-2xl border border-slate-100 shadow-2xl p-3 ring-4 ring-black/5">
+
+                                            {/* Candidates */}
+                                            {candidateProducts.length > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-blue-500" /> {activeMasterProduct ? 'ΕΠΙΛΕΓΜΕΝΟ ΠΡΟΪΟΝ' : 'ΠΡΟΤΑΣΕΙΣ'}</div>
+                                                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                                        {candidateProducts.map(p => (
+                                                            <div
+                                                                key={p.sku}
+                                                                onClick={() => selectProductCandidate(p)}
+                                                                className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer min-w-[140px] transition-all group ${activeMasterProduct?.sku === p.sku ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-100' : 'bg-slate-50 border-slate-200 hover:bg-white'}`}
+                                                            >
+                                                                <div className="w-8 h-8 bg-white rounded overflow-hidden shrink-0 border border-slate-100">
+                                                                    {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={14} className="m-auto text-slate-300" />}
+                                                                </div>
+                                                                <div>
+                                                                    <div className={`font-black text-xs leading-none ${activeMasterProduct?.sku === p.sku ? 'text-emerald-800' : 'text-slate-700'}`}>{p.sku}</div>
+                                                                    <div className="text-[9px] text-slate-400 truncate max-w-[80px]">{p.category}</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Variants */}
+                                            {filteredVariants.length > 0 && (
+                                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Lightbulb size={10} className="text-amber-500" /> ΔΙΑΘΕΣΙΜΕΣ ΠΑΡΑΛΛΑΓΕΣ</div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {filteredVariants.map(s => {
+                                                            return (
+                                                                <button
+                                                                    key={s.suffix}
+                                                                    onClick={() => selectSuffix(s.suffix)}
+                                                                    className="bg-white hover:bg-emerald-50 shadow-sm border border-slate-200 hover:border-emerald-200 rounded-lg active:scale-95 transition-all"
+                                                                    title={s.desc}
+                                                                >
+                                                                    <SuffixBadge suffix={s.suffix} gender={activeMasterProduct!.gender} />
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="text-xs text-slate-400 font-bold truncate">{activeMasterProduct.category}</p>
-                                        <div className="flex flex-wrap gap-1.5 mt-3"><div className="px-2 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded uppercase">ΣΤΟΚ: {activeMasterProduct.stock_qty}</div>{activeMasterProduct.selling_price > 0 && <div className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black rounded uppercase">{formatCurrency(activeMasterProduct.selling_price)}</div>}</div>
+                                    )}
+                                </div>
+                                {activeMasterProduct && isSizable(activeMasterProduct) && (
+                                    <div className="md:col-span-2 animate-in zoom-in-95">
+                                        <label className="text-[10px] text-amber-600 font-black uppercase mb-1.5 ml-1 block tracking-widest">{getSizingInfo(activeMasterProduct)!.type}</label>
+                                        <select value={scanSize} onChange={e => setScanSize(e.target.value)} className="w-full bg-amber-50 text-amber-700 font-black p-3.5 rounded-2xl border border-amber-200 focus:ring-4 focus:ring-amber-500/10 outline-none transition-all shadow-sm">
+                                            <option value="">-</option>
+                                            {getSizingInfo(activeMasterProduct)!.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div className="md:col-span-2 flex gap-3 h-full items-end">
+                                    <div className="w-20 shrink-0">
+                                        <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
+                                        <input type="number" min="1" value={scanQty} onChange={e => setScanQty(parseInt(e.target.value) || 1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm" />
+                                    </div>
+                                    <button onClick={executeQuickAdd} className={`flex-1 h-[54px] ${quickMode === 'add' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'} text-white font-black rounded-2xl flex items-center justify-center transition-all shadow-lg hover:-translate-y-0.5 active:scale-95`}><Plus size={28} /></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="w-full lg:w-96 p-8 bg-white flex flex-col rounded-b-[2rem] lg:rounded-bl-none lg:rounded-r-[2rem]">
+                            {activeMasterProduct ? (
+                                <div className="flex-1 animate-in slide-in-from-right duration-500">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Προεπισκόπηση</h3>
+                                    <div className="flex items-start gap-4 mb-6">
+                                        <div className="w-24 h-24 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shrink-0 shadow-sm">{activeMasterProduct.image_url ? <img src={activeMasterProduct.image_url!} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24} /></div>}</div>
+                                        <div className="min-w-0">
+                                            <div className="font-black text-slate-800 text-xl leading-none truncate mb-1">
+                                                {activeMasterProduct.sku}
+                                            </div>
+                                            <p className="text-xs text-slate-400 font-bold truncate">{activeMasterProduct.category}</p>
+                                            <div className="flex flex-wrap gap-1.5 mt-3"><div className="px-2 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded uppercase">ΣΤΟΚ: {activeMasterProduct.stock_qty}</div>{activeMasterProduct.selling_price > 0 && <div className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black rounded uppercase">{formatCurrency(activeMasterProduct.selling_price)}</div>}</div>
+                                        </div>
                                     </div>
                                 </div>
-                          </div>
-                      ) : <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30"><History size={40} className="text-slate-300 mb-2"/><p className="text-xs font-black text-slate-400 uppercase tracking-widest">Πρόσφατες Κινήσεις</p></div>}
-                      <div className="mt-auto space-y-2">{recentActions.map(action => <div key={action.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-bottom-2"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.type === 'add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{action.type === 'add' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>}</div><div><div className="text-xs font-black text-slate-800">{action.sku}</div><div className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[120px]">{action.target}</div></div></div><div className="text-right"><div className={`text-sm font-black ${action.type === 'add' ? 'text-emerald-600' : 'text-rose-600'}`}>{action.type === 'add' ? '+' : '-'}{action.amount}</div><div className="text-[9px] text-slate-300 font-mono">{action.timestamp.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}</div></div></div>)}</div>
-                  </div>
-              </div>
-              <div className="flex flex-col md:flex-row gap-4 shrink-0">
-                 <div className="w-full md:w-64 relative"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><select value={viewWarehouseId} onChange={e => setViewWarehouseId(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none appearance-none font-medium cursor-pointer"><option value="ALL">Όλες οι Αποθήκες</option>{warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}</select></div>
-                 <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input type="text" placeholder="Φίλτρο λίστας..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl outline-none w-full bg-white shadow-sm"/>
-                    {/* TOGGLE FOR EMPTY STOCK */}
-                    <button 
-                        onClick={() => setShowEmpty(!showEmpty)}
-                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${showEmpty ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600'}`}
-                        title={showEmpty ? 'Απόκρυψη μηδενικών' : 'Εμφάνιση μηδενικών'}
-                    >
-                        {showEmpty ? <Eye size={18} /> : <EyeOff size={18} />}
-                    </button>
-                 </div>
-              </div>
-              
-              <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
-                  {filteredMasterInventory.length > 0 ? (
-                      <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                              const item = filteredMasterInventory[virtualRow.index];
-                              const p = item.product;
+                            ) : <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30"><History size={40} className="text-slate-300 mb-2" /><p className="text-xs font-black text-slate-400 uppercase tracking-widest">Πρόσφατες Κινήσεις</p></div>}
+                            <div className="mt-auto space-y-2">{recentActions.map(action => <div key={action.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-bottom-2"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${action.type === 'add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{action.type === 'add' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}</div><div><div className="text-xs font-black text-slate-800">{action.sku}</div><div className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[120px]">{action.target}</div></div></div><div className="text-right"><div className={`text-sm font-black ${action.type === 'add' ? 'text-emerald-600' : 'text-rose-600'}`}>{action.type === 'add' ? '+' : '-'}{action.amount}</div><div className="text-[9px] text-slate-300 font-mono">{action.timestamp.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })}</div></div></div>)}</div>
+                        </div>
+                    </div>
+                    <div className="flex flex-col md:flex-row gap-4 shrink-0">
+                        <div className="w-full md:w-64 relative"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><select value={viewWarehouseId} onChange={e => setViewWarehouseId(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none appearance-none font-medium cursor-pointer"><option value="ALL">Όλες οι Αποθήκες</option>{warehouses?.map(w => <option key={w.id} value={w.id}>{getWarehouseNameClean(w)}</option>)}</select></div>
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                            <input type="text" placeholder="Φίλτρο λίστας..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl outline-none w-full bg-white shadow-sm" />
+                            {/* TOGGLE FOR EMPTY STOCK */}
+                            <button
+                                onClick={() => setShowEmpty(!showEmpty)}
+                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${showEmpty ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                                title={showEmpty ? 'Απόκρυψη μηδενικών' : 'Εμφάνιση μηδενικών'}
+                            >
+                                {showEmpty ? <Eye size={18} /> : <EyeOff size={18} />}
+                            </button>
+                        </div>
+                    </div>
 
-                              return (
-                                  <div key={virtualRow.key} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, padding: '4px 0' }}>
-                                      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden h-full cursor-pointer" onClick={() => setSelectedMaster(p)}>
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.totalStock > 0 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-                                          <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
-                                              <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>}</div>
-                                              <div>
-                                                  <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                                                      <span className="font-black">{p.sku}</span>
-                                                      {item.totalDemand > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1"><Activity size={10}/> Ζήτηση: {item.totalDemand}</span>}
-                                                  </h3>
-                                                  <div className="flex items-center gap-3 mt-0.5">
-                                                      <p className="text-xs text-slate-500">{p.category}</p>
-                                                      {item.variantCount > 0 && <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-0.5"><Layers size={10}/> {item.variantCount}</span>}
-                                                  </div>
-                                              </div>
-                                          </div>
-                                          
-                                          {/* Total Stock Badge */}
-                                          <div className="flex-1 flex justify-end w-full md:w-auto">
-                                             <div className={`px-4 py-2 rounded-xl text-sm font-black border flex items-center gap-2 ${item.totalStock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                                                 <Package size={14}/> {item.totalStock}
-                                             </div>
-                                          </div>
-                                      </div>
-                                  </div>
-                              ); 
-                          })}
-                      </div>
-                  ) : <div className="text-center py-20 text-slate-400"><Package size={48} className="mx-auto mb-4 opacity-20"/><p className="font-medium">Δεν βρέθηκαν αποθέματα.</p></div>}
-              </div>
-          </div>
-      )}
+                    <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1 relative">
+                        {filteredMasterInventory.length > 0 ? (
+                            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const item = filteredMasterInventory[virtualRow.index];
+                                    const p = item.product;
 
-      {activeTab === 'warehouses' && (
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-right duration-300">
-               {warehouses?.map(wh => <div key={wh.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative group hover:-translate-y-1 transition-transform"><div className="flex justify-between items-start mb-6"><div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wh.is_system ? 'bg-[#060b00]' : 'bg-blue-600'} text-white shadow-lg`}><Store size={28} /></div>{!wh.is_system && <div className="flex gap-2"><button onClick={() => handleEditWarehouse(wh)} className="p-2 text-slate-400 hover:text-slate-700"><Edit2 size={16}/></button><button onClick={() => handleDeleteWarehouse(wh.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={16}/></button></div>}</div><h3 className="text-2xl font-black text-slate-800 tracking-tight">{getWarehouseNameClean(wh)}</h3></div>)}
-               <button onClick={handleCreateWarehouse} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 min-h-[200px] group"><div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4"><Plus size={32}/></div><span className="font-bold">Νέος Χώρος</span></button>
-           </div>
-      )}
+                                    return (
+                                        <div key={virtualRow.key} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, padding: '4px 0' }}>
+                                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-6 group relative overflow-hidden h-full cursor-pointer" onClick={() => setSelectedMaster(p)}>
+                                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.totalStock > 0 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                                                <div className="flex items-center gap-4 flex-1 w-full md:w-auto pl-2">
+                                                    <div className="w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24} /></div>}</div>
+                                                    <div>
+                                                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                                            <span className="font-black">{p.sku}</span>
+                                                            {item.totalDemand > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1"><Activity size={10} /> Ζήτηση: {item.totalDemand}</span>}
+                                                        </h3>
+                                                        <div className="flex items-center gap-3 mt-0.5">
+                                                            <p className="text-xs text-slate-500">{p.category}</p>
+                                                            {item.variantCount > 0 && <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-0.5"><Layers size={10} /> {item.variantCount}</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
 
-      {isEditingWarehouse && (
-          <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
-                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100"><h3 className="text-xl font-bold text-slate-800">{warehouseForm.id ? 'Επεξεργασία Χώρου' : 'Νέος Χώρος'}</h3><button onClick={() => setIsEditingWarehouse(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><X size={20}/></button></div>
-                  <div className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Όνομα Χώρου</label><input type="text" value={warehouseForm.name} onChange={e => setWarehouseForm({...warehouseForm, name: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="π.χ. Υποκατάστημα Α"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Τύπος</label><select value={warehouseForm.type} onChange={e => setWarehouseForm({...warehouseForm, type: e.target.value as any})} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"><option value="Store">Κατάστημα</option><option value="Showroom">Δειγματολόγιο</option><option value="Central">Αποθήκη</option><option value="Other">Άλλο</option></select></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Διεύθυνση</label><input type="text" value={warehouseForm.address} onChange={e => setWarehouseForm({...warehouseForm, address: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"/></div><button onClick={handleSaveWarehouse} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-black transition-all mt-4">Αποθήκευση</button></div>
-              </div>
-          </div>
-      )}
+                                                {/* Total Stock Badge */}
+                                                <div className="flex-1 flex justify-end w-full md:w-auto">
+                                                    <div className={`px-4 py-2 rounded-xl text-sm font-black border flex items-center gap-2 ${item.totalStock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                                        <Package size={14} /> {item.totalStock}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : <div className="text-center py-20 text-slate-400"><Package size={48} className="mx-auto mb-4 opacity-20" /><p className="font-medium">Δεν βρέθηκαν αποθέματα.</p></div>}
+                    </div>
+                </div>
+            )}
 
-      {transferModalOpen && transferItem && (
-          <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 border border-slate-100">
-                  <div className="flex justify-between items-start mb-8"><div><h3 className="text-2xl font-black text-slate-800">Μεταφορά Αποθέματος</h3><p className="text-slate-500 font-mono text-sm mt-1">{transferItem.masterSku}{transferItem.suffix}</p></div><button onClick={() => setTransferModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={24}/></button></div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"><div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Από</label><select value={sourceId} onChange={e => setSourceId(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none">{warehouses?.map(w => <option key={w.id} value={w.id} disabled={(transferItem.locationStock[w.id] || 0) <= 0}>{getWarehouseNameClean(w)} ({transferItem.locationStock[w.id] || 0})</option>)}</select></div><div className="flex items-center justify-center pt-6"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><ArrowRight size={20}/></div></div><div className="md:col-start-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Προς</label><select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full p-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl font-bold outline-none">{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id === sourceId}>{getWarehouseNameClean(w)}</option>)}</select></div></div>
-                  <div className="bg-slate-100 p-6 rounded-3xl border border-slate-200 text-center mb-8"><label className="text-sm font-bold text-slate-600 block mb-3">Ποσότητα Μεταφοράς</label><input type="number" min="1" max={transferItem.locationStock[sourceId] || 1} value={transferQty} onChange={e => setTransferQty(parseInt(e.target.value) || 1)} className="w-32 p-4 text-center font-black text-4xl bg-transparent border-b-4 border-slate-300 outline-none focus:border-blue-500"/></div>
-                  <button onClick={executeTransfer} disabled={isTransferring || sourceId === targetId || transferQty > (transferItem.locationStock[sourceId] || 0)} className="w-full py-5 bg-[#060b00] text-white rounded-2xl font-bold text-lg shadow-xl shadow-slate-200 hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50">{isTransferring ? <Loader2 className="animate-spin" size={24}/> : <ArrowLeftRight size={24}/>}{isTransferring ? 'Μεταφορά...' : 'Εκτέλεση Μεταφοράς'}</button>
-              </div>
-          </div>
-      )}
-      
-      {managingItem && warehouses && (
-          <StockManagementModal 
-            item={managingItem} 
-            warehouses={warehouses} 
-            onClose={() => setManagingItem(null)} 
-            onSave={handleStockUpdate} 
-          />
-      )}
+            {activeTab === 'warehouses' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-right duration-300">
+                    {warehouses?.map(wh => <div key={wh.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative group hover:-translate-y-1 transition-transform"><div className="flex justify-between items-start mb-6"><div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${wh.is_system ? 'bg-[#060b00]' : 'bg-blue-600'} text-white shadow-lg`}><Store size={28} /></div>{!wh.is_system && <div className="flex gap-2"><button onClick={() => handleEditWarehouse(wh)} className="p-2 text-slate-400 hover:text-slate-700"><Edit2 size={16} /></button><button onClick={() => handleDeleteWarehouse(wh.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={16} /></button></div>}</div><h3 className="text-2xl font-black text-slate-800 tracking-tight">{getWarehouseNameClean(wh)}</h3></div>)}
+                    <button onClick={handleCreateWarehouse} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 min-h-[200px] group"><div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4"><Plus size={32} /></div><span className="font-bold">Νέος Χώρος</span></button>
+                </div>
+            )}
 
-      {selectedMaster && warehouses && (
-        <InventoryDetailsModal 
-            product={selectedMaster} 
-            warehouses={warehouses} 
-            orders={orders}
-            onClose={() => setSelectedMaster(null)} 
-            onManageStock={(item) => setManagingItem(item)}
-        />
-      )}
+            {isEditingWarehouse && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100"><h3 className="text-xl font-bold text-slate-800">{warehouseForm.id ? 'Επεξεργασία Χώρου' : 'Νέος Χώρος'}</h3><button onClick={() => setIsEditingWarehouse(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><X size={20} /></button></div>
+                        <div className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Όνομα Χώρου</label><input type="text" value={warehouseForm.name} onChange={e => setWarehouseForm({ ...warehouseForm, name: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="π.χ. Υποκατάστημα Α" /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Τύπος</label><select value={warehouseForm.type} onChange={e => setWarehouseForm({ ...warehouseForm, type: e.target.value as any })} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"><option value="Store">Κατάστημα</option><option value="Showroom">Δειγματολόγιο</option><option value="Central">Αποθήκη</option><option value="Other">Άλλο</option></select></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">Διεύθυνση</label><input type="text" value={warehouseForm.address} onChange={e => setWarehouseForm({ ...warehouseForm, address: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" /></div><button onClick={handleSaveWarehouse} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-black transition-all mt-4">Αποθήκευση</button></div>
+                    </div>
+                </div>
+            )}
 
-      {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
-    </div>
-  );
+            {transferModalOpen && transferItem && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 border border-slate-100">
+                        <div className="flex justify-between items-start mb-8"><div><h3 className="text-2xl font-black text-slate-800">Μεταφορά Αποθέματος</h3><p className="text-slate-500 font-mono text-sm mt-1">{transferItem.masterSku}{transferItem.suffix}</p></div><button onClick={() => setTransferModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={24} /></button></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"><div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Από</label><select value={sourceId} onChange={e => setSourceId(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none">{warehouses?.map(w => <option key={w.id} value={w.id} disabled={(transferItem.locationStock[w.id] || 0) <= 0}>{getWarehouseNameClean(w)} ({transferItem.locationStock[w.id] || 0})</option>)}</select></div><div className="flex items-center justify-center pt-6"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><ArrowRight size={20} /></div></div><div className="md:col-start-2"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Προς</label><select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full p-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl font-bold outline-none">{warehouses?.map(w => <option key={w.id} value={w.id} disabled={w.id === sourceId}>{getWarehouseNameClean(w)}</option>)}</select></div></div>
+                        <div className="bg-slate-100 p-6 rounded-3xl border border-slate-200 text-center mb-8"><label className="text-sm font-bold text-slate-600 block mb-3">Ποσότητα Μεταφοράς</label><input type="number" min="1" max={transferItem.locationStock[sourceId] || 1} value={transferQty} onChange={e => setTransferQty(parseInt(e.target.value) || 1)} className="w-32 p-4 text-center font-black text-4xl bg-transparent border-b-4 border-slate-300 outline-none focus:border-blue-500" /></div>
+                        <button onClick={executeTransfer} disabled={isTransferring || sourceId === targetId || transferQty > (transferItem.locationStock[sourceId] || 0)} className="w-full py-5 bg-[#060b00] text-white rounded-2xl font-bold text-lg shadow-xl shadow-slate-200 hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50">{isTransferring ? <Loader2 className="animate-spin" size={24} /> : <ArrowLeftRight size={24} />}{isTransferring ? 'Μεταφορά...' : 'Εκτέλεση Μεταφοράς'}</button>
+                    </div>
+                </div>
+            )}
+
+            {managingItem && warehouses && (
+                <StockManagementModal
+                    item={managingItem}
+                    warehouses={warehouses}
+                    onClose={() => setManagingItem(null)}
+                    onSave={handleStockUpdate}
+                />
+            )}
+
+            {selectedMaster && warehouses && (
+                <InventoryDetailsModal
+                    product={selectedMaster}
+                    warehouses={warehouses}
+                    orders={orders}
+                    onClose={() => setSelectedMaster(null)}
+                    onManageStock={(item) => setManagingItem(item)}
+                />
+            )}
+
+            {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
+        </div>
+    );
 }

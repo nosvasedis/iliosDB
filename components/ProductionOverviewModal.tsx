@@ -16,7 +16,7 @@ interface Props {
     onPrint: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onEditNote: (batch: ProductionBatch) => void;
-    onToggleHold: (batch: ProductionBatch) => void; 
+    onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
 }
@@ -39,20 +39,20 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
 };
 
 const STAGE_COLORS: Record<string, string> = {
-    indigo: 'bg-indigo-600 border-indigo-700 text-white shadow-indigo-200',
-    slate: 'bg-slate-700 border-slate-800 text-white shadow-slate-200',
-    orange: 'bg-orange-600 border-orange-700 text-white shadow-orange-200',
-    purple: 'bg-purple-600 border-purple-700 text-white shadow-purple-200',
-    blue: 'bg-blue-600 border-blue-700 text-white shadow-blue-200',
-    yellow: 'bg-amber-500 border-amber-600 text-white shadow-amber-200',
-    emerald: 'bg-emerald-600 border-emerald-700 text-white shadow-emerald-200',
+    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-700 shadow-sm',
+    slate: 'bg-slate-50 border-slate-100 text-slate-700 shadow-sm',
+    orange: 'bg-orange-50 border-orange-100 text-orange-700 shadow-sm',
+    purple: 'bg-purple-50 border-purple-100 text-purple-700 shadow-sm',
+    blue: 'bg-blue-50 border-blue-100 text-blue-700 shadow-sm',
+    yellow: 'bg-yellow-50 border-yellow-100 text-yellow-700 shadow-sm',
+    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700 shadow-sm',
 };
 
-export default function ProductionOverviewModal({ 
+export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches, collections,
     onPrint, onNextStage, onEditNote, onToggleHold, onDelete, onClick
 }: Props) {
-    
+
     // 1. Filter Batches based on type
     const filteredBatches = useMemo(() => {
         return batches.filter(b => {
@@ -67,22 +67,22 @@ export default function ProductionOverviewModal({
     // 2. Grouping Logic
     const groupedBatchesByStage = useMemo(() => {
         const result: Record<string, Record<string, Record<string, ProductionBatch[]>>> = {};
-        
-        filteredBatches.forEach(b => {
-             const stage = b.current_stage;
-             const gender = b.product_details?.gender || 'Unknown';
-             
-             let collName = 'Γενικά';
-             if (b.product_details && b.product_details.collections && b.product_details.collections.length > 0) {
-                 const c = collections.find(col => col.id === b.product_details!.collections![0]);
-                 if (c) collName = c.name;
-             }
 
-             if (!result[stage]) result[stage] = {};
-             if (!result[stage][gender]) result[stage][gender] = {};
-             if (!result[stage][gender][collName]) result[stage][gender][collName] = [];
-             
-             result[stage][gender][collName].push(b);
+        filteredBatches.forEach(b => {
+            const stage = b.current_stage;
+            const gender = b.product_details?.gender || 'Unknown';
+
+            let collName = 'Γενικά';
+            if (b.product_details && b.product_details.collections && b.product_details.collections.length > 0) {
+                const c = collections.find(col => col.id === b.product_details!.collections![0]);
+                if (c) collName = c.name;
+            }
+
+            if (!result[stage]) result[stage] = {};
+            if (!result[stage][gender]) result[stage][gender] = {};
+            if (!result[stage][gender][collName]) result[stage][gender][collName] = [];
+
+            result[stage][gender][collName].push(b);
         });
 
         // Sort inside groups alphabetically by SKU
@@ -109,7 +109,7 @@ export default function ProductionOverviewModal({
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-7xl h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
-                
+
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                     <div>
@@ -119,7 +119,7 @@ export default function ProductionOverviewModal({
                         <p className="text-slate-500 font-medium mt-1">Συνολική προβολή {filteredBatches.length} παρτίδων.</p>
                     </div>
                     <button onClick={onClose} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
-                        <X size={24}/>
+                        <X size={24} />
                     </button>
                 </div>
 
@@ -145,7 +145,7 @@ export default function ProductionOverviewModal({
                                     {SORTED_GENDERS.map(genderKey => {
                                         const genderData = stageData[genderKey];
                                         if (!genderData) return null;
-                                        
+
                                         const gConfig = GENDER_CONFIG[genderKey] || GENDER_CONFIG['Unknown'];
                                         const collectionKeys = Object.keys(genderData).sort();
 
@@ -160,16 +160,16 @@ export default function ProductionOverviewModal({
                                                 {collectionKeys.map(collName => (
                                                     <div key={collName} className="pl-2 border-l-2 border-slate-100 ml-1 space-y-2">
                                                         <div className="flex items-center gap-2 px-1 mb-2">
-                                                            <FolderKanban size={12} className="text-slate-400"/>
+                                                            <FolderKanban size={12} className="text-slate-400" />
                                                             <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">{collName}</span>
                                                         </div>
-                                                        
+
                                                         <div className="space-y-2">
                                                             {genderData[collName].map(batch => (
-                                                                <ProductionBatchCard 
-                                                                    key={batch.id} 
-                                                                    batch={batch} 
-                                                                    onPrint={onPrint} 
+                                                                <ProductionBatchCard
+                                                                    key={batch.id}
+                                                                    batch={batch}
+                                                                    onPrint={onPrint}
                                                                     onNextStage={onNextStage}
                                                                     onEditNote={() => onEditNote(batch)}
                                                                     onToggleHold={() => onToggleHold(batch)}
@@ -187,7 +187,7 @@ export default function ProductionOverviewModal({
                             </div>
                         );
                     })}
-                    
+
                     {filteredBatches.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
                             <p className="text-xl font-bold">Δεν βρέθηκαν παρτίδες σε αυτή την κατηγορία.</p>
