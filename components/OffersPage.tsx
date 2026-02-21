@@ -81,8 +81,12 @@ export default function OffersPage({ products, materials, settings, collections,
                 method: 'GET',
                 headers: { 'Authorization': AUTH_KEY_SECRET }
             });
-            if (!response.ok) throw new Error('Failed to fetch price');
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch price');
+            }
+
             const finalPrice = parseFloat(data.price.toFixed(3));
             setCustomSilverPrice(finalPrice);
             showToast(`Τιμή: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
@@ -570,8 +574,8 @@ export default function OffersPage({ products, materials, settings, collections,
                                     <td className="p-5 text-right font-black text-slate-900">{formatCurrency(offer.total_price)}</td>
                                     <td className="p-5 text-center">
                                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${offer.status === 'Accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                                offer.status === 'Declined' ? 'bg-slate-100 text-slate-500 border-slate-200' :
-                                                    'bg-amber-50 text-amber-600 border-amber-200'
+                                            offer.status === 'Declined' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                                                'bg-amber-50 text-amber-600 border-amber-200'
                                             }`}>
                                             {offer.status === 'Pending' ? 'Εκκρεμεί' : (offer.status === 'Accepted' ? 'Αποδοχή' : 'Απόρριψη')}
                                         </span>

@@ -36,8 +36,12 @@ export default function SettingsPage() {
                 method: 'GET',
                 headers: { 'Authorization': AUTH_KEY_SECRET }
             });
-            if (!response.ok) throw new Error('Failed to fetch price');
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch price');
+            }
+
             const finalPrice = parseFloat(data.price.toFixed(3));
             const newSettings = { ...settings, silver_price_gram: finalPrice };
 

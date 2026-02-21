@@ -140,13 +140,17 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 method: 'GET',
                 headers: { 'Authorization': AUTH_KEY_SECRET }
             });
-            if (!response.ok) throw new Error('API Error');
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'API Error');
+            }
+
             const price = parseFloat(data.price.toFixed(3));
             setCustomSilverPrice(price);
             showToast(`Τιμή: ${formatDecimal(price, 3)} €/g`, 'success');
-        } catch (e) {
-            showToast("Σφάλμα λήψης τιμής.", "error");
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, "error");
         } finally {
             setIsFetchingPrice(false);
         }
