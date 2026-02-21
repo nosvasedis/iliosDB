@@ -242,7 +242,7 @@ const CustomerDetailsModal = ({
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-3 opacity-5 text-emerald-600"><TrendingUp size={64}/></div>
-                                <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Wallet size={12}/> Συνολικός Τζίρος (Net)</div>
+                                <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2"><Wallet size={12}/> Συνολικός Τζίρος</div>
                                 <div className="text-3xl font-black text-emerald-700">{formatCurrency(stats.totalSpent)}</div>
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-28 relative overflow-hidden">
@@ -358,7 +358,7 @@ const CustomerDetailsModal = ({
                                     <tr>
                                         <th className="p-4 pl-6">ID</th>
                                         <th className="p-4">Ημερομηνία</th>
-                                        <th className="p-4 text-right">Ποσό (Net)</th>
+                                        <th className="p-4 text-right">Ποσό</th>
                                         <th className="p-4 text-center">Κατάσταση</th>
                                         <th className="p-4 text-center">Είδη</th>
                                         <th className="p-4"></th>

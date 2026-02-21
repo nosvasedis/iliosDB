@@ -69,7 +69,7 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                     <StatCard 
-                        title="Συνολικος Τζιρος (Net)" 
+                        title="Συνολικος Τζιρος" 
                         value={formatCurrency(stats.totalSales)} 
                         icon={<TrendingUp size={24}/>} 
                         color="text-emerald-600"

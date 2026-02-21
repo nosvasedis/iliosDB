@@ -97,7 +97,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         }, 0);
 
         // Apply discount and strip VAT (implicitly stripped because we sum base prices)
-        // Note: Registry prices ARE Wholesale (Net), so we only apply discount factor.
+        // Note: Registry prices ARE Wholesale, so we only apply discount factor.
         const discountFactor = 1 - ((o.discount_percent || 0) / 100);
         return totalAcc + (rawOrderValue * discountFactor);
     }, 0);

@@ -66,7 +66,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard 
-                    title="Πωλήσεις Σήμερα (Net)" 
+                    title="Πωλήσεις Σήμερα" 
                     value={formatCurrency(stats.todaySales)} 
                     icon={<ShoppingCart size={24} />} 
                     color="bg-emerald-500" 

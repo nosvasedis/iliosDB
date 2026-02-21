@@ -57,7 +57,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
             {/* EXECUTIVE SUMMARY */}
             <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-8 break-avoid shadow-sm">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Target size={12}/> Οικονομική Επισκόπηση (Net)
+                    <Target size={12}/> Οικονομική Επισκόπηση
                 </h3>
                 
                 <div className="grid grid-cols-4 gap-6 text-center divide-x divide-slate-200">
@@ -134,7 +134,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                         <tr className="bg-slate-100 text-slate-500 text-[8px] uppercase tracking-wider">
                             <th className="text-left font-bold pl-4 rounded-l-lg py-2">Κωδικος</th>
                             <th className="text-center py-2">Ποσ.</th>
-                            <th className="text-right py-2">Τιμη Πωλ. (Net)</th>
+                            <th className="text-right py-2">Τιμη Πωλ.</th>
                             <th className="text-right text-slate-400 py-2">Κοστος</th>
                             <th className="text-right font-bold text-emerald-600 py-2">Κερδος</th>
                             <th className="text-right pr-4 rounded-r-lg py-2">Margin</th>

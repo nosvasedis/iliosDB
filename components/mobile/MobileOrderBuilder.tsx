@@ -387,7 +387,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             {/* Footer Summary */}
             <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
                 <div className="flex justify-between items-center mb-3 px-2">
-                    <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο (Net): {formatCurrency(netAmount)}</div>
+                    <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο: {formatCurrency(netAmount)}</div>
                     <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                 </div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3">

@@ -129,7 +129,7 @@ export default function EmployeeOrders() {
                                 <th className="p-4">ID</th>
                                 <th className="p-4">Πελάτης</th>
                                 <th className="p-4">Ημερομηνία</th>
-                                <th className="p-4 text-right">Ποσό (Net)</th>
+                                <th className="p-4 text-right">Ποσό</th>
                                 <th className="p-4 text-center">Κατάσταση</th>
                             </tr>
                         </thead>

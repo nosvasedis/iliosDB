@@ -8,7 +8,7 @@ import BarcodeScanner from './BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 
 interface Props {
@@ -23,6 +23,7 @@ interface TableVariant {
     label: string;
     price: number;
     cost: number;
+    suggestedPrice: number;
     weight: number;
     image: string | null;
 }
@@ -513,6 +514,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             if (p.variants && p.variants.length > 0) {
                 p.variants.forEach(v => {
                     const estCost = estimateVariantCost(p, v.suffix, settings, materials, products!);
+                    const weight = estCost.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
+                    const suggestedPrice = calculateSuggestedWholesalePrice(weight, estCost.breakdown.silver, estCost.breakdown.labor, estCost.breakdown.materials);
                     items.push({
                         masterSku: p.sku,
                         variantSku: `${p.sku}${v.suffix}`,
@@ -521,12 +524,15 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         label: v.description || v.suffix || 'Λουστρέ',
                         price: v.selling_price || p.selling_price,
                         cost: estCost.total,
+                        suggestedPrice,
                         weight: p.weight_g,
                         image: p.image_url
                     });
                 });
             } else {
                 const costCalc = calculateProductCost(p, settings, materials, products!);
+                const weight = costCalc.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
+                const suggestedPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
                 items.push({
                     masterSku: p.sku,
                     variantSku: p.sku,
@@ -535,6 +541,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     label: 'Βασικό',
                     price: p.selling_price,
                     cost: costCalc.total,
+                    suggestedPrice,
                     weight: p.weight_g,
                     image: p.image_url
                 });
@@ -862,6 +869,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
                                                     {editingPrice?.sku === item.variantSku ? (
                                                         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                            <button
+                                                                title="Υπολογισμός με Ilios Formula (Προτεινόμενη Τιμή)"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingPrice({ sku: item.variantSku, price: item.suggestedPrice.toString() });
+                                                                }}
+                                                                className="p-1 rounded bg-amber-50 text-amber-500 hover:bg-amber-100 hover:text-amber-600 transition-colors border border-amber-200 mr-1"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08" /><path d="M7.07 14.94L5.5 16.5a2.85 2.85 0 0 0 4.03 4.03l1.56-1.57" /><path d="m3.46 10.54.92.92" /><path d="m11.54 3.46.92.92" /><path d="m4.46  4.46 1.84 1.84" /><path d="m17.7 17.7 1.84 1.84" /></svg>
+                                                            </button>
                                                             <input autoFocus type="text" className="w-20 text-right font-black text-lg bg-emerald-50 text-emerald-700 border border-emerald-500 rounded-lg px-2 py-1 outline-none"
                                                                 value={editingPrice.price}
                                                                 onChange={e => setEditingPrice({ sku: item.variantSku, price: e.target.value })}

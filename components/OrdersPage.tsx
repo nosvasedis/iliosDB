@@ -466,7 +466,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 <th className="p-4 pl-6">ID</th>
                                 <th className="p-4">Πελάτης / Ετικέτες</th>
                                 <th className="p-4">Ημερομηνία</th>
-                                <th className="p-4 text-right">Ποσό (Net)</th>
+                                <th className="p-4 text-right">Ποσό</th>
                                 <th className="p-4">Κατάσταση</th>
                                 <th className="p-4"></th>
                             </tr>
