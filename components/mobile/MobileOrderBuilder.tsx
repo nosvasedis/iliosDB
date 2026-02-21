@@ -18,10 +18,10 @@ interface Props {
 
 // Visual Helpers (Synced with Desktop)
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-500', 
-    'P': 'text-slate-500', 
-    'D': 'text-orange-500', 
-    'H': 'text-cyan-400', 
+    'X': 'text-amber-500',
+    'P': 'text-slate-500',
+    'D': 'text-orange-500',
+    'H': 'text-cyan-400',
     '': 'text-slate-400'
 };
 
@@ -63,7 +63,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [customerName, setCustomerName] = useState(initialOrder?.customer_name || '');
     const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
-    const [items, setItems] = useState<OrderItem[]>(initialOrder?.items || []);
+    const [items, setItems] = useState<OrderItem[]>(() => {
+        const baseItems = initialOrder?.items || [];
+        return baseItems.map(item => {
+            const product = products.find(p => p.sku === item.sku);
+            return {
+                ...item,
+                product_details: product || item.product_details
+            };
+        });
+    });
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
@@ -81,7 +90,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [showScanner, setShowScanner] = useState(false);
     const [tagInput, setTagInput] = useState('');
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
-    
+
     const inputRef = useRef<HTMLInputElement>(null);
 
     // --- SMART SEARCH LOGIC ---
@@ -114,7 +123,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
     const handleSelectMaster = (p: Product) => {
         setActiveMaster(p);
-        setInput(''); 
+        setInput('');
         setSuggestions([]);
         const sizing = getSizingInfo(p);
         setSizeMode(sizing || null);
@@ -125,7 +134,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         if (!activeMaster) return;
 
         const unitPrice = variant?.selling_price || activeMaster.selling_price || 0;
-        
+
         const newItem: OrderItem = {
             sku: activeMaster.sku,
             variant_suffix: variant?.suffix,
@@ -137,9 +146,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         };
 
         setItems(prev => {
-            const existingIdx = prev.findIndex(i => 
-                i.sku === newItem.sku && 
-                i.variant_suffix === newItem.variant_suffix && 
+            const existingIdx = prev.findIndex(i =>
+                i.sku === newItem.sku &&
+                i.variant_suffix === newItem.variant_suffix &&
                 i.size_info === newItem.size_info &&
                 i.notes === newItem.notes
             );
@@ -153,7 +162,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         });
 
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
-        
+
         setActiveMaster(null);
         setQty(1);
         setSelectedSize('');
@@ -238,19 +247,19 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
-                <button onClick={onBack} className="p-2 -ml-2 text-slate-500"><ArrowLeft size={24}/></button>
+                <button onClick={onBack} className="p-2 -ml-2 text-slate-500"><ArrowLeft size={24} /></button>
                 <div className="font-black text-slate-800 text-lg">{initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα Παραγγελία'}</div>
-                <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50">{isSaving ? <Loader2 size={20} className="animate-spin"/> : <Save size={20}/>}</button>
+                <button onClick={handleSaveOrder} disabled={isSaving} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50">{isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4 pb-40">
-                
+
                 {/* Customer Section */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
                     <div className="relative">
                         <div className="flex items-center gap-2 mb-2">
-                            <User size={16} className="text-slate-400"/>
-                            <input className="flex-1 outline-none font-bold text-slate-800" placeholder="Όνομα Πελάτη..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); if(!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustSuggestions(true)}/>
+                            <User size={16} className="text-slate-400" />
+                            <input className="flex-1 outline-none font-bold text-slate-800" placeholder="Όνομα Πελάτη..." value={customerName} onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); if (!e.target.value) setCustomerId(null); }} onFocus={() => setShowCustSuggestions(true)} />
                         </div>
                         {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
                             <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
@@ -271,8 +280,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                             <div className="flex-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
                                 <div className="flex items-center gap-2 bg-slate-50 px-2 rounded-lg border border-slate-100">
-                                    <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-none text-right"/>
-                                    <Percent size={14} className="text-slate-400"/>
+                                    <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-none text-right" />
+                                    <Percent size={14} className="text-slate-400" />
                                 </div>
                             </div>
                         </div>
@@ -283,17 +292,17 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 {!activeMaster && (
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                            <Search size={20} className="text-slate-400 ml-1"/><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="Αναζήτηση κωδικού..." className="flex-1 bg-transparent p-2 outline-none font-bold text-slate-900 uppercase"/><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400"><Camera size={20}/></button>
+                            <Search size={20} className="text-slate-400 ml-1" /><input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value.toUpperCase())} placeholder="Αναζήτηση κωδικού..." className="flex-1 bg-transparent p-2 outline-none font-bold text-slate-900 uppercase" /><button onClick={() => setShowScanner(true)} className="p-2 text-slate-400"><Camera size={20} /></button>
                         </div>
                         {suggestions.length > 0 && (
                             <div className="mt-2 space-y-2">
                                 {suggestions.map(p => (
                                     <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-white rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300"/>}</div>
+                                            <div className="w-10 h-10 bg-white rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300" />}</div>
                                             <div><div className="font-black text-slate-800 text-sm">{p.sku}</div><div className="text-[10px] text-slate-500">{p.category}</div></div>
                                         </div>
-                                        <ChevronRight size={16} className="text-slate-300"/>
+                                        <ChevronRight size={16} className="text-slate-300" />
                                     </button>
                                 ))}
                             </div>
@@ -306,7 +315,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     <div className="bg-white p-5 rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
                         <div className="flex justify-between items-start">
                             <div><h3 className="text-xl font-black text-slate-900">{activeMaster.sku}</h3><p className="text-[10px] text-slate-400 font-bold uppercase">{activeMaster.category}</p></div>
-                            <button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-50 rounded-full"><X size={20}/></button>
+                            <button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-50 rounded-full"><X size={20} /></button>
                         </div>
                         {sizeMode && (
                             <div>
@@ -339,12 +348,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                         <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
-                                    {item.product_details?.image_url ? <img src={item.product_details.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-200"/>}
+                                    {item.product_details?.image_url ? <img src={item.product_details.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-200" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
                                         <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
-                                        <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1"><Trash2 size={16}/></button>
+                                        <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1"><Trash2 size={16} /></button>
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
@@ -354,8 +363,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                             </div>
                             <div className="flex items-center gap-3 pt-2 border-t border-slate-50">
                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
-                                    <StickyNote size={14} className="text-slate-300 ml-1"/>
-                                    <input 
+                                    <StickyNote size={14} className="text-slate-300 ml-1" />
+                                    <input
                                         className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-300"
                                         placeholder="Σημείωση είδους..."
                                         value={item.notes || ''}
@@ -377,10 +386,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 </div>
 
                 <div className="pt-4 space-y-4">
-                     <div>
+                    <div>
                         <label className="text-xs font-bold text-slate-400 uppercase ml-1">Γενικές Σημειώσεις Παραγγελίας</label>
-                        <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-none mt-1 shadow-inner focus:ring-2 focus:ring-slate-200"/>
-                     </div>
+                        <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-none mt-1 shadow-inner focus:ring-2 focus:ring-slate-200" />
+                    </div>
                 </div>
             </div>
 
@@ -391,10 +400,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                 </div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3">
-                    <Save size={20}/> {initialOrder ? 'Ενημέρωση Εντολής' : 'Αποθήκευση Εντολής'}
+                    <Save size={20} /> {initialOrder ? 'Ενημέρωση Εντολής' : 'Αποθήκευση Εντολής'}
                 </button>
             </div>
-            
+
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
     );

@@ -29,10 +29,10 @@ const STAGES = [
 ];
 
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-500', 
-    'P': 'text-slate-500', 
-    'D': 'text-orange-500', 
-    'H': 'text-cyan-400', 
+    'X': 'text-amber-500',
+    'P': 'text-slate-500',
+    'D': 'text-orange-500',
+    'H': 'text-cyan-400',
     '': 'text-slate-400'
 };
 
@@ -70,7 +70,7 @@ interface RowItem extends OrderItem {
     batchDetails: ProductionBatch[];
     gender?: Gender;
     collectionId?: number;
-    price: number; 
+    price: number;
     originalIndex: number;
 }
 
@@ -102,7 +102,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const queryClient = useQueryClient();
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
-    
+
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
     const [searchTerm, setSearchTerm] = useState('');
@@ -139,13 +139,13 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Popup Data
     const popupItems = useMemo(() => {
         if (!activeStagePopup) return [];
-        
+
         const targetBatches = existingBatches.filter(b => b.current_stage === activeStagePopup);
-        const groups: Record<string, { 
-            sku: string, 
-            variant: string, 
-            size?: string, 
-            qty: number, 
+        const groups: Record<string, {
+            sku: string,
+            variant: string,
+            size?: string,
+            qty: number,
             img?: string | null,
             notes: string[],
             gender: Gender,
@@ -171,15 +171,15 @@ export default function ProductionSendModal({ order, products, materials, existi
             if (b.notes) groups[key].notes.push(b.notes);
         });
 
-        return Object.values(groups).sort((a,b) => a.sku.localeCompare(b.sku));
+        return Object.values(groups).sort((a, b) => a.sku.localeCompare(b.sku));
     }, [activeStagePopup, existingBatches, products]);
 
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
-            
-            const relevantBatches = existingBatches.filter(b => 
-                b.sku === item.sku && 
+
+            const relevantBatches = existingBatches.filter(b =>
+                b.sku === item.sku &&
                 (b.variant_suffix || '') === (item.variant_suffix || '') &&
                 (b.size_info || '') === (item.size_info || '')
             ).sort((a, b) => {
@@ -190,7 +190,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const readyQty = relevantBatches
                 .filter(b => b.current_stage === ProductionStage.Ready)
                 .reduce((s, b) => s + b.quantity, 0);
-            
+
             const inProgressQty = relevantBatches
                 .filter(b => b.current_stage !== ProductionStage.Ready)
                 .reduce((s, b) => s + b.quantity, 0);
@@ -238,8 +238,8 @@ export default function ProductionSendModal({ order, products, materials, existi
         return rows.filter(row => {
             if (filterGender !== 'All' && row.gender !== filterGender) return false;
             if (filterCollection !== 'All') {
-                 const product = products.find(p => p.sku === row.sku);
-                 if (!product?.collections?.includes(filterCollection)) return false;
+                const product = products.find(p => p.sku === row.sku);
+                if (!product?.collections?.includes(filterCollection)) return false;
             }
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
@@ -265,7 +265,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const updateToSend = (originalIdx: number, val: number) => {
         const item = order.items[originalIdx];
         if (!item) return;
-        
+
         // Find the row to get the correct remaining quantity (which accounts for production batches)
         const row = rows.find(r => r.originalIndex === originalIdx);
         const maxQty = row ? row.remainingQty : item.quantity;
@@ -333,7 +333,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleDeleteBatch = async (batch: ProductionBatch) => {
         if (isWorking) return;
         if (!await confirm({ title: 'Διαγραφή', message: `Διαγραφή παρτίδας (${batch.quantity} τεμ);`, isDestructive: true })) return;
-        
+
         setIsWorking(true);
         try {
             await api.deleteProductionBatch(batch.id);
@@ -349,25 +349,25 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleMergeBatches = async (stage: ProductionStage, batchesToMerge: ProductionBatch[]) => {
         if (isWorking) return;
         if (batchesToMerge.length < 2) return;
-        
+
         const totalQty = batchesToMerge.reduce((sum, b) => sum + b.quantity, 0);
-        
+
         const yes = await confirm({
             title: 'Συγχώνευση Παρτίδων',
             message: `Θα συγχωνευθούν ${batchesToMerge.length} παρτίδες στο στάδιο "${STAGES.find(s => s.id === stage)?.label}" σε μία ενιαία παρτίδα των ${totalQty} τεμαχίων.`,
             confirmText: 'Συγχώνευση'
         });
-        
+
         if (!yes) return;
 
         setIsWorking(true);
         try {
             const target = batchesToMerge[0];
             const sourceIds = batchesToMerge.slice(1).map(b => b.id);
-            
+
             await api.mergeBatches(target.id, sourceIds, totalQty);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
-            
+
             showToast("Επιτυχής συγχώνευση.", "success");
         } catch (e) {
             console.error(e);
@@ -385,7 +385,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 .from('production_batches')
                 .update({ notes: noteText || null, updated_at: new Date().toISOString() })
                 .eq('id', editingNoteBatch.id);
-            
+
             if (error) throw error;
 
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
@@ -401,7 +401,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const openSplitModal = (batch: ProductionBatch) => {
         setSplitTarget({ batch, maxQty: batch.quantity });
         setSplitQty(1);
-        
+
         // Default target stage to the next logical stage
         const currIdx = STAGES.findIndex(s => s.id === batch.current_stage);
         const nextIdx = Math.min(STAGES.length - 1, currIdx + 1);
@@ -411,17 +411,17 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleSplit = async () => {
         if (!splitTarget) return;
         if (splitQty >= splitTarget.maxQty) {
-             // Just move if qty is full
-             await handleStageMove(splitTarget.batch, splitStage);
-             setSplitTarget(null);
-             return;
+            // Just move if qty is full
+            await handleStageMove(splitTarget.batch, splitStage);
+            setSplitTarget(null);
+            return;
         }
-        
+
         setIsWorking(true);
         try {
             const originalNewQty = splitTarget.maxQty - splitQty;
             const batch = splitTarget.batch;
-            
+
             // Prepare new batch object
             // Use existing batch properties but update stage, qty, id
             // Ensure we strictly copy only DB columns to avoid errors
@@ -444,7 +444,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
             await api.splitBatch(batch.id, originalNewQty, newBatchData);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
-            
+
             showToast(`Διαχωρισμός ${splitQty} τεμ. επιτυχής.`, "success");
             setSplitTarget(null);
         } catch (e) {
@@ -467,7 +467,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
-                
+
                 {isWorking && (
                     <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-50 flex items-center justify-center">
                         <Loader2 className="animate-spin text-slate-800" size={48} />
@@ -478,13 +478,13 @@ export default function ProductionSendModal({ order, products, materials, existi
                 <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-[#060b00] text-white rounded-2xl shadow-lg hidden sm:block">
-                            <Factory size={28}/>
+                            <Factory size={28} />
                         </div>
                         <div>
                             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Διαχείριση Παραγωγής</h2>
                             <div className="flex items-center gap-3 text-sm font-bold text-slate-500 mt-0.5">
                                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
-                                <span className="flex items-center gap-1 truncate max-w-[200px]"><User size={14}/> {order.customer_name}</span>
+                                <span className="flex items-center gap-1 truncate max-w-[200px]"><User size={14} /> {order.customer_name}</span>
                             </div>
 
                             {/* STAGE SUMMARY BAR */}
@@ -508,30 +508,30 @@ export default function ProductionSendModal({ order, products, materials, existi
                             )}
                         </div>
                     </div>
-                    
+
                     <div className="flex gap-2">
                         {order.notes && (
                             <div className="hidden lg:flex items-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-xl border border-yellow-100 mr-2 max-w-md truncate" title={order.notes}>
-                                <AlertCircle size={16} className="shrink-0"/>
+                                <AlertCircle size={16} className="shrink-0" />
                                 <span className="text-xs font-bold truncate">{order.notes}</span>
                             </div>
                         )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24} /></button>
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-                    
+
                     {/* LEFT PANEL: ORDER ITEMS & ACTIVE BATCHES */}
                     <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
-                        
+
                         {/* FILTERS */}
                         <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shrink-0">
                             <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-hide">
                                 <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100 shrink-0">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase px-2 hidden sm:inline"><Filter size={10} className="inline mr-1"/> Φύλο</span>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase px-2 hidden sm:inline"><Filter size={10} className="inline mr-1" /> Φύλο</span>
                                     {['All', Gender.Women, Gender.Men, Gender.Unisex].map(g => (
-                                        <button 
+                                        <button
                                             key={g} onClick={() => setFilterGender(g as any)}
                                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${filterGender === g ? 'bg-white shadow-sm text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
@@ -541,8 +541,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 </div>
 
                                 {relevantCollections.length > 0 && (
-                                    <select 
-                                        value={filterCollection} 
+                                    <select
+                                        value={filterCollection}
                                         onChange={(e) => setFilterCollection(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
                                         className="bg-white border border-slate-200 text-slate-700 text-xs font-bold py-2 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[150px]"
                                     >
@@ -553,10 +553,10 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                 <div className="relative group shrink-0">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={14} />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Αναζήτηση..." 
-                                        value={searchTerm} 
+                                    <input
+                                        type="text"
+                                        placeholder="Αναζήτηση..."
+                                        value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-32 focus:w-48 transition-all text-slate-700 placeholder:text-slate-400"
                                     />
@@ -566,183 +566,183 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         {/* LIST */}
                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
-                             {filteredRows.map((row) => {
-                                 const product = products.find(p => p.sku === row.sku);
-                                 const originalIndex = row.originalIndex;
-                                 const currentSend = toSendQuantities[originalIndex] || 0;
-                                 const isFullySent = row.remainingQty === 0;
-                                 
-                                 // Group batches by stage for layout
-                                 const batchesByStage = groupBatchesByStage(row.batchDetails);
-                                 // Sort stages based on defined order
-                                 const sortedStages = Object.keys(batchesByStage).sort((a,b) => {
-                                     const idxA = STAGES.findIndex(s => s.id === a);
-                                     const idxB = STAGES.findIndex(s => s.id === b);
-                                     return idxA - idxB;
-                                 });
+                            {filteredRows.map((row) => {
+                                const product = products.find(p => p.sku === row.sku);
+                                const originalIndex = row.originalIndex;
+                                const currentSend = toSendQuantities[originalIndex] || 0;
+                                const isFullySent = row.remainingQty === 0;
 
-                                 return (
-                                     <div key={originalIndex} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
-                                         
-                                         {/* TOP: Item Info & Send Controls */}
-                                         <div className="flex items-center justify-between gap-4 mb-4">
-                                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                                                     {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={20} className="m-auto text-slate-300"/>}
-                                                 </div>
-                                                 <div className="min-w-0 flex-1">
-                                                     <div className="flex items-baseline gap-1.5">
-                                                         <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
-                                                         {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
-                                                     </div>
-                                                     <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
-                                                     
-                                                     {/* UNIT PRICE DISPLAY */}
-                                                     <div className="text-[10px] font-mono text-slate-500 font-bold mt-1">
-                                                         Τιμή Μονάδος: {formatCurrency(row.price)}
-                                                         {discountFactor < 1 && (
-                                                             <span className="text-emerald-600 ml-2">
-                                                                 (Με έκπτωση: {formatCurrency(row.price * discountFactor)})
-                                                             </span>
-                                                         )}
-                                                     </div>
-                                                     
-                                                     {/* DISPLAY ROW NOTE */}
-                                                     {row.notes && (
-                                                         <div className="mt-1.5 flex items-start gap-1 p-1.5 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
-                                                             <StickyNote size={10} className="shrink-0 mt-0.5"/>
-                                                             <span className="text-[10px] font-bold italic leading-tight">{row.notes}</span>
-                                                         </div>
-                                                     )}
-                                                 </div>
-                                             </div>
+                                // Group batches by stage for layout
+                                const batchesByStage = groupBatchesByStage(row.batchDetails);
+                                // Sort stages based on defined order
+                                const sortedStages = Object.keys(batchesByStage).sort((a, b) => {
+                                    const idxA = STAGES.findIndex(s => s.id === a);
+                                    const idxB = STAGES.findIndex(s => s.id === b);
+                                    return idxA - idxB;
+                                });
 
-                                             {/* Send Controls */}
-                                             {isFullySent ? (
-                                                 <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap flex items-center gap-1">
-                                                     <CheckCircle size={12}/> Ολοκληρώθηκε
-                                                 </div>
-                                             ) : (
-                                                 <div className="flex flex-col items-end gap-1">
-                                                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Αποστολή (Max: {row.remainingQty})</div>
-                                                     <div className="flex items-center gap-1 bg-blue-50 p-1 rounded-xl border border-blue-100">
-                                                         <button onClick={() => updateToSend(originalIndex, currentSend - 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={14}/></button>
-                                                         <input type="number" min="0" max={row.remainingQty} value={currentSend} onChange={(e) => updateToSend(originalIndex, parseInt(e.target.value)||0)} className="w-10 text-center font-black text-lg bg-transparent outline-none text-blue-900"/>
-                                                         <button onClick={() => updateToSend(originalIndex, currentSend + 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Plus size={14}/></button>
-                                                     </div>
-                                                 </div>
-                                             )}
-                                         </div>
+                                return (
+                                    <div key={originalIndex} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
 
-                                         {/* BOTTOM: Active Batches Management */}
-                                         {row.batchDetails.length > 0 && (
-                                             <div className="pt-3 border-t border-slate-100 space-y-3">
-                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                                     <RefreshCw size={10}/> Ενεργές Παρτίδες ({row.batchDetails.length})
-                                                 </div>
-                                                 
-                                                 {sortedStages.map(stageId => {
-                                                     const stageBatches = batchesByStage[stageId];
-                                                     const stageLabel = STAGES.find(s => s.id === stageId)?.label || stageId;
-                                                     
-                                                     return (
-                                                         <div key={stageId} className="space-y-1">
-                                                             {/* Stage Header with optional Merge Button */}
-                                                             <div className="flex items-center justify-between px-1">
-                                                                 <span className="text-[10px] font-bold text-slate-500 uppercase">{stageLabel}</span>
-                                                                 {stageBatches.length > 1 && (
-                                                                     <button 
+                                        {/* TOP: Item Info & Send Controls */}
+                                        <div className="flex items-center justify-between gap-4 mb-4">
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+                                                    {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-300" />}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-baseline gap-1.5">
+                                                        <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
+                                                        {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
+
+                                                    {/* UNIT PRICE DISPLAY */}
+                                                    <div className="text-[10px] font-mono text-slate-500 font-bold mt-1">
+                                                        Τιμή Μονάδος: {formatCurrency(row.price)}
+                                                        {discountFactor < 1 && (
+                                                            <span className="text-emerald-600 ml-2">
+                                                                (Με έκπτωση: {formatCurrency(row.price * discountFactor)})
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* DISPLAY ROW NOTE */}
+                                                    {row.notes && (
+                                                        <div className="mt-1.5 flex items-start gap-1 p-1.5 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
+                                                            <StickyNote size={10} className="shrink-0 mt-0.5" />
+                                                            <span className="text-[10px] font-bold italic leading-tight">{row.notes}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Send Controls */}
+                                            {isFullySent ? (
+                                                <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap flex items-center gap-1">
+                                                    <CheckCircle size={12} /> Ολοκληρώθηκε
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Αποστολή (Max: {row.remainingQty})</div>
+                                                    <div className="flex items-center gap-1 bg-blue-50 p-1 rounded-xl border border-blue-100">
+                                                        <button onClick={() => updateToSend(originalIndex, currentSend - 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={14} /></button>
+                                                        <input type="number" min="0" max={row.remainingQty} value={currentSend} onChange={(e) => updateToSend(originalIndex, parseInt(e.target.value) || 0)} className="w-10 text-center font-black text-lg bg-transparent outline-none text-blue-900" />
+                                                        <button onClick={() => updateToSend(originalIndex, currentSend + 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Plus size={14} /></button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* BOTTOM: Active Batches Management */}
+                                        {row.batchDetails.length > 0 && (
+                                            <div className="pt-3 border-t border-slate-100 space-y-3">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                    <RefreshCw size={10} /> Ενεργές Παρτίδες ({row.batchDetails.length})
+                                                </div>
+
+                                                {sortedStages.map(stageId => {
+                                                    const stageBatches = batchesByStage[stageId];
+                                                    const stageLabel = STAGES.find(s => s.id === stageId)?.label || stageId;
+
+                                                    return (
+                                                        <div key={stageId} className="space-y-1">
+                                                            {/* Stage Header with optional Merge Button */}
+                                                            <div className="flex items-center justify-between px-1">
+                                                                <span className="text-[10px] font-bold text-slate-500 uppercase">{stageLabel}</span>
+                                                                {stageBatches.length > 1 && (
+                                                                    <button
                                                                         onClick={() => handleMergeBatches(stageId as ProductionStage, stageBatches)}
                                                                         className="flex items-center gap-1 text-[9px] font-black bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-100 hover:bg-purple-100 transition-colors"
-                                                                     >
-                                                                         <Merge size={10}/> Συγχώνευση ({stageBatches.length})
-                                                                     </button>
-                                                                 )}
-                                                             </div>
+                                                                    >
+                                                                        <Merge size={10} /> Συγχώνευση ({stageBatches.length})
+                                                                    </button>
+                                                                )}
+                                                            </div>
 
-                                                             {stageBatches.map(batch => {
-                                                                 const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
-                                                                 
-                                                                 // Calculate value for this specific batch
-                                                                 const batchRow = rows.find(r => r.sku === batch.sku && (r.variant_suffix || '') === (batch.variant_suffix || '') && (r.size_info || '') === (batch.size_info || ''));
-                                                                 const unitPrice = batchRow?.price || 0;
-                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
+                                                            {stageBatches.map(batch => {
+                                                                const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
 
-                                                                 return (
-                                                                     <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                                                                         <div className="flex items-center gap-3">
-                                                                             <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
-                                                                             
-                                                                             {/* Stage Selector */}
-                                                                             <div className="relative group">
-                                                                                 <select 
-                                                                                     value={batch.current_stage} 
-                                                                                     onChange={(e) => handleStageMove(batch, e.target.value as ProductionStage)}
-                                                                                     className={`appearance-none pl-2 pr-6 py-1 rounded font-bold uppercase outline-none cursor-pointer ${stageConf.color} border-transparent focus:ring-2 focus:ring-blue-200`}
-                                                                                 >
-                                                                                     {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                                                                 </select>
-                                                                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-current opacity-60">
-                                                                                     <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                                                                                 </div>
-                                                                             </div>
-                                                                             
-                                                                             {/* Batch Note */}
-                                                                             {batch.notes && (
-                                                                                 <div className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-bold flex items-center gap-1" title={batch.notes}>
-                                                                                     <StickyNote size={10}/> {batch.notes}
-                                                                                 </div>
-                                                                             )}
-                                                                         </div>
-                                                                         
-                                                                         <div className="flex gap-1 items-center">
-                                                                             <span className="text-[10px] font-mono text-slate-400 mr-2">{formatCurrency(batchVal)}</span>
-                                                                             <button 
-                                                                                 onClick={() => { setEditingNoteBatch(batch); setNoteText(batch.notes || ''); }}
-                                                                                 className={`p-1.5 rounded transition-colors ${batch.notes ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
-                                                                                 title="Σημειώσεις"
-                                                                             >
-                                                                                 <StickyNote size={14} className={batch.notes ? "fill-current" : ""}/>
-                                                                             </button>
-                                                                             {batch.current_stage !== ProductionStage.Ready && (
-                                                                                 <button 
-                                                                                     onClick={() => openSplitModal(batch)} 
-                                                                                     className="p-1.5 text-blue-500 hover:bg-blue-100 rounded transition-colors" 
-                                                                                     title="Διαχωρισμός"
-                                                                                 >
-                                                                                     <Split size={14}/>
-                                                                                 </button>
-                                                                             )}
-                                                                             <button 
-                                                                                 onClick={() => handleDeleteBatch(batch)} 
-                                                                                 className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" 
-                                                                                 title="Διαγραφή"
-                                                                             >
-                                                                                 <Trash2 size={14}/>
-                                                                             </button>
-                                                                         </div>
-                                                                     </div>
-                                                                 );
-                                                             })}
-                                                         </div>
-                                                     );
-                                                 })}
-                                             </div>
-                                         )}
-                                     </div>
-                                 );
-                             })}
-                             {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη.</div>}
+                                                                // Calculate value for this specific batch
+                                                                const batchRow = rows.find(r => r.sku === batch.sku && (r.variant_suffix || '') === (batch.variant_suffix || '') && (r.size_info || '') === (batch.size_info || ''));
+                                                                const unitPrice = batchRow?.price || 0;
+                                                                const batchVal = unitPrice * batch.quantity * discountFactor;
+
+                                                                return (
+                                                                    <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
+
+                                                                            {/* Stage Selector */}
+                                                                            <div className="relative group">
+                                                                                <select
+                                                                                    value={batch.current_stage}
+                                                                                    onChange={(e) => handleStageMove(batch, e.target.value as ProductionStage)}
+                                                                                    className={`appearance-none pl-2 pr-6 py-1 rounded font-bold uppercase outline-none cursor-pointer ${stageConf.color} border-transparent focus:ring-2 focus:ring-blue-200`}
+                                                                                >
+                                                                                    {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                                                                </select>
+                                                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-current opacity-60">
+                                                                                    <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Batch Note */}
+                                                                            {batch.notes && (
+                                                                                <div className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-bold flex items-center gap-1" title={batch.notes}>
+                                                                                    <StickyNote size={10} /> {batch.notes}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-1 items-center">
+                                                                            <span className="text-[10px] font-mono text-slate-400 mr-2">{formatCurrency(batchVal)}</span>
+                                                                            <button
+                                                                                onClick={() => { setEditingNoteBatch(batch); setNoteText(batch.notes || ''); }}
+                                                                                className={`p-1.5 rounded transition-colors ${batch.notes ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
+                                                                                title="Σημειώσεις"
+                                                                            >
+                                                                                <StickyNote size={14} className={batch.notes ? "fill-current" : ""} />
+                                                                            </button>
+                                                                            {batch.current_stage !== ProductionStage.Ready && (
+                                                                                <button
+                                                                                    onClick={() => openSplitModal(batch)}
+                                                                                    className="p-1.5 text-blue-500 hover:bg-blue-100 rounded transition-colors"
+                                                                                    title="Διαχωρισμός"
+                                                                                >
+                                                                                    <Split size={14} />
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                onClick={() => handleDeleteBatch(batch)}
+                                                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                                title="Διαγραφή"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη.</div>}
                         </div>
                     </div>
 
                     {/* RIGHT PANEL: SUMMARY & HISTORY */}
                     <div className="w-full lg:w-[450px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
-                        
+
                         {/* 1. CURRENT SEND SUMMARY */}
                         <div className="p-6 bg-[#060b00] text-white flex flex-col gap-4 shrink-0">
                             <h3 className="font-bold uppercase text-xs tracking-widest text-slate-400 flex items-center gap-2">
-                                <Wallet size={14}/> Τρέχουσα Αποστολή
+                                <Wallet size={14} /> Τρέχουσα Αποστολή
                             </h3>
                             <div className="flex justify-between items-end">
                                 <div>
@@ -754,41 +754,41 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <div className="text-[10px] text-slate-500 font-bold uppercase">Καθαρη Αξια</div>
                                 </div>
                             </div>
-                            
-                            <button 
+
+                            <button
                                 onClick={handleSend}
                                 disabled={isSending || totalToSend === 0}
                                 className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-lg shadow-lg hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 active:scale-95"
                             >
-                                {isSending ? <Loader2 className="animate-spin"/> : <Factory size={20}/>}
+                                {isSending ? <Loader2 className="animate-spin" /> : <Factory size={20} />}
                                 {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
                             </button>
                         </div>
-                        
+
                         {/* 2. HISTORY / SHIPMENTS */}
                         <div className="flex-1 overflow-y-auto p-4 bg-slate-50 border-t border-slate-900 space-y-4">
                             <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest mb-2 flex items-center gap-2">
-                                <History size={14}/> Ιστορικό Αποστολών
+                                <History size={14} /> Ιστορικό Αποστολών
                             </h3>
-                            
+
                             {shipmentHistory.length > 0 ? shipmentHistory.map(([dateKey, batches]) => {
                                 const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);
-                                
+
                                 // Calculate Shipment Financials
                                 let shipNet = 0;
                                 batches.forEach(b => {
-                                     const item = order.items.find(i => 
-                                         i.sku === b.sku && 
-                                         (i.variant_suffix || '') === (b.variant_suffix || '') &&
-                                         (i.size_info || '') === (b.size_info || '')
-                                     );
-                                     if(item) {
-                                         shipNet += (item.price_at_order * b.quantity * discountFactor);
-                                     }
+                                    const item = order.items.find(i =>
+                                        i.sku === b.sku &&
+                                        (i.variant_suffix || '') === (b.variant_suffix || '') &&
+                                        (i.size_info || '') === (b.size_info || '')
+                                    );
+                                    if (item) {
+                                        shipNet += (item.price_at_order * b.quantity * discountFactor);
+                                    }
                                 });
                                 const shipVat = shipNet * vatRate;
                                 const shipTotal = shipNet + shipVat;
-                                
+
                                 const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
                                 return (
@@ -797,7 +797,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             <div className="text-xs font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
                                             <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{totalItems} τεμ.</div>
                                         </div>
-                                        
+
                                         <div className="space-y-1 mb-3">
                                             <div className="flex justify-between text-xs text-slate-500">
                                                 <span>Καθαρή:</span>
@@ -812,13 +812,13 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 <span>{formatCurrency(shipTotal)}</span>
                                             </div>
                                         </div>
-                                        
+
                                         {onPrintAggregated && (
-                                            <button 
+                                            <button
                                                 onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: order.customer_name })}
                                                 className="w-full py-2 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"
                                             >
-                                                <FileText size={14}/> Εκτύπωση Δελτίου
+                                                <FileText size={14} /> Εκτύπωση Δελτίου
                                             </button>
                                         )}
                                     </div>
@@ -832,19 +832,19 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         {/* 3. TOTALS FOOTER */}
                         <div className="p-4 bg-white border-t border-slate-200">
-                             <div className="flex gap-2 w-full mb-4">
+                            <div className="flex gap-2 w-full mb-4">
                                 <button onClick={handleSelectVisible} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-200 transition-colors border border-blue-200 whitespace-nowrap shadow-sm">
-                                    <CheckSquare size={14}/> Επιλογή Ορατών
+                                    <CheckSquare size={14} /> Επιλογή Ορατών
                                 </button>
                                 <button onClick={handleClearSelection} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200 whitespace-nowrap shadow-sm">
-                                    <Square size={14}/> Καθαρισμός
+                                    <Square size={14} /> Καθαρισμός
                                 </button>
                             </div>
-                            
+
                             <div className="space-y-2 text-xs pt-2 border-t border-slate-100">
                                 <div className="flex justify-between items-center text-slate-500">
                                     <span>Σύνολο Παραγγελίας:</span>
-                                    <span className="font-bold text-slate-900">{order.items.reduce((s,i)=>s+i.quantity,0)}</span>
+                                    <span className="font-bold text-slate-900">{order.items.reduce((s, i) => s + i.quantity, 0)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-slate-500">
                                     <span>Σε Παραγωγή / Έτοιμα:</span>
@@ -866,10 +866,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                 <div className="fixed inset-0 z-[250] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><Scissors className="text-blue-500"/> Διαχωρισμός</h3>
-                            <button onClick={() => setSplitTarget(null)}><X size={20} className="text-slate-400"/></button>
+                            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><Scissors className="text-blue-500" /> Διαχωρισμός</h3>
+                            <button onClick={() => setSplitTarget(null)}><X size={20} className="text-slate-400" /></button>
                         </div>
-                        
+
                         <div className="text-center">
                             <div className="text-xs font-bold text-slate-400 uppercase mb-1">Μετακίνηση Ποσότητας</div>
                             <div className="flex items-center justify-center gap-4">
@@ -882,7 +882,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σε Στάδιο</label>
-                            <select 
+                            <select
                                 value={splitStage}
                                 onChange={(e) => setSplitStage(e.target.value as ProductionStage)}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
@@ -892,24 +892,24 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
 
                         <button onClick={handleSplit} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
-                            <Split size={18}/> Εκτέλεση
+                            <Split size={18} /> Εκτέλεση
                         </button>
                     </div>
                 </div>
             )}
-            
+
             {/* NOTE EDIT MODAL */}
             {editingNoteBatch && (
                 <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500"/> Σημείωση</h3>
-                            <button onClick={() => setEditingNoteBatch(null)}><X size={20} className="text-slate-400"/></button>
+                            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Σημείωση</h3>
+                            <button onClick={() => setEditingNoteBatch(null)}><X size={20} className="text-slate-400" /></button>
                         </div>
-                        
+
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Κείμενο</label>
-                            <textarea 
+                            <textarea
                                 value={noteText}
                                 onChange={(e) => setNoteText(e.target.value)}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none h-32 resize-none"
@@ -919,7 +919,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
 
                         <button onClick={handleSaveNote} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
-                            <Save size={18}/> Αποθήκευση
+                            <Save size={18} /> Αποθήκευση
                         </button>
                     </div>
                 </div>
@@ -928,81 +928,77 @@ export default function ProductionSendModal({ order, products, materials, existi
             {/* STAGE POPUP */}
             {activeStagePopup && (
                 <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
-                     <div className="bg-white w-full max-w-5xl rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                         <div className={`p-6 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.split(' ')[0]} md:${VIBRANT_STAGES[activeStagePopup as string] || 'bg-slate-600'} text-white`}>
-                             <div className="flex items-center gap-3">
-                                 <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
-                                     <Factory size={24} className="text-white"/>
-                                 </div>
-                                 <div>
-                                     <h3 className="font-black text-2xl uppercase tracking-tight">
-                                         {STAGES.find(s => s.id === activeStagePopup)?.label}
-                                     </h3>
-                                     <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupItems.reduce((a,b)=>a+b.qty,0)} Τεμαχια συνολικα</p>
-                                 </div>
-                             </div>
-                             <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28}/></button>
-                         </div>
-                         
-                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
-                             {popupItems.length > 0 ? (
-                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                     {popupItems.map((item, idx) => (
-                                         <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                                             {/* Card Header */}
-                                             <div className="p-3 flex gap-3 border-b border-slate-50">
-                                                 <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0 relative group">
-                                                     {item.img ? <img src={item.img} className="w-full h-full object-cover"/> : <ImageIcon size={24} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2"/>}
-                                                 </div>
-                                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                     <div className="text-xs font-bold text-slate-400 uppercase truncate mb-0.5">{item.category}</div>
-                                                     <div className="font-black text-slate-900 text-lg leading-none truncate">
-                                                         <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
-                                                     </div>
-                                                     {item.size && (
-                                                         <div className="mt-1">
-                                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1 w-fit">
-                                                                <Hash size={10}/> {item.size}
-                                                            </span>
-                                                         </div>
-                                                     )}
-                                                 </div>
-                                                 <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
-                                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Ποσ.</span>
-                                                     <span className="text-2xl font-black text-slate-900">{item.qty}</span>
-                                                 </div>
-                                             </div>
+                    <div className="bg-white w-full max-w-5xl rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                        <div className={`p-6 flex justify-between items-center border-b ${STAGES.find(s => s.id === activeStagePopup)?.color.split(' ')[0]} md:${VIBRANT_STAGES[activeStagePopup as string] || 'bg-slate-600'} text-white`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                    <Factory size={24} className="text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-2xl uppercase tracking-tight">
+                                        {STAGES.find(s => s.id === activeStagePopup)?.label}
+                                    </h3>
+                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupItems.reduce((a, b) => a + b.qty, 0)} Τεμαχια συνολικα</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28} /></button>
+                        </div>
 
-                                             {/* Card Body - Notes */}
-                                             <div className="p-3 bg-slate-50/50 flex-1 flex flex-col justify-center min-h-[3rem]">
-                                                 {item.notes.length > 0 ? (
-                                                     <div className="space-y-1.5">
-                                                         {item.notes.map((note, nIdx) => (
-                                                             <div key={nIdx} className="flex items-start gap-2 text-[11px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-100 leading-snug">
-                                                                 <StickyNote size={12} className="shrink-0 mt-0.5 text-amber-500"/>
-                                                                 <span>{note}</span>
-                                                             </div>
-                                                         ))}
-                                                     </div>
-                                                 ) : (
-                                                     <div className="text-center">
-                                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Τυπικη Κατασκευη</span>
-                                                     </div>
-                                                 )}
-                                             </div>
-                                         </div>
-                                     ))}
-                                 </div>
-                             ) : (
-                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
-                                     <div className="p-6 bg-slate-100 rounded-full">
-                                        <Package size={48} className="opacity-20"/>
-                                     </div>
-                                     <p className="font-bold text-lg">Κανένα είδος σε αυτό το στάδιο.</p>
-                                 </div>
-                             )}
-                         </div>
-                     </div>
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
+                            {popupItems.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {popupItems.map((item, idx) => (
+                                        <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                                            {/* Card Header */}
+                                            <div className="p-3 flex gap-3 border-b border-slate-50">
+                                                <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0 relative group">
+                                                    {item.img ? <img src={item.img} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                    <div className="text-xs font-bold text-slate-400 uppercase truncate mb-0.5">{item.category}</div>
+                                                    <div className="font-black text-slate-900 text-lg leading-none truncate">
+                                                        <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
+                                                    </div>
+                                                    {item.size && (
+                                                        <div className="mt-1">
+                                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1 w-fit">
+                                                                <Hash size={10} /> {item.size}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Ποσ.</span>
+                                                    <span className="text-2xl font-black text-slate-900">{item.qty}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Card Body - Notes */}
+                                            <div className="p-3 bg-slate-50/50 flex-1 flex flex-col justify-center min-h-[3rem]">
+                                                {item.notes.length > 0 && (
+                                                    <div className="space-y-1.5">
+                                                        {item.notes.map((note, nIdx) => (
+                                                            <div key={nIdx} className="flex items-start gap-2 text-[11px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-100 leading-snug">
+                                                                <StickyNote size={12} className="shrink-0 mt-0.5 text-amber-500" />
+                                                                <span>{note}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
+                                    <div className="p-6 bg-slate-100 rounded-full">
+                                        <Package size={48} className="opacity-20" />
+                                    </div>
+                                    <p className="font-bold text-lg">Κανένα είδος σε αυτό το στάδιο.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

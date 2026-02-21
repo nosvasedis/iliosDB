@@ -50,7 +50,16 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
-    const [selectedItems, setSelectedItems] = useState<OrderItem[]>(initialOrder?.items || []);
+    const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
+        const items = initialOrder?.items || [];
+        return items.map(item => {
+            const product = products.find(p => p.sku === item.sku);
+            return {
+                ...item,
+                product_details: product || item.product_details
+            };
+        });
+    });
     const [tags, setTags] = useState<string[]>(initialOrder?.tags || []);
     const [tagInput, setTagInput] = useState('');
     const [customerSearch, setCustomerSearch] = useState('');
@@ -92,7 +101,14 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                         setOrderNotes(draft.orderNotes || '');
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
                         setDiscountPercent(draft.discountPercent || 0);
-                        setSelectedItems(draft.selectedItems || []);
+                        const syncedItems = (draft.selectedItems || []).map((item: any) => {
+                            const product = products.find(p => p.sku === item.sku);
+                            return {
+                                ...item,
+                                product_details: product || item.product_details
+                            };
+                        });
+                        setSelectedItems(syncedItems);
                         setTags(draft.tags || []);
                         showToast('Ανακτήθηκε πρόχειρη παραγγελία.', 'info');
                     }
@@ -126,7 +142,15 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     }, [customers, customerName]);
 
     const displayItems = useMemo(() => {
-        let items = [...selectedItems];
+        // Always sync with latest product details from registry to avoid broken images/stale data
+        let items = selectedItems.map(item => {
+            const latestProduct = products.find(p => p.sku === item.sku);
+            return {
+                ...item,
+                product_details: latestProduct || item.product_details
+            };
+        });
+
         if (itemSearchTerm.trim()) {
             const term = itemSearchTerm.toLowerCase().trim();
             items = items.filter(item => {
