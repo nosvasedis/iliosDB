@@ -5,6 +5,7 @@ import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight,
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import { useAuth } from './AuthContext';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
@@ -189,6 +190,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
 export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
+    const { profile } = useAuth();
     const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -308,6 +310,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         if (yes) {
             try {
                 await api.updateOrderStatus(orderId, OrderStatus.Cancelled);
+                await api.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 setManagingOrder(null);
@@ -329,6 +332,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         if (yes) {
             try {
                 await api.deleteOrder(orderId);
+                await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 setManagingOrder(null);
@@ -349,6 +353,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         if (yes) {
             try {
                 await api.updateOrderStatus(order.id, OrderStatus.Delivered);
+                await api.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 if (managingOrder?.id === order.id) setManagingOrder(null);
@@ -362,6 +367,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const handleArchiveOrder = async (order: Order, archive: boolean) => {
         try {
             await api.archiveOrder(order.id, archive);
+            await api.logAction(profile?.full_name || 'System', archive ? 'Αρχειοθέτηση Παραγγελίας' : 'Ανάκτηση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             if (managingOrder?.id === order.id) setManagingOrder(null);
             showToast(archive ? "Η παραγγελία αρχειοθετήθηκε." : "Η παραγγελία ανακτήθηκε.", "success");

@@ -11,7 +11,7 @@ export default function SetupScreen() {
     const isMobile = useIsMobile();
     const [url, setUrl] = useState('');
     const [key, setKey] = useState('');
-    const [workerKey, setWorkerKey] = useState('2112Aris101!');
+    const [workerKey, setWorkerKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +89,14 @@ export default function SetupScreen() {
                                 <input
                                     type="password" required value={key} onChange={e => setKey(e.target.value)}
                                     placeholder="Supabase Anon Key"
+                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
+                                />
+                            </div>
+                            <div className="relative">
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input
+                                    type="password" value={workerKey} onChange={e => setWorkerKey(e.target.value)}
+                                    placeholder="Cloudflare Worker Key (Optional)"
                                     className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>

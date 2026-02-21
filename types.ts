@@ -48,16 +48,16 @@ export interface Material {
   type: MaterialType;
   cost_per_unit: number;
   unit: string;
-  variant_prices?: Record<string, number>; 
+  variant_prices?: Record<string, number>;
   supplier_id?: string; // Link to Supplier
   stock_qty?: number;   // Track raw material stock
   stones_per_strand?: number; // If sold as strand, how many stones per strand
 }
 
 export interface Mold {
-  code: string; 
-  location: string; 
-  description: string; 
+  code: string;
+  location: string;
+  description: string;
   weight_g?: number; // NEW: Standard weight of the casting from this mold
 }
 
@@ -66,8 +66,8 @@ export interface ProductMold {
   quantity: number;
 }
 
-export type RecipeItem = 
-  | { type: 'raw'; id: string; quantity: number; itemDetails?: Material } 
+export type RecipeItem =
+  | { type: 'raw'; id: string; quantity: number; itemDetails?: Material }
   | { type: 'component'; sku: string; quantity: number; itemDetails?: Product };
 
 export interface LaborCost {
@@ -75,8 +75,8 @@ export interface LaborCost {
   setter_cost: number;
   technician_cost: number;
   stone_setting_cost: number; // New: For Imported items requiring stones
-  plating_cost_x: number; 
-  plating_cost_d: number; 
+  plating_cost_x: number;
+  plating_cost_d: number;
   subcontract_cost: number;
   casting_cost_manual_override?: boolean;
   technician_cost_manual_override?: boolean;
@@ -85,13 +85,13 @@ export interface LaborCost {
 }
 
 export interface ProductVariant {
-  suffix: string; 
-  description: string; 
+  suffix: string;
+  description: string;
   stock_qty: number;
   stock_by_size?: Record<string, number>; // e.g. { "52": 10, "54": 5 }
-  location_stock?: Record<string, number>; 
-  active_price?: number | null; 
-  selling_price?: number | null; 
+  location_stock?: Record<string, number>;
+  active_price?: number | null;
+  selling_price?: number | null;
 }
 
 export interface Collection {
@@ -101,45 +101,45 @@ export interface Collection {
 }
 
 export interface Product {
-  sku: string; 
+  sku: string;
   prefix: string;
   category: string;
   description?: string; // New field for STX description
   gender: Gender;
   image_url: string | null;
   weight_g: number;
-  secondary_weight_g?: number; 
+  secondary_weight_g?: number;
   plating_type: PlatingType;
-  
+
   // Production Strategy
   production_type: ProductionType;
   supplier_id?: string; // Link to Supplier
   supplier_sku?: string; // New: Supplier's Product Code
-  supplier_cost?: number; 
+  supplier_cost?: number;
   supplier_details?: Supplier; // Joined Data
 
   // Pricing
-  active_price: number; 
+  active_price: number;
   draft_price: number;
-  selling_price: number; 
-  
+  selling_price: number;
+
   // Inventory
-  stock_qty: number; 
-  sample_qty: number; 
+  stock_qty: number;
+  sample_qty: number;
   stock_by_size?: Record<string, number>;
   sample_stock_by_size?: Record<string, number>;
-  
-  location_stock?: Record<string, number>; 
+
+  location_stock?: Record<string, number>;
 
   // Manufacturing
-  molds: ProductMold[]; 
-  is_component: boolean; 
-  variants?: ProductVariant[]; 
-  recipe: RecipeItem[]; 
+  molds: ProductMold[];
+  is_component: boolean;
+  variants?: ProductVariant[];
+  recipe: RecipeItem[];
   labor: LaborCost;
 
   // Organization
-  collections?: number[]; 
+  collections?: number[];
 }
 
 export interface GlobalSettings {
@@ -150,6 +150,7 @@ export interface GlobalSettings {
   retail_barcode_width_mm: number; // New
   retail_barcode_height_mm: number; // New
   last_calc_silver_price: number; // Historical anchor for last mass update
+  local_image_storage?: boolean;
 }
 
 export interface PriceSnapshot {
@@ -168,19 +169,19 @@ export interface PriceSnapshotItem {
 }
 
 export interface Warehouse {
-    id: string;
-    name: string;
-    type: 'Central' | 'Showroom' | 'Store' | 'Other';
-    is_system?: boolean; 
-    address?: string;
+  id: string;
+  name: string;
+  type: 'Central' | 'Showroom' | 'Store' | 'Other';
+  is_system?: boolean;
+  address?: string;
 }
 
 export interface WarehouseStock {
-    warehouse_id: string;
-    product_sku: string;
-    variant_suffix?: string; 
-    quantity: number;
-    size_info?: string;
+  warehouse_id: string;
+  product_sku: string;
+  variant_suffix?: string;
+  quantity: number;
+  size_info?: string;
 }
 
 export enum OrderStatus {
@@ -195,16 +196,16 @@ export interface OrderItem {
   sku: string;
   variant_suffix?: string;
   quantity: number;
-  price_at_order: number; 
-  product_details?: Product; 
+  price_at_order: number;
+  product_details?: Product;
   size_info?: string; // e.g., "58" or "19cm"
   notes?: string;
 }
 
 export interface Order {
   id: string;
-  customer_id?: string; 
-  customer_name: string; 
+  customer_id?: string;
+  customer_name: string;
   customer_phone?: string;
   seller_id?: string; // NEW: Track which seller created this order
   created_at: string;
@@ -215,7 +216,7 @@ export interface Order {
   custom_silver_rate?: number; // New: Locks in the silver price used at the time of order
   vat_rate?: number; // 0.24, 0.17, 0.00
   discount_percent?: number; // New: Discount percentage 0-100
-  
+
   // NEW FEATURES
   tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
   is_archived?: boolean;
@@ -252,19 +253,19 @@ export interface Customer {
 
 export enum ProductionStage {
   AwaitingDelivery = 'Αναμονή Παραλαβής',
-  Waxing = 'Waxing',       
-  Casting = 'Casting',     
-  Setting = 'Setting',     
-  Polishing = 'Polishing', 
-  Labeling = 'Labeling',   
-  Ready = 'Ready'          
+  Waxing = 'Waxing',
+  Casting = 'Casting',
+  Setting = 'Setting',
+  Polishing = 'Polishing',
+  Labeling = 'Labeling',
+  Ready = 'Ready'
 }
 
 export type BatchType = 'Νέα' | 'Φρεσκάρισμα';
 
 export interface ProductionBatch {
   id: string;
-  order_id?: string; 
+  order_id?: string;
   sku: string;
   variant_suffix?: string;
   quantity: number;
@@ -272,20 +273,28 @@ export interface ProductionBatch {
   created_at: string;
   updated_at: string;
   priority: 'Normal' | 'High';
-  type?: BatchType; 
+  type?: BatchType;
   notes?: string;
-  
-  requires_setting: boolean; 
+
+  requires_setting: boolean;
   size_info?: string; // Added size info for production tracking
-  
+
   product_image?: string | null;
   product_details?: Product;
-  
+
   diffHours?: number;
   isDelayed?: boolean;
 
   on_hold?: boolean; // New: Batch is paused
   on_hold_reason?: string; // New: Reason for hold
+}
+
+export interface EnhancedProductionBatch extends ProductionBatch {
+  product_details?: Product;
+  product_image?: string | null;
+  diffHours?: number;
+  isDelayed?: boolean;
+  customer_name?: string;
 }
 
 export interface ChatMessage {
@@ -306,8 +315,8 @@ export interface UserProfile {
 }
 
 export interface AggregatedBatch extends ProductionBatch {
-    cost_per_piece: number;
-    total_cost: number;
+  cost_per_piece: number;
+  total_cost: number;
 }
 
 export interface AggregatedData {
@@ -331,27 +340,35 @@ export interface AggregatedData {
 export type SupplierOrderType = 'Product' | 'Material';
 
 export interface SupplierOrderItem {
-    id: string;
-    item_type: SupplierOrderType;
-    item_id: string; // SKU for Product, ID for Material
-    item_name: string;
-    quantity: number;
-    unit_cost: number;
-    total_cost: number;
-    notes?: string;
-    size_info?: string; // New: Store size for ring orders
+  id: string;
+  item_type: SupplierOrderType;
+  item_id: string; // SKU for Product, ID for Material
+  item_name: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  notes?: string;
+  size_info?: string; // New: Store size for ring orders
 }
 
 export interface SupplierOrder {
-    id: string;
-    supplier_id: string;
-    supplier_name: string;
-    created_at: string;
-    status: 'Pending' | 'Received' | 'Cancelled';
-    total_amount: number;
-    items: SupplierOrderItem[];
-    notes?: string;
-    received_at?: string;
+  id: string;
+  supplier_id: string;
+  supplier_name: string;
+  created_at: string;
+  status: 'Pending' | 'Received' | 'Cancelled';
+  total_amount: number;
+  items: SupplierOrderItem[];
+  notes?: string;
+  received_at?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  user_name: string;
+  action: string;
+  details?: any;
+  created_at: string;
 }
 
 declare global {

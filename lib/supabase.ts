@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog } from '../types';
 import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
@@ -287,6 +287,32 @@ export const SYSTEM_IDS = {
 };
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
+    // Feature 3C: Local Image Storage Support
+    let useLocal = isLocalMode || !navigator.onLine;
+    if (!useLocal) {
+        try {
+            const settings = await api.getSettings();
+            if (settings?.local_image_storage) useLocal = true;
+        } catch (e) {
+            console.warn("Could not fetch settings for image upload, defaulting to standard behavior", e);
+        }
+    }
+
+    if (useLocal) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (typeof reader.result === 'string') {
+                    resolve(reader.result);
+                } else {
+                    reject(new Error("Failed to convert image to Base64"));
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
     if (!navigator.onLine || isLocalMode) throw new Error("Image upload requires internet.");
     const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const fileName = `${safeSku.toUpperCase()}_${Date.now()}.jpg`;
@@ -952,10 +978,38 @@ export const api = {
             try {
                 let query;
                 const cleanData = item.table === 'products' ? sanitizeProductData(item.data) : (item.table === 'production_batches' ? sanitizeBatchData(item.data) : item.data);
+
+                // FEATURE 3A: Conflict Resolution Check
+                // Attempt to fetch current state from server to compare timestamps
+                if (['UPDATE', 'UPSERT', 'DELETE'].includes(item.method) && cleanData.id && cleanData.updated_at) {
+                    try {
+                        const { data: serverData, error: fetchErr } = await supabase.from(item.table).select('updated_at').match(item.match || { id: cleanData.id }).single();
+                        if (!fetchErr && serverData && serverData.updated_at) {
+                            const localTime = new Date(cleanData.updated_at).getTime();
+                            const serverTime = new Date(serverData.updated_at).getTime();
+
+                            // If Server is newer (by more than 1 second to account for minor drift/processing time), reject
+                            if (serverTime > localTime + 1000) {
+                                await offlineDb.dequeue(item.id);
+                                window.dispatchEvent(new CustomEvent('ilios-sync-error', {
+                                    detail: {
+                                        message: `Διαφωνία δεδομένων στον πίνακα ${item.table}. Η αλλαγή σας απορρίφθηκε επειδή τα δεδομένα τροποποιήθηκαν από άλλον χρήστη.`
+                                    }
+                                }));
+                                continue; // Skip mapping this item
+                            }
+                        }
+                    } catch (e) {
+                        // Missing or fetching error, proceed with sync safely
+                        console.warn("Conflict check skipped:", e);
+                    }
+                }
+
                 if (item.method === 'INSERT') query = supabase.from(item.table).insert(cleanData);
                 else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });
                 else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { onConflict: item.onConflict, ignoreDuplicates: item.ignoreDuplicates });
+
                 const { error } = await query!;
                 if (!error) { await offlineDb.dequeue(item.id); successCount++; }
                 else {
@@ -1019,5 +1073,29 @@ export const api = {
     // Archive an order
     archiveOrder: async (orderId: string, archive: boolean): Promise<void> => {
         await safeMutate('orders', 'UPDATE', { is_archived: archive }, { match: { id: orderId } });
+    },
+
+    // --- AUDIT LOGS ---
+    getAuditLogs: async (): Promise<AuditLog[]> => {
+        if (isLocalMode) return [];
+        const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(200);
+        if (error) {
+            console.error("Failed to fetch audit logs:", error);
+            return [];
+        }
+        return data || [];
+    },
+
+    logAction: async (user_name: string, action: string, details?: any): Promise<void> => {
+        if (isLocalMode) return; // Simple skipping for local mode
+        try {
+            await supabase.from('audit_logs').insert({
+                user_name,
+                action,
+                details
+            });
+        } catch (e) {
+            console.warn("Failed to log action:", e);
+        }
     }
 };
