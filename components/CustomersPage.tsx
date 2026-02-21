@@ -1,12 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Customer, Order, OrderStatus, VatRegime } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, FileText, Save, Loader2, ArrowRight, User, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Globe, Zap, Hash, Percent, X, Clock, Wallet, Calculator } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
-import SuppliersPage from './SuppliersPage';
+import SuppliersPage, { SuppliersPageHandle } from './SuppliersPage';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -469,6 +469,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const suppliersRef = useRef<SuppliersPageHandle>(null);
 
     // Filter Logic
     const filteredCustomers = useMemo(() => {
@@ -537,37 +538,47 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
 
             {/* Header Controls */}
-            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Users size={24} /></div>
-                        Πελάτες
-                    </h1>
-                    <p className="text-slate-500 mt-1 ml-14">Διαχείριση πελατολογίου και προμηθευτών.</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
+                <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-2xl shadow-sm transition-colors ${activeTab === 'customers' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                        {activeTab === 'customers' ? <Users size={28} /> : <Globe size={28} />}
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+                            {activeTab === 'customers' ? 'Πελάτες' : 'Προμηθευτές'}
+                        </h1>
+                        <p className="text-slate-500 text-sm font-medium">
+                            {activeTab === 'customers' ? 'Διαχείριση πελατολογίου και ιστορικού.' : 'Διαχείριση προμηθευτών και υλικών.'}
+                        </p>
+                    </div>
                 </div>
 
-                <div className="flex gap-4">
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button onClick={() => setActiveTab('customers')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'customers' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <Users size={16} /> Πελάτες
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50">
+                        <button
+                            onClick={() => { setActiveTab('customers'); setSearchTerm(''); }}
+                            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'customers' ? 'bg-white text-blue-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <User size={16} /> Πελάτες
                         </button>
-                        <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'suppliers' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <button
+                            onClick={() => { setActiveTab('suppliers'); setSearchTerm(''); }}
+                            className={`px-6 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'suppliers' ? 'bg-white text-purple-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
                             <Globe size={16} /> Προμηθευτές
                         </button>
                     </div>
 
-                    {activeTab === 'customers' && (
-                        <div className="relative group">
-                            <input
-                                type="text"
-                                placeholder="Αναζήτηση..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64 shadow-sm font-medium"
-                            />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600" size={18} />
-                        </div>
-                    )}
+                    <div className="relative group flex-1 md:flex-none">
+                        <input
+                            type="text"
+                            placeholder={activeTab === 'customers' ? "Αναζήτηση πελάτη..." : "Αναζήτηση προμηθευτή..."}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className={`pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 transition-all w-full md:w-64 shadow-inner font-bold text-sm ${activeTab === 'customers' ? 'focus:ring-blue-500/10 focus:border-blue-500' : 'focus:ring-purple-500/10 focus:border-purple-500'}`}
+                        />
+                        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${activeTab === 'customers' ? 'text-slate-400 group-focus-within:text-blue-500' : 'text-slate-400 group-focus-within:text-purple-500'}`} size={18} />
+                    </div>
 
                     <button
                         onClick={() => {
@@ -583,11 +594,14 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     created_at: new Date().toISOString()
                                 });
                                 setIsCreating(true);
+                            } else {
+                                suppliersRef.current?.openCreateModal();
                             }
                         }}
-                        className="bg-[#060b00] text-white p-3 rounded-xl hover:bg-black shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:scale-95"
+                        className={`p-3.5 rounded-xl text-white shadow-lg transition-all hover:-translate-y-0.5 active:scale-95 ${activeTab === 'customers' ? 'bg-[#060b00] hover:bg-black' : 'bg-purple-600 hover:bg-purple-700'}`}
+                        title={activeTab === 'customers' ? "Νέος Πελάτης" : "Νέος Προμηθευτής"}
                     >
-                        <Plus size={20} />
+                        <Plus size={22} strokeWidth={3} />
                     </button>
                 </div>
             </div>
@@ -607,7 +621,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}
                     </div>
                 ) : (
-                    <SuppliersPage />
+                    <SuppliersPage ref={suppliersRef} searchTerm={searchTerm} />
                 )}
             </div>
 

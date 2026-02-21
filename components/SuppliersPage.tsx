@@ -65,7 +65,15 @@ const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, onClick, latestOr
     );
 };
 
-export default function SuppliersPage() {
+interface SuppliersPageProps {
+    searchTerm: string;
+}
+
+export interface SuppliersPageHandle {
+    openCreateModal: () => void;
+}
+
+const SuppliersPage = React.forwardRef<SuppliersPageHandle, SuppliersPageProps>(({ searchTerm: externalSearchTerm }, ref) => {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 
@@ -79,7 +87,14 @@ export default function SuppliersPage() {
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
     const [activeTab, setActiveTab] = useState<'info' | 'products' | 'materials' | 'orders'>('info');
     const [isEditing, setIsEditing] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+
+    React.useImperativeHandle(ref, () => ({
+        openCreateModal: () => {
+            setSelectedSupplier(null);
+            setSupplierForm({});
+            setIsEditing(true);
+        }
+    }));
 
     // Create/Edit Supplier Form
     const [supplierForm, setSupplierForm] = useState<Partial<Supplier>>({});
@@ -95,10 +110,10 @@ export default function SuppliersPage() {
     const filteredSuppliers = useMemo(() => {
         if (!suppliers) return [];
         return suppliers.filter(s =>
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
+            s.name.toLowerCase().includes(externalSearchTerm.toLowerCase()) ||
+            s.contact_person?.toLowerCase().includes(externalSearchTerm.toLowerCase())
         ).sort((a, b) => a.name.localeCompare(b.name));
-    }, [suppliers, searchTerm]);
+    }, [suppliers, externalSearchTerm]);
 
     // Supplier Actions
     const handleSaveSupplier = async () => {
@@ -184,25 +199,6 @@ export default function SuppliersPage() {
     return (
         <div className="flex flex-col h-full gap-6">
 
-            {/* Helper Top Bar since CustomersPage hides its search/add for Suppliers */}
-            <div className="flex justify-between items-center mb-2 shrink-0">
-                <div className="relative group w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-purple-600 transition-colors" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Αναζήτηση προμηθευτή..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full shadow-sm font-medium"
-                    />
-                </div>
-                <button
-                    onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}
-                    className="bg-[#060b00] text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5 whitespace-nowrap"
-                >
-                    <Plus size={18} /> Νέος Προμηθευτής
-                </button>
-            </div>
 
             {/* Grid of Cards */}
             {filteredSuppliers.length > 0 ? (
@@ -503,4 +499,6 @@ export default function SuppliersPage() {
             )}
         </div>
     );
-}
+});
+
+export default SuppliersPage;
