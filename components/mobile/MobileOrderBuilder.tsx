@@ -400,7 +400,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                 </div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3">
-                    <Save size={20} /> {initialOrder ? 'Ενημέρωση Εντολής' : 'Αποθήκευση Εντολής'}
+                    <Save size={20} /> {initialOrder ? 'Ενημέρωση Παραγγελίας' : 'Αποθήκευση Παραγγελίας'}
                 </button>
             </div>
 

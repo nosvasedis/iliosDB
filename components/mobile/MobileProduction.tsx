@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, 
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 import { formatOrderId } from '../../utils/orderUtils';
+import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 
 interface Props {
     allProducts: Product[];
@@ -17,12 +18,12 @@ interface Props {
 }
 
 const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά', color: 'slate' },
+    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', color: 'indigo' },
+    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', color: 'slate' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'purple' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'blue' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'yellow' },
+    { id: ProductionStage.Labeling, label: 'Συσκευασία & Πακετάρισμα', color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
 ];
 
@@ -55,12 +56,12 @@ const getTimeInStage = (dateStr: string) => {
     let colorClass = '';
 
     if (diffDays > 0) {
-        label = `${diffDays}d ${diffHrs % 24}h`;
+        label = `${diffDays}ημ ${diffHrs % 24}ω`;
         if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200';
         else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200';
         else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
     } else {
-        label = `${diffHrs}h`;
+        label = `${diffHrs}ω`;
         if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200';
         else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
     }
@@ -68,7 +69,42 @@ const getTimeInStage = (dateStr: string) => {
     return { label, colorClass };
 };
 
-const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean }, onNext: (b: ProductionBatch) => void, onToggleHold: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onToggleHold, onClick }) => {
+const TEXT_FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-600',
+    'P': 'text-stone-500',
+    'D': 'text-orange-500',
+    'H': 'text-cyan-600',
+    '': 'text-slate-400'
+};
+
+const TEXT_STONE_COLORS: Record<string, string> = {
+    'S': 'text-emerald-500',
+    'R': 'text-red-500',
+    'B': 'text-blue-500',
+    'W': 'text-slate-400',
+    'BK': 'text-slate-900',
+    'AM': 'text-purple-500',
+    'TU': 'text-cyan-500',
+    'AQ': 'text-sky-400',
+    'PE': 'text-lime-500',
+    'TO': 'text-orange-400'
+};
+
+const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender?: any }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = TEXT_FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = TEXT_STONE_COLORS[stone.code] || 'text-emerald-500';
+
+    return (
+        <span className="font-black text-lg tracking-tight">
+            <span className="text-slate-800">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
+};
+
+const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string }, onNext: (b: ProductionBatch) => void, onToggleHold: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onToggleHold, onClick }) => {
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
     const timeInfo = getTimeInStage(batch.updated_at);
@@ -76,15 +112,16 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean
     return (
         <div
             onClick={() => onClick(batch)}
-            className={`bg-white p-3 rounded-xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200')}`}
+            className={`bg-white p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200 hover:border-slate-300')}`}
         >
             <div className="flex justify-between items-start mb-2">
                 <div>
-                    <div className="font-black text-slate-800 text-lg leading-none">{batch.sku}{batch.variant_suffix}</div>
+                    <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
+                    {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                    <div className="text-xl font-black text-slate-900 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                    <div className="text-xl font-black text-slate-900 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100 shadow-sm">
                         {batch.quantity}
                     </div>
                     {batch.on_hold && (
@@ -96,41 +133,45 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean
             </div>
 
             {batch.on_hold && batch.on_hold_reason && (
-                <div className="mb-3 bg-amber-100 border border-amber-200 rounded-lg p-2 flex gap-2">
+                <div className="mb-3 bg-amber-100 border border-amber-200 rounded-lg p-2.5 flex gap-2">
                     <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                     <span className="text-xs text-amber-800 font-bold leading-snug">{batch.on_hold_reason}</span>
                 </div>
             )}
 
             {batch.notes && !batch.on_hold && (
-                <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2 flex gap-2">
+                <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2.5 flex gap-2">
                     <StickyNote size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                    <span className="text-xs text-amber-800 italic font-medium leading-snug">{batch.notes}</span>
+                    <span className="text-xs text-amber-800 italic font-medium leading-snug">"{batch.notes}"</span>
                 </div>
             )}
 
-            <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
+            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50">
                 <div className="flex gap-2">
-                    <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1 border ${timeInfo.colorClass}`}>
+                    <div className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 border ${timeInfo.colorClass}`}>
                         <Clock size={10} />
                         <span>{timeInfo.label}</span>
                     </div>
-                    {isDelayed && !batch.on_hold && <div className="text-[10px] font-bold text-red-500 flex items-center gap-1"><AlertTriangle size={10} /> Delayed</div>}
+                    {isDelayed && !batch.on_hold && (
+                        <div className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-100 flex items-center gap-1">
+                            <AlertTriangle size={10} /> Καθυστέρηση
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                     <button
                         onClick={() => onToggleHold(batch)}
-                        className={`p-1.5 rounded-lg transition-colors border ${batch.on_hold ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
+                        className={`p-2 rounded-xl transition-colors border ${batch.on_hold ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
                     >
-                        {batch.on_hold ? <PlayCircle size={16} className="fill-current" /> : <PauseCircle size={16} />}
+                        {batch.on_hold ? <PlayCircle size={18} className="fill-current" /> : <PauseCircle size={18} />}
                     </button>
                     {!isReady && !batch.on_hold && (
                         <button
                             onClick={() => onNext(batch)}
-                            className="bg-emerald-50 active:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all"
+                            className="bg-emerald-600 active:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
                         >
-                            Επόμενο <MoveRight size={12} />
+                            Επόμενο <MoveRight size={14} />
                         </button>
                     )}
                 </div>
@@ -159,8 +200,8 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
         batches.forEach(b => {
             const key = b.order_id || 'no_order';
             if (!groups[key]) {
-                groups[key] = {
-                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Order #${formatOrderId(b.order_id)}` : 'Χωρίς Εντολή'),
+                const order = groups[key] = {
+                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Παραγγελία #${formatOrderId(b.order_id)}` : 'Χωρίς Παραγγελία'),
                     items: []
                 };
             }
@@ -374,6 +415,79 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
     );
 };
 
+const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number, targetStage: ProductionStage) => void, isProcessing: boolean }) => {
+    const { batch, targetStage } = state;
+    const [quantity, setQuantity] = useState(batch.quantity);
+    const [selectedTarget, setSelectedTarget] = useState<ProductionStage>(targetStage);
+
+    const handleConfirmClick = () => {
+        if (quantity > 0 && quantity <= batch.quantity) {
+            onConfirm(quantity, selectedTarget);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h2 className="text-xl font-black text-slate-800">Μετακίνηση Παρτίδας</h2>
+                        <p className="text-sm text-slate-500 font-mono font-bold tracking-wider">{batch.sku}{batch.variant_suffix}</p>
+                    </div>
+                    <button onClick={onClose} disabled={isProcessing} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={24} /></button>
+                </div>
+                <div className="p-8 space-y-6">
+                    <div className="flex flex-col gap-4">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Σταδιο Προορισμου</label>
+                        <select
+                            value={selectedTarget}
+                            onChange={(e) => setSelectedTarget(e.target.value as ProductionStage)}
+                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-emerald-500 transition-all appearance-none"
+                        >
+                            {STAGES.map(s => (
+                                <option key={s.id} value={s.id} disabled={s.id === batch.current_stage}>
+                                    {s.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-center">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Ποσοτητα προς Μετακινηση</label>
+                        <div className="flex items-center justify-center gap-4">
+                            <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xl">-</button>
+                            <input
+                                type="number"
+                                value={quantity}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (isNaN(val)) setQuantity(1);
+                                    else if (val > batch.quantity) setQuantity(batch.quantity);
+                                    else if (val < 1) setQuantity(1);
+                                    else setQuantity(val);
+                                }}
+                                className="w-24 p-3 text-center font-black text-3xl bg-transparent outline-none text-slate-800"
+                                autoFocus
+                            />
+                            <button onClick={() => setQuantity(Math.min(batch.quantity, quantity + 1))} className="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xl">+</button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-2 font-bold">Διαθέσιμα: {batch.quantity}</p>
+                    </div>
+                </div>
+                <div className="p-6 bg-white border-t border-slate-50 flex gap-3">
+                    <button onClick={onClose} disabled={isProcessing} className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        ΑΚΥΡΟ
+                    </button>
+                    <button onClick={handleConfirmClick} disabled={isProcessing} className="flex-[2] py-4 rounded-2xl bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-200">
+                        {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
+                        ΕΠΙΒΕΒΑΙΩΣΗ
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -388,9 +502,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [finderTerm, setFinderTerm] = useState('');
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
 
-    // Edit Note State (Newly Added)
+    // Note Saving Handler
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [isSavingNote, setIsSavingNote] = useState(false);
+
+    // Split/Move State
+    const [splitModalState, setSplitModalState] = useState<{ batch: ProductionBatch, targetStage: ProductionStage } | null>(null);
+    const [isProcessingSplit, setIsProcessingSplit] = useState(false);
 
     // Print Modal State
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
@@ -434,7 +552,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
             return fullSku.includes(term) || (b.order_id && b.order_id.includes(term)) || (b.customer_name && b.customer_name.toUpperCase().includes(term));
         }).map(b => {
-            return { ...b, customerName: b.customer_name || 'Unknown' };
+            return { ...b, customerName: b.customer_name || 'Άγνωστο' };
         }).sort((a, b) => (a.sku + a.variant_suffix).localeCompare(b.sku + b.variant_suffix));
     }, [enrichedBatches, finderTerm]);
 
@@ -460,7 +578,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         try {
             await api.updateBatchStage(batch.id, nextStage);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
-            showToast(`Το ${batch.sku} μετακινήθηκε.`, "success");
+            showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
         } catch (error) {
             showToast("Σφάλμα μετακίνησης.", "error");
         }
@@ -487,12 +605,65 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     };
 
     const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage) => {
+        if (batch.on_hold) {
+            showToast("Η παρτίδα είναι σε αναμονή.", "error");
+            return;
+        }
+        if (batch.current_stage === stage) return;
+
+        if (batch.current_stage === ProductionStage.AwaitingDelivery) {
+            handleImportReceive(batch, stage);
+            return;
+        }
+
+        setSplitModalState({ batch, targetStage: stage });
+    };
+
+    const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage) => {
+        const confirmed = window.confirm(`Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''}?`);
+        if (confirmed) {
+            setIsProcessingSplit(true);
+            try {
+                await api.updateBatchStage(batch.id, targetStage);
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                showToast('Η παρτίδα παρελήφθη.', 'success');
+            } catch (e: any) {
+                showToast(`Σφάλμα: ${e.message}`, 'error');
+            } finally {
+                setIsProcessingSplit(false);
+            }
+        }
+    };
+
+    const handleConfirmSplit = async (quantityToMove: number, targetStage: ProductionStage) => {
+        if (!splitModalState) return;
+        const { batch } = splitModalState;
+
+        setIsProcessingSplit(true);
         try {
-            await api.updateBatchStage(batch.id, stage);
+            if (quantityToMove >= batch.quantity) {
+                await api.updateBatchStage(batch.id, targetStage);
+            } else {
+                const originalNewQty = batch.quantity - quantityToMove;
+                const { product_details, isDelayed, customer_name, ...dbBatch } = batch as any;
+
+                const newBatchData = {
+                    ...dbBatch,
+                    id: crypto.randomUUID(),
+                    quantity: quantityToMove,
+                    current_stage: targetStage,
+                    updated_at: new Date().toISOString()
+                };
+
+                await api.splitBatch(batch.id, originalNewQty, newBatchData);
+            }
             queryClient.invalidateQueries({ queryKey: ['batches'] });
-            showToast(`Η παρτίδα μετακινήθηκε στο στάδιο: ${stage}`, "success");
-        } catch (error) {
-            showToast("Σφάλμα μετακίνησης.", "error");
+            showToast('Η μετακίνηση ολοκληρώθηκε.', 'success');
+            setSplitModalState(null);
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
         }
     };
 
@@ -587,55 +758,80 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             <div className="bg-slate-900 rounded-3xl p-5 shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-10 text-white"><Search size={80} /></div>
                 <div className="relative z-10">
-                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
-                        <Search size={16} className="text-emerald-400" /> Εύρεση Παρτίδας
-                    </h2>
+                    <div className="flex items-center justify-between mb-3 text-white">
+                        <h2 className="font-bold text-sm flex items-center gap-2">
+                            <Search size={16} className="text-emerald-400" /> Εύρεση Παρτίδας
+                        </h2>
+                        {finderTerm && <div className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-lg border border-emerald-500/20">{foundBatches.length} ΑΠΟΤΕΛΕΣΜΑΤΑ</div>}
+                    </div>
                     <div className="relative">
-                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="SKU ή Πελάτης..." className="w-full pl-10 p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 font-bold transition-all uppercase" />
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={18} />
-                        {finderTerm && <button onClick={() => setFinderTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1"><X size={16} /></button>}
+                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="SKU ή Πελάτης..." className="w-full pl-10 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 focus:ring-2 focus:ring-emerald-500/20 font-bold transition-all uppercase" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={20} />
+                        {finderTerm && <button onClick={() => setFinderTerm('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1.5 bg-white/5 rounded-full"><X size={16} /></button>}
                     </div>
                 </div>
                 {finderTerm.length >= 2 && (
-                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto custom-scrollbar relative z-10">
+                    <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar relative z-10">
                         {foundBatches.map(b => (
-                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-white rounded-xl p-3 shadow-md border-l-4 border-emerald-500 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer">
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-white rounded-2xl p-4 shadow-xl border-l-8 border-emerald-500 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
-                                        <div className="flex items-center gap-2"><span className="font-black text-slate-800 text-lg">{b.sku}{b.variant_suffix}</span>{b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}</div>
-                                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><User size={12} /> {b.customerName}</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
+                                            {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"> {b.size_info}</span>}
+                                        </div>
+                                        <div className="text-xs text-slate-500 font-bold flex items-center gap-1.5 uppercase tracking-tight py-1 inline-block"><User size={12} className="text-slate-400" /> {b.customerName}</div>
                                     </div>
-                                    <div className="text-right"><div className="text-[10px] font-mono text-slate-400">#{formatOrderId(b.order_id)}</div><div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded mt-1">{b.current_stage}</div></div>
+                                    <div className="text-right flex flex-col items-end gap-1">
+                                        <div className="text-[10px] font-mono font-bold text-slate-400 select-all tracking-wider">#{formatOrderId(b.order_id)}</div>
+                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full border ${STAGE_COLORS[STAGES.find(s => s.id === b.current_stage)?.color || 'slate']}`}>
+                                            {STAGES.find(s => s.id === b.current_stage)?.label}
+                                        </div>
+                                    </div>
                                 </div>
-                                {b.notes && <div className="bg-amber-50 text-amber-800 text-xs font-bold p-2 rounded-lg flex items-start gap-2 border border-amber-100"><StickyNote size={14} className="shrink-0 mt-0.5" /><span>{b.notes}</span></div>}
+                                {b.notes && <div className="mt-2 bg-amber-50 text-amber-800 text-xs font-bold p-3 rounded-xl flex items-start gap-2 border border-amber-100"><StickyNote size={14} className="shrink-0 mt-0.5 text-amber-500" /><span>"{b.notes}"</span></div>}
                             </div>
                         ))}
+                        {foundBatches.length === 0 && <div className="text-center py-8 text-white/40 italic font-bold">Δεν βρέθηκαν παρτίδες.</div>}
                     </div>
                 )}
+            </div>
+
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 mb-2">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-black border-4 shrink-0 ${(enrichedBatches.filter(b => b.isDelayed && !b.on_hold).length / (activeBatchesCount || 1)) > 0.3 ? 'border-red-100 text-red-600 bg-red-50' : 'border-emerald-100 text-emerald-600 bg-emerald-50'}`}>
+                    {Math.max(0, 100 - (enrichedBatches.filter(b => b.isDelayed && !b.on_hold).length / (activeBatchesCount || 1)) * 100).toFixed(0)}%
+                </div>
+                <div>
+                    <h3 className="font-bold text-slate-800 text-sm">Κατάσταση Παραγωγής</h3>
+                    <div className="flex gap-3 items-center mt-1">
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full"><Clock size={10} /> {activeBatchesCount} Ενεργά</div>
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><AlertTriangle size={10} /> {enrichedBatches.filter(b => b.isDelayed && !b.on_hold).length} Καθυστέρηση</div>
+                    </div>
+                </div>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
-                    className="flex items-center gap-1 bg-white border border-slate-200 text-purple-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-purple-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
                 >
                     <BookOpen size={14} /> Προετοιμασία
                 </button>
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => b.current_stage === ProductionStage.Polishing), 'technician')}
-                    className="flex items-center gap-1 bg-white border border-slate-200 text-blue-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-blue-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
                 >
                     <Hammer size={14} /> Τεχνίτης
                 </button>
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready), 'aggregated')}
-                    className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
                 >
                     <FileText size={14} /> Συγκεντρωτική
                 </button>
                 <button
                     onClick={handlePrintStageLabels}
-                    className="flex items-center gap-1 bg-white border border-slate-200 text-yellow-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm whitespace-nowrap active:scale-95"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-yellow-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
                 >
                     <Tag size={14} /> Ετικέτες
                 </button>
@@ -684,6 +880,16 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     onClose={() => setEditingNoteBatch(null)}
                     onSave={handleSaveNote}
                     isProcessing={isSavingNote}
+                />
+            )}
+
+            {/* Split Modal */}
+            {splitModalState && (
+                <SplitBatchModal
+                    state={splitModalState}
+                    onClose={() => setSplitModalState(null)}
+                    onConfirm={handleConfirmSplit}
+                    isProcessing={isProcessingSplit}
                 />
             )}
 

@@ -14,7 +14,7 @@ interface MobileLayoutProps {
 export default function MobileLayout({ children, activePage, onNavigate, isOnline = true, isSyncing = false, pendingCount = 0 }: MobileLayoutProps) {
   const navItems = [
     { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Αρχική' },
-    { id: 'orders', icon: <ShoppingCart size={20} />, label: 'Εντολές' },
+    { id: 'orders', icon: <ShoppingCart size={20} />, label: 'Παραγγελίες' },
     { id: 'production', icon: <Factory size={20} />, label: 'Παραγωγή' },
     { id: 'inventory', icon: <Package size={20} />, label: 'Αποθήκη' },
     { id: 'menu', icon: <Menu size={20} />, label: 'Μενού' },
@@ -24,23 +24,23 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-[#060b00] overflow-hidden">
-      
+
       {/* Smart Connectivity Status Bar */}
       {showStatus && (
-          <div className={`
+        <div className={`
             w-full px-4 py-2 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors duration-300 z-50 shadow-sm
-            ${!isOnline ? 'bg-red-500 text-white' : 
-              isSyncing ? 'bg-blue-600 text-white' : 
+            ${!isOnline ? 'bg-red-500 text-white' :
+            isSyncing ? 'bg-blue-600 text-white' :
               'bg-amber-500 text-white'}
           `}>
-              {!isOnline ? (
-                  <><WifiOff size={12} /> Offline Mode - Local Save</>
-              ) : isSyncing ? (
-                  <><RefreshCw size={12} className="animate-spin" /> Syncing Data...</>
-              ) : (
-                  <><CloudOff size={12} /> {pendingCount} Pending Changes</>
-              )}
-          </div>
+          {!isOnline ? (
+            <><WifiOff size={12} /> Offline Mode - Local Save</>
+          ) : isSyncing ? (
+            <><RefreshCw size={12} className="animate-spin" /> Syncing Data...</>
+          ) : (
+            <><CloudOff size={12} /> {pendingCount} Pending Changes</>
+          )}
+        </div>
       )}
 
       {/* Main Content Area */}
@@ -57,9 +57,8 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-                  isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
+                className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
+                  }`}
               >
                 <div className={`p-1 rounded-xl transition-all duration-300 ${isActive ? 'bg-emerald-50 scale-110' : ''}`}>
                   {item.icon}
