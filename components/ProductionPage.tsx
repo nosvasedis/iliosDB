@@ -554,7 +554,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
-    const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batches, isLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
@@ -1021,6 +1021,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     };
 
     if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
+
+    if (batchesError) {
+        return (
+            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
+                <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
+                <p>Δεν ήταν δυνατή η φόρτωση παρτίδων παραγωγής.</p>
+                <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(batchesErr as Error)?.message}</p>
+                <button onClick={() => refetchBatches()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
+                    Ανανέωση
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">

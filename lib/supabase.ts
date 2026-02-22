@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog } from '../types';
-import { INITIAL_SETTINGS, MOCK_PRODUCTS, MOCK_MATERIALS } from '../constants';
+import { INITIAL_SETTINGS, MOCK_MATERIALS } from '../constants';
 import { offlineDb } from './offlineDb';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -444,21 +444,46 @@ export const api = {
         const receivedOrder = { ...order, status: 'Received', received_at: new Date().toISOString() };
         await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
 
-        // 2. Update Stock for each item
+        // 2. Batch-fetch current stock for all products and materials in this order
+        const productSkus = [...new Set(order.items.filter(i => i.item_type === 'Product').map(i => i.item_id))];
+        const materialIds = [...new Set(order.items.filter(i => i.item_type === 'Material').map(i => i.item_id))];
+
+        let productRows: { sku: string; stock_qty: number }[] = [];
+        let materialRows: { id: string; stock_qty: number }[] = [];
+
+        if (productSkus.length > 0) {
+            const { data } = await supabase.from('products').select('sku, stock_qty').in('sku', productSkus);
+            productRows = data || [];
+        }
+        if (materialIds.length > 0) {
+            const { data } = await supabase.from('materials').select('id, stock_qty').in('id', materialIds);
+            materialRows = data || [];
+        }
+
+        const productMap = new Map(productRows.map(p => [p.sku, p.stock_qty ?? 0]));
+        const materialMap = new Map(materialRows.map(m => [m.id, m.stock_qty ?? 0]));
+
+        // 3. Apply stock updates in parallel (same logic as before, one update per item)
+        const updatePromises: Promise<any>[] = [];
         for (const item of order.items) {
             if (item.item_type === 'Product') {
-                const { data: prod } = await supabase.from('products').select('stock_qty').eq('sku', item.item_id).single();
-                if (prod) {
-                    await safeMutate('products', 'UPDATE', { stock_qty: (prod.stock_qty || 0) + item.quantity }, { match: { sku: item.item_id } });
-                    await recordStockMovement(item.item_id, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`);
+                const current = productMap.get(item.item_id);
+                if (current !== undefined) {
+                    updatePromises.push(
+                        safeMutate('products', 'UPDATE', { stock_qty: current + item.quantity }, { match: { sku: item.item_id } })
+                    );
+                    updatePromises.push(recordStockMovement(item.item_id, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`));
                 }
             } else if (item.item_type === 'Material') {
-                const { data: mat } = await supabase.from('materials').select('stock_qty').eq('id', item.item_id).single();
-                if (mat) {
-                    await safeMutate('materials', 'UPDATE', { stock_qty: (mat.stock_qty || 0) + item.quantity }, { match: { id: item.item_id } });
+                const current = materialMap.get(item.item_id);
+                if (current !== undefined) {
+                    updatePromises.push(
+                        safeMutate('materials', 'UPDATE', { stock_qty: current + item.quantity }, { match: { id: item.item_id } })
+                    );
                 }
             }
         }
+        await Promise.all(updatePromises);
     },
 
     getCollections: async (): Promise<Collection[]> => {
@@ -481,7 +506,7 @@ export const api = {
 
     getProducts: async (): Promise<Product[]> => {
         const prodData = await fetchFullTable('products', '*, suppliers(*)');
-        if (!prodData || prodData.length === 0) return MOCK_PRODUCTS;
+        if (!prodData || prodData.length === 0) return [];
 
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
             fetchFullTable('product_variants'),
@@ -802,15 +827,20 @@ export const api = {
                 supplyMap[key].push(b);
             });
 
-            // 6. RECONCILE: Iterate all unique keys from both maps
+            // 6. RECONCILE: Iterate all unique keys; collect batch inserts, surplus ops, and metadata syncs
             const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
+            const batchesToInsert: any[] = [];
+            const batchIdsToDelete: string[] = [];
+            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null }[] = [];
+            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; updated_at: string }[] = [];
 
             for (const key of allKeys) {
                 const targetQty = demandMap[key]?.qty || 0;
                 const existingList = supplyMap[key] || [];
                 const currentQty = existingList.reduce((s, b) => s + b.quantity, 0);
+                const demandItem = demandMap[key]?.item;
 
-                // CASE A: Deficit (Need more items)
+                // CASE A: Deficit (Need more items) — collect rows for one bulk insert
                 if (targetQty > currentQty) {
                     const diff = targetQty - currentQty;
                     const { item } = demandMap[key];
@@ -826,8 +856,8 @@ export const api = {
                             });
 
                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-
-                        await safeMutate('production_batches', 'INSERT', {
+                        const now = new Date().toISOString();
+                        batchesToInsert.push({
                             id: crypto.randomUUID(),
                             order_id: order.id,
                             sku: item.sku,
@@ -839,16 +869,14 @@ export const api = {
                             priority: 'Normal',
                             type: 'Νέα',
                             requires_setting: hasZircons,
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
+                            created_at: now,
+                            updated_at: now
                         });
                     }
                 }
-                // CASE B: Surplus (Too many items) or Item Removed
+                // CASE B: Surplus — collect ids to delete and payloads to update (same order: earliest stage first)
                 else if (currentQty > targetQty) {
                     let surplus = currentQty - targetQty;
-
-                    // Sort existing batches by progress (Stage index) - we want to delete/reduce EARLIEST stages first
                     const sortedSupply = [...existingList].sort((a, b) => {
                         const stages = Object.values(ProductionStage);
                         return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
@@ -856,21 +884,54 @@ export const api = {
 
                     for (const batch of sortedSupply) {
                         if (surplus <= 0) break;
-
                         if (batch.quantity <= surplus) {
-                            // Delete whole batch
-                            await api.deleteProductionBatch(batch.id);
+                            batchIdsToDelete.push(batch.id);
                             surplus -= batch.quantity;
                         } else {
-                            // Reduce batch quantity
-                            await safeMutate('production_batches', 'UPDATE', {
+                            const now = new Date().toISOString();
+                            batchUpdates.push({
+                                id: batch.id,
                                 quantity: batch.quantity - surplus,
-                                updated_at: new Date().toISOString()
-                            }, { match: { id: batch.id } });
+                                updated_at: now,
+                                notes: demandItem ? (demandItem.notes ?? null) : undefined,
+                                size_info: demandItem ? (demandItem.size_info ?? null) : undefined
+                            });
                             surplus = 0;
                         }
                     }
                 }
+                // CASE C: Exact match — sync notes/size_info from order so re-edits to notes/size are reflected
+                if (targetQty === currentQty && demandItem && existingList.length > 0) {
+                    const now = new Date().toISOString();
+                    const notes = demandItem.notes ?? null;
+                    const size_info = demandItem.size_info ?? null;
+                    for (const b of existingList) {
+                        batchMetadataUpdates.push({ id: b.id, notes, size_info, updated_at: now });
+                    }
+                }
+            }
+
+            // Apply deficit: single bulk insert
+            if (batchesToInsert.length > 0) {
+                await safeMutate('production_batches', 'INSERT', batchesToInsert);
+            }
+            // Apply surplus: parallel deletes and parallel updates (behavior unchanged)
+            if (batchIdsToDelete.length > 0) {
+                await Promise.all(batchIdsToDelete.map(id => api.deleteProductionBatch(id)));
+            }
+            if (batchUpdates.length > 0) {
+                await Promise.all(batchUpdates.map(u => {
+                    const payload: any = { quantity: u.quantity, updated_at: u.updated_at };
+                    if (u.notes !== undefined) payload.notes = u.notes;
+                    if (u.size_info !== undefined) payload.size_info = u.size_info;
+                    return safeMutate('production_batches', 'UPDATE', payload, { match: { id: u.id } });
+                }));
+            }
+            // Sync notes/size_info when qty matches so order re-edits (notes, size) are reflected
+            if (batchMetadataUpdates.length > 0) {
+                await Promise.all(batchMetadataUpdates.map(u =>
+                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, updated_at: u.updated_at }, { match: { id: u.id } })
+                ));
             }
         } catch (err) {
             console.error("Batch Reconciliation Failed:", err);

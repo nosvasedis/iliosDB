@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -191,9 +192,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
-    const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
     // View State
@@ -246,6 +247,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             );
         });
     }, [orders, activeTab, searchTerm]);
+
+    const ordersScrollRef = useRef<HTMLDivElement>(null);
+    const ordersRowVirtualizer = useVirtualizer({
+        count: filteredOrders.length,
+        getScrollElement: () => ordersScrollRef.current,
+        estimateSize: () => 64,
+        overscan: 8
+    });
 
     // Derived: Check if order is ready for completion
     const isOrderReady = (order: Order) => {
@@ -419,6 +428,24 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         );
     }
 
+    if (ordersError || batchesError) {
+        const err = ordersErr || batchesErr;
+        return (
+            <div className="space-y-6 flex flex-col">
+                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
+                    <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
+                    <p>Δεν ήταν δυνατή η φόρτωση των παραγγελιών ή των παρτίδων παραγωγής.</p>
+                    <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(err as Error)?.message}</p>
+                    <div className="mt-4 flex gap-2">
+                        <button onClick={() => { refetchOrders(); refetchBatches(); }} className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
+                            Ανανέωση
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
@@ -464,30 +491,34 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 />
             </div>
 
-            <div className="flex-1 overflow-auto">
+            <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
-                            <tr>
-                                <th className="p-4 pl-6">ID</th>
-                                <th className="p-4">Πελάτης / Ετικέτες</th>
-                                <th className="p-4">Ημερομηνία</th>
-                                <th className="p-4 text-right">Ποσό</th>
-                                <th className="p-4">Κατάσταση</th>
-                                <th className="p-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {filteredOrders.map(order => {
-                                // FIX: Explicitly check for 0% VAT rate by avoiding truthy checks
+                    {/* Table header - sticky */}
+                    <div className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-0 bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 border-b border-slate-100">
+                        <div className="p-4 pl-6">ID</div>
+                        <div className="p-4">Πελάτης / Ετικέτες</div>
+                        <div className="p-4">Ημερομηνία</div>
+                        <div className="p-4 text-right">Ποσό</div>
+                        <div className="p-4">Κατάσταση</div>
+                        <div className="p-4" />
+                    </div>
+                    {filteredOrders.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 italic text-sm">Δεν βρέθηκαν παραγγελίες.</div>
+                    ) : (
+                        <div style={{ height: `${ordersRowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
+                            {ordersRowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const order = filteredOrders[virtualRow.index];
                                 const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
                                 const netValue = order.total_price / (1 + activeVat);
                                 const ready = isOrderReady(order);
-
                                 return (
-                                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                                        <td className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</td>
-                                        <td className="p-4">
+                                    <div
+                                        key={order.id}
+                                        className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
+                                        style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                                    >
+                                        <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
+                                        <div className="p-4">
                                             <div className="font-bold text-slate-800">{order.customer_name}</div>
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1 mt-1 flex-wrap">
@@ -496,10 +527,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                                     ))}
                                                 </div>
                                             )}
-                                        </td>
-                                        <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
-                                        <td className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</td>
-                                        <td className="p-4">
+                                        </div>
+                                        <div className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                        <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
+                                        <div className="p-4">
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span>
                                                 {ready && order.status !== OrderStatus.Delivered && (
@@ -512,8 +543,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                                     </button>
                                                 )}
                                             </div>
-                                        </td>
-                                        <td className="p-4 text-right">
+                                        </div>
+                                        <div className="p-4 text-right">
                                             <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16} /></button>
                                                 <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16} /></button>
@@ -521,15 +552,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                                     <button onClick={() => handleArchiveOrder(order, true)} title="Αρχειοθέτηση" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Archive size={16} /></button>
                                                 )}
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </div>
+                                    </div>
                                 );
                             })}
-                            {filteredOrders.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Δεν βρέθηκαν παραγγελίες.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+                        </div>
+                    )}
                 </div>
             </div>
 

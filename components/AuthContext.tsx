@@ -9,7 +9,6 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -41,29 +40,32 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Listen for auth changes
+    // Set initial session immediately so refresh doesn't show login flicker
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      if (initialSession?.user) {
+        setLoading(true);
+        fetchProfile(initialSession.user.id).finally(() => setLoading(false));
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      
+
       if (session?.user) {
-        // If profile is already loaded for this user, don't trigger loading state again
-        // unless it's a different user (unlikely in this context but good for safety)
         setProfile((prevProfile) => {
-            if (prevProfile?.id === session.user.id) {
-                // Profile matches session, just ensure loading is false
-                setLoading(false);
-                return prevProfile;
-            } else {
-                // New user or no profile yet: Force loading TRUE and fetch
-                setLoading(true);
-                fetchProfile(session.user.id).finally(() => {
-                    setLoading(false);
-                });
-                return null; // Temporarily clear profile while fetching new one
-            }
+          if (prevProfile?.id === session.user.id) {
+            setLoading(false);
+            return prevProfile;
+          }
+          setLoading(true);
+          fetchProfile(session.user.id).finally(() => setLoading(false));
+          return null;
         });
       } else {
-        // No user
         setProfile(null);
         setLoading(false);
       }
@@ -86,12 +88,8 @@ export const AuthProvider = ({ children }: { children?: React.ReactNode }) => {
     }
   };
 
-  const signIn = async () => {
-    // Placeholder
-  };
-
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

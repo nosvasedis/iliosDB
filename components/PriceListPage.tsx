@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Product, Gender, Collection } from '../types';
 import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2, Minus, FolderX } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
@@ -336,6 +337,15 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
 
     }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections]);
 
+    const listParentRef = useRef<HTMLDivElement>(null);
+    const rowCount = Math.ceil(filteredItems.length / 3) || 0;
+    const rowVirtualizer = useVirtualizer({
+        count: rowCount,
+        getScrollElement: () => listParentRef.current,
+        estimateSize: () => 100,
+        overscan: 5
+    });
+
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
         let title = '';
@@ -660,47 +670,56 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         </div>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
+                    <div ref={listParentRef} className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
                         {filteredItems.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                                {filteredItems.map((item, idx) => (
-                                    <div key={idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-200 transition-all">
-                                        {/* Remove Button Overlay */}
-                                        <button 
-                                            onClick={() => toggleExclusion(item.skuBase)}
-                                            className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title="Αφαίρεση από τη λίστα"
+                            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const startIdx = virtualRow.index * 3;
+                                    const rowItems = filteredItems.slice(startIdx, startIdx + 3);
+                                    return (
+                                        <div
+                                            key={virtualRow.key}
+                                            className="absolute top-0 left-0 w-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
+                                            style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                                         >
-                                            <X size={14}/>
-                                        </button>
-
-                                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-50">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
-                                                {item.isManual && (
-                                                    <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Manual</span>
-                                                )}
-                                                {/* Discreet Collection Tag in Preview */}
-                                                {item.collectionTag && (
-                                                    <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded">
-                                                        {item.collectionTag}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">{item.category}</span>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            {item.priceGroups.map((pg, pgIdx) => (
-                                                <div key={pgIdx} className="flex justify-between items-center text-xs">
-                                                    <span className="font-bold text-slate-500 truncate max-w-[120px]">
-                                                        {pg.suffixes.filter(s => s !== '').join(' / ') || 'Lustre'}
-                                                    </span>
-                                                    <span className="font-mono text-slate-700 font-bold">{pg.price.toFixed(2)}€</span>
+                                            {rowItems.map((item, idx) => (
+                                                <div key={startIdx + idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-200 transition-all">
+                                                    <button
+                                                        onClick={() => toggleExclusion(item.skuBase)}
+                                                        className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                        title="Αφαίρεση από τη λίστα"
+                                                    >
+                                                        <X size={14}/>
+                                                    </button>
+                                                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-50">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
+                                                            {item.isManual && (
+                                                                <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Manual</span>
+                                                            )}
+                                                            {item.collectionTag && (
+                                                                <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded">
+                                                                    {item.collectionTag}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">{item.category}</span>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        {item.priceGroups.map((pg, pgIdx) => (
+                                                            <div key={pgIdx} className="flex justify-between items-center text-xs">
+                                                                <span className="font-bold text-slate-500 truncate max-w-[120px]">
+                                                                    {pg.suffixes.filter(s => s !== '').join(' / ') || 'Lustre'}
+                                                                </span>
+                                                                <span className="font-mono text-slate-700 font-bold">{pg.price.toFixed(2)}€</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400">

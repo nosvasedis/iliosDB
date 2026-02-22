@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
@@ -252,6 +253,14 @@ export default function ProductionSendModal({ order, products, materials, existi
             return true;
         });
     }, [rows, filterGender, filterCollection, products, searchTerm]);
+
+    const listParentRef = useRef<HTMLDivElement>(null);
+    const rowVirtualizer = useVirtualizer({
+        count: filteredRows.length,
+        getScrollElement: () => listParentRef.current,
+        estimateSize: () => 200,
+        overscan: 4
+    });
 
     const currentSendValue = useMemo(() => {
         return order.items.reduce((sum, item, idx) => {
@@ -565,24 +574,30 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
 
                         {/* LIST */}
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
-                            {filteredRows.map((row) => {
-                                const product = products.find(p => p.sku === row.sku);
-                                const originalIndex = row.originalIndex;
-                                const currentSend = toSendQuantities[originalIndex] || 0;
-                                const isFullySent = row.remainingQty === 0;
+                        <div ref={listParentRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-0">
+                            {filteredRows.length > 0 ? (
+                                <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
+                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                        const row = filteredRows[virtualRow.index];
+                                        const product = products.find(p => p.sku === row.sku);
+                                        const originalIndex = row.originalIndex;
+                                        const currentSend = toSendQuantities[originalIndex] || 0;
+                                        const isFullySent = row.remainingQty === 0;
 
-                                // Group batches by stage for layout
-                                const batchesByStage = groupBatchesByStage(row.batchDetails);
-                                // Sort stages based on defined order
-                                const sortedStages = Object.keys(batchesByStage).sort((a, b) => {
-                                    const idxA = STAGES.findIndex(s => s.id === a);
-                                    const idxB = STAGES.findIndex(s => s.id === b);
-                                    return idxA - idxB;
-                                });
+                                        const batchesByStage = groupBatchesByStage(row.batchDetails);
+                                        const sortedStages = Object.keys(batchesByStage).sort((a, b) => {
+                                            const idxA = STAGES.findIndex(s => s.id === a);
+                                            const idxB = STAGES.findIndex(s => s.id === b);
+                                            return idxA - idxB;
+                                        });
 
-                                return (
-                                    <div key={originalIndex} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
+                                        return (
+                                            <div
+                                                key={virtualRow.key}
+                                                className="absolute left-0 w-full pb-4"
+                                                style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                                            >
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
 
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex items-center justify-between gap-4 mb-4">
@@ -726,13 +741,17 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             })}
                                                         </div>
                                                     );
-                                                })}
+                                                }                                                )}
                                             </div>
                                         )}
                                     </div>
+                                    </div>
                                 );
-                            })}
-                            {filteredRows.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη.</div>}
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν είδη.</div>
+                            )}
                         </div>
                     </div>
 

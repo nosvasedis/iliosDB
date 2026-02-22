@@ -70,7 +70,7 @@ export default function SuppliersPage() {
     const { showToast, confirm } = useUI();
 
     // Data Fetching
-    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
+    const { data: suppliers, isError: suppliersError, error: suppliersErr, refetch: refetchSuppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: supplierOrders } = useQuery({ queryKey: ['supplier_orders'], queryFn: api.getSupplierOrders });
@@ -180,6 +180,19 @@ export default function SuppliersPage() {
             showToast("Παραλαβή ολοκληρώθηκε.", "success");
         } catch (e) { showToast("Σφάλμα παραλαβής.", "error"); }
     };
+
+    if (suppliersError) {
+        return (
+            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
+                <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
+                <p>Δεν ήταν δυνατή η φόρτωση των προμηθευτών.</p>
+                <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(suppliersErr as Error)?.message}</p>
+                <button onClick={() => refetchSuppliers()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
+                    Ανανέωση
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">

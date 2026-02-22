@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
 import { X, Clock, User, Activity, Search, RefreshCw, Layers } from 'lucide-react';
 import { AuditLog } from '../types';
@@ -9,12 +10,13 @@ interface Props {
 }
 
 export default function AuditLogsModal({ onClose }: Props) {
-    const { data: logs, isLoading, refetch, isRefetching } = useQuery({
+    const { data: logs, isLoading, isError, error, refetch, isRefetching } = useQuery({
         queryKey: ['auditLogs'],
         queryFn: api.getAuditLogs
     });
 
     const [searchTerm, setSearchTerm] = useState('');
+    const listParentRef = useRef<HTMLDivElement>(null);
 
     const filteredLogs = React.useMemo(() => {
         if (!logs) return [];
@@ -27,6 +29,13 @@ export default function AuditLogsModal({ onClose }: Props) {
             (log.details && JSON.stringify(log.details).toLowerCase().includes(lowerSearch))
         );
     }, [logs, searchTerm]);
+
+    const rowVirtualizer = useVirtualizer({
+        count: filteredLogs.length,
+        getScrollElement: () => listParentRef.current,
+        estimateSize: () => 88,
+        overscan: 5
+    });
 
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -70,6 +79,14 @@ export default function AuditLogsModal({ onClose }: Props) {
                             <RefreshCw size={32} className="animate-spin text-indigo-400" />
                             <p className="font-bold">Φόρτωση ιστορικού...</p>
                         </div>
+                    ) : isError ? (
+                        <div className="flex flex-col items-center justify-center h-full text-red-600 gap-3 p-6">
+                            <p className="font-bold">Σφάλμα φόρτωσης ιστορικού.</p>
+                            <p className="text-sm font-mono bg-red-50 p-2 rounded">{(error as Error)?.message}</p>
+                            <button onClick={() => refetch()} className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
+                                Ανανέωση
+                            </button>
+                        </div>
                     ) : filteredLogs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
                             <Layers size={48} className="text-slate-300" />
@@ -77,37 +94,47 @@ export default function AuditLogsModal({ onClose }: Props) {
                             {searchTerm && <p className="text-sm text-slate-500">Δοκιμάστε άλλον όρο αναζήτησης</p>}
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {filteredLogs.map(log => (
-                                <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md transition-shadow">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-bold text-slate-800 text-base">{log.action}</span>
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-500">
-                                            <span className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md text-slate-700">
-                                                <User size={14} /> {log.user_name}
-                                            </span>
-                                            <span className="flex items-center gap-1.5 text-slate-500">
-                                                <Clock size={14} /> {new Date(log.created_at).toLocaleString('el-GR')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {log.details && Object.keys(log.details).length > 0 && (
-                                        <div className="sm:w-1/3 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs overflow-x-auto">
-                                            <div className="font-mono text-slate-600 max-h-24 overflow-y-auto">
-                                                {Object.entries(log.details).map(([key, value]) => (
-                                                    <div key={key} className="flex gap-2 mb-1 last:mb-0">
-                                                        <span className="font-bold text-slate-500">{key}:</span>
-                                                        <span className="text-slate-800 break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                        <div ref={listParentRef} className="flex-1 overflow-y-auto min-h-0">
+                            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const log = filteredLogs[virtualRow.index];
+                                    return (
+                                        <div
+                                            key={log.id}
+                                            className="absolute top-0 left-0 w-full pr-2 pb-3"
+                                            style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                                        >
+                                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md transition-shadow h-full">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="font-bold text-slate-800 text-base">{log.action}</span>
                                                     </div>
-                                                ))}
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-500">
+                                                        <span className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md text-slate-700">
+                                                            <User size={14} /> {log.user_name}
+                                                        </span>
+                                                        <span className="flex items-center gap-1.5 text-slate-500">
+                                                            <Clock size={14} /> {new Date(log.created_at).toLocaleString('el-GR')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {log.details && Object.keys(log.details).length > 0 && (
+                                                    <div className="sm:w-1/3 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs overflow-x-auto">
+                                                        <div className="font-mono text-slate-600 max-h-24 overflow-y-auto">
+                                                            {Object.entries(log.details).map(([key, value]) => (
+                                                                <div key={key} className="flex gap-2 mb-1 last:mb-0">
+                                                                    <span className="font-bold text-slate-500">{key}:</span>
+                                                                    <span className="text-slate-800 break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
