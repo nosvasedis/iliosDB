@@ -375,6 +375,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         collection: 'all',     // 'all' | collectionId string
     });
 
+    const [sortBy, setSortBy] = useState<'sku' | 'created_at'>('sku');
+
     const [showFiltersSidebar, setShowFiltersSidebar] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -522,8 +524,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             return true;
         });
 
-        return filtered.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [baseProducts, searchTerm, filterCategory, filterGender, subFilters, materials]);
+        return filtered.sort((a, b) => {
+            if (sortBy === 'created_at') {
+                // Sort by creation date (newest first)
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            } else {
+                // Default: sort by SKU
+                return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
+            }
+        });
+    }, [baseProducts, searchTerm, filterCategory, filterGender, subFilters, materials, sortBy]);
 
     // Pagination state for table mode
     const [tablePage, setTablePage] = useState(0);
@@ -1297,6 +1307,28 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 </div>
                             )}
 
+                            {/* ── Ταξινόμηση ── */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><List size={14} /> Ταξινόμηση</label>
+                                <div className="flex gap-2">
+                                    {[
+                                        { label: 'Κωδικός', value: 'sku' },
+                                        { label: 'Ημερομηνία Δημιουργίας', value: 'created_at' },
+                                    ].map(f => (
+                                        <button
+                                            key={f.value}
+                                            onClick={() => setSortBy(f.value as 'sku' | 'created_at')}
+                                            className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${sortBy === f.value
+                                                ? 'bg-[#060b00] text-white border-black'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {f.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* ── Συλλογή ── */}
                             {!showStxOnly && collections && collections.length > 0 && (
                                 <div className="space-y-3">
@@ -1323,6 +1355,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                     setFilterGender('All');
                                     setFilterCategory('All');
                                     setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+                                    setSortBy('sku');
                                 }}
                                 className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
                             >

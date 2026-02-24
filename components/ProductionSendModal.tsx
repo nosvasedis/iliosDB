@@ -688,18 +688,35 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                         <div className="flex items-center gap-3">
                                                                             <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
 
-                                                                            {/* Stage Selector */}
-                                                                            <div className="relative group">
-                                                                                <select
-                                                                                    value={batch.current_stage}
-                                                                                    onChange={(e) => handleStageMove(batch, e.target.value as ProductionStage)}
-                                                                                    className={`appearance-none pl-2 pr-6 py-1 rounded font-bold uppercase outline-none cursor-pointer ${stageConf.color} border-transparent focus:ring-2 focus:ring-blue-200`}
-                                                                                >
-                                                                                    {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                                                                </select>
-                                                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-current opacity-60">
-                                                                                    <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                                                                                </div>
+                                                                            {/* Stage Selector - Horizontal Buttons */}
+                                                                            <div className="flex gap-1 items-center">
+                                                                                {STAGES.map((stage, index) => {
+                                                                                    const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
+                                                                                    const isCurrentStage = stage.id === batch.current_stage;
+                                                                                    const isCompletedStage = index < currentStageIndex;
+                                                                                    const isUpcomingStage = index > currentStageIndex;
+                                                                                    
+                                                                                    return (
+                                                                                        <div key={stage.id} className="relative">
+                                                                                            {isCompletedStage && (
+                                                                                                <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-slate-400 rounded-full"></div>
+                                                                                            )}
+                                                                                            <button
+                                                                                                onClick={() => handleStageMove(batch, stage.id as ProductionStage)}
+                                                                                                className={`relative px-2 py-1 rounded font-bold text-[10px] uppercase transition-all border ${
+                                                                                                    isCurrentStage
+                                                                                                        ? `${stage.color} border-current shadow-sm scale-105 z-10`
+                                                                                                        : isCompletedStage
+                                                                                                        ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                                                                                                        : 'bg-slate-50 text-slate-300 border-slate-200 hover:bg-slate-100'
+                                                                                                }`}
+                                                                                                title={stage.label}
+                                                                                            >
+                                                                                                {stage.label}
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
                                                                             </div>
 
                                                                             {/* Batch Note */}
