@@ -55,8 +55,8 @@ export default function PriceListPrintView({ data }: Props) {
                 column-fill: auto;
                 /* Thicker divider between the 3 main columns */
                 column-rule: 6px solid #000000;
-                /* Fixed printable height so columns fill top-to-bottom first */
-                height: 248mm;
+                /* Fill page height but allow flowing to next printed pages */
+                min-height: 248mm;
               }
             `}
             </style>
@@ -116,7 +116,7 @@ export default function PriceListPrintView({ data }: Props) {
                             </div>
 
                             {/* Consistent full-height separator */}
-                            <div className="w-0 self-stretch border-l border-black mx-1" aria-hidden="true" />
+                            <div className="w-0 self-stretch border-l border-black mx-1" style={{ borderLeftWidth: '0.75px' }} aria-hidden="true" />
 
                             {/* PRICE GROUPS */}
                             <div className="w-[60%] min-w-0 pl-1 text-right overflow-hidden">
