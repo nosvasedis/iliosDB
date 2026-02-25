@@ -56,6 +56,23 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 }) => {
     const printContainerRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const sanitizeFilename = (value: string) => value
+        .replace(/[\s\W]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const getSafeClientName = (name?: string) => {
+        if (!name) return '';
+        return sanitizeFilename(transliterateForBarcode(name).trim());
+    };
+
+    const getSingleOrderFromBatches = (batches: ProductionBatch[]) => {
+        const orderIds = [...new Set(batches.map(b => b.order_id).filter(Boolean))] as string[];
+        if (orderIds.length !== 1) return null;
+        const enriched = batches as Array<ProductionBatch & { customer_name?: string }>;
+        const customerName = enriched.find(b => b.customer_name)?.customer_name;
+        return { orderId: orderIds[0], customerName };
+    };
 
     useEffect(() => {
         const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint;
@@ -70,34 +87,55 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
                 let docTitle = 'Ilios_Print_Job';
                 const dateStr = new Date().toISOString().split('T')[0];
+                const previousWindowTitle = document.title;
+                let titleRestored = false;
+                const restoreWindowTitle = () => {
+                    if (!titleRestored) {
+                        document.title = previousWindowTitle;
+                        titleRestored = true;
+                    }
+                };
 
                 if (priceListPrintData) {
                     docTitle = priceListPrintData.title;
                 } else if (orderAnalyticsData) {
-                    docTitle = `Analytics_Order_${orderAnalyticsData.order.id.slice(0, 6)}`;
+                    const safeName = getSafeClientName(orderAnalyticsData.order.customer_name);
+                    docTitle = `Analytics_${safeName || 'Order'}_${orderAnalyticsData.order.id}`;
                 } else if (analyticsPrintData) {
                     docTitle = `Economics_${dateStr}`;
                 } else if (orderToPrint) {
-                    const safeName = transliterateForBarcode(orderToPrint.customer_name).replace(/[\s\W]+/g, '_');
-                    docTitle = `Order_${safeName}_${dateStr}_${orderToPrint.id.slice(0, 6)}`;
+                    const safeName = getSafeClientName(orderToPrint.customer_name);
+                    docTitle = `Order_${safeName || 'Client'}_${orderToPrint.id}`;
                 } else if (offerToPrint) {
-                    const safeName = transliterateForBarcode(offerToPrint.customer_name).replace(/[\s\W]+/g, '_');
-                    docTitle = `Offer_${safeName}_${dateStr}_${offerToPrint.id.slice(0, 6)}`;
+                    const safeName = getSafeClientName(offerToPrint.customer_name);
+                    docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
                 } else if (supplierOrderToPrint) {
                     docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
                 } else if (batchToPrint) {
                     docTitle = `Batch_${batchToPrint.sku}_${batchToPrint.id.slice(0, 6)}`;
                 } else if (aggregatedPrintData) {
                     if (aggregatedPrintData.orderId) {
-                        const safeName = aggregatedPrintData.customerName ? transliterateForBarcode(aggregatedPrintData.customerName).replace(/[\s\W]+/g, '_') : '';
-                        docTitle = `Production_${safeName}_${aggregatedPrintData.orderId.slice(0, 8)}`;
+                        const safeName = getSafeClientName(aggregatedPrintData.customerName);
+                        docTitle = `Production_${safeName || 'Order'}_${aggregatedPrintData.orderId}`;
                     } else {
                         docTitle = `Production_Summary_${dateStr}`;
                     }
                 } else if (preparationPrintData) {
-                    docTitle = `Preparation_Sheet_${dateStr}`;
+                    const singleOrder = getSingleOrderFromBatches(preparationPrintData.batches);
+                    if (singleOrder) {
+                        const safeName = getSafeClientName(singleOrder.customerName);
+                        docTitle = `Preparation_${safeName || 'Order'}_${singleOrder.orderId}`;
+                    } else {
+                        docTitle = `Preparation_Sheet_${dateStr}`;
+                    }
                 } else if (technicianPrintData) {
-                    docTitle = `Technician_Sheet_${dateStr}`;
+                    const singleOrder = getSingleOrderFromBatches(technicianPrintData.batches);
+                    if (singleOrder) {
+                        const safeName = getSafeClientName(singleOrder.customerName);
+                        docTitle = `Technician_${safeName || 'Order'}_${singleOrder.orderId}`;
+                    } else {
+                        docTitle = `Technician_Sheet_${dateStr}`;
+                    }
                 } else if (printItems.length > 0) {
                     const format = printItems[0].format || 'standard';
                     const totalQty = printItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -117,7 +155,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     }
                 }
 
-                docTitle = docTitle.replace(/[^a-zA-Z0-9\-_]/g, '_').replace(/_+/g, '_');
+                docTitle = sanitizeFilename(docTitle) || 'Ilios_Print_Job';
+                document.title = docTitle;
 
                 const cleanup = () => {
                     setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null);
@@ -125,6 +164,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     setTechnicianPrintData(null); setPriceListPrintData(null);
                     setAnalyticsPrintData(null); setOrderAnalyticsData(null);
                     setSupplierOrderToPrint(null);
+                    restoreWindowTitle();
                 };
 
                 iframeDoc.open();
@@ -179,7 +219,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     window.removeEventListener('focus', handleAfterPrint);
                 };
                 window.addEventListener('focus', handleAfterPrint, { once: true });
-                setTimeout(cleanup, 5000);
+                setTimeout(cleanup, 30000);
 
             }, 800);
 

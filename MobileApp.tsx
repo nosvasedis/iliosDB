@@ -30,7 +30,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder } from './types';
-import { calculateProductCost } from './utils/pricingEngine';
+import { calculateProductCost, transliterateForBarcode } from './utils/pricingEngine';
 
 interface MobileAppProps {
   isOnline?: boolean;
@@ -56,6 +56,21 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const sanitizeFilename = (value: string) => value
+    .replace(/[\s\W]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const getSafeClientName = (name?: string) => {
+    if (!name) return '';
+    return sanitizeFilename(transliterateForBarcode(name).trim());
+  };
+  const getSingleOrderFromBatches = (batches: ProductionBatch[]) => {
+    const orderIds = [...new Set(batches.map(b => b.order_id).filter(Boolean))] as string[];
+    if (orderIds.length !== 1) return null;
+    const enriched = batches as Array<ProductionBatch & { customer_name?: string }>;
+    const customerName = enriched.find(b => b.customer_name)?.customer_name;
+    return { orderId: orderIds[0], customerName };
+  };
 
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -140,19 +155,54 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         if (!iframeDoc) return;
 
         let docTitle = 'Ilios_Mobile_Print';
+        const dateStr = new Date().toISOString().split('T')[0];
+        const previousWindowTitle = document.title;
+        let titleRestored = false;
+        const restoreWindowTitle = () => {
+          if (!titleRestored) {
+            document.title = previousWindowTitle;
+            titleRestored = true;
+          }
+        };
+
         if (priceListPrintData) {
-          docTitle = priceListPrintData.title.replace(/[^a-zA-Z0-9\-_]/g, '_');
+          docTitle = priceListPrintData.title;
         } else if (orderToPrint) {
-          docTitle = `Order_${orderToPrint.id}`;
+          const safeName = getSafeClientName(orderToPrint.customer_name);
+          docTitle = `Order_${safeName || 'Client'}_${orderToPrint.id}`;
         } else if (offerToPrint) {
-          docTitle = `Offer_${offerToPrint.id}`;
+          const safeName = getSafeClientName(offerToPrint.customer_name);
+          docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
         } else if (supplierOrderToPrint) {
           docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
-          docTitle = `Production_Summary_${new Date().toISOString().split('T')[0]}`;
+          if (aggregatedPrintData.orderId) {
+            const safeName = getSafeClientName(aggregatedPrintData.customerName);
+            docTitle = `Production_${safeName || 'Order'}_${aggregatedPrintData.orderId}`;
+          } else {
+            docTitle = `Production_Summary_${dateStr}`;
+          }
+        } else if (preparationPrintData) {
+          const singleOrder = getSingleOrderFromBatches(preparationPrintData.batches);
+          if (singleOrder) {
+            const safeName = getSafeClientName(singleOrder.customerName);
+            docTitle = `Preparation_${safeName || 'Order'}_${singleOrder.orderId}`;
+          } else {
+            docTitle = `Preparation_Sheet_${dateStr}`;
+          }
+        } else if (technicianPrintData) {
+          const singleOrder = getSingleOrderFromBatches(technicianPrintData.batches);
+          if (singleOrder) {
+            const safeName = getSafeClientName(singleOrder.customerName);
+            docTitle = `Technician_${safeName || 'Order'}_${singleOrder.orderId}`;
+          } else {
+            docTitle = `Technician_Sheet_${dateStr}`;
+          }
         } else if (printItems.length > 0) {
-          docTitle = `Labels_Batch_${new Date().toISOString().split('T')[0]}`;
+          docTitle = `Labels_Batch_${dateStr}`;
         }
+        docTitle = sanitizeFilename(docTitle) || 'Ilios_Mobile_Print';
+        document.title = docTitle;
 
         iframeDoc.open();
         let styles = '';
@@ -210,11 +260,12 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
           setTechnicianPrintData(null);
           setSupplierOrderToPrint(null);
           setPrintItems([]);
+          restoreWindowTitle();
           window.removeEventListener('focus', handleAfterPrint);
         };
         window.addEventListener('focus', handleAfterPrint, { once: true });
         // Fallback cleanup
-        setTimeout(handleAfterPrint, 5000);
+        setTimeout(handleAfterPrint, 30000);
 
       }, 500);
 
