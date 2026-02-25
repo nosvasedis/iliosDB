@@ -11,19 +11,23 @@ import {
     Loader2,
     Hammer,
     Tag,
-    Package
+    Package,
+    Layers
 } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatOrderId } from '../../utils/orderUtils';
 
 const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionBatch, target: ProductionStage) => void, isLoading: boolean }> = ({ batch, onMove, isLoading }) => {
     // Determine possible actions based on current stage
-    let nextAction = null;
+    let nextAction: ProductionStage | null = null;
     let buttonLabel = '';
 
-    // Store clerks only care about Labeling -> Ready workflow usually
-    // Or potentially receiving from Polishing if they do the packaging
-    if (batch.current_stage === ProductionStage.Polishing) {
+    // Store clerks handle: Assembly -> Labeling, Labeling -> Ready
+    // Also handle Polishing -> Labeling for non-assembly items
+    if (batch.current_stage === ProductionStage.Assembly) {
+        nextAction = ProductionStage.Labeling;
+        buttonLabel = 'Ολοκλήρωση Συναρμολόγησης';
+    } else if (batch.current_stage === ProductionStage.Polishing) {
         nextAction = ProductionStage.Labeling;
         buttonLabel = 'Παραλαβή για Συσκευασία';
     } else if (batch.current_stage === ProductionStage.Labeling) {
@@ -90,8 +94,10 @@ export default function EmployeeProduction() {
 
     // Filter batches relevant to the store clerk
     // 1. Coming from Polishing (Arriving at store/packaging)
-    // 2. Currently in Labeling (Being packaged)
+    // 2. Currently in Assembly (Being assembled by in-house lady)
+    // 3. Currently in Labeling (Being packaged)
     const arrivingBatches = batches?.filter(b => b.current_stage === ProductionStage.Polishing) || [];
+    const assemblyBatches = batches?.filter(b => b.current_stage === ProductionStage.Assembly) || [];
     const packagingBatches = batches?.filter(b => b.current_stage === ProductionStage.Labeling) || [];
     const readyBatches = batches?.filter(b => b.current_stage === ProductionStage.Ready) || [];
 
@@ -101,7 +107,7 @@ export default function EmployeeProduction() {
                 <Factory className="text-emerald-600" /> Ροή Παραγωγής Καταστήματος
             </h1>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
                 {/* COLUMN 1: ARRIVING (From Technician) */}
                 <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
@@ -122,7 +128,26 @@ export default function EmployeeProduction() {
                     </div>
                 </div>
 
-                {/* COLUMN 2: IN PACKAGING (Labeling) */}
+                {/* COLUMN 2: ASSEMBLY (Συναρμολόγηση) */}
+                <div className="bg-pink-50/50 rounded-2xl p-4 border border-pink-100">
+                    <h3 className="font-bold text-pink-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
+                        <Layers size={16} /> Συναρμολόγηση
+                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-pink-600">{assemblyBatches.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                        {assemblyBatches.map(b => (
+                            <ClerkBatchCard
+                                key={b.id}
+                                batch={b}
+                                onMove={handleMoveStage}
+                                isLoading={processingId === b.id}
+                            />
+                        ))}
+                        {assemblyBatches.length === 0 && <div className="text-center py-10 text-pink-300 text-sm italic">Κανένα προϊόν προς συναρμολόγηση.</div>}
+                    </div>
+                </div>
+
+                {/* COLUMN 3: IN PACKAGING (Labeling) */}
                 <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-100">
                     <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <Tag size={16} /> Συσκευασια & Barcode
@@ -141,7 +166,7 @@ export default function EmployeeProduction() {
                     </div>
                 </div>
 
-                {/* COLUMN 3: READY */}
+                {/* COLUMN 4: READY */}
                 <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 opacity-80 hover:opacity-100 transition-opacity">
                     <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <CheckCircle size={16} /> Ετοιμα για Παραδοση

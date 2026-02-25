@@ -200,3 +200,53 @@ export const SKU_RULES = {
     BR: 'Βραχιόλι'
   }
 };
+
+// SKUs that require assembly stage after technician (Τελική Συναρμολόγηση)
+export const ASSEMBLY_SKU_PATTERNS = {
+  // XR ranges
+  XR_RANGES: [
+    { min: 1100, max: 1199 },
+    { min: 1200, max: 1299 },
+    { min: 600, max: 630 },
+    { min: 1, max: 100 },
+    { min: 201, max: 480 },
+  ],
+  // All RZ (any SKU starting with RZ)
+  RZ_PREFIX: 'RZ',
+  // KL ranges
+  KL_RANGES: [
+    { min: 201, max: 260 },
+    { min: 262, max: 262 },  // Single item
+    { min: 264, max: 322 },
+  ],
+};
+
+/**
+ * Check if a SKU requires the Assembly stage (Τελική Συναρμολόγηση)
+ * Products in these ranges need to go through assembly after the external technician
+ */
+export function requiresAssemblyStage(sku: string): boolean {
+  if (!sku || sku.length < 2) return false;
+  
+  const prefix = sku.substring(0, 2).toUpperCase();
+  const numPart = parseInt(sku.substring(2).split('-')[0]) || 0;
+  
+  // Check RZ prefix (all RZ products require assembly)
+  if (prefix === 'RZ') return true;
+  
+  // Check XR ranges
+  if (prefix === 'XR') {
+    for (const range of ASSEMBLY_SKU_PATTERNS.XR_RANGES) {
+      if (numPart >= range.min && numPart <= range.max) return true;
+    }
+  }
+  
+  // Check KL ranges
+  if (prefix === 'KL') {
+    for (const range of ASSEMBLY_SKU_PATTERNS.KL_RANGES) {
+      if (numPart >= range.min && numPart <= range.max) return true;
+    }
+  }
+  
+  return false;
+}

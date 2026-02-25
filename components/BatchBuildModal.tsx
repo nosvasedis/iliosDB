@@ -16,10 +16,11 @@ interface Props {
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
     { id: ProductionStage.Casting, label: 'Χυτήριο' },
     { id: ProductionStage.Setting, label: 'Καρφωτής' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
     { id: ProductionStage.Labeling, label: 'Συσκευασία' },
     { id: ProductionStage.Ready, label: 'Έτοιμα' }
 ];

@@ -15,6 +15,7 @@ interface Props {
     // Action Handlers
     onPrint: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
+    onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage) => void;
     onEditNote: (batch: ProductionBatch) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
@@ -23,10 +24,11 @@ interface Props {
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', color: 'slate' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'slate' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'purple' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'blue' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'pink' },
     { id: ProductionStage.Labeling, label: 'Καρτελάκια - Πακετάρισμα', color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
 ];
@@ -44,13 +46,14 @@ const STAGE_COLORS: Record<string, string> = {
     orange: 'bg-orange-50 border-orange-100 text-orange-700 shadow-sm',
     purple: 'bg-purple-50 border-purple-100 text-purple-700 shadow-sm',
     blue: 'bg-blue-50 border-blue-100 text-blue-700 shadow-sm',
+    pink: 'bg-pink-50 border-pink-100 text-pink-700 shadow-sm',
     yellow: 'bg-yellow-50 border-yellow-100 text-yellow-700 shadow-sm',
     emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700 shadow-sm',
 };
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches, collections,
-    onPrint, onNextStage, onEditNote, onToggleHold, onDelete, onClick
+    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick
 }: Props) {
 
     // 1. Filter Batches based on type
@@ -171,6 +174,7 @@ export default function ProductionOverviewModal({
                                                                     batch={batch}
                                                                     onPrint={onPrint}
                                                                     onNextStage={onNextStage}
+                                                                    onMoveToStage={onMoveToStage}
                                                                     onEditNote={() => onEditNote(batch)}
                                                                     onToggleHold={() => onToggleHold(batch)}
                                                                     onDelete={() => onDelete(batch)}

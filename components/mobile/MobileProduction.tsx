@@ -8,6 +8,7 @@ import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 import { formatOrderId } from '../../utils/orderUtils';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
+import { requiresAssemblyStage } from '../../constants';
 
 interface Props {
     allProducts: Product[];
@@ -19,10 +20,11 @@ interface Props {
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', color: 'slate' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'slate' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'purple' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'blue' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'pink' },
     { id: ProductionStage.Labeling, label: 'Συσκευασία & Πακετάρισμα', color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
 ];
@@ -33,6 +35,7 @@ const STAGE_COLORS: Record<string, string> = {
     orange: 'bg-orange-50 text-orange-700 border-orange-200',
     purple: 'bg-purple-50 text-purple-700 border-purple-200',
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    pink: 'bg-pink-50 text-pink-700 border-pink-200',
     yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
@@ -42,6 +45,7 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Casting]: 96,    // 4 Days
     [ProductionStage.Setting]: 144,   // 6 Days
     [ProductionStage.Polishing]: 120, // 5 Days
+    [ProductionStage.Assembly]: 72,   // 3 Days
     [ProductionStage.Labeling]: 72    // 3 Days
 };
 
@@ -107,10 +111,37 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
     );
 };
 
-const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string }, onNext: (b: ProductionBatch) => void, onToggleHold: (b: ProductionBatch) => void, onClick: (b: ProductionBatch) => void }> = ({ batch, onNext, onToggleHold, onClick }) => {
+const MobileBatchCard: React.FC<{ 
+    batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string }, 
+    onNext: (b: ProductionBatch) => void, 
+    onMoveToStage?: (b: ProductionBatch, stage: ProductionStage) => void,
+    onToggleHold: (b: ProductionBatch) => void, 
+    onClick: (b: ProductionBatch) => void 
+}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
     const timeInfo = getTimeInStage(batch.updated_at);
+    const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
+    
+    // Get current stage index
+    const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
+    
+    // Determine which stages should be disabled (skipped)
+    const isStageDisabled = (stageId: ProductionStage): boolean => {
+        if (stageId === ProductionStage.Setting && !batch.requires_setting) return true;
+        if (stageId === ProductionStage.Assembly && !batch.requires_assembly) return true;
+        return false;
+    };
+    
+    // Handle stage selection
+    const handleStageSelect = (targetStage: ProductionStage) => {
+        if (isStageDisabled(targetStage)) return;
+        if (targetStage === batch.current_stage) return;
+        setStageSelectorOpen(false);
+        if (onMoveToStage) {
+            onMoveToStage(batch, targetStage);
+        }
+    };
 
     return (
         <div
@@ -170,12 +201,57 @@ const MobileBatchCard: React.FC<{ batch: ProductionBatch & { isDelayed?: boolean
                         {batch.on_hold ? <PlayCircle size={18} className="fill-current" /> : <PauseCircle size={18} />}
                     </button>
                     {!isReady && !batch.on_hold && (
-                        <button
-                            onClick={() => onNext(batch)}
-                            className="bg-emerald-600 active:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
-                        >
-                            Επόμενο <MoveRight size={14} />
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    if (onMoveToStage) {
+                                        setStageSelectorOpen(!stageSelectorOpen);
+                                    } else {
+                                        onNext(batch);
+                                    }
+                                }}
+                                className="bg-slate-600 active:bg-slate-700 text-white px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                            >
+                                <MoveRight size={14} /> Μετακίνηση {stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                            
+                            {/* Expanding stage selector */}
+                            {stageSelectorOpen && onMoveToStage && (
+                                <div className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 min-w-[130px]">
+                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Στάδια</div>
+                                    <div className="space-y-1 max-h-[280px] overflow-y-auto">
+                                        {STAGES.map((stage, index) => {
+                                            const isCurrent = stage.id === batch.current_stage;
+                                            const isDisabled = isStageDisabled(stage.id);
+                                            const isPast = index < currentStageIndex;
+                                            const stageColors = STAGE_COLORS[stage.color];
+                                            
+                                            return (
+                                                <button
+                                                    key={stage.id}
+                                                    onClick={() => handleStageSelect(stage.id)}
+                                                    disabled={isDisabled}
+                                                    className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
+                                                        ${isCurrent 
+                                                            ? `${stageColors} ring-2 ring-offset-1 ring-current/30` 
+                                                            : isDisabled
+                                                            ? 'bg-slate-50 text-slate-300 cursor-not-allowed line-through'
+                                                            : isPast
+                                                            ? 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                            : `${stageColors} hover:shadow-md`
+                                                        }
+                                                    `}
+                                                >
+                                                    <span className="truncate">{stage.label}</span>
+                                                    {isCurrent && <span className="text-[8px]">●</span>}
+                                                    {isDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -557,9 +633,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const threshold = STAGE_LIMITS_HOURS[b.current_stage] || Infinity;
             const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
 
+            // Check if assembly stage is required based on SKU
+            const requires_assembly = requiresAssemblyStage(b.sku);
+
             return {
                 ...b,
                 requires_setting: hasZircons,
+                requires_assembly,
                 product_details: prod,
                 customer_name: order?.customer_name || '',
                 isDelayed
@@ -590,7 +670,10 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         }
 
         let nextIndex = currentIndex + 1;
+        // Skip Setting if not required
         if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) nextIndex++;
+        // Skip Assembly if not required
+        if (STAGES[nextIndex].id === ProductionStage.Assembly && !batch.requires_assembly) nextIndex++;
         return STAGES[nextIndex].id as ProductionStage;
     };
 
@@ -897,7 +980,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             </div>
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
-                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
+                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
                                     {stageBatches.length === 0 && <div className="text-center py-6 text-slate-400 text-xs italic">Κανένα προϊόν σε αυτό το στάδιο.</div>}
                                 </div>
                             )}

@@ -13,6 +13,7 @@ import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
 import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
+import { requiresAssemblyStage } from '../constants';
 
 interface Props {
     products: Product[];
@@ -27,10 +28,11 @@ interface Props {
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', icon: <Globe size={20} />, color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα / Κεριά', icon: <Package size={20} />, color: 'slate' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή', icon: <Package size={20} />, color: 'slate' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', icon: <Flame size={20} />, color: 'orange' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', icon: <Gem size={20} />, color: 'purple' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', icon: <Hammer size={20} />, color: 'blue' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', icon: <Layers size={20} />, color: 'pink' },
     { id: ProductionStage.Labeling, label: 'Καρτελάκια - Πακετάρισμα', icon: <Tag size={20} />, color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', icon: <CheckCircle size={20} />, color: 'emerald' }
 ];
@@ -40,6 +42,7 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Casting]: 96,    // 4 Days
     [ProductionStage.Setting]: 144,   // 6 Days
     [ProductionStage.Polishing]: 120, // 5 Days
+    [ProductionStage.Assembly]: 72,   // 3 Days
     [ProductionStage.Labeling]: 72    // 3 Days
 };
 
@@ -49,6 +52,7 @@ const STAGE_COLORS = {
     orange: { bg: 'bg-orange-100/40', text: 'text-orange-700', border: 'border-orange-200', ring: 'ring-orange-100', header: 'bg-orange-100/50' },
     purple: { bg: 'bg-purple-100/40', text: 'text-purple-700', border: 'border-purple-200', ring: 'ring-purple-100', header: 'bg-purple-100/50' },
     blue: { bg: 'bg-blue-100/40', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-100', header: 'bg-blue-100/50' },
+    pink: { bg: 'bg-pink-100/40', text: 'text-pink-700', border: 'border-pink-200', ring: 'ring-pink-100', header: 'bg-pink-100/50' },
     yellow: { bg: 'bg-yellow-100/40', text: 'text-yellow-700', border: 'border-yellow-200', ring: 'ring-yellow-100', header: 'bg-yellow-100/50' },
     emerald: { bg: 'bg-emerald-100/40', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-100', header: 'bg-emerald-100/50' },
 };
@@ -781,11 +785,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                 }) || false;
 
+            // Check if assembly stage is required based on SKU
+            const requires_assembly = requiresAssemblyStage(b.sku);
+
             // Inject Customer Name
             const order = orders?.find(o => o.id === b.order_id);
             const customerName = order?.customer_name || '';
 
-            return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, customer_name: customerName };
+            return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, requires_assembly, customer_name: customerName };
         }) || [];
         return results as EnhancedProductionBatch[];
     }, [batches, products, materials, orders]);
@@ -1105,6 +1112,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
         // Skip Setting if not required (Strict Rule: Only Zircon suffixes go to Setter)
         if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) {
+            nextIndex++;
+        }
+
+        // Skip Assembly if not required (only specific SKUs need assembly)
+        if (STAGES[nextIndex].id === ProductionStage.Assembly && !batch.requires_assembly) {
             nextIndex++;
         }
 
@@ -1509,7 +1521,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                                 batch={batch}
                                                                 onDragStart={handleDragStart}
                                                                 onPrint={onPrintBatch}
-                                                                onNextStage={handleQuickNext}
+                                                                onMoveToStage={(b, stage) => attemptMove(b, stage)}
                                                                 onEditNote={() => setEditingNoteBatch(batch)}
                                                                 onToggleHold={() => handleToggleHold(batch)}
                                                                 onDelete={() => handleDeleteBatch(batch)}
@@ -1627,7 +1639,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     batches={enhancedBatches}
                     collections={collections || []}
                     onPrint={onPrintBatch}
-                    onNextStage={handleQuickNext}
+                    onMoveToStage={(b, stage) => attemptMove(b, stage)}
                     onEditNote={(b: ProductionBatch) => setEditingNoteBatch(b)}
                     onToggleHold={(b: ProductionBatch) => handleToggleHold(b)}
                     onDelete={(b: ProductionBatch) => handleDeleteBatch(b)}

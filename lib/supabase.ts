@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog } from '../types';
-import { INITIAL_SETTINGS, MOCK_MATERIALS } from '../constants';
+import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { offlineDb } from './offlineDb';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -85,7 +85,7 @@ const sanitizeProductData = (data: any) => {
 const sanitizeBatchData = (data: any) => {
     const validColumns = [
         'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
-        'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting',
+        'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting', 'requires_assembly',
         'size_info', 'on_hold', 'on_hold_reason'
     ];
     const sanitized: any = {};
@@ -980,6 +980,9 @@ export const api = {
                 });
 
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+            
+            // Check if assembly stage is required based on SKU
+            const requires_assembly = requiresAssemblyStage(item.sku);
 
             batches.push({
                 id: crypto.randomUUID(),
@@ -993,6 +996,7 @@ export const api = {
                 priority: 'Normal',
                 type: 'Νέα',
                 requires_setting: hasZircons,
+                requires_assembly,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             });

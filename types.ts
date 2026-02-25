@@ -257,6 +257,7 @@ export enum ProductionStage {
   Casting = 'Casting',
   Setting = 'Setting',
   Polishing = 'Polishing',
+  Assembly = 'Assembly',
   Labeling = 'Labeling',
   Ready = 'Ready'
 }
@@ -277,6 +278,7 @@ export interface ProductionBatch {
   notes?: string;
 
   requires_setting: boolean;
+  requires_assembly?: boolean; // NEW: computed from SKU - determines if Assembly stage is needed
   size_info?: string; // Added size info for production tracking
 
   product_image?: string | null;

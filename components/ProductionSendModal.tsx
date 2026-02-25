@@ -21,10 +21,11 @@ interface Props {
 
 const STAGES = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'bg-indigo-100/60 border-indigo-200 text-indigo-800' },
-    { id: ProductionStage.Waxing, label: 'Λάστιχα/Κεριά', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'bg-slate-100 border-slate-200 text-slate-800' },
     { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'bg-orange-100/60 border-orange-200 text-orange-800' },
     { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'bg-purple-100/60 border-purple-200 text-purple-800' },
     { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'bg-blue-100/60 border-blue-200 text-blue-800' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'bg-pink-100/60 border-pink-200 text-pink-800' },
     { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'bg-yellow-100/60 border-yellow-200 text-yellow-800' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-100/60 border-emerald-200 text-emerald-800' }
 ];
@@ -94,6 +95,7 @@ const VIBRANT_STAGES: Record<string, string> = {
     [ProductionStage.Casting]: 'bg-orange-500',
     [ProductionStage.Setting]: 'bg-purple-500',
     [ProductionStage.Polishing]: 'bg-blue-500',
+    [ProductionStage.Assembly]: 'bg-pink-500',
     [ProductionStage.Labeling]: 'bg-yellow-500',
     [ProductionStage.Ready]: 'bg-emerald-500'
 };
@@ -258,15 +260,27 @@ export default function ProductionSendModal({ order, products, materials, existi
     const rowVirtualizer = useVirtualizer({
         count: filteredRows.length,
         getScrollElement: () => listParentRef.current,
-        getItemKey: (index) => filteredRows[index]?.originalIndex ?? index,
-        estimateSize: () => 280,
-        measureElement: (element) => element?.getBoundingClientRect().height ?? 0,
-        overscan: 4
+        getItemKey: (index) => `${filteredRows[index]?.sku}-${filteredRows[index]?.variant_suffix || ''}-${filteredRows[index]?.size_info || ''}-${filteredRows[index]?.originalIndex}`,
+        estimateSize: () => 180,
+        measureElement: (element) => {
+            if (!element) return 0;
+            const rect = element.getBoundingClientRect();
+            // Add small buffer to prevent overlap issues
+            return Math.max(rect.height, 150);
+        },
+        overscan: 5,
+        scrollPaddingStart: 20,
+        scrollPaddingEnd: 20,
+        initialRect: { width: 0, height: 0 }
     });
 
+    // Stabilize measurements after data changes - use requestAnimationFrame for smoother updates
     useEffect(() => {
-        rowVirtualizer.measure();
-    }, [filteredRows, rowVirtualizer]);
+        const rafId = requestAnimationFrame(() => {
+            rowVirtualizer.measure();
+        });
+        return () => cancelAnimationFrame(rafId);
+    }, [filteredRows.length]);
 
     const currentSendValue = useMemo(() => {
         return order.items.reduce((sum, item, idx) => {
@@ -602,13 +616,13 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                         return (
                                             <div
-                                                key={virtualRow.key}
+                                                key={`row-${virtualRow.key}`}
                                                 ref={rowVirtualizer.measureElement}
                                                 data-index={virtualRow.index}
                                                 className="absolute left-0 top-0 w-full"
                                                 style={{ transform: `translateY(${virtualRow.start}px)` }}
                                             >
-                                    <div className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm mb-4">
+                                    <div key={`content-${row.sku}-${row.variant_suffix || ''}-${row.size_info || ''}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm mb-4">
 
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex items-center justify-between gap-4 mb-4">
