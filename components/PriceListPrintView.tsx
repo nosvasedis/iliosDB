@@ -54,7 +54,7 @@ export default function PriceListPrintView({ data }: Props) {
                 column-gap: 18px;
                 column-fill: auto;
                 /* Thicker divider between the 3 main columns */
-                column-rule: 6px solid #000000;
+                column-rule: 4px solid #000000;
                 /* Fill page height but allow flowing to next printed pages */
                 min-height: 248mm;
               }
