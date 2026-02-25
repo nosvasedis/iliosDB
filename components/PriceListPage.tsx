@@ -53,6 +53,9 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
     
+    // New: Category filtering within selected collections
+    const [selectedCategoriesInCollections, setSelectedCategoriesInCollections] = useState<string[]>([]);
+    
     // New Toggle State
     const [excludeCollections, setExcludeCollections] = useState(false);
     
@@ -76,6 +79,30 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             setSelectedCategories(allCategories);
         }
     }, [allCategories]);
+
+    // Initialize collection categories when collections are selected
+    React.useEffect(() => {
+        if (selectedCollectionIds.length > 0) {
+            // Get all unique categories from selected collections
+            const catsInCollections = new Set<string>();
+            products.forEach(p => {
+                if (p.collections?.some(id => selectedCollectionIds.includes(id))) {
+                    catsInCollections.add(p.category);
+                }
+            });
+            
+            // Initialize or update selected categories in collections
+            setSelectedCategoriesInCollections(prev => {
+                const catsArray = Array.from(catsInCollections);
+                // If prev is empty or has changed, reset to all
+                if (prev.length === 0 || !catsArray.every(c => prev.includes(c))) {
+                    return catsArray;
+                }
+                // Otherwise keep previous selection but filter out non-existent ones
+                return prev.filter(c => catsArray.includes(c));
+            });
+        }
+    }, [selectedCollectionIds, products]);
 
     const toggleGender = (g: string) => {
         setSelectedGenders(prev => 
@@ -101,6 +128,30 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         setSelectedCollectionIds(prev => 
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
         );
+    };
+
+    const toggleCategoryInCollection = (category: string) => {
+        setSelectedCategoriesInCollections(prev => 
+            prev.includes(category) ? prev.filter(x => x !== category) : [...prev, category]
+        );
+    };
+
+    const toggleAllCategoriesInCollections = () => {
+        if (selectedCollectionIds.length === 0) return;
+        
+        const catsInCollections = new Set<string>();
+        products.forEach(p => {
+            if (p.collections?.some(id => selectedCollectionIds.includes(id))) {
+                catsInCollections.add(p.category);
+            }
+        });
+        
+        const catsArray = Array.from(catsInCollections);
+        if (selectedCategoriesInCollections.length === catsArray.length) {
+            setSelectedCategoriesInCollections([]);
+        } else {
+            setSelectedCategoriesInCollections(catsArray);
+        }
     };
 
     const handleAddManualSku = () => {
@@ -264,6 +315,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         if (multiCollectionMode) {
                             tag = collectionInitialsMap.get(matchedCollectionId);
                         }
+                        
+                        // NEW: Also check if product's category is selected in collection filters
+                        if (selectedCategoriesInCollections.length > 0 && !selectedCategoriesInCollections.includes(p.category)) {
+                            shouldInclude = false;
+                        }
                     }
                 } else {
                     // Fallback to standard filters if no collection is selected
@@ -335,7 +391,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections, selectedCategoriesInCollections]);
 
     const listParentRef = useRef<HTMLDivElement>(null);
     const rowCount = Math.ceil(filteredItems.length / 3) || 0;
@@ -359,6 +415,25 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 .filter(c => selectedCollectionIds.includes(c.id))
                 .map(c => c.name)
                 .join(', ');
+            
+            // Add category info if not all categories are selected
+            if (selectedCategoriesInCollections.length > 0) {
+                const catsInCollections = new Set<string>();
+                products.forEach(p => {
+                    if (p.collections?.some(id => selectedCollectionIds.includes(id))) {
+                        catsInCollections.add(p.category);
+                    }
+                });
+                
+                if (selectedCategoriesInCollections.length < catsInCollections.size) {
+                    const formattedCats = selectedCategoriesInCollections.map(c => pluralizeCategory(c));
+                    if (formattedCats.length <= 3) {
+                        title += ` - ${formattedCats.join(' & ')}`;
+                    } else {
+                        title += ` - ${formattedCats.slice(0, 2).join(', ')} & ${formattedCats.length - 2} ακόμα`;
+                    }
+                }
+            }
             
             // Explicitly undefined so the View does not render the secondary subtitle line
             collectionNames = undefined; 
@@ -461,7 +536,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             <div className={`space-y-8 transition-opacity duration-300 ${selectedCollectionIds.length > 0 ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
                                 {selectedCollectionIds.length > 0 && (
                                     <div className="bg-pink-50 text-pink-700 text-xs font-bold p-3 rounded-xl border border-pink-100 text-center">
-                                        Έχετε επιλέξει συλλογές. Τα φίλτρα κατηγοριών αγνοούνται.
+                                        Έχετε επιλέξει συλλογές. Χρησιμοποιήστε την καρτέλα "Συλλογές" για φίλτρα.
                                     </div>
                                 )}
                                 
@@ -556,17 +631,76 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                         <div className="text-xs text-slate-400 italic text-center py-10">Δεν υπάρχουν συλλογές.</div>
                                     )}
                                 </div>
+                                
+                                {/* Category Filter within Selected Collections */}
+                                {selectedCollectionIds.length > 0 && (
+                                    <div className="mt-6 pt-6 border-t border-slate-200">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <ListFilter size={14} className="text-pink-500"/>
+                                                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                                                    Φίλτρα Κατηγοριών ({selectedCategoriesInCollections.length})
+                                                </span>
+                                            </div>
+                                            <button 
+                                                onClick={toggleAllCategoriesInCollections}
+                                                className="text-[9px] font-bold bg-pink-100 hover:bg-pink-200 text-pink-700 px-3 py-1.5 rounded-lg transition-colors"
+                                            >
+                                                {selectedCategoriesInCollections.length === Array.from(new Set(products.filter(p => p.collections?.some(id => selectedCollectionIds.includes(id))).map(p => p.category))).length 
+                                                    ? 'Αποεπιλογή Όλων' 
+                                                    : 'Επιλογή Όλων'}
+                                            </button>
+                                        </div>
+                                        <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {(() => {
+                                                const catsInCollections = new Set<string>();
+                                                products.forEach(p => {
+                                                    if (p.collections?.some(id => selectedCollectionIds.includes(id))) {
+                                                        catsInCollections.add(p.category);
+                                                    }
+                                                });
+                                                
+                                                return Array.from(catsInCollections).sort().map(cat => (
+                                                    <button
+                                                        key={cat}
+                                                        onClick={() => toggleCategoryInCollection(cat)}
+                                                        className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 border ${
+                                                            selectedCategoriesInCollections.includes(cat) 
+                                                                ? 'bg-pink-50 border-pink-200 text-pink-700' 
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded flex items-center justify-center transition-all shrink-0 ${
+                                                            selectedCategoriesInCollections.includes(cat) 
+                                                                ? 'bg-pink-500 text-white' 
+                                                                : 'border-2 border-slate-300 bg-white'
+                                                        }`}>
+                                                            {selectedCategoriesInCollections.includes(cat) && <Check size={12} strokeWidth={3} />}
+                                                        </div>
+                                                        <span className="flex-1">{pluralizeCategory(cat)}</span>
+                                                    </button>
+                                                ));
+                                            })()}
+                                        </div>
+                                        {selectedCategoriesInCollections.length === 0 && (
+                                            <p className="text-[9px] text-pink-600 mt-2 px-1 italic">
+                                                Καμία κατηγορία δεν είναι επιλεγμένη. Επιλέξτε τουλάχιστον μία για εμφάνιση προϊόντων.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {/* TAB 3: MANUAL */}
                         {activeTab === 'manual' && (
                             <div className="space-y-6">
-                                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                                {/* Quick Add Section */}
+                                <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-200">
                                     <h3 className="font-bold text-amber-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
-                                        <Zap size={14}/> Χειροκίνητη Προσθήκη
+                                        <Zap size={14}/> Γρήγορη Προσθήκη
                                     </h3>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 mb-2">
                                         <input 
                                             type="text" 
                                             value={manualInput} 
@@ -579,16 +713,17 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             <Plus size={20}/>
                                         </button>
                                     </div>
-                                    <p className="text-[10px] text-amber-600/70 mt-2">
-                                        Οι κωδικοί που προσθέτετε εδώ θα εμφανίζονται πάντα, ανεξάρτητα από τα φίλτρα.
+                                    <p className="text-[9px] text-amber-700/80">
+                                        Πληκτρολογήστε ένα SKU ή εύρος και πατήστε Enter για προσθήκη.
                                     </p>
                                 </div>
 
-                                <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                                {/* Quick Remove Section */}
+                                <div className="bg-gradient-to-br from-red-50 to-rose-50 p-4 rounded-2xl border border-red-200">
                                     <h3 className="font-bold text-red-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
-                                        <Minus size={14}/> Χειροκίνητη Αφαίρεση
+                                        <Minus size={14}/> Αφαίρεση
                                     </h3>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 mb-2">
                                         <input 
                                             type="text" 
                                             value={excludeInput} 
@@ -601,46 +736,83 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             <Minus size={20}/>
                                         </button>
                                     </div>
-                                    <p className="text-[10px] text-red-600/70 mt-2">
-                                        Οι κωδικοί αυτοί θα αφαιρούνται πάντα από τη λίστα εκτύπωσης.
+                                    <p className="text-[9px] text-red-700/80">
+                                        Αφαιρέστε συγκεκριμένα SKUs από τη λίστα εκτύπωσης.
                                     </p>
                                 </div>
 
+                                {/* Current Selections Summary */}
                                 {(manualSkus.length > 0 || excludedSkus.size > 0) && (
-                                    <div className="space-y-4">
-                                        {manualSkus.length > 0 && (
-                                            <div>
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs font-bold text-blue-600 uppercase">Προστέθηκαν ({manualSkus.length})</span>
-                                                    <button onClick={() => setManualSkus([])} className="text-[10px] text-slate-400 hover:text-red-500"><Trash2 size={12}/></button>
-                                                </div>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {manualSkus.map(sku => (
-                                                        <span key={sku} className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
-                                                            {sku}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                                                Διαχείριση Επιλογών
+                                            </span>
+                                            <div className="flex gap-2">
+                                                {manualSkus.length > 0 && (
+                                                    <button 
+                                                        onClick={() => setManualSkus([])}
+                                                        className="text-[9px] text-blue-600 font-bold hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                                    >
+                                                        Καθαρισμός Προσθηκών
+                                                    </button>
+                                                )}
+                                                {excludedSkus.size > 0 && (
+                                                    <button 
+                                                        onClick={() => setExcludedSkus(new Set())}
+                                                        className="text-[9px] text-red-600 font-bold hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                                                    >
+                                                        Καθαρισμός Εξαιρέσεων
+                                                    </button>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
                                         
-                                        {excludedSkus.size > 0 && (
-                                            <div>
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs font-bold text-red-600 uppercase">Αφαιρέθηκαν ({excludedSkus.size})</span>
-                                                    <button onClick={() => setExcludedSkus(new Set())} className="text-[10px] text-slate-400 hover:text-red-500"><Trash2 size={12}/></button>
-                                                </div>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {Array.from(excludedSkus).map(sku => (
-                                                        <span key={sku} className="text-[10px] font-mono font-bold bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100 line-through decoration-red-400">
-                                                            {sku}
+                                        <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+                                            {manualSkus.length > 0 && (
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
+                                                            <Check size={10}/> Προστέθηκαν ({manualSkus.length})
                                                         </span>
-                                                    ))}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {manualSkus.map(sku => (
+                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                                                {sku}
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                            
+                                            {excludedSkus.size > 0 && (
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-[10px] font-bold text-red-600 uppercase flex items-center gap-1">
+                                                            <X size={10}/> Αφαιρέθηκαν ({excludedSkus.size})
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {Array.from(excludedSkus).map(sku => (
+                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100 line-through decoration-red-400">
+                                                                {sku}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
+                                
+                                {/* Info Box */}
+                                <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+                                    <p className="text-[9px] text-indigo-700 leading-relaxed">
+                                        💡 <strong>Συμβουλή:</strong> Οι χειροκίνητες επιλογές παρακάμπτουν τα φίλτρα. 
+                                        Χρησιμοποιήστε τες για να προσθέσετε εξαιρέσεις ή ειδικές περιπτώσεις.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
