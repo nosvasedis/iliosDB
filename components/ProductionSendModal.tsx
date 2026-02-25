@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
@@ -258,9 +258,15 @@ export default function ProductionSendModal({ order, products, materials, existi
     const rowVirtualizer = useVirtualizer({
         count: filteredRows.length,
         getScrollElement: () => listParentRef.current,
-        estimateSize: () => 200,
+        getItemKey: (index) => filteredRows[index]?.originalIndex ?? index,
+        estimateSize: () => 280,
+        measureElement: (element) => element?.getBoundingClientRect().height ?? 0,
         overscan: 4
     });
+
+    useEffect(() => {
+        rowVirtualizer.measure();
+    }, [filteredRows, rowVirtualizer]);
 
     const currentSendValue = useMemo(() => {
         return order.items.reduce((sum, item, idx) => {
@@ -484,16 +490,19 @@ export default function ProductionSendModal({ order, products, materials, existi
                 )}
 
                 {/* HEADER */}
-                <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
+                <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-start shrink-0 gap-4">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
                         <div className="p-3 bg-[#060b00] text-white rounded-2xl shadow-lg hidden sm:block">
                             <Factory size={28} />
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Διαχείριση Παραγωγής</h2>
-                            <div className="flex items-center gap-3 text-sm font-bold text-slate-500 mt-0.5">
+                            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500 mt-0.5">
                                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
-                                <span className="flex items-center gap-1 truncate max-w-[200px]"><User size={14} /> {order.customer_name}</span>
+                                <span className="flex items-start gap-1 min-w-0 text-slate-600">
+                                    <User size={14} className="mt-0.5 shrink-0" />
+                                    <span className="break-words">{order.customer_name}</span>
+                                </span>
                             </div>
 
                             {/* STAGE SUMMARY BAR */}
@@ -520,9 +529,9 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                     <div className="flex gap-2">
                         {order.notes && (
-                            <div className="hidden lg:flex items-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-xl border border-yellow-100 mr-2 max-w-md truncate" title={order.notes}>
+                            <div className="hidden lg:flex items-start gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-xl border border-yellow-100 mr-2 max-w-[680px]" title={order.notes}>
                                 <AlertCircle size={16} className="shrink-0" />
-                                <span className="text-xs font-bold truncate">{order.notes}</span>
+                                <span className="text-xs font-bold break-words whitespace-normal leading-snug">{order.notes}</span>
                             </div>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24} /></button>
@@ -594,10 +603,12 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         return (
                                             <div
                                                 key={virtualRow.key}
-                                                className="absolute left-0 w-full pb-4"
-                                                style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                                                ref={rowVirtualizer.measureElement}
+                                                data-index={virtualRow.index}
+                                                className="absolute left-0 top-0 w-full"
+                                                style={{ transform: `translateY(${virtualRow.start}px)` }}
                                             >
-                                    <div className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm mb-4">
 
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex items-center justify-between gap-4 mb-4">

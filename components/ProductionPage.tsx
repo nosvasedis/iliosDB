@@ -7,6 +7,7 @@ import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, 
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import BatchBuildModal from './BatchBuildModal';
+import ProductionSendModal from './ProductionSendModal';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
@@ -124,6 +125,14 @@ const getAgeInfo = (dateStr: string) => {
 
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
 type LabelPrintSortMode = 'as_sent' | 'customer';
+type ProductionQuickPickEntry = {
+    order: Order;
+    batchesCount: number;
+    totalQty: number;
+    readyQty: number;
+    inProgressQty: number;
+    latestUpdate: number;
+};
 
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
     isOpen: boolean,
@@ -308,6 +317,100 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                     >
                         <Printer size={18} /> Εκτύπωση ({selectedIds.size})
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const QuickProductionPickerModal = ({
+    isOpen,
+    onClose,
+    entries,
+    onSelect
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    entries: ProductionQuickPickEntry[];
+    onSelect: (order: Order) => void;
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        if (isOpen) setSearchTerm('');
+    }, [isOpen]);
+
+    const filteredEntries = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return entries;
+        return entries.filter(entry =>
+            entry.order.customer_name.toLowerCase().includes(term) ||
+            entry.order.id.toLowerCase().includes(term)
+        );
+    }, [entries, searchTerm]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-2xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                            <Factory size={18} className="text-emerald-600" /> Γρήγορη Διαχείριση Παραγωγής
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">Επίλεξε πελάτη/εντολή που έχει ενεργές παρτίδες.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="p-4 border-b border-slate-100">
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Αναζήτηση πελάτη ή εντολής..."
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2 bg-slate-50/30">
+                    {filteredEntries.length > 0 ? (
+                        filteredEntries.map(entry => (
+                            <button
+                                key={entry.order.id}
+                                onClick={() => {
+                                    onSelect(entry.order);
+                                    onClose();
+                                }}
+                                className="w-full text-left p-4 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 rounded-2xl transition-all"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-black text-slate-900 break-words">{entry.order.customer_name}</div>
+                                        <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(entry.order.id)}</div>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200 shrink-0">
+                                        {entry.batchesCount} παρτίδες
+                                    </span>
+                                </div>
+                                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase">
+                                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">Σύνολο: {entry.totalQty}</div>
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-blue-700">Σε Ροή: {entry.inProgressQty}</div>
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 text-emerald-700">Έτοιμα: {entry.readyQty}</div>
+                                </div>
+                            </button>
+                        ))
+                    ) : (
+                        <div className="text-center py-12 text-slate-400 italic text-sm">
+                            Δεν βρέθηκαν πελάτες σε παραγωγή.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -617,6 +720,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
     // NEW: Sorting State
     const [isClientCentric, setIsClientCentric] = useState(false);
+    const [quickPickerOpen, setQuickPickerOpen] = useState(false);
+    const [quickManageOrder, setQuickManageOrder] = useState<Order | null>(null);
 
     // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
@@ -718,6 +823,44 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             .sort((a, b) => b[1] - a[1]) // Newest First
             .map(entry => entry[0]);
     }, [enhancedBatches, isClientCentric]);
+
+    const quickPickEntries = useMemo(() => {
+        if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
+
+        const orderMap = new Map(orders.map(order => [order.id, order]));
+        const groupedByOrder = enhancedBatches.reduce((acc, batch) => {
+            if (!batch.order_id) return acc;
+            if (!acc[batch.order_id]) acc[batch.order_id] = [];
+            acc[batch.order_id].push(batch);
+            return acc;
+        }, {} as Record<string, EnhancedProductionBatch[]>);
+
+        return Object.entries(groupedByOrder)
+            .map(([orderId, orderBatches]) => {
+                const order = orderMap.get(orderId);
+                if (!order) return null;
+
+                const totalQty = orderBatches.reduce((sum, batch) => sum + batch.quantity, 0);
+                const readyQty = orderBatches
+                    .filter(batch => batch.current_stage === ProductionStage.Ready)
+                    .reduce((sum, batch) => sum + batch.quantity, 0);
+                const latestUpdate = orderBatches.reduce((max, batch) => {
+                    const updateTs = new Date(batch.updated_at).getTime();
+                    return Number.isFinite(updateTs) ? Math.max(max, updateTs) : max;
+                }, 0);
+
+                return {
+                    order,
+                    batchesCount: orderBatches.length,
+                    totalQty,
+                    readyQty,
+                    inProgressQty: Math.max(0, totalQty - readyQty),
+                    latestUpdate
+                } as ProductionQuickPickEntry;
+            })
+            .filter((entry): entry is ProductionQuickPickEntry => entry !== null)
+            .sort((a, b) => b.latestUpdate - a.latestUpdate);
+    }, [orders, enhancedBatches]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -1101,6 +1244,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 {/* ORDER FINDER (DESKTOP) */}
                 <div className="flex-1 max-w-xl w-full mx-4 flex gap-2">
                     <button
+                        onClick={() => setQuickPickerOpen(true)}
+                        disabled={quickPickEntries.length === 0}
+                        className={`hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm ${quickPickEntries.length > 0 ? 'bg-white border-slate-200 text-slate-500 hover:text-slate-800' : 'bg-slate-100 border-slate-100 text-slate-300 cursor-not-allowed'}`}
+                        title={quickPickEntries.length > 0 ? "Άμεση Διαχείριση Παραγωγής" : "Δεν υπάρχουν πελάτες σε παραγωγή"}
+                    >
+                        <ClipboardList size={20} />
+                    </button>
+                    <button
                         onClick={() => setIsClientCentric(!isClientCentric)}
                         className={`hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm ${isClientCentric ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700'}`}
                         title={isClientCentric ? "Επαναφορά Ταξινόμησης" : "Ταξινόμηση ανά Πελάτη"}
@@ -1372,6 +1523,29 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onClose={() => setHoldingBatch(null)}
                     onConfirm={confirmHold}
                     isProcessing={isSavingNote}
+                />
+            )}
+
+            <QuickProductionPickerModal
+                isOpen={quickPickerOpen}
+                onClose={() => setQuickPickerOpen(false)}
+                entries={quickPickEntries}
+                onSelect={setQuickManageOrder}
+            />
+
+            {quickManageOrder && collections && (
+                <ProductionSendModal
+                    order={quickManageOrder}
+                    products={products}
+                    materials={materials}
+                    existingBatches={enhancedBatches.filter(b => b.order_id === quickManageOrder.id)}
+                    onClose={() => setQuickManageOrder(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['orders'] });
+                        queryClient.invalidateQueries({ queryKey: ['batches'] });
+                    }}
+                    collections={collections}
+                    onPrintAggregated={onPrintAggregated}
                 />
             )}
 
