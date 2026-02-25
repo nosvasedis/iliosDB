@@ -148,7 +148,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                         </div>
                     )}
                     {batch.quantity > 1 && (
-                        <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg">
+                        <div className="absolute bottom-0 left-0 bg-slate-900/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-lg shadow-sm">
                             x{batch.quantity}
                         </div>
                     )}

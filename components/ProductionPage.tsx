@@ -122,12 +122,17 @@ const getAgeInfo = (dateStr: string) => {
     return { label, style };
 };
 
-const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
+type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
+type LabelPrintSortMode = 'as_sent' | 'customer';
+
+const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
     isOpen: boolean,
     onClose: () => void,
     onConfirm: (selected: ProductionBatch[]) => void,
     batches: (ProductionBatch & { customer_name?: string })[],
-    title: string
+    title: string,
+    labelSortMode?: LabelPrintSortMode,
+    onLabelSortModeChange?: (mode: LabelPrintSortMode) => void
 }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(batches.map(b => b.id)));
     const [searchTerm, setSearchTerm] = useState('');
@@ -224,6 +229,25 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title }: {
                         )}
                     </button>
                 </div>
+                {labelSortMode && onLabelSortModeChange && (
+                    <div className="px-4 pb-4 border-b border-slate-100 bg-white">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Τρόπος Εκτύπωσης Ετικετών</div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onLabelSortModeChange('as_sent')}
+                                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${labelSortMode === 'as_sent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                            >
+                                <Clock size={13} /> Όπως Στάλθηκαν
+                            </button>
+                            <button
+                                onClick={() => onLabelSortModeChange('customer')}
+                                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${labelSortMode === 'customer' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                            >
+                                <Users size={13} /> Ανά Πελάτη
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-50/30">
                     {groupedBatches.map(([key, group]) => {
@@ -583,7 +607,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [overviewModal, setOverviewModal] = useState<{ isOpen: boolean, type: 'active' | 'delayed' | 'onHold' | 'ready' } | null>(null);
 
     // PRINT SELECTOR MODAL STATE
-    const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: string, batches: any[] }>({ isOpen: false, type: '', batches: [] });
+    const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: EnhancedProductionBatch[] }>({ isOpen: false, type: '', batches: [] });
+    const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
 
     const [splitModalState, setSplitModalState] = useState<{
         batch: ProductionBatch;
@@ -957,7 +982,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
     // Handle Print Request with Modal (New Logic)
-    const handlePrintRequest = (batchesToPrint: ProductionBatch[], type: 'technician' | 'preparation' | 'aggregated') => {
+    const handlePrintRequest = (batchesToPrint: EnhancedProductionBatch[], type: PrintSelectorType) => {
         // Filter out completed if needed, but usually we print whatever is passed
         const validBatches = batchesToPrint.filter(b => !b.on_hold);
 
@@ -974,21 +999,40 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     };
 
     const handlePrintStageLabels = (stageId: string) => {
-        let stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
+        const stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
 
         if (stageBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για εκτύπωση.", "info");
             return;
         }
 
-        // Sort by Client Name (Ascending)
-        stageBatches.sort((a, b) => {
-            const nameA = a.customer_name || '';
-            const nameB = b.customer_name || '';
-            return nameA.localeCompare(nameB, 'el', { sensitivity: 'base' });
+        setLabelPrintSortMode('as_sent');
+        setPrintSelectorState({
+            isOpen: true,
+            type: 'labels',
+            batches: stageBatches
+        });
+    };
+
+    const buildLabelPrintQueue = (selected: ProductionBatch[], mode: LabelPrintSortMode) => {
+        const sortedBatches = [...selected].sort((a, b) => {
+            if (mode === 'customer') {
+                const nameA = (a as EnhancedProductionBatch).customer_name || '';
+                const nameB = (b as EnhancedProductionBatch).customer_name || '';
+                const byCustomer = nameA.localeCompare(nameB, 'el', { sensitivity: 'base' });
+                if (byCustomer !== 0) return byCustomer;
+            }
+
+            const byUpdatedAt = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+            if (byUpdatedAt !== 0) return byUpdatedAt;
+
+            const byCreatedAt = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            if (byCreatedAt !== 0) return byCreatedAt;
+
+            return `${a.sku}${a.variant_suffix || ''}`.localeCompare(`${b.sku}${b.variant_suffix || ''}`, undefined, { numeric: true, sensitivity: 'base' });
         });
 
-        const printQueue = stageBatches.map(b => {
+        return sortedBatches.map(b => {
             const product = products.find(p => p.sku === b.sku);
             if (!product) return null;
 
@@ -1004,13 +1048,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 format: 'standard' as const // Wholesale
             };
         }).filter((item): item is NonNullable<typeof item> => item !== null);
-
-        if (printQueue.length > 0 && onPrintLabels) {
-            onPrintLabels(printQueue);
-            showToast(`Στάλθηκαν ${printQueue.length} είδη ετικετών για εκτύπωση (Ταξινόμηση ανά Πελάτη).`, "success");
-        } else if (printQueue.length === 0) {
-            showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
-        }
     };
 
     const executePrint = (selected: ProductionBatch[]) => {
@@ -1018,6 +1055,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (type === 'technician') onPrintTechnician(selected);
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
+        else if (type === 'labels') {
+            const printQueue = buildLabelPrintQueue(selected, labelPrintSortMode);
+            if (printQueue.length > 0 && onPrintLabels) {
+                onPrintLabels(printQueue);
+                const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';
+                showToast(`Στάλθηκαν ${printQueue.length} είδη ετικετών για εκτύπωση (${modeLabel}).`, "success");
+            } else {
+                showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
+            }
+        }
     };
 
     if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
@@ -1348,8 +1395,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     batches={printSelectorState.batches}
                     title={
                         printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
-                            printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' : 'Συγκεντρωτική Εκτύπωση'
+                            printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' :
+                                printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' : 'Συγκεντρωτική Εκτύπωση'
                     }
+                    labelSortMode={printSelectorState.type === 'labels' ? labelPrintSortMode : undefined}
+                    onLabelSortModeChange={printSelectorState.type === 'labels' ? setLabelPrintSortMode : undefined}
                 />
             )}
 
