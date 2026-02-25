@@ -418,6 +418,7 @@ const QuickProductionPickerModal = ({
 };
 
 const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: ProductionBatch[], orders: Order[], onFilterClick: (type: 'active' | 'delayed' | 'onHold' | 'ready') => void }) => {
+    const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
     const total = batches.length;
     const delayed = batches.filter(b => b.isDelayed && !b.on_hold).length; // Exclude held batches from delay stats
     const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
@@ -429,7 +430,7 @@ const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: Prod
 
     // Filter active orders that have notes
     const activeOrderNotes = orders?.filter(o =>
-        (o.status === 'In Production' || o.status === 'Pending') &&
+        o.status === 'In Production' &&
         o.notes &&
         o.notes.trim().length > 0 &&
         batches.some(b => b.order_id === o.id)
@@ -445,61 +446,97 @@ const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: Prod
     ];
 
     return (
-        <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
-            <div className="flex items-center gap-4 w-full md:w-auto">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
-                    {healthScore.toFixed(0)}%
+        <>
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
+                        {healthScore.toFixed(0)}%
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-800">Υγεία Παραγωγής</h3>
+                        <p className="text-xs text-slate-500">Βάσει χρονικών ορίων</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="font-bold text-slate-800">Υγεία Παραγωγής</h3>
-                    <p className="text-xs text-slate-500">Βάσει χρονικών ορίων</p>
+
+                <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-4 md:pb-0 items-start">
+                    {/* General Order Notes Card */}
+                    {activeOrderNotes && activeOrderNotes.length > 0 && (
+                        <button
+                            onClick={() => setIsNotesModalOpen(true)}
+                            className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/20 transition-colors text-left"
+                            title="Άνοιγμα όλων των οδηγιών παραγωγής"
+                        >
+                            <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
+                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
+                                    <ClipboardList size={10} /> Οδηγίες Παραγωγής
+                                </span>
+                                <span className="bg-white text-indigo-600 px-1.5 rounded text-[9px] font-bold shadow-sm">{activeOrderNotes.length}</span>
+                            </div>
+                            <div className="overflow-y-auto p-2 space-y-1.5 custom-scrollbar bg-white">
+                                {activeOrderNotes.map((n, i) => (
+                                    <div key={n.id} className={`p-2 rounded-lg border text-[10px] leading-tight ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
+                                        <div className="flex justify-between font-bold mb-0.5 opacity-90 border-b border-black/5 pb-0.5">
+                                            <span>{i + 1}. {n.customer}</span>
+                                            <span className="font-mono opacity-70">#{formatOrderId(n.id)}</span>
+                                        </div>
+                                        <div className="font-medium italic opacity-90">"{n.note}"</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </button>
+                    )}
+
+                    <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all text-left">
+                        <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12} /> Σε Αναμονή</div>
+                        <div className="text-2xl font-black text-amber-700">{onHold}</div>
+                    </button>
+                    <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all text-left">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12} /> Ενεργά</div>
+                        <div className="text-2xl font-black text-slate-800">{inProgress}</div>
+                    </button>
+                    <button onClick={() => onFilterClick('delayed')} className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center transition-all text-left ${delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
+                        <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                            <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''} /> Καθυστέρηση
+                        </div>
+                        <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
+                    </button>
+                    <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all text-left">
+                        <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12} /> Έτοιμα</div>
+                        <div className="text-2xl font-black text-emerald-700">{ready}</div>
+                    </button>
                 </div>
             </div>
 
-            <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-4 md:pb-0 items-start">
-                {/* General Order Notes Card */}
-                {activeOrderNotes && activeOrderNotes.length > 0 && (
-                    <div className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm">
-                        <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
-                            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
-                                <ClipboardList size={10} /> Οδηγίες Παραγωγής
-                            </span>
-                            <span className="bg-white text-indigo-600 px-1.5 rounded text-[9px] font-bold shadow-sm">{activeOrderNotes.length}</span>
+            {isNotesModalOpen && (
+                <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNotesModalOpen(false)}>
+                    <div className="bg-white w-full max-w-4xl max-h-[86vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                    <ClipboardList size={18} className="text-indigo-600" /> Όλες οι Οδηγίες Παραγωγής
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1">Σημειώσεις κύριας εντολής για όλες τις εντολές που είναι σε παραγωγή.</p>
+                            </div>
+                            <button onClick={() => setIsNotesModalOpen(false)} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
+                                <X size={20} />
+                            </button>
                         </div>
-                        <div className="overflow-y-auto p-2 space-y-1.5 custom-scrollbar bg-white">
+
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50/40 custom-scrollbar space-y-3">
                             {activeOrderNotes.map((n, i) => (
-                                <div key={n.id} className={`p-2 rounded-lg border text-[10px] leading-tight ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
-                                    <div className="flex justify-between font-bold mb-0.5 opacity-90 border-b border-black/5 pb-0.5">
-                                        <span>{i + 1}. {n.customer}</span>
-                                        <span className="font-mono opacity-70">#{n.id.slice(0, 4)}</span>
+                                <div key={n.id} className={`p-3 rounded-xl border ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
+                                    <div className="flex items-center justify-between gap-3 border-b border-black/10 pb-1.5 mb-2">
+                                        <span className="font-black text-sm">{n.customer}</span>
+                                        <span className="text-xs font-mono font-bold opacity-80">#{formatOrderId(n.id)}</span>
                                     </div>
-                                    <div className="font-medium italic opacity-90">"{n.note}"</div>
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium italic">"{n.note}"</p>
                                 </div>
                             ))}
                         </div>
                     </div>
-                )}
-
-                <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all text-left">
-                    <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12} /> Σε Αναμονή</div>
-                    <div className="text-2xl font-black text-amber-700">{onHold}</div>
-                </button>
-                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all text-left">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12} /> Ενεργά</div>
-                    <div className="text-2xl font-black text-slate-800">{inProgress}</div>
-                </button>
-                <button onClick={() => onFilterClick('delayed')} className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center transition-all text-left ${delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                    <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                        <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''} /> Καθυστέρηση
-                    </div>
-                    <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
-                </button>
-                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all text-left">
-                    <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12} /> Έτοιμα</div>
-                    <div className="text-2xl font-black text-emerald-700">{ready}</div>
-                </button>
-            </div>
-        </div>
+                </div>
+            )}
+        </>
     );
 }
 
