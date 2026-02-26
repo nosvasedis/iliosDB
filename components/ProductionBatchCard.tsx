@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -94,12 +95,61 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     
     // Stage selector state
     const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
-    const stageSelectorRef = useRef<HTMLDivElement>(null);
+    const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const popupRef = useRef<HTMLDivElement>(null);
+    
+    // Calculate popup position when opening
+    const updatePosition = useCallback(() => {
+        if (buttonRef.current) {
+            const buttonRect = buttonRef.current.getBoundingClientRect();
+            const popupHeight = 320; // Approximate max height
+            const popupWidth = 160;
+            const padding = 8;
+            
+            // Calculate vertical position - prefer above, but go below if not enough space
+            let top = buttonRect.top - popupHeight - padding;
+            if (top < padding) {
+                // Not enough space above, show below
+                top = buttonRect.bottom + padding;
+            }
+            
+            // Ensure doesn't go off bottom of screen
+            const viewportHeight = window.innerHeight;
+            if (top + popupHeight > viewportHeight - padding) {
+                top = viewportHeight - popupHeight - padding;
+            }
+            
+            // Calculate horizontal position - align right edge with button
+            let left = buttonRect.right - popupWidth;
+            if (left < padding) {
+                left = padding;
+            }
+            
+            setPopupPosition({ top, left });
+        }
+    }, []);
+    
+    // Open/close handler
+    const handleToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!stageSelectorOpen) {
+            updatePosition();
+        }
+        if (onMoveToStage) {
+            setStageSelectorOpen(!stageSelectorOpen);
+        } else if (onNextStage) {
+            onNextStage(batch);
+        }
+    }, [stageSelectorOpen, updatePosition, onMoveToStage, onNextStage, batch]);
     
     // Close selector when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (stageSelectorRef.current && !stageSelectorRef.current.contains(event.target as Node)) {
+            if (
+                popupRef.current && !popupRef.current.contains(event.target as Node) &&
+                buttonRef.current && !buttonRef.current.contains(event.target as Node)
+            ) {
                 setStageSelectorOpen(false);
             }
         };
@@ -108,6 +158,19 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [stageSelectorOpen]);
+    
+    // Update position on scroll/resize
+    useEffect(() => {
+        if (stageSelectorOpen) {
+            const handleScroll = () => updatePosition();
+            window.addEventListener('scroll', handleScroll, true);
+            window.addEventListener('resize', handleScroll);
+            return () => {
+                window.removeEventListener('scroll', handleScroll, true);
+                window.removeEventListener('resize', handleScroll);
+            };
+        }
+    }, [stageSelectorOpen, updatePosition]);
     
     // Get current stage index
     const currentStageIndex = STAGE_ORDER.findIndex(s => s.id === batch.current_stage);
@@ -258,76 +321,75 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     </div>
 
                     {!isReady && !batch.on_hold && (onMoveToStage || onNextStage) && (
-                        <div className="relative" ref={stageSelectorRef}>
+                        <div>
                             {/* Main button */}
                             <button
-                                onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    if (onMoveToStage) {
-                                        setStageSelectorOpen(!stageSelectorOpen);
-                                    } else if (onNextStage) {
-                                        onNextStage(batch);
-                                    }
-                                }}
+                                ref={buttonRef}
+                                onClick={handleToggle}
                                 className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
                             >
                                 <MoveRight size={12} />
                                 {isAwaiting ? 'Παραλαβή' : 'Μετακίνηση'}
                                 {onMoveToStage && (stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
                             </button>
-                            
-                            {/* Expanding stage selector */}
-                            {stageSelectorOpen && onMoveToStage && (
-                                <div 
-                                    className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 min-w-[140px] animate-in fade-in slide-in-from-bottom-1 duration-200"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Στάδια</div>
-                                    <div className="space-y-1">
-                                        {STAGE_ORDER.map((stage, index) => {
-                                            const colors = STAGE_BUTTON_COLORS[stage.id.replace('Αναμονή Παραλαβής', 'AwaitingDelivery').replace('Waxing', 'Waxing').replace('Casting', 'Casting').replace('Setting', 'Setting').replace('Polishing', 'Polishing').replace('Assembly', 'Assembly').replace('Labeling', 'Labeling').replace('Ready', 'Ready')] || STAGE_BUTTON_COLORS['Waxing'];
-                                            const isCurrent = stage.id === batch.current_stage;
-                                            const isDisabled = isStageDisabled(stage.id);
-                                            const isPast = index < currentStageIndex;
-                                            
-                                            // Get correct color key
-                                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
-                                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
-                                                             stage.id === ProductionStage.Casting ? 'Casting' :
-                                                             stage.id === ProductionStage.Setting ? 'Setting' :
-                                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
-                                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
-                                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
-                                            const stageColors = STAGE_BUTTON_COLORS[colorKey];
-                                            
-                                            return (
-                                                <button
-                                                    key={stage.id}
-                                                    onClick={() => handleStageSelect(stage.id)}
-                                                    disabled={isDisabled}
-                                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
-                                                        ${isCurrent 
-                                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
-                                                            : isDisabled
-                                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                            : isPast
-                                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md`
-                                                        }
-                                                    `}
-                                                >
-                                                    <span>{stage.label}</span>
-                                                    {isCurrent && <span className="text-[8px]">●</span>}
-                                                    {isDisabled && <span className="text-[8px] opacity-50">παράλειψη</span>}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
                 </div>
+            )}
+            
+            {/* Portal-style fixed position popup - rendered at root level */}
+            {stageSelectorOpen && onMoveToStage && ReactDOM.createPortal(
+                <div 
+                    ref={popupRef}
+                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                    style={{ 
+                        top: popupPosition.top,
+                        left: popupPosition.left,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 sticky top-0 bg-white pt-1">Στάδια</div>
+                    <div className="space-y-1">
+                        {STAGE_ORDER.map((stage, index) => {
+                            const isCurrent = stage.id === batch.current_stage;
+                            const isDisabled = isStageDisabled(stage.id);
+                            const isPast = index < currentStageIndex;
+                            
+                            // Get correct color key
+                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                             stage.id === ProductionStage.Casting ? 'Casting' :
+                                             stage.id === ProductionStage.Setting ? 'Setting' :
+                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                            const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                            
+                            return (
+                                <button
+                                    key={stage.id}
+                                    onClick={() => handleStageSelect(stage.id)}
+                                    disabled={isDisabled}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                        ${isCurrent 
+                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
+                                            : isDisabled
+                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                            : isPast
+                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md`
+                                        }
+                                    `}
+                                >
+                                    <span>{stage.label}</span>
+                                    {isCurrent && <span className="text-[8px]">●</span>}
+                                    {isDisabled && <span className="text-[8px] opacity-50">παράλειψη</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
