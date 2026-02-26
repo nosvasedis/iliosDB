@@ -712,8 +712,61 @@ export const api = {
         await safeMutate('orders', 'DELETE', null, { match: { id: id } });
     },
 
-    updateBatchStage: async (id: string, stage: ProductionStage): Promise<void> => { await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } }); },
+    updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => { 
+        // First get current batch to log the transition
+        const { data: currentBatch } = await supabase.from('production_batches').select('current_stage').eq('id', id).single();
+        
+        await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } });
+        
+        // Log the stage transition in history
+        try {
+            await supabase.from('batch_stage_history').insert({
+                id: crypto.randomUUID(),
+                batch_id: id,
+                from_stage: currentBatch?.current_stage || null,
+                to_stage: stage,
+                moved_by: userName || 'System',
+                moved_at: new Date().toISOString()
+            });
+        } catch (e) {
+            console.warn('Failed to log batch history:', e);
+        }
+    },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
+    
+    // Batch History
+    getBatchHistory: async (batchId: string): Promise<any[]> => {
+        if (isLocalMode) return [];
+        try {
+            const { data, error } = await supabase
+                .from('batch_stage_history')
+                .select('*')
+                .eq('batch_id', batchId)
+                .order('moved_at', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.warn('Failed to fetch batch history:', e);
+            return [];
+        }
+    },
+    
+    logBatchHistory: async (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string): Promise<void> => {
+        if (isLocalMode) return;
+        try {
+            await supabase.from('batch_stage_history').insert({
+                id: crypto.randomUUID(),
+                batch_id: batchId,
+                from_stage: fromStage,
+                to_stage: toStage,
+                moved_by: userName,
+                moved_at: new Date().toISOString(),
+                notes
+            });
+        } catch (e) {
+            console.warn('Failed to log batch history:', e);
+        }
+    },
 
     // NEW: Toggle Hold Status
     toggleBatchHold: async (id: string, isHeld: boolean, reason?: string): Promise<void> => {
@@ -1018,11 +1071,26 @@ export const api = {
         await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId } });
     },
 
-    splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any): Promise<void> => {
+    splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any, userName?: string): Promise<void> => {
         // Sanitize the split data to avoid blockages
         const sanitizedNew = sanitizeBatchData(newBatchData);
         await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: new Date().toISOString() }, { match: { id: originalBatchId } });
         await safeMutate('production_batches', 'INSERT', sanitizedNew);
+        
+        // Log history for the new batch (creation at target stage)
+        try {
+            await supabase.from('batch_stage_history').insert({
+                id: crypto.randomUUID(),
+                batch_id: sanitizedNew.id,
+                from_stage: null,
+                to_stage: sanitizedNew.current_stage,
+                moved_by: userName || 'System',
+                moved_at: new Date().toISOString(),
+                notes: `Διαχωρισμός από παρτίδα ${originalBatchId} (ποσότητα: ${sanitizedNew.quantity})`
+            });
+        } catch (e) {
+            console.warn('Failed to log batch split history:', e);
+        }
     },
 
     mergeBatches: async (targetBatchId: string, sourceBatchIds: string[], totalQty: number): Promise<void> => {

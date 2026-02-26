@@ -9,6 +9,7 @@ import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import BatchBuildModal from './BatchBuildModal';
 import ProductionSendModal from './ProductionSendModal';
+import BatchHistoryModal from './BatchHistoryModal';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
@@ -980,6 +981,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [quickPickerOpen, setQuickPickerOpen] = useState(false);
     const [quickManageOrder, setQuickManageOrder] = useState<Order | null>(null);
 
+    // Batch History Modal State
+    const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
+    const [batchHistory, setBatchHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
     // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -1162,7 +1168,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const handleDirectMove = async (batch: ProductionBatch, targetStage: ProductionStage) => {
         setIsProcessingSplit(true);
         try {
-            await api.updateBatchStage(batch.id, targetStage);
+            await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
             await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -1193,7 +1199,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (confirmed) {
             setIsProcessingSplit(true);
             try {
-                await api.updateBatchStage(batch.id, targetStage);
+                await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -1217,7 +1223,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         try {
             if (quantityToMove >= batch.quantity) {
                 // Move the whole batch
-                await api.updateBatchStage(batch.id, targetStage);
+                await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             } else {
                 // Split the batch
@@ -1245,7 +1251,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     requires_setting: !!requires_setting // DB now supports this column
                 };
 
-                await api.splitBatch(batch.id, originalNewQty, newBatchData);
+                await api.splitBatch(batch.id, originalNewQty, newBatchData, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
@@ -1335,6 +1341,20 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
         attemptMove(batch, stage);
     }
+
+    const handleViewHistory = async (batch: ProductionBatch) => {
+        setHistoryModalBatch(batch);
+        setIsLoadingHistory(true);
+        try {
+            const history = await api.getBatchHistory(batch.id);
+            setBatchHistory(history);
+        } catch (e) {
+            console.error('Failed to load batch history:', e);
+            setBatchHistory([]);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
 
     // Determines next logical stage for "Quick Move" button
     const getNextStage = (currentStage: ProductionStage, batch: ProductionBatch): ProductionStage | null => {
@@ -1748,6 +1768,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                                 onToggleHold={() => handleToggleHold(batch)}
                                                                 onDelete={() => handleDeleteBatch(batch)}
                                                                 onClick={() => setViewBuildBatch(batch)}
+                                                                onViewHistory={handleViewHistory}
                                                             />
                                                         ))}
                                                     </div>
@@ -1829,6 +1850,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onClose={() => setViewBuildBatch(null)}
                     onMove={handleMoveBatch}
                     onEditNote={(b) => setEditingNoteBatch(b)}
+                    onViewHistory={handleViewHistory}
                 />
             )}
 
@@ -1866,8 +1888,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onToggleHold={(b: ProductionBatch) => handleToggleHold(b)}
                     onDelete={(b: ProductionBatch) => handleDeleteBatch(b)}
                     onClick={(b: ProductionBatch) => setViewBuildBatch(b)}
+                    onViewHistory={handleViewHistory}
                 />
             )}
+
+            <BatchHistoryModal
+                isOpen={!!historyModalBatch}
+                onClose={() => setHistoryModalBatch(null)}
+                batch={historyModalBatch}
+                history={batchHistory}
+            />
         </div>
     );
 }

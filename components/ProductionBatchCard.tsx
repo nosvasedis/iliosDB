@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 
@@ -73,6 +73,7 @@ interface BatchCardProps {
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
+    onViewHistory?: (batch: ProductionBatch) => void;
     // Optional: Hide action footer if used in restrictive views
     hideActions?: boolean;
 }
@@ -87,6 +88,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     onToggleHold,
     onDelete,
     onClick,
+    onViewHistory,
     hideActions = false
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
@@ -248,6 +250,15 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     >
                         <StickyNote size={16} className={batch.notes ? "fill-current" : ""} />
                     </button>
+                    {onViewHistory && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onViewHistory(batch); }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Ιστορικό Παρτίδας"
+                        >
+                            <History size={16} />
+                        </button>
+                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(batch); }}
                         className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

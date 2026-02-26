@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
     onClose: () => void;
     onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
     onEditNote?: (batch: ProductionBatch) => void;
+    onViewHistory?: (batch: ProductionBatch) => void;
 }
 
 const STAGES = [
@@ -38,7 +39,7 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: st
     'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote }: Props) {
+export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onViewHistory }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
     
@@ -258,6 +259,16 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                  title="Επεξεργασία Σημειώσεων"
                              >
                                  <StickyNote size={20}/>
+                             </button>
+                        )}
+
+                        {onViewHistory && (
+                             <button 
+                                 onClick={() => onViewHistory(batch)}
+                                 className="p-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full transition-colors hidden md:block"
+                                 title="Ιστορικό Παρτίδας"
+                             >
+                                 <History size={20}/>
                              </button>
                         )}
 

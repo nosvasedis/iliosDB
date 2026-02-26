@@ -20,6 +20,7 @@ interface Props {
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
+    onViewHistory?: (batch: ProductionBatch) => void;
 }
 
 const STAGES = [
@@ -53,7 +54,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches, collections,
-    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick
+    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick, onViewHistory
 }: Props) {
 
     // 1. Filter Batches based on type
@@ -179,6 +180,7 @@ export default function ProductionOverviewModal({
                                                                     onToggleHold={() => onToggleHold(batch)}
                                                                     onDelete={() => onDelete(batch)}
                                                                     onClick={() => onClick(batch)}
+                                                                    onViewHistory={onViewHistory}
                                                                 />
                                                             ))}
                                                         </div>
