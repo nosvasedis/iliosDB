@@ -66,6 +66,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const [excludedSkus, setExcludedSkus] = useState<Set<string>>(new Set());
     const [manualInput, setManualInput] = useState('');
     const [excludeInput, setExcludeInput] = useState('');
+    const [customPdfTitle, setCustomPdfTitle] = useState('');
 
     // Extract all unique categories
     const allCategories = useMemo(() => {
@@ -477,8 +478,10 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             if (excludeCollections) filtersInfo = 'ΕΚΤΟΣ ΣΥΛΛΟΓΩΝ';
         }
         
+        const finalTitle = customPdfTitle.trim() || title;
+
         onPrint({
-            title,
+            title: finalTitle,
             subtitle,
             collectionNames,
             filtersInfo,
@@ -806,6 +809,22 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                     </div>
                                 )}
                                 
+                                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 p-4 rounded-2xl border border-indigo-200">
+                                    <h3 className="font-bold text-indigo-800 text-xs uppercase tracking-wider mb-3">
+                                        Τίτλος PDF
+                                    </h3>
+                                    <input
+                                        type="text"
+                                        value={customPdfTitle}
+                                        onChange={e => setCustomPdfTitle(e.target.value)}
+                                        placeholder="Πληκτρολογήστε προσαρμοσμένο τίτλο..."
+                                        className="w-full p-2.5 border border-indigo-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    />
+                                    <p className="text-[9px] text-indigo-700/80 mt-2">
+                                        Αν το αφήσετε κενό, χρησιμοποιείται ο αυτόματος τίτλος.
+                                    </p>
+                                </div>
+
                                 {/* Info Box */}
                                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
                                     <p className="text-[9px] text-indigo-700 leading-relaxed">
