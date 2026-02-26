@@ -126,47 +126,88 @@ export default function PriceListPrintView({ data }: Props) {
                                         {item.priceGroups[0].price.toFixed(2)}€
                                     </span>
                                 ) : (
-                                    <div className="flex flex-wrap justify-end items-start gap-x-1.5 gap-y-1 leading-tight w-full">
-                                        {item.priceGroups.map((pg, pgIdx) => {
-                                            // Filter suffixes
+                                    (() => {
+                                        // Count total suffixes to determine layout
+                                        const totalSuffixCount = item.priceGroups.reduce((acc, pg) => {
                                             const hasBase = pg.suffixes.includes('');
                                             const visibleSuffixes = pg.suffixes.filter(s => s !== '');
-                                            const isLongSuffixGroup =
-                                                visibleSuffixes.length >= 5 ||
-                                                visibleSuffixes.join('/').length >= 16;
-                                            
+                                            return acc + visibleSuffixes.length + (hasBase ? 1 : 0);
+                                        }, 0);
+                                        
+                                        // Use compact grid for many variants
+                                        const useCompactGrid = item.priceGroups.length > 3 || totalSuffixCount > 8;
+                                        
+                                        if (useCompactGrid) {
+                                            // Compact two-column grid layout for many variants
                                             return (
-                                                <div
-                                                    key={pgIdx}
-                                                    className={`flex flex-col items-end min-w-0 max-w-full ${isLongSuffixGroup ? 'basis-full' : 'basis-[48%]'}`}
-                                                >
-                                                    {(hasBase || visibleSuffixes.length > 0) && (
-                                                        <span className="font-semibold text-[10px] text-slate-500 tracking-tight leading-tight text-right break-normal min-w-0">
-                                                            {hasBase && (
-                                                                <>
-                                                                    <span className="whitespace-nowrap">•</span>
-                                                                </>
-                                                            )}
-                                                            {visibleSuffixes.map((s, i) => (
-                                                                <React.Fragment key={i}>
-                                                                    {(i > 0 || hasBase) && (
-                                                                        <>
-                                                                            <span className="text-slate-300 mx-[1px]">/</span>
-                                                                            <wbr />
-                                                                        </>
+                                                <div className="grid grid-cols-2 gap-x-2 gap-y-[2px] text-right leading-tight">
+                                                    {item.priceGroups.map((pg, pgIdx) => {
+                                                        const hasBase = pg.suffixes.includes('');
+                                                        const visibleSuffixes = pg.suffixes.filter(s => s !== '');
+                                                        
+                                                        return (
+                                                            <React.Fragment key={pgIdx}>
+                                                                <div className="flex flex-wrap justify-end gap-[1px]">
+                                                                    {hasBase && (
+                                                                        <span className="font-semibold text-[8px] text-slate-400 leading-tight">•</span>
                                                                     )}
-                                                                    <span className="whitespace-nowrap">{s}</span>
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </span>
-                                                    )}
-                                                    <span className="font-mono font-bold text-slate-700 text-[14px] whitespace-nowrap mt-0.5">
-                                                        {pg.price.toFixed(2)}€
-                                                    </span>
+                                                                    {visibleSuffixes.map((s, i) => (
+                                                                        <span 
+                                                                            key={i}
+                                                                            className="font-semibold text-[8px] text-slate-400 leading-tight whitespace-nowrap"
+                                                                        >
+                                                                            {s}{i < visibleSuffixes.length - 1 && <span className="text-slate-300">/</span>}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <span className="font-mono font-bold text-slate-600 text-[11px] whitespace-nowrap text-right">
+                                                                    {pg.price.toFixed(2)}€
+                                                                </span>
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
                                                 </div>
                                             );
-                                        })}
-                                    </div>
+                                        }
+                                        
+                                        // Standard inline layout for fewer variants
+                                        return (
+                                            <div className="flex flex-wrap justify-end items-start gap-x-2 gap-y-1 leading-tight w-full">
+                                                {item.priceGroups.map((pg, pgIdx) => {
+                                                    const hasBase = pg.suffixes.includes('');
+                                                    const visibleSuffixes = pg.suffixes.filter(s => s !== '');
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={pgIdx}
+                                                            className="flex items-center gap-1 min-w-0"
+                                                        >
+                                                            {/* Suffix chips - compact inline layout */}
+                                                            <div className="flex flex-wrap justify-end gap-[2px] max-w-[100px]">
+                                                                {hasBase && (
+                                                                    <span className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded leading-tight">
+                                                                        •
+                                                                    </span>
+                                                                )}
+                                                                {visibleSuffixes.map((s, i) => (
+                                                                    <span 
+                                                                        key={i}
+                                                                        className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded leading-tight whitespace-nowrap"
+                                                                    >
+                                                                        {s}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                            {/* Price */}
+                                                            <span className="font-mono font-bold text-slate-700 text-[12px] whitespace-nowrap">
+                                                                {pg.price.toFixed(2)}€
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()
                                 )}
                             </div>
                         </div>

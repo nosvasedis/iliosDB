@@ -374,24 +374,32 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         });
 
         return Array.from(productMap.values()).map(item => {
-            // Create separate entries for each variant instead of grouping by price
-            const priceGroups = Object.entries(item.variantMap).map(([suffix, price]) => ({
-                suffixes: [suffix],
-                price: price
+            // Group variants by price to reduce row count
+            const priceMap = new Map<number, string[]>();
+            Object.entries(item.variantMap).forEach(([suffix, price]) => {
+                const existing = priceMap.get(price) || [];
+                existing.push(suffix);
+                priceMap.set(price, existing);
+            });
+
+            const priceGroups = Array.from(priceMap.entries()).map(([price, suffixes]) => ({
+                suffixes,
+                price
             })).sort((a, b) => {
-                // Sort by suffix priority: '' (Lustre) first, then P, D, X, H
+                // Sort by suffix priority: '' (Lustre) first, then P, D, X, H, then stone codes
                 const getPriority = (s: string) => {
                     if (s === '') return 0;
-                    if (s.startsWith('P')) return 1;
-                    if (s.startsWith('D')) return 2;
-                    if (s.startsWith('X')) return 3;
-                    if (s.startsWith('H')) return 4;
-                    return 5;
+                    if (s === 'P') return 1;
+                    if (s === 'D') return 2;
+                    if (s === 'X') return 3;
+                    if (s === 'H') return 4;
+                    return 5; // Stone codes and other variants
                 };
-                const priorityA = getPriority(a.suffixes[0]);
-                const priorityB = getPriority(b.suffixes[0]);
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                return a.suffixes[0].localeCompare(b.suffixes[0]);
+                // Get the minimum priority from all suffixes in the group
+                const minPriorityA = Math.min(...a.suffixes.map(getPriority));
+                const minPriorityB = Math.min(...b.suffixes.map(getPriority));
+                if (minPriorityA !== minPriorityB) return minPriorityA - minPriorityB;
+                return a.price - b.price;
             });
 
             return {
@@ -907,15 +915,30 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                         </div>
                                                         <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">{item.category}</span>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        {item.priceGroups.map((pg, pgIdx) => (
-                                                            <div key={pgIdx} className="flex justify-between items-center text-xs">
-                                                                <span className="font-bold text-slate-500 truncate max-w-[120px]">
-                                                                    {pg.suffixes.filter(s => s !== '').join(' / ') || 'Lustre'}
-                                                                </span>
-                                                                <span className="font-mono text-slate-700 font-bold">{pg.price.toFixed(2)}€</span>
-                                                            </div>
-                                                        ))}
+                                                    <div className="space-y-1">
+                                                        {item.priceGroups.map((pg, pgIdx) => {
+                                                            const hasBase = pg.suffixes.includes('');
+                                                            const visibleSuffixes = pg.suffixes.filter(s => s !== '');
+                                                            const totalSuffixes = visibleSuffixes.length + (hasBase ? 1 : 0);
+                                                            
+                                                            return (
+                                                                <div key={pgIdx} className="flex justify-between items-center text-xs gap-2">
+                                                                    <div className="flex flex-wrap gap-[3px] max-w-[140px]">
+                                                                        {hasBase && (
+                                                                            <span className="font-bold text-slate-400 bg-slate-100 px-1 rounded text-[10px]">
+                                                                                •
+                                                                            </span>
+                                                                        )}
+                                                                        {visibleSuffixes.map((s, i) => (
+                                                                            <span key={i} className="font-bold text-slate-400 bg-slate-100 px-1 rounded text-[10px] whitespace-nowrap">
+                                                                                {s}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                    <span className="font-mono text-slate-700 font-bold shrink-0">{pg.price.toFixed(2)}€</span>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             ))}
