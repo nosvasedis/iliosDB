@@ -464,9 +464,12 @@ export const estimateVariantCost = (
         } else if (finish.code === 'D') {
             // D Plating applies ONLY to Secondary weight, treated as COST (not rate) if stored in plating_cost_d
             platingCost = labor.plating_cost_d || 0;
+        } else if (finish.code === '') {
+            // Λουστρέ (empty finish code) - explicitly NO plating, regardless of master settings
+            platingCost = 0;
         } else {
-            // Inherit from Master if no suffix finish
-            if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum || (labor.plating_cost_x || 0) > 0) {
+            // Unknown finish code - inherit from Master
+            if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
                 platingCost = totalWeight * (labor.plating_cost_x || 0);
             } else if (masterProduct.plating_type === PlatingType.TwoTone) {
                 // For TwoTone imported masters, plating_cost_d stores the TOTAL COST for secondary plating.
