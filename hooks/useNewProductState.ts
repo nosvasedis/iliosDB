@@ -83,6 +83,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
 
     const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
     const [smartAddStoneSuffix, setSmartAddStoneSuffix] = useState('');
+    const [useIliosFormula, setUseIliosFormula] = useState(true);
 
     const STEPS = getSteps(productionType);
     const finalStepId = STEPS[STEPS.length - 1].id;
@@ -111,6 +112,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setSelectedMolds(duplicateTemplate.molds || []);
             setStxDescription(duplicateTemplate.description || '');
             setIsSTX(duplicateTemplate.is_component || false);
+            setUseIliosFormula(false);
         }
     }, [duplicateTemplate]);
 
@@ -323,25 +325,50 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         return { suggestedMolds: suggested, otherMolds: others };
     }, [molds, moldSearch, sku, selectedMolds]);
 
+    const calculateIliosVariantPrice = (suffix: string) => {
+        const est = estimateVariantCost(currentTempProduct, suffix, settings, materials, products);
+        const silverCost = est.breakdown.silver;
+        const laborCost = est.breakdown.labor;
+        const materialCost = est.breakdown.materials;
+        const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
+
+        return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
+    };
+
+    const calculateIliosMasterPrice = () => {
+        const silverCost = costBreakdown?.silver || 0;
+        const laborCost = costBreakdown?.labor || 0;
+        const materialCost = costBreakdown?.materials || 0;
+        const totalWeight = weight + secondaryWeight;
+        return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
+    };
+
+    const buildIliosPricedVariants = (inputVariants: ProductVariant[]) => {
+        return inputVariants.map(v => ({ ...v, selling_price: calculateIliosVariantPrice(v.suffix) }));
+    };
+
     const handleApplyIliosFormula = () => {
         if (!settings) return;
 
-        const updatedVariants = variants.map(v => {
-            const est = estimateVariantCost(currentTempProduct, v.suffix, settings, materials, products);
-            const silverCost = est.breakdown.silver;
-            const laborCost = est.breakdown.labor;
-            const materialCost = est.breakdown.materials;
-            const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
-
-            const suggested = calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
-            return { ...v, selling_price: suggested };
-        });
+        setUseIliosFormula(true);
+        const updatedVariants = buildIliosPricedVariants(variants);
+        const masterFormulaPrice = calculateIliosMasterPrice();
 
         setVariants(updatedVariants);
-        if (updatedVariants.length > 0) {
-            setSellingPrice(updatedVariants[0].selling_price || 0);
-        }
+        setSellingPrice(updatedVariants.length > 0 ? (updatedVariants[0].selling_price || masterFormulaPrice) : masterFormulaPrice);
         showToast("Εφαρμόστηκε ο Τύπος Ilios σε όλες τις παραλλαγές!", "success");
+    };
+
+    const applyManualPriceToVariants = () => {
+        if (isSTX) return;
+        if (variants.length === 0) {
+            showToast("Δεν υπάρχουν παραλλαγές για ενημέρωση.", "info");
+            return;
+        }
+
+        setUseIliosFormula(false);
+        setVariants(prev => prev.map(v => ({ ...v, selling_price: sellingPrice })));
+        showToast("Η τιμή Master εφαρμόστηκε σε όλες τις παραλλαγές.", "success");
     };
 
     const handleAddVariant = () => {
@@ -430,7 +457,12 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }
     };
 
-    const updateVariant = (index: number, field: keyof ProductVariant, value: any) => { const updated = [...variants]; updated[index] = { ...updated[index], [field]: value }; setVariants(updated); };
+    const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
+        if (field === 'selling_price') setUseIliosFormula(false);
+        const updated = [...variants];
+        updated[index] = { ...updated[index], [field]: value };
+        setVariants(updated);
+    };
     const removeVariant = (index: number) => { setVariants(variants.filter((_, i) => i !== index)); };
 
     const handleSubmit = async () => {
@@ -450,7 +482,39 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }
 
         let finalVariants = [...variants];
+        let finalSellingPrice = sellingPrice;
         const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
+
+        if (!isSTX) {
+            if (useIliosFormula) {
+                if (!settings) {
+                    showToast("Δεν φορτώθηκαν ακόμα οι ρυθμίσεις για τον Τύπο Ilios.", "error");
+                    setCurrentStep(finalStepId);
+                    return;
+                }
+                finalVariants = buildIliosPricedVariants(finalVariants);
+                const formulaMasterPrice = calculateIliosMasterPrice();
+                finalSellingPrice = finalVariants.length > 0 ? (finalVariants[0].selling_price || formulaMasterPrice) : formulaMasterPrice;
+            } else {
+                finalVariants = finalVariants.map(v => ({
+                    ...v,
+                    selling_price: (v.selling_price || 0) > 0 ? v.selling_price : sellingPrice
+                }));
+
+                if (finalSellingPrice <= 0 && finalVariants.length > 0) {
+                    finalSellingPrice = finalVariants[0].selling_price || 0;
+                }
+
+                if (finalSellingPrice <= 0) {
+                    showToast(`Συμπληρώστε τιμολόγηση στο Βήμα ${finalStepId} ή ενεργοποιήστε τον Τύπο Ilios.`, "error");
+                    setCurrentStep(finalStepId);
+                    return;
+                }
+            }
+        } else {
+            finalSellingPrice = 0;
+            finalVariants = finalVariants.map(v => ({ ...v, selling_price: 0 }));
+        }
 
         setIsUploading(true);
         let finalImageUrl: string | null = null;
@@ -466,7 +530,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (selectedImage) {
                 try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImage(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
-            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: isSTX ? 0 : sellingPrice, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
+            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
             const { queued: prodQueued } = await api.saveProduct(productData);
             let anyPartQueued = prodQueued;
             if (finalVariants.length > 0) { for (const v of finalVariants) { const { queued } = await api.saveProductVariant({ product_sku: finalMasterSku, suffix: v.suffix, description: v.description, stock_qty: 0, active_price: v.active_price, selling_price: isSTX ? 0 : v.selling_price }); if (queued) anyPartQueued = true; } }
@@ -477,8 +541,10 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
             else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
+            setVariants(finalVariants);
+            setSellingPrice(finalSellingPrice);
             if (onCancel) onCancel();
-            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); }
+            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); }
         } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error?.message || error}`, "error"); } finally { setIsUploading(false); }
     };
 
@@ -568,6 +634,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             weight, secondaryWeight, secondaryWeightLabel,
             plating, platingMasterLabel, selectedFinishes, finishPrices,
             sellingPrice, masterEstimatedCost, masterMargin,
+            useIliosFormula,
             labor, recipe, recipeTotalCost, costBreakdown,
             isSTX, stxDescription,
             variants, newVariantSuffix, newVariantDesc, newVariantPrice, smartAddStoneSuffix,
@@ -584,6 +651,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setSupplierId, setSupplierSku, setSupplierCost,
             setWeight, setSecondaryWeight, setPlating, setFinishPrices,
             setSellingPrice, setLabor, setStxDescription, setIsSTX,
+            setUseIliosFormula,
             setNewVariantSuffix, setNewVariantDesc, setNewVariantPrice, setSmartAddStoneSuffix,
             setMoldSearch, setNewMoldCode, setNewMoldLoc, setNewMoldDesc,
             setIsRecipeModalOpen, setShowAnalysisHelp
@@ -592,7 +660,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             handleImageSelect, toggleFinish, handleSubmit,
             handleSelectRecipeItem, updateRecipeItem, removeRecipeItem,
             addMold, updateMoldQuantity, removeMold, handleQuickCreateMold, calculateWeightFromMolds,
-            handleAddVariant, handleSmartAddBatch, updateVariant, removeVariant, handleApplyIliosFormula,
+            handleAddVariant, handleSmartAddBatch, updateVariant, removeVariant, handleApplyIliosFormula, applyManualPriceToVariants,
             getVariantTypeInfo
         },
         refs: {

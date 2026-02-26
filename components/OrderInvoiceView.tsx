@@ -138,7 +138,7 @@ export default function OrderInvoiceView({ order }: Props) {
             <main className="flex-1 min-h-0 relative">
                 
                 {/* Header Row (Duplicated for 2 Columns) */}
-                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[9px] font-black text-slate-700 uppercase tracking-wider">
+                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[10px] font-black text-slate-700 uppercase tracking-wider">
                     {/* Left Column Header */}
                     <div className="flex-1 flex items-center pr-3">
                         <div className="w-6 text-center text-slate-400">#</div>
@@ -160,7 +160,7 @@ export default function OrderInvoiceView({ order }: Props) {
                 </div>
 
                 {/* Items Grid */}
-                <div className="grid grid-cols-2 text-[10px] leading-tight auto-rows-min">
+                <div className="grid grid-cols-2 text-[12px] leading-snug auto-rows-min">
                     {order.items.map((item, index) => {
                         const product = allProducts?.find(p => p.sku === item.sku);
                         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
@@ -178,7 +178,7 @@ export default function OrderInvoiceView({ order }: Props) {
                                 `}
                             >
                                 {/* Index */}
-                                <div className="w-6 text-center text-slate-400 font-mono text-[9px]">{index + 1}</div>
+                                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{index + 1}</div>
                                 
                                 {/* Image */}
                                 <div className="w-8 text-center">
@@ -196,11 +196,11 @@ export default function OrderInvoiceView({ order }: Props) {
                                     <div className="flex flex-col">
                                         <div className="flex items-baseline gap-1">
                                             <span className="font-bold text-slate-900">{fullSku}</span>
-                                            {item.size_info && <span className="text-[8px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
+                                            {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
                                         </div>
-                                        <span className="text-[9px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
+                                        <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
                                         {item.notes && (
-                                            <div className="text-[8px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none font-medium">
+                                            <div className="text-[9px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none font-medium">
                                                 <StickyNote size={8}/> {item.notes}
                                             </div>
                                         )}
@@ -208,13 +208,13 @@ export default function OrderInvoiceView({ order }: Props) {
                                 </div>
 
                                 {/* Qty */}
-                                <div className="w-8 text-center font-bold text-slate-800 text-xs">{item.quantity}</div>
+                                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
                                 
                                 {/* Price */}
-                                <div className="w-12 text-right text-slate-700 font-mono text-[10px]">{item.price_at_order.toFixed(2).replace('.', ',')}</div>
+                                <div className="w-12 text-right text-slate-700 tabular-nums font-sans font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}</div>
                                 
                                 {/* Total */}
-                                <div className="w-14 text-right font-black text-slate-900 font-mono text-[10px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+                                <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
                             </div>
                         );
                     })}
@@ -231,30 +231,30 @@ export default function OrderInvoiceView({ order }: Props) {
                 <div className="w-48 text-[11px]">
                     <div className="flex justify-between items-center text-slate-600 mb-0.5">
                         <span>Καθαρή Αξία:</span>
-                        <span className="font-mono font-bold">{subtotal.toFixed(2).replace('.', ',')}€</span>
+                        <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}€</span>
                     </div>
                     {discountAmount > 0 && (
                         <div className="flex justify-between items-center text-rose-600 mb-0.5">
                             <span>Έκπτωση ({discountPercent}%):</span>
-                            <span className="font-mono font-bold">-{discountAmount.toFixed(2).replace('.', ',')}€</span>
+                            <span className="tabular-nums font-bold">-{discountAmount.toFixed(2).replace('.', ',')}€</span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
                         <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
-                        <span className="font-mono font-bold">{vatAmount.toFixed(2).replace('.', ',')}€</span>
+                        <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}€</span>
                     </div>
                     
                     {/* SILVER WEIGHT INDICATOR */}
                     {totalSilverWeight > 0 && (
                         <div className="flex justify-between items-center text-slate-500 mb-1 pb-1 border-b border-slate-200">
                             <span className="flex items-center gap-1"><Weight size={11}/> Βάρος (Ag):</span>
-                            <span className="font-mono font-bold">{totalSilverWeight.toFixed(1)}g</span>
+                            <span className="tabular-nums font-bold">{totalSilverWeight.toFixed(1)}g</span>
                         </div>
                     )}
 
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
                         <span className="uppercase">Γενικο Συνολο:</span>
-                        <span className="font-mono text-base">{grandTotal.toFixed(2).replace('.', ',')}€</span>
+                        <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}€</span>
                     </div>
                 </div>
             </footer>

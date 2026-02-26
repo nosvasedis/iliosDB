@@ -99,12 +99,10 @@ export const StepVariants: React.FC<Props> = ({ formState, settings, materials, 
                             {!state.isSTX && (
                                 <div className="text-right px-4 border-l border-slate-100">
                                     <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Χονδρική</div>
-                                    <input
-                                        type="number" step="0.1"
-                                        value={variant.selling_price || 0}
-                                        onChange={e => actions.updateVariant(index, 'selling_price', parseFloat(e.target.value) || 0)}
-                                        className="w-20 bg-emerald-50 text-emerald-800 font-black text-lg outline-none text-right rounded-lg px-2 border border-emerald-100"
-                                    />
+                                    <div className="w-24 bg-slate-50 text-slate-700 font-black text-base rounded-lg px-2.5 py-1.5 border border-slate-200 text-right">
+                                        {formatCurrency(variant.selling_price || state.sellingPrice || 0)}
+                                    </div>
+                                    <div className="text-[9px] text-slate-400 mt-1">Ορισμός στο Βήμα {state.finalStepId}</div>
                                 </div>
                             )}
 

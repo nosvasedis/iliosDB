@@ -2,8 +2,8 @@ import React from 'react';
 import { Hammer, Globe, Tag, ImageIcon, Lightbulb, Info, Scale } from 'lucide-react';
 import { ProductionType, Gender, PlatingType } from '../../types';
 import { useNewProductState } from '../../hooks/useNewProductState';
-import { FINISH_CODES } from '../../constants';
 import { MoldsSection } from './MoldsSection';
+import { FINISH_CODES } from '../../constants';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -77,19 +77,37 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
                         <div className="flex justify-between items-center">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2"><Hammer size={14} /> Τεχνικά Χαρακτηριστικά</div>
-                            <div className="flex items-center gap-2">
-                                <label className="text-[10px] font-bold text-purple-600 uppercase cursor-pointer" htmlFor="assemblyToggle">Χωρίς Χύτευση</label>
-                                <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
-                                    <input
-                                        type="checkbox"
-                                        id="assemblyToggle"
-                                        className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                                        checked={state.isAssembly}
-                                        onChange={(e) => setters.setIsAssembly(e.target.checked)}
-                                        style={{ left: state.isAssembly ? '1rem' : '0', borderColor: state.isAssembly ? '#9333ea' : '#ccc' }}
-                                    />
-                                    <label htmlFor="assemblyToggle" className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer ${state.isAssembly ? 'bg-purple-600' : 'bg-slate-300'}`}></label>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-[10px] font-bold text-purple-600 uppercase cursor-pointer" htmlFor="assemblyToggle">Χωρίς Χύτευση</label>
+                                    <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
+                                        <input
+                                            type="checkbox"
+                                            id="assemblyToggle"
+                                            className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                                            checked={state.isAssembly}
+                                            onChange={(e) => setters.setIsAssembly(e.target.checked)}
+                                            style={{ left: state.isAssembly ? '1rem' : '0', borderColor: state.isAssembly ? '#9333ea' : '#ccc' }}
+                                        />
+                                        <label htmlFor="assemblyToggle" className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer ${state.isAssembly ? 'bg-purple-600' : 'bg-slate-300'}`}></label>
+                                    </div>
                                 </div>
+                                {state.productionType === ProductionType.InHouse && (
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] font-bold text-indigo-600 uppercase cursor-pointer" htmlFor="stxToggle">Εξάρτημα</label>
+                                        <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
+                                            <input
+                                                type="checkbox"
+                                                id="stxToggle"
+                                                className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                                                checked={state.isSTX}
+                                                onChange={(e) => setters.setIsSTX(e.target.checked)}
+                                                style={{ left: state.isSTX ? '1rem' : '0', borderColor: state.isSTX ? '#4f46e5' : '#ccc' }}
+                                            />
+                                            <label htmlFor="stxToggle" className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer ${state.isSTX ? 'bg-indigo-600' : 'bg-slate-300'}`}></label>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-5">
@@ -163,52 +181,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                         </div>
                     </div>
 
-                    <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 space-y-4">
-                        <div className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-2">Τιμολόγηση</div>
-                        <div className="flex gap-4">
-                            {state.productionType === ProductionType.InHouse && (
-                                <label className="flex items-center gap-3 p-3 border border-emerald-200 rounded-xl bg-white cursor-pointer shrink-0">
-                                    <input type="checkbox" checked={state.isSTX} onChange={(e) => setters.setIsSTX(e.target.checked)} className="h-5 w-5 text-emerald-600 rounded" />
-                                    <span className="font-bold text-emerald-900">Εξάρτημα (STX)</span>
-                                </label>
-                            )}
-                            {!state.isSTX && (
-                                <div className="flex-1 grid grid-cols-2 gap-3">
-                                    {state.selectedFinishes.map(finishCode => (
-                                        <div key={finishCode}>
-                                            <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Χονδρική ({FINISH_CODES[finishCode]})</label>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={state.finishPrices[finishCode] || 0}
-                                                    onChange={e => {
-                                                        const val = parseFloat(e.target.value);
-                                                        setters.setFinishPrices({ ...state.finishPrices, [finishCode]: val });
-                                                        const platingMap: any = { [PlatingType.None]: '', [PlatingType.GoldPlated]: 'X', [PlatingType.TwoTone]: 'D', [PlatingType.Platinum]: 'H' };
-                                                        if (platingMap[state.plating] === finishCode) {
-                                                            setters.setSellingPrice(val);
-                                                        }
-                                                    }}
-                                                    className="w-full p-2.5 border border-emerald-200 bg-white rounded-xl font-bold focus:ring-4 focus:ring-emerald-500/20 outline-none text-sm"
-                                                />
-                                                <span className="text-emerald-600 font-bold text-xs">€</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        {state.isSTX && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-bold text-emerald-900 mb-1.5">Περιγραφή STX</label>
-                                    <input type="text" value={state.stxDescription} onChange={(e) => setters.setStxDescription(e.target.value)} className="w-full p-3 border border-emerald-200 rounded-xl bg-white focus:ring-4 focus:ring-emerald-500/20 outline-none" placeholder="π.χ. Μικρή Πεταλούδα" />
-                                </div>
-                                <div className="text-xs text-emerald-700 italic flex items-center gap-1 bg-emerald-100/50 p-2 rounded"><Info size={14} /> Τα εξαρτήματα (STX) δεν έχουν τιμή πώλησης, μόνο κόστος παραγωγής.</div>
-                            </>
-                        )}
-                    </div>
+
                 </div>
             </div>
             {state.productionType === ProductionType.InHouse && <MoldsSection formState={formState} />}

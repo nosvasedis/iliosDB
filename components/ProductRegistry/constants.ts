@@ -14,7 +14,7 @@ export const getSteps = (type: ProductionType) => {
             { id: 1, title: 'Στοιχεία' },
             { id: 2, title: 'Κοστολόγηση' },
             { id: 3, title: 'Παραλλαγές' },
-            { id: 4, title: 'Σύνοψη & Αποθήκευση' }
+            { id: 4, title: 'Τιμολόγηση & Αποθήκευση' }
         ];
     }
     return [
@@ -22,7 +22,7 @@ export const getSteps = (type: ProductionType) => {
         { id: 2, title: 'Συνταγή' },
         { id: 3, title: 'Εργατικά' },
         { id: 4, title: 'Παραλλαγές' },
-        { id: 5, title: 'Σύνοψη & Αποθήκευση' }
+        { id: 5, title: 'Τιμολόγηση & Αποθήκευση' }
     ];
 };
 
