@@ -177,6 +177,21 @@ export default function ProductionSendModal({ order, products, materials, existi
         return Object.values(groups).sort((a, b) => a.sku.localeCompare(b.sku));
     }, [activeStagePopup, existingBatches, products]);
 
+    // Popup Batches - individual batches for stage popup with movement buttons
+    const popupBatches = useMemo(() => {
+        if (!activeStagePopup) return [];
+        return existingBatches
+            .filter(b => b.current_stage === activeStagePopup)
+            .sort((a, b) => {
+                // Sort by SKU, then variant, then size
+                const skuCompare = a.sku.localeCompare(b.sku);
+                if (skuCompare !== 0) return skuCompare;
+                const variantCompare = (a.variant_suffix || '').localeCompare(b.variant_suffix || '');
+                if (variantCompare !== 0) return variantCompare;
+                return (a.size_info || '').localeCompare(b.size_info || '');
+            });
+    }, [activeStagePopup, existingBatches]);
+
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
@@ -999,56 +1014,88 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <h3 className="font-black text-2xl uppercase tracking-tight">
                                         {STAGES.find(s => s.id === activeStagePopup)?.label}
                                     </h3>
-                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupItems.reduce((a, b) => a + b.qty, 0)} Τεμαχια συνολικα</p>
+                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupBatches.reduce((a, b) => a + b.quantity, 0)} Τεμαχια συνολικα</p>
                                 </div>
                             </div>
                             <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28} /></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
-                            {popupItems.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {popupItems.map((item, idx) => (
-                                        <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                                            {/* Card Header */}
-                                            <div className="p-3 flex gap-3 border-b border-slate-50">
-                                                <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0 relative group">
-                                                    {item.img ? <img src={item.img} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                    <div className="text-xs font-bold text-slate-400 uppercase truncate mb-0.5">{item.category}</div>
-                                                    <div className="font-black text-slate-900 text-lg leading-none truncate">
-                                                        <SkuColored sku={item.sku} suffix={item.variant} gender={item.gender} />
+                            {popupBatches.length > 0 ? (
+                                <div className="space-y-3">
+                                    {popupBatches.map((batch) => {
+                                        const product = products.find(p => p.sku === batch.sku);
+                                        const stageConf = STAGES.find(s => s.id === batch.current_stage);
+                                        
+                                        return (
+                                            <div key={batch.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                                {/* Card Header */}
+                                                <div className="p-3 flex gap-3 border-b border-slate-50">
+                                                    <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0">
+                                                        {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2" />}
                                                     </div>
-                                                    {item.size && (
-                                                        <div className="mt-1">
-                                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1 w-fit">
-                                                                <Hash size={10} /> {item.size}
-                                                            </span>
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{product?.category || 'Προϊόν'}</div>
+                                                        <div className="font-black text-slate-900 text-base leading-none truncate">
+                                                            <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} />
                                                         </div>
-                                                    )}
+                                                        {batch.size_info && (
+                                                            <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5 w-fit mt-1">
+                                                                <Hash size={8} /> {batch.size_info}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Ποσ.</span>
+                                                        <span className="text-xl font-black text-slate-900">{batch.quantity}</span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Ποσ.</span>
-                                                    <span className="text-2xl font-black text-slate-900">{item.qty}</span>
-                                                </div>
-                                            </div>
 
-                                            {/* Card Body - Notes */}
-                                            <div className="p-3 bg-slate-50/50 flex-1 flex flex-col justify-center min-h-[3rem]">
-                                                {item.notes.length > 0 && (
-                                                    <div className="space-y-1.5">
-                                                        {item.notes.map((note, nIdx) => (
-                                                            <div key={nIdx} className="flex items-start gap-2 text-[11px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-100 leading-snug">
-                                                                <StickyNote size={12} className="shrink-0 mt-0.5 text-amber-500" />
-                                                                <span>{note}</span>
-                                                            </div>
-                                                        ))}
+                                                {/* Stage Movement Buttons */}
+                                                <div className="p-3 bg-slate-50/50 border-t border-slate-100">
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                                        <RefreshCw size={10} /> Μετακίνηση σε Στάδιο
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {STAGES.map((stage, index) => {
+                                                            const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
+                                                            const isCurrentStage = stage.id === batch.current_stage;
+                                                            const isCompletedStage = index < currentStageIndex;
+                                                            const isUpcomingStage = index > currentStageIndex;
+                                                            
+                                                            return (
+                                                                <button
+                                                                    key={stage.id}
+                                                                    onClick={() => handleStageMove(batch, stage.id as ProductionStage)}
+                                                                    disabled={isWorking}
+                                                                    className={`px-2 py-1 rounded font-bold text-[9px] uppercase transition-all border ${
+                                                                        isCurrentStage
+                                                                            ? `${stage.color} border-current shadow-sm scale-105`
+                                                                            : isCompletedStage
+                                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                                                    }`}
+                                                                    title={stage.label}
+                                                                >
+                                                                    {stage.label}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Batch Note */}
+                                                {batch.notes && (
+                                                    <div className="px-3 pb-3">
+                                                        <div className="flex items-start gap-2 text-[10px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-100 leading-snug">
+                                                            <StickyNote size={12} className="shrink-0 mt-0.5 text-amber-500" />
+                                                            <span>{batch.notes}</span>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
