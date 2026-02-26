@@ -309,7 +309,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                                         ${isCurrent 
                                                             ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
                                                             : isDisabled
-                                                            ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed line-through'
+                                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                             : isPast
                                                             ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
                                                             : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md`

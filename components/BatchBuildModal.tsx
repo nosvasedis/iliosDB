@@ -177,9 +177,22 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                         onChange={handleStageChange}
                                         disabled={isMoving}
                                     >
-                                        {STAGES.map(s => (
-                                            <option key={s.id} value={s.id}>{s.label}</option>
-                                        ))}
+                                        {STAGES.map(s => {
+                                            // Check if stage is disabled for this batch
+                                            const isStageDisabled = 
+                                                (s.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                                (s.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                            
+                                            return (
+                                                <option 
+                                                    key={s.id} 
+                                                    value={s.id}
+                                                    disabled={isStageDisabled}
+                                                >
+                                                    {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                             </div>
@@ -205,7 +218,22 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                 value={batch.current_stage}
                                 onChange={handleStageChange}
                              >
-                                 {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                 {STAGES.map(s => {
+                                     // Check if stage is disabled for this batch
+                                     const isStageDisabled = 
+                                         (s.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                         (s.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                     
+                                     return (
+                                         <option 
+                                             key={s.id} 
+                                             value={s.id}
+                                             disabled={isStageDisabled}
+                                         >
+                                             {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
+                                         </option>
+                                     );
+                                 })}
                              </select>
                         </div>
                     )}

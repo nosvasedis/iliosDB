@@ -736,21 +736,29 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     const isCompletedStage = index < currentStageIndex;
                                                                                     const isUpcomingStage = index > currentStageIndex;
                                                                                     
+                                                                                    // Check if stage is disabled (skipped) for this batch
+                                                                                    const isStageDisabled = 
+                                                                                        (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                                                                        (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                                                                    
                                                                                     return (
                                                                                         <div key={stage.id} className="relative">
-                                                                                            {isCompletedStage && (
+                                                                                            {isCompletedStage && !isStageDisabled && (
                                                                                                 <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-slate-400 rounded-full"></div>
                                                                                             )}
                                                                                             <button
-                                                                                                onClick={() => handleStageMove(batch, stage.id as ProductionStage)}
+                                                                                                onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
                                                                                                 className={`relative px-2 py-1 rounded font-bold text-[10px] uppercase transition-all border ${
                                                                                                     isCurrentStage
                                                                                                         ? `${stage.color} border-current shadow-sm scale-105 z-10`
+                                                                                                        : isStageDisabled
+                                                                                                        ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                                                                         : isCompletedStage
                                                                                                         ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
                                                                                                         : 'bg-slate-50 text-slate-300 border-slate-200 hover:bg-slate-100'
                                                                                                 }`}
-                                                                                                title={stage.label}
+                                                                                                title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
+                                                                                                disabled={isStageDisabled}
                                                                                             >
                                                                                                 {stage.label}
                                                                                             </button>
@@ -963,7 +971,22 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 onChange={(e) => setSplitStage(e.target.value as ProductionStage)}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
                             >
-                                {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                {STAGES.map(s => {
+                                    // Check if stage is disabled for this batch
+                                    const isStageDisabled = 
+                                        (s.id === ProductionStage.Setting && !splitTarget?.batch.requires_setting) ||
+                                        (s.id === ProductionStage.Assembly && !splitTarget?.batch.requires_assembly);
+                                    
+                                    return (
+                                        <option 
+                                            key={s.id} 
+                                            value={s.id}
+                                            disabled={isStageDisabled}
+                                        >
+                                            {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
 
@@ -1063,19 +1086,26 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             const isCompletedStage = index < currentStageIndex;
                                                             const isUpcomingStage = index > currentStageIndex;
                                                             
+                                                            // Check if stage is disabled (skipped) for this batch
+                                                            const isStageDisabled = 
+                                                                (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                                                (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                                            
                                                             return (
                                                                 <button
                                                                     key={stage.id}
-                                                                    onClick={() => handleStageMove(batch, stage.id as ProductionStage)}
-                                                                    disabled={isWorking}
+                                                                    onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
+                                                                    disabled={isWorking || isStageDisabled}
                                                                     className={`px-2 py-1 rounded font-bold text-[9px] uppercase transition-all border ${
                                                                         isCurrentStage
                                                                             ? `${stage.color} border-current shadow-sm scale-105`
+                                                                            : isStageDisabled
+                                                                            ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                                             : isCompletedStage
                                                                             ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
                                                                             : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                                                                     }`}
-                                                                    title={stage.label}
+                                                                    title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
                                                                 >
                                                                     {stage.label}
                                                                 </button>

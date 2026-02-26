@@ -235,7 +235,7 @@ const MobileBatchCard: React.FC<{
                                                         ${isCurrent 
                                                             ? `${stageColors} ring-2 ring-offset-1 ring-current/30` 
                                                             : isDisabled
-                                                            ? 'bg-slate-50 text-slate-300 cursor-not-allowed line-through'
+                                                            ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
                                                             : isPast
                                                             ? 'bg-slate-50 text-slate-500 border border-slate-100'
                                                             : `${stageColors} hover:shadow-md`
@@ -541,11 +541,22 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                             onChange={(e) => setSelectedTarget(e.target.value as ProductionStage)}
                             className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-emerald-500 transition-all appearance-none"
                         >
-                            {STAGES.map(s => (
-                                <option key={s.id} value={s.id} disabled={s.id === batch.current_stage}>
-                                    {s.label}
-                                </option>
-                            ))}
+                            {STAGES.map(s => {
+                                // Check if stage is disabled for this batch
+                                const isStageDisabled = 
+                                    (s.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                    (s.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                
+                                return (
+                                    <option 
+                                        key={s.id} 
+                                        value={s.id} 
+                                        disabled={s.id === batch.current_stage || isStageDisabled}
+                                    >
+                                        {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 
