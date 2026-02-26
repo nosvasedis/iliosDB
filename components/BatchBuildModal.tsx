@@ -1,7 +1,8 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -25,9 +26,120 @@ const STAGES = [
     { id: ProductionStage.Ready, label: 'Έτοιμα' }
 ];
 
+// Stage colors for movement buttons - matching ProductionBatchCard
+const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
+    'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'Waxing': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
+    'Casting': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+    'Setting': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    'Polishing': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Assembly': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
+    'Labeling': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+    'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+};
+
 export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
+    
+    // Stage selector state
+    const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
+    const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const popupRef = useRef<HTMLDivElement>(null);
+    
+    // Get current stage index
+    const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
+    
+    // Determine which stages should be disabled (skipped)
+    const isStageDisabled = (stageId: ProductionStage): boolean => {
+        if (stageId === ProductionStage.Setting && !batch.requires_setting) return true;
+        if (stageId === ProductionStage.Assembly && !batch.requires_assembly) return true;
+        return false;
+    };
+    
+    // Calculate popup position when opening
+    const updatePosition = useCallback(() => {
+        if (buttonRef.current) {
+            const buttonRect = buttonRef.current.getBoundingClientRect();
+            const popupHeight = 320;
+            const popupWidth = 160;
+            const padding = 8;
+            
+            // Calculate vertical position - prefer above, but go below if not enough space
+            let top = buttonRect.top - popupHeight - padding;
+            if (top < padding) {
+                top = buttonRect.bottom + padding;
+            }
+            
+            // Ensure doesn't go off bottom of screen
+            const viewportHeight = window.innerHeight;
+            if (top + popupHeight > viewportHeight - padding) {
+                top = viewportHeight - popupHeight - padding;
+            }
+            
+            // Calculate horizontal position - align right edge with button
+            let left = buttonRect.right - popupWidth;
+            if (left < padding) {
+                left = padding;
+            }
+            
+            setPopupPosition({ top, left });
+        }
+    }, []);
+    
+    // Open/close handler
+    const handleToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!stageSelectorOpen) {
+            updatePosition();
+        }
+        setStageSelectorOpen(!stageSelectorOpen);
+    }, [stageSelectorOpen, updatePosition]);
+    
+    // Close selector when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                popupRef.current && !popupRef.current.contains(event.target as Node) &&
+                buttonRef.current && !buttonRef.current.contains(event.target as Node)
+            ) {
+                setStageSelectorOpen(false);
+            }
+        };
+        if (stageSelectorOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [stageSelectorOpen]);
+    
+    // Update position on scroll/resize
+    useEffect(() => {
+        if (stageSelectorOpen) {
+            const handleScroll = () => updatePosition();
+            window.addEventListener('scroll', handleScroll, true);
+            window.addEventListener('resize', handleScroll);
+            return () => {
+                window.removeEventListener('scroll', handleScroll, true);
+                window.removeEventListener('resize', handleScroll);
+            };
+        }
+    }, [stageSelectorOpen, updatePosition]);
+    
+    // Handle stage selection
+    const handleStageSelect = (targetStage: ProductionStage) => {
+        if (isStageDisabled(targetStage)) return;
+        if (targetStage === batch.current_stage) return;
+        setStageSelectorOpen(false);
+        if (onMove) {
+            setIsMoving(true);
+            onMove(batch, targetStage);
+            setTimeout(() => {
+                setIsMoving(false);
+                onClose();
+            }, 500);
+        }
+    };
 
     const buildData = useMemo(() => {
         if (!product) return null;
@@ -86,17 +198,6 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
         };
 
     }, [product, batch, allMaterials, allMolds, allProducts]);
-
-    const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        if (onMove) {
-            setIsMoving(true);
-            onMove(batch, e.target.value as ProductionStage);
-            setTimeout(() => {
-                setIsMoving(false);
-                onClose();
-            }, 500);
-        }
-    };
 
     if (!product || !buildData) return null;
 
@@ -164,37 +265,17 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                         {onMove && (
                             <div className="hidden md:flex flex-col items-end mr-4">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">Στάδιο Παραγωγής</label>
-                                <div className="relative group">
-                                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all ${isMoving ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'}`}>
-                                        {isMoving ? <Check size={16} className="animate-bounce"/> : <MoveRight size={16}/>}
-                                        <span className="font-bold text-sm">
-                                            {isMoving ? 'Μετακίνηση...' : (STAGES.find(s => s.id === batch.current_stage)?.label || batch.current_stage)}
-                                        </span>
-                                    </div>
-                                    <select 
-                                        className="absolute inset-0 opacity-0 cursor-pointer"
-                                        value={batch.current_stage}
-                                        onChange={handleStageChange}
-                                        disabled={isMoving}
-                                    >
-                                        {STAGES.map(s => {
-                                            // Check if stage is disabled for this batch
-                                            const isStageDisabled = 
-                                                (s.id === ProductionStage.Setting && !batch.requires_setting) ||
-                                                (s.id === ProductionStage.Assembly && !batch.requires_assembly);
-                                            
-                                            return (
-                                                <option 
-                                                    key={s.id} 
-                                                    value={s.id}
-                                                    disabled={isStageDisabled}
-                                                >
-                                                    {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
+                                <button
+                                    ref={buttonRef}
+                                    onClick={handleToggle}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${isMoving ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'}`}
+                                >
+                                    {isMoving ? <Check size={16} className="animate-bounce"/> : <MoveRight size={16}/>}
+                                    <span className="font-bold text-sm">
+                                        {isMoving ? 'Μετακίνηση...' : (STAGES.find(s => s.id === batch.current_stage)?.label || batch.current_stage)}
+                                    </span>
+                                    {stageSelectorOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </button>
                             </div>
                         )}
 
@@ -213,28 +294,44 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     {onMove && (
                         <div className="md:hidden mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                              <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
-                             <select 
-                                className="w-full p-3 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
-                                value={batch.current_stage}
-                                onChange={handleStageChange}
-                             >
-                                 {STAGES.map(s => {
-                                     // Check if stage is disabled for this batch
-                                     const isStageDisabled = 
-                                         (s.id === ProductionStage.Setting && !batch.requires_setting) ||
-                                         (s.id === ProductionStage.Assembly && !batch.requires_assembly);
-                                     
-                                     return (
-                                         <option 
-                                             key={s.id} 
-                                             value={s.id}
-                                             disabled={isStageDisabled}
-                                         >
-                                             {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
-                                         </option>
-                                     );
-                                 })}
-                             </select>
+                             <div className="flex flex-wrap gap-1">
+                                {STAGES.map((stage, index) => {
+                                    const isCurrent = stage.id === batch.current_stage;
+                                    const isDisabled = isStageDisabled(stage.id);
+                                    const isPast = index < currentStageIndex;
+                                    
+                                    // Get correct color key for this stage
+                                    const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                                     stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                                     stage.id === ProductionStage.Casting ? 'Casting' :
+                                                     stage.id === ProductionStage.Setting ? 'Setting' :
+                                                     stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                                     stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                                    
+                                    return (
+                                        <button
+                                            key={stage.id}
+                                            onClick={() => handleStageSelect(stage.id)}
+                                            disabled={isMoving || isDisabled}
+                                            className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
+                                                isCurrent
+                                                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
+                                            }`}
+                                        >
+                                            {stage.label}
+                                            {isCurrent && <span className="text-[7px]">●</span>}
+                                            {isDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
+                                        </button>
+                                    );
+                                })}
+                             </div>
                         </div>
                     )}
 
@@ -375,6 +472,61 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     </button>
                 </div>
             </div>
+            
+            {/* Portal-style fixed position popup - rendered at root level */}
+            {stageSelectorOpen && onMove && ReactDOM.createPortal(
+                <div 
+                    ref={popupRef}
+                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                    style={{ 
+                        top: popupPosition.top,
+                        left: popupPosition.left,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 sticky top-0 bg-white pt-1">Στάδια</div>
+                    <div className="space-y-1">
+                        {STAGES.map((stage, index) => {
+                            const isCurrent = stage.id === batch.current_stage;
+                            const isDisabled = isStageDisabled(stage.id);
+                            const isPast = index < currentStageIndex;
+                            
+                            // Get correct color key for this stage
+                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                             stage.id === ProductionStage.Casting ? 'Casting' :
+                                             stage.id === ProductionStage.Setting ? 'Setting' :
+                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                            const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                            
+                            return (
+                                <button
+                                    key={stage.id}
+                                    onClick={() => handleStageSelect(stage.id)}
+                                    disabled={isMoving || isDisabled}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                        ${isCurrent 
+                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
+                                            : isDisabled
+                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                            : isPast
+                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md`
+                                        }
+                                    `}
+                                >
+                                    <span>{stage.label}</span>
+                                    {isCurrent && <span className="text-[8px]">●</span>}
+                                    {isDisabled && <span className="text-[8px] opacity-50">παράλειψη</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

@@ -30,6 +30,18 @@ const STAGES = [
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-100/60 border-emerald-200 text-emerald-800' }
 ];
 
+// Stage colors for movement buttons - matching ProductionBatchCard
+const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
+    'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'Waxing': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
+    'Casting': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+    'Setting': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    'Polishing': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Assembly': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
+    'Labeling': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+    'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+};
+
 const FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-500',
     'P': 'text-slate-500',
@@ -741,6 +753,16 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                         (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
                                                                                         (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
                                                                                     
+                                                                                    // Get correct color key for this stage
+                                                                                    const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                                                                                     stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                                                                                     stage.id === ProductionStage.Casting ? 'Casting' :
+                                                                                                     stage.id === ProductionStage.Setting ? 'Setting' :
+                                                                                                     stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                                                                                     stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                                                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                                                                                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                                                                                    
                                                                                     return (
                                                                                         <div key={stage.id} className="relative">
                                                                                             {isCompletedStage && !isStageDisabled && (
@@ -748,19 +770,21 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                             )}
                                                                                             <button
                                                                                                 onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
-                                                                                                className={`relative px-2 py-1 rounded font-bold text-[10px] uppercase transition-all border ${
+                                                                                                className={`relative px-2 py-1 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                                                                                     isCurrentStage
-                                                                                                        ? `${stage.color} border-current shadow-sm scale-105 z-10`
+                                                                                                        ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm z-10`
                                                                                                         : isStageDisabled
                                                                                                         ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                                                                         : isCompletedStage
-                                                                                                        ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
-                                                                                                        : 'bg-slate-50 text-slate-300 border-slate-200 hover:bg-slate-100'
+                                                                                                        ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                                                                                        : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
                                                                                                 }`}
                                                                                                 title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
                                                                                                 disabled={isStageDisabled}
                                                                                             >
                                                                                                 {stage.label}
+                                                                                                {isCurrentStage && <span className="text-[7px]">●</span>}
+                                                                                                {isStageDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
                                                                                             </button>
                                                                                         </div>
                                                                                     );
@@ -1091,23 +1115,35 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
                                                                 (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
                                                             
+                                                            // Get correct color key for this stage
+                                                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                                                             stage.id === ProductionStage.Casting ? 'Casting' :
+                                                                             stage.id === ProductionStage.Setting ? 'Setting' :
+                                                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                                                            const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                                                            
                                                             return (
                                                                 <button
                                                                     key={stage.id}
                                                                     onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
                                                                     disabled={isWorking || isStageDisabled}
-                                                                    className={`px-2 py-1 rounded font-bold text-[9px] uppercase transition-all border ${
+                                                                    className={`px-2 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                                                         isCurrentStage
-                                                                            ? `${stage.color} border-current shadow-sm scale-105`
+                                                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
                                                                             : isStageDisabled
                                                                             ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                                             : isCompletedStage
-                                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
-                                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
                                                                     }`}
                                                                     title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
                                                                 >
                                                                     {stage.label}
+                                                                    {isCurrentStage && <span className="text-[7px]">●</span>}
+                                                                    {isStageDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
                                                                 </button>
                                                             );
                                                         })}
