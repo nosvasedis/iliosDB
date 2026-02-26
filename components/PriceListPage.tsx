@@ -99,11 +99,11 @@ const getStoneChipStyle = (code: string) => {
 // Helper to get finish code color
 const getFinishChipStyle = (code: string) => {
     const finishStyles: Record<string, string> = {
-        '': 'bg-slate-100 text-slate-700',  // Λουστρέ
-        'P': 'bg-amber-100 text-amber-800',  // Πατίνα
-        'X': 'bg-yellow-100 text-yellow-800', // Επίχρυσο
-        'D': 'bg-indigo-100 text-indigo-800', // Δίχρωμο
-        'H': 'bg-slate-200 text-slate-800',  // Επιπλατινωμένο
+        '': 'bg-slate-100 text-slate-700',  // Λουστρέ (Lustre) - gray/slate
+        'P': 'bg-slate-200 text-slate-800',  // Πατίνα (Patina) - darker slate/gray
+        'X': 'bg-amber-100 text-amber-800',  // Επίχρυσο (Gold) - amber/yellow
+        'D': 'bg-orange-100 text-orange-800', // Δίχρωμο (Two-tone) - orange
+        'H': 'bg-cyan-100 text-cyan-800',    // Επιπλατινωμένο (Platinum) - cyan/light blue
     };
     return finishStyles[code] || 'bg-slate-50 text-slate-600';
 };
