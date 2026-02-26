@@ -209,7 +209,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
 
                         {!state.isSTX && !state.useIliosFormula && (
                             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3">
-                                <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Τιμολόγηση (Βήμα {state.finalStepId})</div>
+                                <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Τιμολόγηση</div>
                                 <div className="flex flex-wrap items-end gap-3">
                                     <div className="min-w-[220px] flex-1">
                                         <label className="block text-xs font-bold text-emerald-900 mb-1">Master Χονδρική</label>

@@ -5,6 +5,7 @@ import { Product, Gender, Collection } from '../types';
 import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User, Users, FolderKanban, Check, X, Plus, Zap, PenTool, ListFilter, Trash2, Minus, FolderX } from 'lucide-react';
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
+import { getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
 
 interface Props {
     products: Product[];
@@ -43,6 +44,86 @@ const pluralizeCategory = (cat: string) => {
     // Basic heuristic for unknown words:
     if (map[cat]) return map[cat];
     return cat;
+};
+
+// Helper to get stone chip colors
+const getStoneChipStyle = (code: string) => {
+    const stoneStyles: Record<string, string> = {
+        // Women — Zircon family
+        'LE': 'bg-slate-100 text-slate-700',
+        'MP': 'bg-blue-100 text-blue-800',
+        'PR': 'bg-green-100 text-green-800',
+        'KO': 'bg-red-100 text-red-800',
+        'MV': 'bg-purple-100 text-purple-800',
+        'RZ': 'bg-pink-100 text-pink-800',
+        'AK': 'bg-cyan-100 text-cyan-800',
+        // Women — Agate family
+        'PAX': 'bg-green-100 text-green-700',
+        'MAX': 'bg-blue-100 text-blue-700',
+        'KAX': 'bg-red-100 text-red-700',
+        // Women — Copper family
+        'CO': 'bg-teal-100 text-teal-800',
+        'PCO': 'bg-emerald-100 text-emerald-800',
+        'MCO': 'bg-purple-100 text-purple-700',
+        // Women — Triplets
+        'TPR': 'bg-emerald-100 text-emerald-700',
+        'TKO': 'bg-red-100 text-red-700',
+        'TMP': 'bg-indigo-100 text-indigo-700',
+        // Women — Other
+        'AI': 'bg-zinc-100 text-zinc-700',
+        'AP': 'bg-teal-100 text-teal-700',
+        'AM': 'bg-teal-100 text-teal-800',
+        'LR': 'bg-blue-100 text-blue-700',
+        'LA': 'bg-blue-200 text-blue-900',
+        'FI': 'bg-amber-100 text-amber-700',
+        'BST': 'bg-sky-100 text-sky-700',
+        'XAL': 'bg-blue-50 text-blue-600',
+        // Men
+        'KR': 'bg-orange-100 text-orange-800',
+        'AX': 'bg-green-100 text-green-700',
+        'TG': 'bg-amber-100 text-amber-800',
+        'QN': 'bg-zinc-100 text-zinc-800',
+        'TY': 'bg-teal-100 text-teal-800',
+        'IA': 'bg-rose-100 text-rose-800',
+        'BSU': 'bg-zinc-100 text-zinc-700',
+        'GSU': 'bg-green-100 text-green-700',
+        'RSU': 'bg-red-100 text-red-700',
+        'MA': 'bg-emerald-100 text-emerald-800',
+        'OP': 'bg-stone-100 text-stone-600',
+        'NF': 'bg-green-100 text-green-800',
+        'SD': 'bg-indigo-100 text-indigo-900',
+    };
+    return stoneStyles[code] || 'bg-slate-50 text-slate-600';
+};
+
+// Helper to get finish code color
+const getFinishChipStyle = (code: string) => {
+    const finishStyles: Record<string, string> = {
+        '': 'bg-slate-100 text-slate-700',  // Λουστρέ
+        'P': 'bg-amber-100 text-amber-800',  // Πατίνα
+        'X': 'bg-yellow-100 text-yellow-800', // Επίχρυσο
+        'D': 'bg-indigo-100 text-indigo-800', // Δίχρωμο
+        'H': 'bg-slate-200 text-slate-800',  // Επιπλατινωμένο
+    };
+    return finishStyles[code] || 'bg-slate-50 text-slate-600';
+};
+
+// Parse suffix into finish and stone parts
+const parseSuffixForDisplay = (suffix: string, gender?: Gender) => {
+    if (!suffix || suffix === '') return { parts: [], basePrice: true };
+    
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    const parts: Array<{ code: string; type: 'finish' | 'stone'; style: string }> = [];
+    
+    if (finish.code && finish.code !== '') {
+        parts.push({ code: finish.code, type: 'finish', style: getFinishChipStyle(finish.code) });
+    }
+    
+    if (stone.code && stone.code !== '') {
+        parts.push({ code: stone.code, type: 'stone', style: getStoneChipStyle(stone.code) });
+    }
+    
+    return { parts, basePrice: false };
 };
 
 export default function PriceListPage({ products, collections, onPrint }: Props) {
@@ -919,21 +1000,42 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                         {item.priceGroups.map((pg, pgIdx) => {
                                                             const hasBase = pg.suffixes.includes('');
                                                             const visibleSuffixes = pg.suffixes.filter(s => s !== '');
-                                                            const totalSuffixes = visibleSuffixes.length + (hasBase ? 1 : 0);
                                                             
                                                             return (
                                                                 <div key={pgIdx} className="flex justify-between items-center text-xs gap-2">
                                                                     <div className="flex flex-wrap gap-[3px] max-w-[140px]">
                                                                         {hasBase && (
-                                                                            <span className="font-bold text-slate-400 bg-slate-100 px-1 rounded text-[10px]">
+                                                                            <span className="font-bold text-slate-700 bg-slate-100 px-1 rounded text-[10px]">
                                                                                 •
                                                                             </span>
                                                                         )}
-                                                                        {visibleSuffixes.map((s, i) => (
-                                                                            <span key={i} className="font-bold text-slate-400 bg-slate-100 px-1 rounded text-[10px] whitespace-nowrap">
-                                                                                {s}
-                                                                            </span>
-                                                                        ))}
+                                                                        {visibleSuffixes.map((s, i) => {
+                                                                            // Parse suffix to get color-coded finish and stone parts
+                                                                            const { parts } = parseSuffixForDisplay(s);
+                                                                            
+                                                                            if (parts.length > 0) {
+                                                                                // Display each part with its own color
+                                                                                return (
+                                                                                    <span key={i} className="inline-flex items-center gap-[1px]">
+                                                                                        {parts.map((part, partIdx) => (
+                                                                                            <span 
+                                                                                                key={partIdx}
+                                                                                                className={`font-bold px-1 rounded text-[10px] whitespace-nowrap ${part.style}`}
+                                                                                            >
+                                                                                                {part.code}
+                                                                                            </span>
+                                                                                        ))}
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                            
+                                                                            // Fallback for unknown codes
+                                                                            return (
+                                                                                <span key={i} className="font-bold text-slate-600 bg-slate-50 px-1 rounded text-[10px] whitespace-nowrap">
+                                                                                    {s}
+                                                                                </span>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                     <span className="font-mono text-slate-700 font-bold shrink-0">{pg.price.toFixed(2)}€</span>
                                                                 </div>
