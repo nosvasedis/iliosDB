@@ -344,16 +344,18 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
 
                 if (p.variants && p.variants.length > 0) {
                     p.variants.forEach(v => {
-                        const price = v.selling_price || p.selling_price || 0;
-                        if (price > 0) {
-                            variantMap[v.suffix] = price;
+                        const price = v.selling_price ?? p.selling_price ?? 0;
+                        // Include all variants in the map
+                        variantMap[v.suffix] = price;
+                        // Mark as valid if at least one variant has a non-negative price
+                        if (price >= 0) {
                             hasValidPrice = true;
                         }
                     });
                 } else {
-                    const price = p.selling_price || 0;
-                    if (price > 0) {
-                        variantMap[''] = price;
+                    const price = p.selling_price ?? 0;
+                    variantMap[''] = price;
+                    if (price >= 0) {
                         hasValidPrice = true;
                     }
                 }
@@ -372,16 +374,25 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         });
 
         return Array.from(productMap.values()).map(item => {
-            const priceToSuffixes: Record<number, string[]> = {};
-            Object.entries(item.variantMap).forEach(([suffix, price]) => {
-                if (!priceToSuffixes[price]) priceToSuffixes[price] = [];
-                priceToSuffixes[price].push(suffix);
+            // Create separate entries for each variant instead of grouping by price
+            const priceGroups = Object.entries(item.variantMap).map(([suffix, price]) => ({
+                suffixes: [suffix],
+                price: price
+            })).sort((a, b) => {
+                // Sort by suffix priority: '' (Lustre) first, then P, D, X, H
+                const getPriority = (s: string) => {
+                    if (s === '') return 0;
+                    if (s.startsWith('P')) return 1;
+                    if (s.startsWith('D')) return 2;
+                    if (s.startsWith('X')) return 3;
+                    if (s.startsWith('H')) return 4;
+                    return 5;
+                };
+                const priorityA = getPriority(a.suffixes[0]);
+                const priorityB = getPriority(b.suffixes[0]);
+                if (priorityA !== priorityB) return priorityA - priorityB;
+                return a.suffixes[0].localeCompare(b.suffixes[0]);
             });
-
-            const priceGroups = Object.entries(priceToSuffixes).map(([priceStr, suffixes]) => ({
-                price: parseFloat(priceStr),
-                suffixes: suffixes.sort()
-            })).sort((a, b) => a.price - b.price);
 
             return {
                 skuBase: item.skuBase,

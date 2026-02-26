@@ -578,7 +578,17 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     };
 
     const finalStacks = useMemo(() => {
-        const stacks = [];
+        const stacks: {
+            total: number;
+            silver: number;
+            materials: number;
+            baseLabor: number;
+            platingCost: number;
+            type: 'X' | 'D' | 'Base';
+            label: string;
+            colorClass: string;
+            borderClass: string;
+        }[] = [];
         const hasX = variants.some(v => v.suffix.includes('X') || v.suffix.includes('H')) || [PlatingType.GoldPlated, PlatingType.Platinum].includes(plating);
         const hasD = variants.some(v => v.suffix.includes('D')) || plating === PlatingType.TwoTone;
 

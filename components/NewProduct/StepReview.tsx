@@ -246,7 +246,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    value={v.selling_price || state.sellingPrice || 0}
+                                                    value={v.selling_price ?? state.sellingPrice ?? 0}
                                                     onChange={e => actions.updateVariant(idx, 'selling_price', parseFloat(e.target.value) || 0)}
                                                     className="w-full p-2 border border-emerald-200 rounded-lg bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-emerald-500/20"
                                                 />
