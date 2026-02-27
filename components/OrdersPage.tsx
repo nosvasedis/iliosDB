@@ -913,13 +913,24 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 }
                             });
                             
+                            // Calculate the partial order total based on selected items
+                            const partialTotal = Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0);
+                            
+                            // Apply discount to partial total
+                            const discountFactor = 1 - ((printModalOrder.discount_percent || 0) / 100);
+                            const discountedPartialTotal = partialTotal * discountFactor;
+                            
+                            // Apply VAT to get final partial total
+                            const vatRate = printModalOrder.vat_rate !== undefined ? printModalOrder.vat_rate : 0.24;
+                            const partialGrandTotal = discountedPartialTotal * (1 + vatRate);
+                            
                             const modifiedOrder: Order = {
                                 ...printModalOrder,
                                 items: Array.from(partialItems.values()).map(({ item, qty }) => ({
                                     ...item,
                                     quantity: qty
                                 })),
-                                total_price: Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0) * (1 + (printModalOrder.vat_rate ?? 0.24))
+                                total_price: partialGrandTotal
                             };
                             onPrintOrder?.(modifiedOrder);
                         }

@@ -5,7 +5,7 @@ import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, Globa
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
-import { uploadProductImage, supabase, deleteProduct } from '../lib/supabase';
+import { uploadProductImage, supabase, deleteProduct, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -608,6 +608,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
 
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [isDeletingImage, setIsDeletingImage] = useState(false);
     const [smartAddSuffix, setSmartAddSuffix] = useState('');
     const [newVariantSuffix, setNewVariantSuffix] = useState('');
     const [newVariantDesc, setNewVariantDesc] = useState('');
@@ -1218,6 +1219,54 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
+    const handleDeleteImage = async () => {
+        if (!editedProduct.image_url) return;
+        
+        const confirmed = await confirm({
+            title: 'Διαγραφή Φωτογραφίας',
+            message: `Είστε σίγουροι ότι θέλετε να διαγράψετε τη φωτογραφία; Η εικόνα θα διαγραφεί και από τον αποθηκευτικό χώρο.`,
+            confirmText: 'Διαγραφή',
+            isDestructive: true
+        });
+        
+        if (!confirmed) return;
+        
+        setIsDeletingImage(true);
+        try {
+            // Extract filename from URL to delete from R2
+            const imageUrl = editedProduct.image_url;
+            const urlParts = imageUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            
+            // Send DELETE request to Cloudflare Worker
+            const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${fileName}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': AUTH_KEY_SECRET }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to delete image: ${response.status}`);
+            }
+            
+            // Update product record to remove image URL
+            const updatedProduct = { ...editedProduct, image_url: null };
+            setEditedProduct(updatedProduct);
+            
+            // Save to database
+            await api.saveProduct(updatedProduct);
+            
+            // Invalidate queries to refresh the UI
+            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            
+            showToast("Η φωτογραφία διαγράφηκε επιτυχώς.", "success");
+        } catch (error) {
+            console.error('Error deleting image:', error);
+            showToast("Σφάλμα κατά τη διαγραφή της φωτογραφίας.", "error");
+        } finally {
+            setIsDeletingImage(false);
+        }
+    };
+
     const handleSmartAdd = () => {
         if (!smartAddSuffix.trim()) {
             showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
@@ -1527,6 +1576,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         </div>
                                         <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate} disabled={isUploadingImage} />
                                     </label>
+                                    
+                                    {editedProduct.image_url && (
+                                        <button 
+                                            onClick={handleDeleteImage}
+                                            disabled={isDeletingImage}
+                                            className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors z-10"
+                                            title="Διαγραφή Φωτογραφίας"
+                                        >
+                                            {isDeletingImage ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1673,7 +1733,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                                 value={price}
                                                                                 onChange={e => {
                                                                                     const val = parseFloat(e.target.value) || 0;
-                                                                                    const newVars = [...editedProduct.variants];
+                                                                                    const currentVariants = editedProduct.variants || [];
+                                                                                    const newVars = [...currentVariants];
                                                                                     group.forEach(gVar => {
                                                                                         const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
                                                                                         if (idx !== -1) newVars[idx] = { ...newVars[idx], selling_price: val };

@@ -146,10 +146,13 @@ export default {
 
       // 8. Handle Delete (DELETE)
       if (request.method === 'DELETE') {
-        // FORTIFICATION: DISABLE DELETION (The Vault Strategy)
-        // We pretend to delete (return 200) but DO NOT execute the delete command.
-        // This protects files from accidental deletion via the app.
-        return new Response('Deleted (Soft)', { status: 200, headers: corsHeaders });
+        try {
+          await env.R2_BUCKET.delete(key);
+          return new Response('File deleted successfully', { status: 200, headers: corsHeaders });
+        } catch (err) {
+          console.error('Delete error:', err);
+          return new Response('Delete failed: ' + err.message, { status: 500, headers: corsHeaders });
+        }
       }
 
       return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });

@@ -523,7 +523,46 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onPrintPartialOrder={(order, batches) => setOrderToPrint(order)} />}
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onPrintPartialOrder={(order, batches) => {
+          // Create a modified order with only selected items from the batches
+          const partialItems = new Map<string, { item: typeof order.items[0], qty: number }>();
+          batches.forEach(b => {
+            const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
+            const existingItem = order.items.find(i => 
+              i.sku === b.sku && 
+              (i.variant_suffix || '') === (b.variant_suffix || '') &&
+              (i.size_info || '') === (b.size_info || '')
+            );
+            if (existingItem) {
+              if (!partialItems.has(key)) {
+                partialItems.set(key, { item: existingItem, qty: 0 });
+              }
+              partialItems.get(key)!.qty += b.quantity;
+            }
+          });
+          
+          // Calculate the partial order total based on selected items
+          const partialTotal = Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0);
+          
+          // Apply discount to partial total
+          const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+          const discountedPartialTotal = partialTotal * discountFactor;
+          
+          // Apply VAT to get final partial total
+          const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+          const partialGrandTotal = discountedPartialTotal * (1 + vatRate);
+          
+          const modifiedOrder: Order = {
+            ...order,
+            items: Array.from(partialItems.values()).map(({ item, qty }) => ({
+              ...item,
+              quantity: qty
+            })),
+            total_price: partialGrandTotal
+          };
+          
+          setOrderToPrint(modifiedOrder);
+        }} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'suppliers' && <SuppliersPage />}
