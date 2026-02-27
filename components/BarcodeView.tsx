@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode, getVariantComponents } from '../utils/pricingEngine';
+import { SIZED_PREFIXES } from '../utils/sizing';
 
 interface Props {
     product: Product;
@@ -82,6 +83,17 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
     // Stone font size slightly increased from 0.10/0.13/2.2 to 0.13/0.15/2.5
     const stoneFontSize = Math.min(activeHeight * 0.13, activeWidth * 0.15, 2.5);
+    
+    // Check if product is a ring or bracelet (sized items)
+    const isSizedItem = useMemo(() => {
+        const prefix = product?.prefix?.toUpperCase() || '';
+        return prefix === SIZED_PREFIXES.RINGS_MEN ||
+               prefix === SIZED_PREFIXES.RINGS_WOMEN ||
+               prefix === SIZED_PREFIXES.BRACELETS_WOMEN ||
+               prefix === SIZED_PREFIXES.BRACELETS_MEN ||
+               prefix === 'BDA' ||
+               prefix === 'ΒΔΑ';
+    }, [product?.prefix]);
     
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
@@ -208,12 +220,16 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                  <span className="font-black tracking-[0.1em] text-black uppercase" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     ILIOS
                 </span>
-                 {size ? (
-                     <span className="font-black text-black bg-black text-white px-0.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 0.9}mm`, lineHeight: '1.1' }}>{size}</span>
-                 ) : (
-                     <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
-                 )}
+                 <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
             </div>
+            {/* Size prominently displayed under the line for rings and bracelets */}
+            {isSizedItem && size && (
+                <div className="w-full text-center mt-0.5">
+                    <span className="font-black text-black bg-black text-white px-1.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 1.1}mm`, lineHeight: '1.1' }}>
+                        {size}
+                    </span>
+                </div>
+            )}
         </div>
     );
 };
