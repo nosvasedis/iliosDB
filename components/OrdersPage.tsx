@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -10,6 +10,19 @@ import { useAuth } from './AuthContext';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
+
+// Group batches by their created_at timestamp to simulate "Shipments" / "Parts"
+const groupBatchesByShipment = (batches: ProductionBatch[]) => {
+    const groups: Record<string, ProductionBatch[]> = {};
+    batches.forEach(b => {
+        // Group by minute to catch batches created in the same "Send" action
+        const timeKey = new Date(b.created_at).toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+        if (!groups[timeKey]) groups[timeKey] = [];
+        groups[timeKey].push(b);
+    });
+    // Sort keys descending (newest first)
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+};
 
 interface Props {
     products: Product[];
@@ -20,6 +33,7 @@ interface Props {
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
     onPrintAnalytics?: (order: Order) => void;
+    onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -40,7 +54,208 @@ const getStatusColor = (status: OrderStatus) => {
     }
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics }: {
+// Modal for selecting which parts/shipments of an order to print
+const OrderPartSelectorModal = ({ 
+    order, 
+    batches, 
+    products,
+    onClose, 
+    onPrintSelected,
+    onPrintAll 
+}: { 
+    order: Order; 
+    batches: ProductionBatch[]; 
+    products: Product[];
+    onClose: () => void;
+    onPrintSelected: (selectedBatches: ProductionBatch[]) => void;
+    onPrintAll: () => void;
+}) => {
+    const shipments = useMemo(() => groupBatchesByShipment(batches), [batches]);
+    const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set(shipments.map(([key]) => key)));
+
+    const toggleShipment = (key: string) => {
+        const newSet = new Set(selectedShipments);
+        if (newSet.has(key)) {
+            newSet.delete(key);
+        } else {
+            newSet.add(key);
+        }
+        setSelectedShipments(newSet);
+    };
+
+    const selectAll = () => setSelectedShipments(new Set(shipments.map(([key]) => key)));
+    const deselectAll = () => setSelectedShipments(new Set());
+
+    const getSelectedBatches = (): ProductionBatch[] => {
+        return shipments
+            .filter(([key]) => selectedShipments.has(key))
+            .flatMap(([, batches]) => batches);
+    };
+
+    const getShipmentSummary = (shipmentBatches: ProductionBatch[]) => {
+        const totalItems = shipmentBatches.reduce((sum, b) => sum + b.quantity, 0);
+        const uniqueSkus = new Set(shipmentBatches.map(b => b.sku)).size;
+        return { totalItems, uniqueSkus };
+    };
+
+    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+
+    const getShipmentValue = (shipmentBatches: ProductionBatch[]) => {
+        let value = 0;
+        shipmentBatches.forEach(b => {
+            const item = order.items.find(i => 
+                i.sku === b.sku && 
+                (i.variant_suffix || '') === (b.variant_suffix || '') &&
+                (i.size_info || '') === (b.size_info || '')
+            );
+            if (item) {
+                value += item.price_at_order * b.quantity * discountFactor;
+            }
+        });
+        return value * (1 + vatRate);
+    };
+
+    const selectedBatches = getSelectedBatches();
+    const selectedValue = getShipmentValue(selectedBatches);
+    const allValue = order.total_price;
+
+    return (
+        <div className="fixed inset-0 z-[160] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Επιλογή Τμημάτων για Εκτύπωση</h2>
+                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id.slice(-8)} • {order.customer_name}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
+                </div>
+
+                {/* Info Banner */}
+                <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
+                    <p className="text-xs text-blue-700 font-medium">
+                        Η παραγγελία έχει σταλεί στην παραγωγή σε <span className="font-bold">{shipments.length} διαφορετικά τμήματα</span>. Επιλέξτε ποια θέλετε να εκτυπώσετε.
+                    </p>
+                </div>
+
+                {/* Shipment List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {shipments.map(([dateKey, shipmentBatches]) => {
+                        const summary = getShipmentSummary(shipmentBatches);
+                        const value = getShipmentValue(shipmentBatches);
+                        const isSelected = selectedShipments.has(dateKey);
+                        const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { 
+                            day: 'numeric', 
+                            month: 'short', 
+                            year: 'numeric',
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                        });
+
+                        // Get stage breakdown
+                        const stageBreakdown: Record<string, number> = {};
+                        shipmentBatches.forEach(b => {
+                            stageBreakdown[b.current_stage] = (stageBreakdown[b.current_stage] || 0) + b.quantity;
+                        });
+
+                        return (
+                            <button
+                                key={dateKey}
+                                onClick={() => toggleShipment(dateKey)}
+                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                                    isSelected 
+                                        ? 'border-blue-500 bg-blue-50 shadow-sm' 
+                                        : 'border-slate-200 bg-white hover:border-slate-300'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                            isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
+                                        }`}>
+                                            {isSelected ? <CheckCircle size={14} /> : <Package size={14} />}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-800 text-sm">{prettyDate}</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">
+                                                {summary.totalItems} τεμ. • {summary.uniqueSkus} SKU
+                                            </div>
+                                            {/* Stage Pills */}
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {Object.entries(stageBreakdown).map(([stage, qty]) => (
+                                                    <span key={stage} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                                        {stage}: {qty}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <div className="font-bold text-slate-800">{formatCurrency(value)}</div>
+                                        <div className="text-[10px] text-slate-400">με ΦΠΑ</div>
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Actions Footer */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0 space-y-3">
+                    {/* Selection Controls */}
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={selectAll}
+                            className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        >
+                            Επιλογή Όλων
+                        </button>
+                        <button 
+                            onClick={deselectAll}
+                            className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        >
+                            Αποεπιλογή Όλων
+                        </button>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="flex justify-between items-center py-2 px-3 bg-white rounded-xl border border-slate-200">
+                        <div>
+                            <div className="text-xs text-slate-500">Επιλεγμένα: {selectedBatches.length} batches</div>
+                            <div className="font-bold text-slate-800">{formatCurrency(selectedValue)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-xs text-slate-500">Σύνολο Παραγγελίας:</div>
+                            <div className="font-bold text-slate-600">{formatCurrency(allValue)}</div>
+                        </div>
+                    </div>
+
+                    {/* Print Buttons */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onPrintSelected(selectedBatches)}
+                            disabled={selectedBatches.length === 0}
+                            className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            <Printer size={16} />
+                            Εκτύπωση Επιλεγμένων ({selectedBatches.reduce((s, b) => s + b.quantity, 0)} τεμ.)
+                        </button>
+                        <button
+                            onClick={onPrintAll}
+                            className="py-3 px-4 rounded-xl font-bold text-sm bg-slate-800 text-white hover:bg-slate-900 transition-colors shadow-lg flex items-center justify-center gap-2"
+                        >
+                            <FileCheck size={16} />
+                            Ολόκληρη Παραγγελία
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onShowPartSelector }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
@@ -52,10 +267,21 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     products: Product[];
     allBatches: ProductionBatch[] | undefined;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+    onShowPartSelector?: () => void;
 }) => {
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
+    
+    // Check if order has multiple shipments (parts)
+    const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
+    const hasMultipleShipments = shipments.length > 1;
 
     const handlePrintOrder = () => {
+        // If order has multiple shipments, show the part selector
+        if (hasMultipleShipments && onShowPartSelector) {
+            onShowPartSelector();
+            return;
+        }
+        // Otherwise print the full order
         onPrintOrder?.(order);
         onClose();
     };
@@ -104,6 +330,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
             color: "slate",
             action: handlePrintOrder,
             disabled: !onPrintOrder,
+            badge: hasMultipleShipments ? `${shipments.length} μέρη` : undefined,
         },
         {
             label: "Εκτύπωση Ετικετών",
@@ -170,13 +397,18 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
                                 onClick={opt.action}
                                 disabled={opt.disabled}
                                 className={`
-                                    p-6 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 transition-all
+                                    p-6 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 transition-all relative
                                     ${opt.disabled
                                         ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed'
                                         : `${colorClass.bg} ${colorClass.text} ${colorClass.border} ${colorClass.hover} transform hover:-translate-y-1`
                                     }
                                 `}
                             >
+                                {opt.badge && (
+                                    <span className="absolute top-2 right-2 bg-blue-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                        {opt.badge}
+                                    </span>
+                                )}
                                 <div className="p-3 bg-white rounded-xl shadow-sm">{opt.icon}</div>
                                 <span className="text-xs uppercase tracking-wider">{opt.label}</span>
                             </button>
@@ -188,7 +420,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     );
 };
 
-export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -207,6 +439,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
+    const [showPartSelector, setShowPartSelector] = useState(false);
 
     // Group Management in Modal
     const [tagInput, setTagInput] = useState('');
@@ -637,11 +870,67 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
             {printModalOrder && (
                 <PrintOptionsModal
-                    order={printModalOrder} onClose={() => setPrintModalOrder(null)}
-                    onPrintOrder={onPrintOrder} onPrintLabels={onPrintLabels}
-                    onPrintAggregated={onPrintAggregated} onPrintPreparation={onPrintPreparation} onPrintTechnician={onPrintTechnician}
+                    order={printModalOrder} 
+                    onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
+                    onPrintOrder={onPrintOrder} 
+                    onPrintLabels={onPrintLabels}
+                    onPrintAggregated={onPrintAggregated} 
+                    onPrintPreparation={onPrintPreparation} 
+                    onPrintTechnician={onPrintTechnician}
                     onPrintAnalytics={onPrintAnalytics}
-                    products={products} allBatches={enrichedBatches} showToast={showToast}
+                    onShowPartSelector={() => setShowPartSelector(true)}
+                    products={products} 
+                    allBatches={enrichedBatches} 
+                    showToast={showToast}
+                />
+            )}
+
+            {/* Part Selector Modal - shown when order has multiple shipments */}
+            {printModalOrder && showPartSelector && (
+                <OrderPartSelectorModal
+                    order={printModalOrder}
+                    batches={enrichedBatches.filter(b => b.order_id === printModalOrder.id)}
+                    products={products}
+                    onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
+                    onPrintSelected={(selectedBatches) => {
+                        if (onPrintPartialOrder) {
+                            onPrintPartialOrder(printModalOrder, selectedBatches);
+                        } else {
+                            // Fallback: create a modified order with only selected items
+                            const partialItems = new Map<string, { item: typeof printModalOrder.items[0], qty: number }>();
+                            selectedBatches.forEach(b => {
+                                const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
+                                const existingItem = printModalOrder.items.find(i => 
+                                    i.sku === b.sku && 
+                                    (i.variant_suffix || '') === (b.variant_suffix || '') &&
+                                    (i.size_info || '') === (b.size_info || '')
+                                );
+                                if (existingItem) {
+                                    if (!partialItems.has(key)) {
+                                        partialItems.set(key, { item: existingItem, qty: 0 });
+                                    }
+                                    partialItems.get(key)!.qty += b.quantity;
+                                }
+                            });
+                            
+                            const modifiedOrder: Order = {
+                                ...printModalOrder,
+                                items: Array.from(partialItems.values()).map(({ item, qty }) => ({
+                                    ...item,
+                                    quantity: qty
+                                })),
+                                total_price: Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0) * (1 + (printModalOrder.vat_rate ?? 0.24))
+                            };
+                            onPrintOrder?.(modifiedOrder);
+                        }
+                        setPrintModalOrder(null);
+                        setShowPartSelector(false);
+                    }}
+                    onPrintAll={() => {
+                        onPrintOrder?.(printModalOrder);
+                        setPrintModalOrder(null);
+                        setShowPartSelector(false);
+                    }}
                 />
             )}
 
