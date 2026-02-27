@@ -14,6 +14,22 @@ export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
     '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
 };
 
+const TEXT_FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
+};
+const TEXT_STONE_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
+    'AX': 'text-emerald-700'
+};
+
 // Stage colors for the expanding button
 const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
     'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
@@ -197,7 +213,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     };
 
     // Calculate finish for styling
-    const { finish } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
+    const { finish, stone } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
     const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
 
     const timeInfo = getTimeInStage(batch.updated_at);
@@ -293,10 +309,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    {/* SKU Badge with Finish Color */}
-                    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border mb-1 ${finishConfig.style}`}>
-                        <span className="font-black text-sm leading-none">{batch.sku}{batch.variant_suffix}</span>
-                        <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block">| {finishConfig.label}</span>
+                    {/* SKU line: base + metal suffix (color) + stone suffix (color) */}
+                    <div className="inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50/80 mb-1">
+                        <span className="font-black text-sm leading-none text-slate-800">{batch.sku}</span>
+                        <span className={`font-black text-sm leading-none ${TEXT_FINISH_COLORS[finish.code] ?? 'text-slate-400'}`}>{finish.code}</span>
+                        <span className={`font-black text-sm leading-none ${TEXT_STONE_COLORS[stone.code] ?? 'text-emerald-500'}`}>{stone.code}</span>
+                        <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block text-slate-400">| {finishConfig.label}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">

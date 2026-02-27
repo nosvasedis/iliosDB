@@ -39,6 +39,28 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: st
     'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
+// Metal/finish chip styles (distinct from stone)
+const FINISH_CHIP_STYLES: Record<string, string> = {
+    'X': 'bg-amber-100 text-amber-900 border-amber-200',
+    'P': 'bg-stone-200 text-stone-800 border-stone-300',
+    'D': 'bg-orange-100 text-orange-800 border-orange-200',
+    'H': 'bg-cyan-100 text-cyan-900 border-cyan-200',
+    '': 'bg-slate-100 text-slate-700 border-slate-200'
+};
+// Stone chip styles (different look from metal)
+const STONE_CHIP_STYLES: Record<string, string> = {
+    'KR': 'bg-rose-100 text-rose-800 border-rose-200', 'QN': 'bg-slate-200 text-slate-900 border-slate-300', 'LA': 'bg-blue-100 text-blue-800 border-blue-200', 'TY': 'bg-teal-100 text-teal-800 border-teal-200',
+    'TG': 'bg-orange-100 text-orange-800 border-orange-200', 'IA': 'bg-red-100 text-red-800 border-red-200', 'BSU': 'bg-slate-200 text-slate-800 border-slate-300', 'GSU': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'RSU': 'bg-rose-100 text-rose-800 border-rose-200', 'MA': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'FI': 'bg-slate-100 text-slate-600 border-slate-200', 'OP': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    'NF': 'bg-green-100 text-green-800 border-green-200', 'CO': 'bg-cyan-100 text-cyan-800 border-cyan-200', 'TPR': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'TKO': 'bg-red-100 text-rose-700 border-red-200',
+    'TMP': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'PCO': 'bg-teal-100 text-teal-700 border-teal-200', 'MCO': 'bg-purple-100 text-purple-700 border-purple-200', 'PAX': 'bg-green-100 text-green-700 border-green-200',
+    'MAX': 'bg-blue-100 text-blue-800 border-blue-200', 'KAX': 'bg-red-100 text-red-700 border-red-200', 'AI': 'bg-slate-100 text-slate-600 border-slate-200', 'AP': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    'AM': 'bg-teal-100 text-teal-800 border-teal-200', 'LR': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'BST': 'bg-sky-100 text-sky-700 border-sky-200', 'MP': 'bg-blue-100 text-blue-600 border-blue-200',
+    'LE': 'bg-slate-100 text-slate-600 border-slate-200', 'PR': 'bg-green-100 text-green-600 border-green-200', 'KO': 'bg-red-100 text-red-600 border-red-200', 'MV': 'bg-purple-100 text-purple-500 border-purple-200',
+    'RZ': 'bg-pink-100 text-pink-600 border-pink-200', 'AK': 'bg-cyan-100 text-cyan-400 border-cyan-200', 'XAL': 'bg-stone-100 text-stone-600 border-stone-200', 'SD': 'bg-blue-100 text-blue-800 border-blue-200',
+    'AX': 'bg-emerald-100 text-emerald-800 border-emerald-200'
+};
+
 export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onViewHistory }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
@@ -219,11 +241,17 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">{batch.sku}</h2>
-                                {batch.variant_suffix && (
-                                    <span className="bg-slate-800 text-white px-2 py-0.5 rounded-lg text-lg font-mono font-bold">
-                                        {batch.variant_suffix}
-                                    </span>
-                                )}
+                                {batch.variant_suffix && (() => {
+                                    const { finish, stone } = getVariantComponents(batch.variant_suffix, product.gender);
+                                    const finishStyle = FINISH_CHIP_STYLES[finish.code] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+                                    const stoneStyle = stone.code ? (STONE_CHIP_STYLES[stone.code] ?? 'bg-emerald-100 text-emerald-700 border-emerald-200') : '';
+                                    return (
+                                        <span className="flex items-center gap-1.5 flex-wrap">
+                                            {finish.code && <span className={`px-2 py-0.5 rounded-lg text-base font-mono font-bold border ${finishStyle}`}>{finish.code}</span>}
+                                            {stone.code && <span className={`px-2 py-0.5 rounded-lg text-base font-mono font-bold border ${stoneStyle}`}>{stone.code}</span>}
+                                        </span>
+                                    );
+                                })()}
                                 {/* Supplier SKU for imported products */}
                                 {product.production_type === ProductionType.Imported && product.supplier_sku && (
                                     <span className="text-sm font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200 flex items-center gap-1">

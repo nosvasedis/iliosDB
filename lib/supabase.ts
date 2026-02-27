@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
+import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -858,6 +859,7 @@ export const api = {
             const allProducts = await api.getProducts();
             const allMaterials = await api.getMaterials();
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+            const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
             // 3. Define "Natural Key" for matching: SKU + Variant + Size
             const getNaturalKey = (sku: string, variant: string | null | undefined, size: string | null | undefined) => {
@@ -901,12 +903,14 @@ export const api = {
 
                     if (product) {
                         const suffix = item.variant_suffix || '';
-                        const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
-                            product.recipe.some((r: any) => {
-                                if (r.type !== 'raw') return false;
-                                const material = allMaterials.find(m => m.id === r.id);
-                                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                            });
+                        const stone = getVariantComponents(suffix, product.gender).stone;
+                        const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+                        const hasZirconsFromRecipe = product.recipe.some((r: any) => {
+                            if (r.type !== 'raw') return false;
+                            const material = allMaterials.find(m => m.id === r.id);
+                            return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+                        });
+                        const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
                         const now = new Date().toISOString();
@@ -1016,6 +1020,7 @@ export const api = {
         if (itemsToSend.length === 0) return;
 
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const batches: any[] = [];
 
         for (const item of itemsToSend) {
@@ -1025,12 +1030,14 @@ export const api = {
             if (!product) continue;
 
             const suffix = item.variant || '';
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
-                product.recipe.some(r => {
-                    if (r.type !== 'raw') return false;
-                    const material = allMaterials.find(m => m.id === r.id);
-                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                });
+            const stone = getVariantComponents(suffix, product.gender).stone;
+            const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+            const hasZirconsFromRecipe = product.recipe.some(r => {
+                if (r.type !== 'raw') return false;
+                const material = allMaterials.find(m => m.id === r.id);
+                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+            });
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
             

@@ -211,10 +211,14 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
         if (!orders) return [];
         return orders.filter(o => {
             const isArchived = o.is_archived === true;
-            if (activeTab === 'active' && isArchived) return false;
-            if (activeTab === 'archived' && !isArchived) return false;
+            // When filtering by Ready or Delivered, show both active and archived so the status tabs work
+            const showRegardlessOfArchive = filterStatus === OrderStatus.Ready || filterStatus === OrderStatus.Delivered;
+            if (!showRegardlessOfArchive) {
+                if (activeTab === 'active' && isArchived) return false;
+                if (activeTab === 'archived' && !isArchived) return false;
+            }
 
-            const matchesStatus = filterStatus === 'ALL' || o.status === filterStatus;
+            const matchesStatus = filterStatus === 'ALL' || String(o.status).trim() === String(filterStatus).trim();
             const matchesSearch = search === '' ||
                 o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
                 o.id.includes(search) ||

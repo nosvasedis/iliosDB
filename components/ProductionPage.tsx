@@ -989,6 +989,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         const results = batches?.map(b => {
             const prod = products.find(p => p.sku === b.sku);
@@ -999,13 +1000,14 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
 
             const suffix = b.variant_suffix || '';
-            // New logic: Only these specific suffixes require Setting (Καρφωτής)
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
-                prod?.recipe.some(r => {
-                    if (r.type !== 'raw') return false;
-                    const material = materials.find(m => m.id === r.id);
-                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                }) || false;
+            const stone = getVariantComponents(suffix, prod?.gender).stone;
+            const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+            const hasZirconsFromRecipe = prod?.recipe.some(r => {
+                if (r.type !== 'raw') return false;
+                const material = materials.find(m => m.id === r.id);
+                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+            }) || false;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             // Check if assembly stage is required based on SKU
             const requires_assembly = requiresAssemblyStage(b.sku);
@@ -1757,19 +1759,23 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
                                                         </div>
 
-                                                        {l1Batches[collName].map(batch => (
-                                                            <ProductionBatchCard
-                                                                key={batch.id}
-                                                                batch={batch}
-                                                                onDragStart={handleDragStart}
-                                                                onPrint={onPrintBatch}
-                                                                onMoveToStage={(b, stage) => attemptMove(b, stage)}
-                                                                onEditNote={() => setEditingNoteBatch(batch)}
-                                                                onToggleHold={() => handleToggleHold(batch)}
-                                                                onDelete={() => handleDeleteBatch(batch)}
-                                                                onClick={() => setViewBuildBatch(batch)}
-                                                                onViewHistory={handleViewHistory}
-                                                            />
+                                                        {l1Batches[collName].map((batch, idx) => (
+                                                            <React.Fragment key={batch.id}>
+                                                                {idx > 0 && l1Batches[collName][idx - 1].sku !== batch.sku && (
+                                                                    <div className="border-t border-slate-200 my-2" />
+                                                                )}
+                                                                <ProductionBatchCard
+                                                                    batch={batch}
+                                                                    onDragStart={handleDragStart}
+                                                                    onPrint={onPrintBatch}
+                                                                    onMoveToStage={(b, stage) => attemptMove(b, stage)}
+                                                                    onEditNote={() => setEditingNoteBatch(batch)}
+                                                                    onToggleHold={() => handleToggleHold(batch)}
+                                                                    onDelete={() => handleDeleteBatch(batch)}
+                                                                    onClick={() => setViewBuildBatch(batch)}
+                                                                    onViewHistory={handleViewHistory}
+                                                                />
+                                                            </React.Fragment>
                                                         ))}
                                                     </div>
                                                 ))}

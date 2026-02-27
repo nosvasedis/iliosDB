@@ -219,6 +219,10 @@ export const ASSEMBLY_SKU_PATTERNS = {
     { min: 262, max: 262 },  // Single item
     { min: 264, max: 322 },
   ],
+  // SK ranges (Σκουλαρίκια)
+  SK_RANGES: [
+    { min: 201, max: 220 },
+  ],
 };
 
 /**
@@ -244,6 +248,13 @@ export function requiresAssemblyStage(sku: string): boolean {
   // Check KL ranges
   if (prefix === 'KL') {
     for (const range of ASSEMBLY_SKU_PATTERNS.KL_RANGES) {
+      if (numPart >= range.min && numPart <= range.max) return true;
+    }
+  }
+
+  // Check SK ranges (SK201–SK220)
+  if (prefix === 'SK' && ASSEMBLY_SKU_PATTERNS.SK_RANGES) {
+    for (const range of ASSEMBLY_SKU_PATTERNS.SK_RANGES) {
       if (numPart >= range.min && numPart <= range.max) return true;
     }
   }

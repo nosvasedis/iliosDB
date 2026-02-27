@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -85,16 +85,17 @@ const TEXT_FINISH_COLORS: Record<string, string> = {
 };
 
 const TEXT_STONE_COLORS: Record<string, string> = {
-    'S': 'text-emerald-500',
-    'R': 'text-red-500',
-    'B': 'text-blue-500',
-    'W': 'text-slate-400',
-    'BK': 'text-slate-900',
-    'AM': 'text-purple-500',
-    'TU': 'text-cyan-500',
-    'AQ': 'text-sky-400',
-    'PE': 'text-lime-500',
-    'TO': 'text-orange-400'
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
+    'AX': 'text-emerald-700',
+    'S': 'text-emerald-500', 'R': 'text-red-500', 'B': 'text-blue-500', 'W': 'text-slate-400', 'BK': 'text-slate-900', 'TU': 'text-cyan-500', 'AQ': 'text-sky-400', 'PE': 'text-lime-500', 'TO': 'text-orange-400'
 };
 
 const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender?: any }) => {
@@ -112,7 +113,7 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
 };
 
 const MobileBatchCard: React.FC<{ 
-    batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string }, 
+    batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null }, 
     onNext: (b: ProductionBatch) => void, 
     onMoveToStage?: (b: ProductionBatch, stage: ProductionStage) => void,
     onToggleHold: (b: ProductionBatch) => void, 
@@ -146,10 +147,17 @@ const MobileBatchCard: React.FC<{
     return (
         <div
             onClick={() => onClick(batch)}
-            className={`bg-white p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200 hover:border-slate-300')}`}
+            className={`bg-white p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200 hover:border-slate-300')}`}
         >
-            <div className="flex justify-between items-start mb-2">
-                <div>
+            <div className="flex justify-between items-start gap-3 mb-2">
+                <div className="w-11 h-11 shrink-0 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
+                    {(batch as any).product_image ? (
+                        <img src={(batch as any).product_image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                        <ImageIcon size={20} className="text-slate-300" />
+                    )}
+                </div>
+                <div className="min-w-0 flex-1">
                     <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
                     {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
@@ -625,16 +633,19 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const enrichedBatches = useMemo(() => {
         if (!batches || !allProducts || !materials || !orders) return [];
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         return batches.map(b => {
             const prod = allProducts.find(p => p.sku === b.sku);
             const suffix = b.variant_suffix || '';
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
-                prod?.recipe.some(r => {
-                    if (r.type !== 'raw') return false;
-                    const material = materials.find(m => m.id === r.id);
-                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                }) || false;
+            const stone = getVariantComponents(suffix, prod?.gender).stone;
+            const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+            const hasZirconsFromRecipe = prod?.recipe.some(r => {
+                if (r.type !== 'raw') return false;
+                const material = materials.find(m => m.id === r.id);
+                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+            }) || false;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             const order = orders.find(o => o.id === b.order_id);
 
@@ -652,6 +663,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 requires_setting: hasZircons,
                 requires_assembly,
                 product_details: prod,
+                product_image: prod?.image_url,
                 customer_name: order?.customer_name || '',
                 isDelayed
             };

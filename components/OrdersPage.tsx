@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
-import { formatCurrency } from '../utils/pricingEngine';
+import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 
@@ -446,15 +446,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
     const enrichedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         return batches?.map(b => {
             const prod = products.find(p => p.sku === b.sku);
             const suffix = b.variant_suffix || '';
-            const hasZircons = ZIRCON_CODES.some(code => suffix.includes(code)) ||
-                prod?.recipe.some(r => {
-                    if (r.type !== 'raw') return false;
-                    const material = materials.find(m => m.id === r.id);
-                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                }) || false;
+            const stone = getVariantComponents(suffix, prod?.gender).stone;
+            const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+            const hasZirconsFromRecipe = prod?.recipe.some(r => {
+                if (r.type !== 'raw') return false;
+                const material = materials.find(m => m.id === r.id);
+                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
+            }) || false;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             return { ...b, product_details: prod, requires_setting: hasZircons }
         }) || [];
