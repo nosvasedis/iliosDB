@@ -217,15 +217,22 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             )}
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">{batch.sku}</h2>
                                 {batch.variant_suffix && (
                                     <span className="bg-slate-800 text-white px-2 py-0.5 rounded-lg text-lg font-mono font-bold">
                                         {batch.variant_suffix}
                                     </span>
                                 )}
+                                {/* Supplier SKU for imported products */}
+                                {product.production_type === ProductionType.Imported && product.supplier_sku && (
+                                    <span className="text-sm font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200 flex items-center gap-1">
+                                        <span className="text-[9px] font-bold uppercase text-purple-400">SUP:</span>
+                                        {product.supplier_sku}
+                                    </span>
+                                )}
                             </div>
-                            
+
                             {/* NEW: CLIENT NAME DISPLAY */}
                             {batch.customer_name && (
                                 <div className="flex items-center gap-1.5 text-blue-700 font-bold text-sm mt-0.5">
