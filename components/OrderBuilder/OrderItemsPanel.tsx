@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save } from 'lucide-react';
+import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useOrderState } from '../../hooks/useOrderState';
 
@@ -12,7 +12,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
     const { state, setters, actions } = orderState;
 
     return (
-        <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα ({state.selectedItems.length})</label>
@@ -111,6 +111,19 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
                 )}
             </div>
 
+            {/* Saving Overlay */}
+            {state.isSaving && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-4 rounded-3xl animate-in fade-in duration-200">
+                    <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
+                        <div className="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center relative">
+                            <Loader2 size={28} className="animate-spin text-slate-700" />
+                        </div>
+                    </div>
+                    <p className="text-sm font-bold text-slate-600 tracking-wide">Αποθήκευση...</p>
+                </div>
+            )}
+
             {/* Totals Footer */}
             <div className="p-5 bg-slate-50 border-t border-slate-200">
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
@@ -152,8 +165,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
                         )}
                     </div>
                 </div>
-                <button onClick={actions.handleSaveOrder} disabled={state.isSaving} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform mt-3 disabled:opacity-50">
-                    <Save size={20} /> Αποθήκευση Εντολής
+                <button onClick={actions.handleSaveOrder} disabled={state.isSaving} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all mt-3 disabled:opacity-60">
+                    {state.isSaving ? <><Loader2 size={18} className="animate-spin" /> Αποθήκευση...</> : <><Save size={18} /> Αποθήκευση Εντολής</>}
                 </button>
             </div>
         </div>

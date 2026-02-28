@@ -22,6 +22,7 @@ export default function OffersPage({ products, materials, settings, collections,
     const { data: offers, isLoading: loadingOffers } = useQuery({ queryKey: ['offers'], queryFn: api.getOffers });
 
     const [isCreating, setIsCreating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
     // Form State
@@ -228,6 +229,7 @@ export default function OffersPage({ products, materials, settings, collections,
         if (!customerName) { showToast("Παρακαλώ εισάγετε πελάτη.", "error"); return; }
         if (items.length === 0) { showToast("Η προσφορά είναι κενή.", "error"); return; }
 
+        setIsSaving(true);
         const offerPayload: Offer = {
             id: editingOffer ? editingOffer.id : crypto.randomUUID(),
             customer_id: customerId || undefined,
@@ -253,6 +255,8 @@ export default function OffersPage({ products, materials, settings, collections,
             showToast("Η προσφορά αποθηκεύτηκε.", "success");
         } catch (e) {
             showToast("Σφάλμα αποθήκευσης.", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -335,11 +339,24 @@ export default function OffersPage({ products, materials, settings, collections,
                         <p className="text-sm text-slate-500">Δημιουργήστε μια προσαρμοσμένη οικονομική προσφορά.</p>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); setVatRate(VatRegime.Standard); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Ακύρωση</button>
-                        <button onClick={handleSaveOffer} className="px-6 py-2 bg-[#060b00] text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors flex items-center gap-2">
-                            <Save size={18} /> Αποθήκευση
+                        <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); setVatRate(VatRegime.Standard); }} disabled={isSaving} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">Ακύρωση</button>
+                        <button onClick={handleSaveOffer} disabled={isSaving} className="px-6 py-2 bg-[#060b00] text-white font-bold rounded-xl shadow-lg hover:bg-black transition-all flex items-center gap-2 disabled:opacity-70 min-w-[140px] justify-center">
+                            {isSaving ? <><Loader2 size={16} className="animate-spin" /> Αποθήκευση...</> : <><Save size={16} /> Αποθήκευση</>}
                         </button>
                     </div>
+
+                    {/* Saving overlay */}
+                    {isSaving && (
+                        <div className="fixed inset-0 z-[300] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                            <div className="relative">
+                                <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
+                                <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">
+                                    <Loader2 size={34} className="animate-spin text-slate-800" />
+                                </div>
+                            </div>
+                            <p className="text-base font-black text-slate-700 tracking-widest uppercase">Αποθήκευση Προσφοράς...</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">

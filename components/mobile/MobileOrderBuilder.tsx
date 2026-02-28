@@ -399,10 +399,23 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο: {formatCurrency(netAmount)}</div>
                     <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                 </div>
-                <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3">
-                    <Save size={20} /> {initialOrder ? 'Ενημέρωση Παραγγελίας' : 'Αποθήκευση Παραγγελίας'}
+                <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70">
+                    {isSaving ? <><Loader2 size={22} className="animate-spin" /> Αποθήκευση...</> : <><Save size={22} /> {initialOrder ? 'Ενημέρωση Παραγγελίας' : 'Αποθήκευση Παραγγελίας'}</>}
                 </button>
             </div>
+
+            {/* Full-screen saving overlay */}
+            {isSaving && (
+                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                    <div className="relative">
+                        <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
+                        <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">
+                            <Loader2 size={34} className="animate-spin text-slate-800" />
+                        </div>
+                    </div>
+                    <p className="text-base font-black text-slate-700 tracking-widest uppercase">Αποθήκευση...</p>
+                </div>
+            )}
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
