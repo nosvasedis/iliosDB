@@ -9,6 +9,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import { FINISH_CODES } from '../../constants';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
 import { getSizingInfo } from '../../utils/sizing';
@@ -68,9 +69,11 @@ interface CatalogBrowserProps {
     onStepChange?: (step: CatalogStep) => void;
     selectedCollection?: Collection | null;
     onCollectionSelect?: (col: Collection | null) => void;
+    /** When true, catalog takes more space (taller grid, larger cards) for easier selection */
+    expanded?: boolean;
 }
 
-const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, onSelectProduct, step: controlledStep, onStepChange, selectedCollection: controlledCollection, onCollectionSelect }) => {
+const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, onSelectProduct, step: controlledStep, onStepChange, selectedCollection: controlledCollection, onCollectionSelect, expanded }) => {
     const [internalStep, setInternalStep] = useState<CatalogStep>('collections');
     const [internalCollection, setInternalCollection] = useState<Collection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -130,9 +133,9 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
     }
 
     return (
-        <div className="space-y-3">
+        <div className={`flex flex-col gap-3 ${expanded ? 'flex-1 min-h-0' : ''}`}>
             {/* Sub-header */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => { setStep('collections'); setSelectedCollection(null); }} className="p-1.5 bg-slate-100 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors">
                     <ChevronLeft size={16} />
                 </button>
@@ -140,7 +143,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                 <span className="text-[10px] text-slate-400 font-bold">{filteredProducts.length} είδη</span>
             </div>
             {/* Search */}
-            <div className="relative">
+            <div className="relative shrink-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                     type="text"
@@ -150,23 +153,23 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-400/20"
                 />
             </div>
-            {/* Product grid */}
-            <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 max-h-96 overflow-y-auto custom-scrollbar pb-1">
+            {/* Product grid — when expanded, taller and slightly larger cards */}
+            <div className={`grid gap-2 overflow-y-auto custom-scrollbar pb-1 flex-1 min-h-0 ${expanded ? 'grid-cols-3 landscape:grid-cols-4 gap-3 max-h-[60vh]' : 'grid-cols-3 landscape:grid-cols-4 max-h-96'}`}>
                 {filteredProducts.map(p => (
                     <button
                         key={p.sku}
                         onClick={() => onSelectProduct(p)}
-                        className="group bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm active:scale-95 transition-transform text-left"
+                        className={`group bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm active:scale-95 transition-transform text-left ${expanded ? 'rounded-2xl shadow-md' : ''}`}
                     >
                         <div className="aspect-square bg-slate-50 relative overflow-hidden">
                             {p.image_url
                                 ? <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={p.sku} />
-                                : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={20} /></div>
+                                : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={expanded ? 28 : 20} /></div>
                             }
                         </div>
-                        <div className="p-1.5">
+                        <div className={expanded ? 'p-2' : 'p-1.5'}>
                             <SkuColored sku={p.sku} suffix="" gender={p.gender} />
-                            <div className="text-[9px] text-slate-400 truncate">{p.category}</div>
+                            <div className={`text-slate-400 truncate ${expanded ? 'text-[10px] mt-0.5' : 'text-[9px]'}`}>{p.category}</div>
                         </div>
                     </button>
                 ))}
@@ -217,12 +220,35 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος'; sizes: string[] } | null>(null);
     const [selectedSize, setSelectedSize] = useState('');
+    const [selectedFinish, setSelectedFinish] = useState<string | null>(null); // step 1: metal (finish) chosen
     const [itemNotes, setItemNotes] = useState('');
     const [qty, setQty] = useState(1);
     const [showScanner, setShowScanner] = useState(false);
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Group variants by finish (metal) for two-step selection
+    const variantsByFinish = useMemo(() => {
+        if (!activeMaster?.variants?.length) return {} as Record<string, ProductVariant[]>;
+        const map: Record<string, ProductVariant[]> = {};
+        const order = ['', 'P', 'X', 'D', 'H'];
+        activeMaster.variants.forEach(v => {
+            const { finish } = getVariantComponents(v.suffix, activeMaster.gender);
+            const code = finish.code ?? '';
+            if (!map[code]) map[code] = [];
+            map[code].push(v);
+        });
+        order.forEach(code => { if (map[code]) map[code].sort((a, b) => a.suffix.localeCompare(b.suffix)); });
+        return map;
+    }, [activeMaster?.variants, activeMaster?.gender]);
+
+    const finishOrder = useMemo(() => {
+        const order = ['', 'P', 'X', 'D', 'H'];
+        return order.filter(f => variantsByFinish[f]?.length);
+    }, [variantsByFinish]);
+
+    const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
 
     // ── Smart SKU search ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -247,6 +273,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setActiveMaster(p);
         setInput('');
         setSuggestions([]);
+        setSelectedFinish(null);
         const sizing = getSizingInfo(p);
         setSizeMode(sizing || null);
         setSelectedSize('');
@@ -286,6 +313,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         });
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
         setActiveMaster(null);
+        setSelectedFinish(null);
         setQty(1);
         setSelectedSize('');
         setItemNotes('');
@@ -384,8 +412,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 </button>
             </div>
 
-            {/* ── Scrollable Body ────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-4 pb-40">
+            {/* ── Scrollable Body — portrait/landscape optimized ─────────── */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar flex flex-col gap-4 pb-40 landscape:max-w-3xl landscape:mx-auto landscape:px-6">
 
                 {/* Customer Section */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
@@ -492,41 +520,44 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                             </>
                         )}
 
-                        {/* Catalog Mode (seller only) */}
+                        {/* Catalog Mode (seller only) — expanded for easier browsing */}
                         {inputMode === 'catalog' && isSeller && collections && (
-                            <CatalogBrowser
-                                products={products}
-                                collections={collections}
-                                onSelectProduct={handleCatalogSelectProduct}
-                                step={catalogStep}
-                                onStepChange={setCatalogStep}
-                                selectedCollection={catalogCollection}
-                                onCollectionSelect={setCatalogCollection}
-                            />
+                            <div className="min-h-[55vh] max-h-[75vh] flex flex-col -mx-1">
+                                <CatalogBrowser
+                                    products={products}
+                                    collections={collections}
+                                    onSelectProduct={handleCatalogSelectProduct}
+                                    step={catalogStep}
+                                    onStepChange={setCatalogStep}
+                                    selectedCollection={catalogCollection}
+                                    onCollectionSelect={setCatalogCollection}
+                                    expanded
+                                />
+                            </div>
                         )}
                     </div>
                 )}
 
-                {/* ── Variant Selector (active master) ─────────────────── */}
+                {/* ── Variant Selector (active master) — metal then stone carousel ── */}
                 {activeMaster && (
-                    <div className="bg-white p-5 rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
-                        <div className="flex justify-between items-start">
-                            <div>
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95 flex flex-col max-h-[85vh] overflow-hidden">
+                        <div className="flex justify-between items-start shrink-0">
+                            <div className="min-w-0">
                                 <SkuColored sku={activeMaster.sku} suffix="" gender={activeMaster.gender} />
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
                             </div>
-                            <button onClick={() => setActiveMaster(null)} className="p-2 bg-slate-50 rounded-full">
+                            <button onClick={() => { setActiveMaster(null); setSelectedFinish(null); }} className="p-2 bg-slate-50 rounded-full shrink-0 ml-2">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        {/* Size picker */}
+                        {/* Size picker — portrait/landscape */}
                         {sizeMode && (
-                            <div>
+                            <div className="shrink-0">
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Επιλογή {sizeMode.type}</label>
-                                <div className="grid grid-cols-5 gap-1.5">
+                                <div className="grid grid-cols-5 sm:grid-cols-6 landscape:grid-cols-6 gap-1.5">
                                     {sizeMode.sizes.map(s => (
-                                        <button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-1.5 rounded-lg text-xs font-bold border ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                        <button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-2 sm:py-1.5 rounded-lg text-xs font-bold border ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                                             {s}
                                         </button>
                                     ))}
@@ -534,30 +565,106 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                             </div>
                         )}
 
-                        {/* Quantity */}
-                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
+                        {/* Quantity — touch-friendly portrait/landscape */}
+                        <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl shrink-0">
                             <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
-                            <div className="flex items-center gap-4">
-                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 bg-white rounded shadow-sm text-slate-700 font-bold">-</button>
-                                <span className="font-black text-lg">{qty}</span>
-                                <button onClick={() => setQty(qty + 1)} className="w-8 h-8 bg-white rounded shadow-sm text-slate-700 font-bold">+</button>
+                            <div className="flex items-center gap-3 sm:gap-4">
+                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">−</button>
+                                <span className="font-black text-lg min-w-[2ch] text-center">{qty}</span>
+                                <button onClick={() => setQty(qty + 1)} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">+</button>
                             </div>
                         </div>
 
-                        {/* Variant Buttons or single Add */}
-                        <div className="grid grid-cols-2 gap-2">
-                            {(!activeMaster.variants || activeMaster.variants.length === 0) && (
-                                <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black col-span-2">
+                        {/* SKU note taking box */}
+                        <div className="shrink-0">
+                            <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">
+                                <StickyNote size={12} /> Σημείωση γραμμής (προαιρετικό)
+                            </label>
+                            <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-100 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-amber-300/50">
+                                <input
+                                    type="text"
+                                    value={itemNotes}
+                                    onChange={e => setItemNotes(e.target.value)}
+                                    placeholder="π.χ. χρώμα κορδελάς, αποστολή ξεχωριστά..."
+                                    className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400 font-medium min-w-0"
+                                />
+                            </div>
+                        </div>
+
+                        {/* No variants: single Add */}
+                        {(!activeMaster.variants || activeMaster.variants.length === 0) && (
+                            <div className="shrink-0">
+                                <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base active:scale-[0.99]">
                                     Προσθήκη
                                 </button>
-                            )}
-                            {activeMaster.variants?.map(v => (
-                                <button key={v.suffix} onClick={() => handleAddItem(v)} className="p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-0.5 active:scale-95 shadow-sm bg-white border-slate-100 hover:border-emerald-500">
-                                    <SkuColored sku="" suffix={v.suffix} gender={activeMaster.gender} />
-                                    <span className="text-[8px] uppercase font-bold text-slate-400 truncate w-full text-center">{v.description}</span>
-                                </button>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* With variants: 1) Metal, 2) Stone carousel */}
+                        {activeMaster.variants && activeMaster.variants.length > 0 && (
+                            <div className="flex flex-col gap-4 min-h-0 flex-1">
+                                <div className="shrink-0">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">1. Μέταλλο</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {finishOrder.map(code => {
+                                            const label = FINISH_CODES[code] ?? (code || 'Λουστρέ');
+                                            const count = variantsByFinish[code]?.length ?? 0;
+                                            const isSelected = selectedFinish === code;
+                                            return (
+                                                <button
+                                                    key={code || 'lustre'}
+                                                    onClick={() => setSelectedFinish(isSelected ? null : code)}
+                                                    className={`px-4 py-2.5 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                                >
+                                                    {label}
+                                                    {count > 1 && <span className="ml-1 opacity-70">({count})</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {selectedFinish !== null && (
+                                    <div className="flex flex-col gap-2 min-h-0 flex-1">
+                                        <div className="flex items-center justify-between shrink-0">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase">2. Πέτρα / Επιλογή</label>
+                                            <button type="button" onClick={() => setSelectedFinish(null)} className="text-xs font-bold text-slate-500 hover:text-slate-700">← Αλλαγή μέταλλου</button>
+                                        </div>
+                                        {variantsForSelectedFinish.length === 1 ? (
+                                            <button
+                                                onClick={() => handleAddItem(variantsForSelectedFinish[0])}
+                                                className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99] shrink-0"
+                                            >
+                                                <SkuColored sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} />
+                                                <span className="text-white/90 text-xs font-bold">{formatCurrency(variantsForSelectedFinish[0].selling_price || 0)}</span>
+                                                Προσθήκη
+                                            </button>
+                                        ) : (
+                                            <div className="overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 flex gap-3 snap-x snap-mandatory custom-scrollbar min-h-0">
+                                                {variantsForSelectedFinish.map(v => {
+                                                    const { stone } = getVariantComponents(v.suffix, activeMaster.gender);
+                                                    const price = v.selling_price || activeMaster.selling_price || 0;
+                                                    return (
+                                                        <button
+                                                            key={v.suffix}
+                                                            onClick={() => handleAddItem(v)}
+                                                            className="shrink-0 w-[140px] sm:w-[160px] snap-center flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-emerald-400 hover:shadow-md active:scale-95 transition-all text-center"
+                                                        >
+                                                            <span className={`text-sm font-black ${STONE_TEXT_COLORS[stone.code] || 'text-slate-700'}`}>
+                                                                {stone.name || stone.code || '—'}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-500 font-bold mt-0.5">{stone.code}</span>
+                                                            <span className="text-base font-black text-slate-900 mt-2">{formatCurrency(price)}</span>
+                                                            <span className="text-[10px] font-bold text-emerald-600 mt-1">Προσθήκη</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 

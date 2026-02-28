@@ -5,6 +5,7 @@ import { Customer, VatRegime } from '../../types';
 import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import CustomerDetailsModal from '../CustomerDetailsModal';
+import MobileCustomerForm from '../mobile/MobileCustomerForm';
 import { normalizedIncludes } from '../../utils/greekSearch';
 
 export default function SellerCustomers() {
@@ -163,13 +164,10 @@ export default function SellerCustomers() {
             )}
 
             {isCreating && selectedCustomer && (
-                <CustomerDetailsModal
+                <MobileCustomerForm
                     customer={selectedCustomer}
-                    orders={[]}
-                    onClose={() => { setIsCreating(false); setSelectedCustomer(null); }}
-                    onUpdate={handleCreateCustomer}
-                    onDelete={async () => { setIsCreating(false); setSelectedCustomer(null); }}
-                    onPrintOrder={undefined}
+                    onSave={handleCreateCustomer}
+                    onCancel={() => { setIsCreating(false); setSelectedCustomer(null); }}
                 />
             )}
         </div>

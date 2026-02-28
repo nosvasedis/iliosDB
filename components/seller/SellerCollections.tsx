@@ -4,9 +4,10 @@ import { api } from '../../lib/supabase';
 import { Collection, Product, Gender } from '../../types';
 import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { FINISH_CODES } from '../../constants';
 import SellerImageLightbox from './SellerImageLightbox';
 
-// ─── Color coding constants (match SellerCatalog) ─────────────────────────────────
+// ─── Color coding constants (match SellerCatalog exactly) ───────────────────────
 const FINISH_COLORS: Record<string, string> = {
     'X': 'bg-amber-100 text-amber-800 border-amber-300',
     'P': 'bg-stone-100 text-stone-700 border-stone-300',
@@ -27,7 +28,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
-// ─── SKU Color Coding Component (match Catalog styling) ───────────────────────────
+// ─── SKU + SuffixBadge (match SellerCatalog exactly) ──────────────────────────────
 const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix || '', gender);
     const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
@@ -38,6 +39,19 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gen
             <span className={fColor}>{finish.code}</span>
             <span className={sColor}>{stone.code}</span>
         </span>
+    );
+};
+
+const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+    const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
+    return (
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
+            <span>{finishLabel}</span>
+            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stone.code}</span></>)}
+        </div>
     );
 };
 
@@ -190,17 +204,22 @@ const ProductGridCard: React.FC<{
                     )}
                 </div>
 
-                {/* Light strip: SKU + category (match Catalog) */}
+                {/* Light strip: SKU + SuffixBadge + category (match Catalog exactly) */}
                 <div className="px-3 pt-2 pb-1.5 bg-white border-t border-slate-50">
                     <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
                         <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
+                        {currentVariant && (
+                            <div className="mt-1">
+                                <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />
+                            </div>
+                        )}
                         <p className="text-[9px] text-slate-400 font-bold truncate mt-0.5">{product.category}</p>
                     </div>
                 </div>
 
-                {/* Footer */}
+                {/* Footer — bigger price like Catalog */}
                 <div className="p-3 flex justify-between items-center bg-white border-t border-slate-50">
-                    <span className="font-black text-[#060b00] text-sm">
+                    <span className="font-black text-[#060b00] text-lg">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </span>
                     {onAddToOrder && (
