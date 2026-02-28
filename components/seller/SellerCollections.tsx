@@ -3,8 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Collection, Product } from '../../types';
-import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
+import SellerImageLightbox from './SellerImageLightbox';
 
 interface Props {
     products: Product[];
@@ -43,59 +44,78 @@ const ProductGridCard: React.FC<{
         }
     };
 
-    return (
-        <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-100 flex flex-col h-full relative">
-            {/* Image */}
-            <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden">
-                {product.image_url ? (
-                    <img
-                        src={product.image_url}
-                        alt={displaySku}
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={32} />
-                    </div>
-                )}
+    const [showLightbox, setShowLightbox] = useState(false);
 
-                {/* SKU overlay */}
-                <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
-                    <h3 className="text-white font-black text-sm leading-none truncate drop-shadow-sm">{displaySku}</h3>
-                    <p className="text-white/70 text-[10px] font-medium truncate mt-0.5">{product.category}</p>
+    return (
+        <>
+            {showLightbox && (
+                <SellerImageLightbox
+                    item={{ product, variantIndex: viewIndex }}
+                    onClose={() => setShowLightbox(false)}
+                />
+            )}
+            <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-100 flex flex-col h-full relative">
+                {/* Image */}
+                <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden">
+                    {product.image_url ? (
+                        <img
+                            src={product.image_url}
+                            alt={displaySku}
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out cursor-zoom-in"
+                            onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                            <ImageIcon size={32} />
+                        </div>
+                    )}
+
+                    {/* Zoom hint on hover */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+                        className="absolute top-2 left-2 z-20 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all active:scale-90"
+                    >
+                        <Expand size={13} />
+                    </button>
+
+                    {/* SKU overlay */}
+                    <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+                        <h3 className="text-white font-black text-sm leading-none truncate drop-shadow-sm">{displaySku}</h3>
+                        <p className="text-white/70 text-[10px] font-medium truncate mt-0.5">{product.category}</p>
+                    </div>
+
+                    {/* Variant navigation */}
+                    {hasVariants && variants.length > 1 && (
+                        <div className="absolute top-2 right-2 flex bg-black/40 backdrop-blur-md rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
+                            <button onClick={prevVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
+                                <ChevronLeft size={12} />
+                            </button>
+                            <span className="text-white text-[9px] font-black px-1 flex items-center">
+                                {viewIndex % variants.length + 1}/{variants.length}
+                            </span>
+                            <button onClick={nextVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
+                                <ChevronRight size={12} />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Variant navigation */}
-                {hasVariants && variants.length > 1 && (
-                    <div className="absolute top-2 right-2 flex bg-black/40 backdrop-blur-md rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
-                        <button onClick={prevVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
-                            <ChevronLeft size={12} />
+                {/* Footer */}
+                <div className="p-3 flex justify-between items-center bg-white">
+                    <span className="text-blue-700 font-black text-sm">
+                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
+                    </span>
+                    {onAddToOrder && (
+                        <button
+                            onClick={handleAdd}
+                            className="bg-[#060b00] text-amber-400 p-1.5 rounded-lg active:scale-95 transition-transform shadow-sm"
+                        >
+                            <ShoppingBag size={14} />
                         </button>
-                        <span className="text-white text-[9px] font-black px-1 flex items-center">
-                            {viewIndex % variants.length + 1}/{variants.length}
-                        </span>
-                        <button onClick={nextVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
-                            <ChevronRight size={12} />
-                        </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
-
-            {/* Footer */}
-            <div className="p-3 flex justify-between items-center bg-white">
-                <span className="text-blue-700 font-black text-sm">
-                    {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                </span>
-                {onAddToOrder && (
-                    <button
-                        onClick={handleAdd}
-                        className="bg-[#060b00] text-amber-400 p-1.5 rounded-lg active:scale-95 transition-transform shadow-sm"
-                    >
-                        <ShoppingBag size={14} />
-                    </button>
-                )}
-            </div>
-        </div>
+        </>
     );
 };
 

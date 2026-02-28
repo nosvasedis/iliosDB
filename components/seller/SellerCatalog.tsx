@@ -1,30 +1,30 @@
 
-import React, { useState, useMemo } from 'react';
-import { Product, Gender } from '../../types';
-import {
-    Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen
-} from 'lucide-react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { Product, Gender, ProductVariant } from '../../types';
+import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
 import { useUI } from '../UIProvider';
+import SellerImageLightbox from './SellerImageLightbox';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
+interface Props { products: Product[]; }
 
-
-interface Props {
-    products: Product[];
-}
-
-// ─── Visual constants (mirror desktop) ───────────────────────────────────────
+// ─── Visual constants ─────────────────────────────────────────────────────────
+const FINISH_ORDER = ['', 'P', 'X', 'D', 'H'];
+const FINISH_LABELS: Record<string, string> = { '': 'Λουστρέ', 'X': 'Χρυσό', 'P': 'Ασήμι', 'D': 'Ροζ', 'H': 'Λευκό' };
 const FINISH_COLORS: Record<string, string> = {
     'X': 'bg-amber-100 text-amber-800 border-amber-300',
     'P': 'bg-stone-100 text-stone-700 border-stone-300',
-    'D': 'bg-orange-100 text-orange-800 border-orange-300',
+    'D': 'bg-rose-100 text-rose-800 border-rose-300',
     'H': 'bg-cyan-100 text-cyan-800 border-cyan-300',
     '': 'bg-emerald-50 text-emerald-800 border-emerald-200',
 };
-
+const FINISH_DOT_ACTIVE: Record<string, string> = {
+    '': 'bg-emerald-500', 'P': 'bg-stone-500', 'X': 'bg-amber-500', 'D': 'bg-rose-400', 'H': 'bg-cyan-400',
+};
 const STONE_TEXT_COLORS: Record<string, string> = {
     'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
     'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
@@ -34,134 +34,238 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
     'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
     'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
 };
 
-// ─── Suffix Badge (matches desktop SuffixBadge) ───────────────────────────────
+// ─── Category grouping ────────────────────────────────────────────────────────
+const CATEGORY_PREFIXES = ['Βραχιόλι', 'Κολιέ', 'Σκουλαρίκι', 'Δαχτυλίδι', 'Τσόκερ', 'Σετ', 'Αλυσίδα', 'Τσάντα', 'Καρφίτσα'];
+const getCategoryGroup = (category: string): string => {
+    for (const prefix of CATEGORY_PREFIXES) {
+        if (category.startsWith(prefix)) return prefix;
+    }
+    return category;
+};
+
+// ─── SuffixBadge (desk parity) ────────────────────────────────────────────────
 const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    const finishLabel = (finish.code === '' || !finish.code) ? 'Λουστρέ' : finish.code;
+    const finishLabel = (!finish.code || finish.code === '') ? 'Λουστρέ' : finish.code;
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
             <span>{finishLabel}</span>
-            {stone.code && (
-                <>
-                    <span className="opacity-30">|</span>
-                    <span className={stoneColor}>{stone.code}</span>
-                </>
-            )}
+            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stone.code}</span></>)}
         </div>
     );
 };
 
-// ─── Gender options ───────────────────────────────────────────────────────────
-const GENDER_OPTIONS = [
-    { value: 'All', label: 'Όλα' },
-    { value: Gender.Women, label: 'Γυναικεία' },
-    { value: Gender.Men, label: 'Ανδρικά' },
-    { value: Gender.Unisex, label: 'Unisex' },
-];
+// ─── Catalogue Card with swipe + smart variant ordering ───────────────────────
+const GRID_COLS = 3; // keep as const so virtualizer row height is stable
 
-// ─── Catalogue Card with variant cycling ─────────────────────────────────────
-const CatalogueCard: React.FC<{ product: Product }> = ({ product }) => {
-    const [viewIndex, setViewIndex] = useState(0);
+interface CardProps { product: Product; }
 
+const CatalogueCard = React.memo(({ product }: CardProps) => {
+    // Smart variant sort: by finish group index, then stone alpha
     const variants = useMemo(() => {
         if (!product.variants || product.variants.length === 0) return [];
         return [...product.variants].sort((a, b) => {
-            const priority = (s: string) => {
-                if (s === '') return 0;
-                if (s === 'P') return 1;
-                if (s === 'D') return 2;
-                if (s === 'X') return 3;
-                if (s === 'H') return 4;
-                return 5;
-            };
-            return priority(a.suffix) - priority(b.suffix);
+            const fa = getVariantComponents(a.suffix, product.gender).finish.code;
+            const fb = getVariantComponents(b.suffix, product.gender).finish.code;
+            const ia = FINISH_ORDER.indexOf(fa) >= 0 ? FINISH_ORDER.indexOf(fa) : 99;
+            const ib = FINISH_ORDER.indexOf(fb) >= 0 ? FINISH_ORDER.indexOf(fb) : 99;
+            if (ia !== ib) return ia - ib;
+            // Same finish → sort by stone code alphabetically
+            const sa = getVariantComponents(a.suffix, product.gender).stone.code;
+            const sb = getVariantComponents(b.suffix, product.gender).stone.code;
+            return sa.localeCompare(sb);
         });
-    }, [product.variants]);
+    }, [product.variants, product.gender]);
+
+    // Finish groups (for the progress dots)
+    const finishGroups = useMemo(() => {
+        const groups: { finish: string; indices: number[] }[] = [];
+        variants.forEach((v, i) => {
+            const f = getVariantComponents(v.suffix, product.gender).finish.code;
+            const g = groups.find(g => g.finish === f);
+            if (g) g.indices.push(i);
+            else groups.push({ finish: f, indices: [i] });
+        });
+        return groups;
+    }, [variants, product.gender]);
+
+    const [viewIndex, setViewIndex] = useState(0);
+    const [showLightbox, setShowLightbox] = useState(false);
+    const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
+    const [dragOffset, setDragOffset] = useState(0);
+    const touchStartX = useRef<number | null>(null);
+    const isAnimating = useRef(false);
 
     const hasVariants = variants.length > 0;
-    const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
-
+    const currentVariant: ProductVariant | null = hasVariants ? variants[viewIndex] : null;
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
         : (product.selling_price || 0);
-    const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
+    const basePrice = product.selling_price || 0;
+    const stockQty = currentVariant ? (currentVariant.stock_qty || 0) : (product.stock_qty || 0);
+    const { finish, stone } = getVariantComponents(currentVariant?.suffix || '', product.gender);
 
-    const handleNext = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
-    };
-    const handlePrev = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev - 1 + variants.length) % variants.length);
-    };
+    const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
+        if (isAnimating.current || newIdx === viewIndex) return;
+        isAnimating.current = true;
+        setSlideDir(dir);
+        setTimeout(() => {
+            setViewIndex(newIdx);
+            setSlideDir(null);
+            isAnimating.current = false;
+        }, 180);
+    }, [viewIndex]);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (!hasVariants || variants.length <= 1) return;
+        touchStartX.current = e.touches[0].clientX;
+        setDragOffset(0);
+    }, [hasVariants, variants.length]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        if (touchStartX.current === null) return;
+        const delta = e.touches[0].clientX - touchStartX.current;
+        setDragOffset(Math.max(-90, Math.min(90, delta)));
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        if (touchStartX.current === null) return;
+        const d = dragOffset;
+        if (d < -35) goToIndex((viewIndex + 1) % variants.length, 'left');
+        else if (d > 35) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
+        touchStartX.current = null;
+        setDragOffset(0);
+    }, [dragOffset, viewIndex, variants.length, goToIndex]);
+
+    // Animated info strip classes
+    const infoClass = slideDir === 'left'
+        ? '-translate-x-full opacity-0'
+        : slideDir === 'right'
+            ? 'translate-x-full opacity-0'
+            : 'translate-x-0 opacity-100';
+
+    const activeGroupIdx = finishGroups.findIndex(g => g.indices.includes(viewIndex));
 
     return (
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 flex flex-col h-full relative group active:scale-[0.97] transition-transform duration-150">
-            {/* Image Section */}
-            <div className="relative aspect-square bg-slate-50 overflow-hidden">
-                {product.image_url ? (
-                    <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={20} />
-                    </div>
-                )}
+        <>
+            {showLightbox && (
+                <SellerImageLightbox
+                    item={{ product, variantIndex: viewIndex }}
+                    onClose={() => setShowLightbox(false)}
+                />
+            )}
+            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100 flex flex-col relative group select-none">
 
-                {/* Invisible Touch Zones for Cycling */}
-                {hasVariants && (
-                    <>
-                        <div className="absolute inset-y-0 left-0 w-1/2 z-10" onClick={handlePrev} />
-                        <div className="absolute inset-y-0 right-0 w-1/2 z-10" onClick={handleNext} />
-                    </>
-                )}
+                {/* ── Image + touch zone ─────────────────────────────── */}
+                <div
+                    className="relative aspect-square bg-slate-50 overflow-hidden"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
+                >
+                    {product.image_url ? (
+                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                            <ImageIcon size={20} />
+                        </div>
+                    )}
 
-                {/* Stock badge */}
-                <div className="absolute top-1 left-1 pointer-events-none z-20">
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-md ${stockQty > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
-                        {stockQty > 0 ? stockQty : '0'}
-                    </span>
-                </div>
+                    {/* Swipe direction hint during drag */}
+                    {Math.abs(dragOffset) > 20 && variants.length > 1 && (
+                        <div className={`absolute top-1/2 -translate-y-1/2 z-30 ${dragOffset > 0 ? 'left-2' : 'right-2'}`}>
+                            <div className="bg-white/80 backdrop-blur-sm rounded-full p-1 shadow">
+                                {dragOffset > 0
+                                    ? <ChevronLeft size={12} className="text-slate-700" />
+                                    : <ChevronRight size={12} className="text-slate-700" />
+                                }
+                            </div>
+                        </div>
+                    )}
 
-                {/* Variant counter */}
-                {hasVariants && variants.length > 1 && (
-                    <div className="absolute top-1 right-1 pointer-events-none z-20">
-                        <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">
-                            {viewIndex % variants.length + 1}/{variants.length}
+                    {/* Stock pill */}
+                    <div className="absolute top-1 left-1 z-20 pointer-events-none">
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-md ${stockQty > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
+                            {stockQty}
                         </span>
                     </div>
-                )}
-            </div>
 
-            {/* Info section */}
-            <div className="p-1.5 flex flex-col gap-0.5">
-                <h3 className="font-black text-slate-800 text-[11px] leading-tight truncate">{displaySku}</h3>
-                {currentVariant && (
-                    <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />
-                )}
-                <div className="flex justify-between items-center mt-0.5">
-                    <span className="text-[9px] text-slate-400 truncate max-w-[55%] leading-tight">{product.category}</span>
-                    <span className="font-black text-[#060b00] text-xs leading-none">
-                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                    </span>
+                    {/* Variant counter */}
+                    {hasVariants && variants.length > 1 && (
+                        <div className="absolute top-1 right-1 z-20 pointer-events-none">
+                            <span className="bg-black/50 backdrop-blur-md text-white text-[7px] font-black px-1.5 py-0.5 rounded-full">
+                                {viewIndex + 1}/{variants.length}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Expand button */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+                        className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 bg-black/40 hover:bg-black/65 backdrop-blur-sm text-white rounded-full p-1.5 transition-all active:scale-90 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    >
+                        <Expand size={11} />
+                    </button>
                 </div>
-            </div>
-        </div>
-    );
-};
 
-// ─── Active Filter Chip ───────────────────────────────────────────────────────
+                {/* ── Animated info strip ─────────────────────────────── */}
+                <div className="px-1.5 pt-1 pb-0.5 overflow-hidden">
+                    <div className={`flex flex-col gap-0.5 transition-all duration-[180ms] ease-out ${infoClass}`}>
+                        {/* SKU */}
+                        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">{displaySku}</span>
+
+                        {/* Finish badge */}
+                        {currentVariant && (
+                            <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />
+                        )}
+
+                        {/* Price row */}
+                        <div className="flex justify-between items-end mt-0.5">
+                            <span className="text-[8px] text-slate-400 truncate max-w-[50%]">{product.category}</span>
+                            <div className="text-right leading-none">
+                                <div className="font-black text-[#060b00] text-[11px]">
+                                    {displayPrice > 0 ? formatCurrency(displayPrice) : '—'}
+                                </div>
+                                {currentVariant && displayPrice !== basePrice && basePrice > 0 && (
+                                    <div className={`text-[7px] font-bold ${displayPrice > basePrice ? 'text-amber-600' : 'text-slate-400'}`}>
+                                        {displayPrice > basePrice ? `+${formatCurrency(displayPrice - basePrice)}` : `${formatCurrency(displayPrice - basePrice)}`}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Finish group progress dots ──────────────────────── */}
+                {finishGroups.length > 1 && (
+                    <div className="px-1.5 pb-1.5 flex gap-1">
+                        {finishGroups.map((g, gi) => (
+                            <button
+                                key={g.finish}
+                                onClick={() => goToIndex(g.indices[0], gi > activeGroupIdx ? 'left' : 'right')}
+                                className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${gi === activeGroupIdx ? (FINISH_DOT_ACTIVE[g.finish] || 'bg-slate-700') : 'bg-slate-200 hover:bg-slate-300'}`}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        </>
+    );
+});
+CatalogueCard.displayName = 'CatalogueCard';
+
+// ─── Filter chip ──────────────────────────────────────────────────────────────
 const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
-    <div className="flex items-center gap-1 bg-[#060b00] text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm">
+    <div className="flex items-center gap-1 bg-[#060b00] text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm shrink-0">
         {label}
-        <button onClick={onClear} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5">
-            <X size={10} />
-        </button>
+        <button onClick={onClear} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={10} /></button>
     </div>
 );
 
@@ -170,69 +274,109 @@ export default function SellerCatalog({ products }: Props) {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     const { showToast } = useUI();
 
-    // ── Filter state ─────────────────────────────────────────────────────────
+    // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
+    const [selectedGroup, setSelectedGroup] = useState<string>('All');
     const [selectedGender, setSelectedGender] = useState<'All' | Gender>('All');
-    const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [selectedCollection, setSelectedCollection] = useState<number | 'All'>('All');
+    const [selectedFinish, setSelectedFinish] = useState<string | null>(null);
+    const [selectedStone, setSelectedStone] = useState<string | null>(null);
     const [onlyInStock, setOnlyInStock] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
 
-    // ── Derived data ─────────────────────────────────────────────────────────
-    const categories = useMemo(() => {
-        const cats = new Set(products.filter(p => !p.is_component).map(p => p.category));
-        return ['All', ...Array.from(cats).sort()];
-    }, [products]);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
+    // ── Derived filter options ───────────────────────────────────────────────
+    const sellable = useMemo(() => products.filter(p => !p.is_component), [products]);
+
+    const categoryGroups = useMemo(() => {
+        const groups = new Set(sellable.map(p => getCategoryGroup(p.category)));
+        return ['All', ...Array.from(groups).sort()];
+    }, [sellable]);
+
+    const availableFinishes = useMemo(() => {
+        const set = new Set<string>();
+        sellable.forEach(p => {
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const f = getVariantComponents(v.suffix, p.gender).finish.code;
+                    set.add(f);
+                });
+            }
+        });
+        return FINISH_ORDER.filter(f => set.has(f));
+    }, [sellable]);
+
+    const availableStones = useMemo(() => {
+        const counts = new Map<string, number>();
+        sellable.forEach(p => {
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const s = getVariantComponents(v.suffix, p.gender).stone.code;
+                    if (s) counts.set(s, (counts.get(s) || 0) + 1);
+                });
+            }
+        });
+        return Array.from(counts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 14)
+            .map(([code]) => code);
+    }, [sellable]);
+
+    // ── Filtered products ────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
-        return products
-            .filter(p => {
-                if (p.is_component) return false;
+        return sellable.filter(p => {
+            const matchSearch = !search || p.sku.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase());
+            const matchGroup = selectedGroup === 'All' || getCategoryGroup(p.category) === selectedGroup;
+            const matchGender = selectedGender === 'All' || p.gender === selectedGender;
+            const matchCollection = selectedCollection === 'All' || p.collections?.includes(selectedCollection as number);
+            const matchFinish = !selectedFinish || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).finish.code === selectedFinish));
+            const matchStone = !selectedStone || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).stone.code === selectedStone));
+            const totalStock = (p.stock_qty || 0) + (p.variants?.reduce((s, v) => s + (v.stock_qty || 0), 0) || 0);
+            const matchStock = !onlyInStock || totalStock > 0;
+            return matchSearch && matchGroup && matchGender && matchCollection && matchFinish && matchStone && matchStock;
+        }).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [sellable, search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, onlyInStock]);
 
-                const matchSearch = !search ||
-                    p.sku.toLowerCase().includes(search.toLowerCase()) ||
-                    p.category.toLowerCase().includes(search.toLowerCase());
+    // ── Virtualizer setup: group products into rows ──────────────────────────
+    const productRows = useMemo(() => {
+        const rows: Product[][] = [];
+        for (let i = 0; i < filteredProducts.length; i += GRID_COLS) {
+            rows.push(filteredProducts.slice(i, i + GRID_COLS));
+        }
+        return rows;
+    }, [filteredProducts]);
 
-                const matchGender = selectedGender === 'All' || p.gender === selectedGender;
-                const matchCategory = selectedCategory === 'All' || p.category === selectedCategory;
-                const matchCollection = selectedCollection === 'All' || p.collections?.includes(selectedCollection as number);
+    const rowVirtualizer = useVirtualizer({
+        count: productRows.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: () => 210, // px per row (image + info + dots + gap)
+        overscan: 4,
+    });
 
-                const totalStock = (p.stock_qty || 0) + (p.sample_qty || 0) +
-                    (p.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
-                const matchStock = !onlyInStock || totalStock > 0;
+    // ── Active filter count ──────────────────────────────────────────────────
+    const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, onlyInStock].filter(Boolean).length;
 
-                return matchSearch && matchGender && matchCategory && matchCollection && matchStock;
-            })
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [products, search, selectedGender, selectedCategory, selectedCollection, onlyInStock]);
-
-    // ── Active filter count ───────────────────────────────────────────────────
-    const activeFilterCount = [
-        selectedGender !== 'All',
-        selectedCategory !== 'All',
-        selectedCollection !== 'All',
-        onlyInStock,
-    ].filter(Boolean).length;
-
-    const clearAllFilters = () => {
+    const clearAll = () => {
         setSelectedGender('All');
-        setSelectedCategory('All');
         setSelectedCollection('All');
+        setSelectedFinish(null);
+        setSelectedStone(null);
         setOnlyInStock(false);
     };
 
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
         if (match) {
-            const targetSku = match.product.sku + (match.variant?.suffix || '');
-            setSearch(targetSku);
+            setSearch(match.product.sku + (match.variant?.suffix || ''));
             setShowScanner(false);
-            showToast(`Βρέθηκε: ${targetSku}`, 'success');
         } else {
-            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+            showToast(`Κωδικός ${code} δεν βρέθηκε.`, 'error');
         }
     };
+
+    const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Unisex' }];
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -244,84 +388,82 @@ export default function SellerCatalog({ products }: Props) {
                 <div className="flex gap-2">
                     <div className="relative flex-1">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση κωδικού, κατηγορίας..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-8 pr-7 p-2.5 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 rounded-xl outline-none font-bold text-sm text-slate-900 transition-all placeholder:font-medium placeholder:text-slate-400"
-                        />
+                        <input type="text" placeholder="Αναζήτηση κωδικού, κατηγορίας..." value={search} onChange={e => { setSearch(e.target.value); setSelectedGroup('All'); }}
+                            className="w-full pl-8 pr-7 p-2.5 bg-slate-100 focus:bg-white focus:border-slate-300 border border-transparent rounded-xl outline-none font-bold text-sm text-slate-900 transition-all placeholder:font-medium placeholder:text-slate-400" />
                         {search && (
                             <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-300 rounded-full p-0.5">
                                 <X size={11} className="text-slate-600" />
                             </button>
                         )}
                     </div>
-                    <button
-                        onClick={() => setShowScanner(true)}
-                        className="bg-slate-100 text-slate-600 p-2.5 rounded-xl border border-transparent hover:bg-slate-200 transition-colors shrink-0"
-                    >
-                        <Camera size={18} />
-                    </button>
-                    <button
-                        onClick={() => setShowFilters(v => !v)}
-                        className={`relative p-2.5 rounded-xl border transition-colors shrink-0 ${showFilters || activeFilterCount > 0 ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200'}`}
-                    >
+                    <button onClick={() => setShowScanner(true)} className="bg-slate-100 text-slate-600 p-2.5 rounded-xl hover:bg-slate-200 transition-colors shrink-0"><Camera size={18} /></button>
+                    <button onClick={() => setShowFilters(v => !v)} className={`relative p-2.5 rounded-xl border transition-colors shrink-0 ${(showFilters || activeCount > 0) ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200'}`}>
                         <SlidersHorizontal size={18} />
-                        {activeFilterCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-[#060b00] text-[9px] font-black rounded-full flex items-center justify-center">
-                                {activeFilterCount}
-                            </span>
+                        {activeCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-[#060b00] text-[9px] font-black rounded-full flex items-center justify-center">{activeCount}</span>
                         )}
                     </button>
                 </div>
 
-                {/* Row 2: Expandable filter panel */}
+                {/* Expandable filter panel */}
                 {showFilters && (
-                    <div className="space-y-3 pt-1 pb-1 animate-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-3 py-1 animate-in slide-in-from-top-2 duration-200">
 
-                        {/* Gender row */}
+                        {/* Gender */}
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Φύλο</p>
                             <div className="flex gap-1.5 flex-wrap">
-                                {GENDER_OPTIONS.map(g => (
-                                    <button
-                                        key={g.value}
-                                        onClick={() => setSelectedGender(g.value as any)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedGender === g.value
-                                            ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
-                                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        {g.label}
+                                {GENDER_OPTS.map(g => (
+                                    <button key={g.v} onClick={() => setSelectedGender(g.v as any)}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedGender === g.v ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                        {g.l}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Collection row */}
+                        {/* Finish (metal) filter */}
+                        {availableFinishes.length > 0 && (
+                            <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Μέταλλο</p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {availableFinishes.map(f => (
+                                        <button key={f} onClick={() => setSelectedFinish(selectedFinish === f ? null : f)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedFinish === f ? 'ring-2 ring-offset-1 ' + (FINISH_COLORS[f] || '') + ' ring-slate-600' : (FINISH_COLORS[f] || 'bg-slate-50 text-slate-500 border-slate-200')}`}>
+                                            {FINISH_LABELS[f] || f}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Stone filter */}
+                        {availableStones.length > 0 && (
+                            <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Πέτρα</p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {availableStones.map(s => (
+                                        <button key={s} onClick={() => setSelectedStone(selectedStone === s ? null : s)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                            <span className={`${selectedStone === s ? 'text-white' : (STONE_TEXT_COLORS[s] || 'text-slate-600')}`}>{s}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Collections */}
                         {collections && collections.length > 0 && (
                             <div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Συλλογή</p>
                                 <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide -mx-1 px-1">
-                                    <button
-                                        onClick={() => setSelectedCollection('All')}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === 'All'
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
+                                    <button onClick={() => setSelectedCollection('All')}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === 'All' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                         Όλες
                                     </button>
                                     {collections.map(col => (
-                                        <button
-                                            key={col.id}
-                                            onClick={() => setSelectedCollection(col.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === col.id
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                                }`}
-                                        >
+                                        <button key={col.id} onClick={() => setSelectedCollection(col.id)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === col.id ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                             {col.name}
                                         </button>
                                     ))}
@@ -329,88 +471,75 @@ export default function SellerCatalog({ products }: Props) {
                             </div>
                         )}
 
-                        {/* In-stock toggle */}
+                        {/* In stock toggle */}
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-[11px] font-black text-slate-700">Μόνο Διαθέσιμα</p>
-                                <p className="text-[9px] text-slate-400 font-medium">Προϊόντα με στοκ &gt; 0</p>
+                                <p className="text-[9px] text-slate-400">Προϊόντα με στοκ &gt; 0</p>
                             </div>
-                            <button
-                                onClick={() => setOnlyInStock(v => !v)}
-                                className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${onlyInStock ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                            >
+                            <button onClick={() => setOnlyInStock(v => !v)} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${onlyInStock ? 'bg-emerald-500' : 'bg-slate-200'}`}>
                                 <div className={`w-4 h-4 bg-white rounded-full shadow-md absolute top-1 transition-all duration-200 ${onlyInStock ? 'left-6' : 'left-1'}`} />
                             </button>
                         </div>
 
-                        {/* Clear all if any active */}
-                        {activeFilterCount > 0 && (
-                            <button
-                                onClick={clearAllFilters}
-                                className="w-full py-2 text-[11px] font-black text-red-500 border border-red-200 rounded-xl bg-red-50 hover:bg-red-100 transition-colors"
-                            >
-                                Καθαρισμός Φίλτρων ({activeFilterCount})
+                        {activeCount > 0 && (
+                            <button onClick={clearAll} className="w-full py-2 text-[11px] font-black text-red-500 border border-red-200 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
+                                Καθαρισμός Φίλτρων ({activeCount})
                             </button>
                         )}
                     </div>
                 )}
 
-                {/* Row 3: Category chips (always visible) */}
+                {/* Category group chips - always visible */}
                 <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-3 px-3 scrollbar-hide">
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`px-3 py-1.5 rounded-full text-[10px] font-black whitespace-nowrap transition-all border ${selectedCategory === cat
-                                ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                                }`}
-                        >
-                            {cat === 'All' ? 'Όλα' : cat}
+                    {categoryGroups.map(g => (
+                        <button key={g} onClick={() => setSelectedGroup(g)}
+                            className={`px-3 py-1.5 rounded-full text-[10px] font-black whitespace-nowrap border transition-all ${selectedGroup === g ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                            {g === 'All' ? 'Όλα' : g}
                         </button>
                     ))}
                 </div>
 
-                {/* Active filter chips row */}
-                {activeFilterCount > 0 && !showFilters && (
+                {/* Active chips row */}
+                {activeCount > 0 && !showFilters && (
                     <div className="flex gap-2 flex-wrap animate-in slide-in-from-top-1">
-                        {selectedGender !== 'All' && (
-                            <FilterChip label={GENDER_OPTIONS.find(g => g.value === selectedGender)?.label || selectedGender} onClear={() => setSelectedGender('All')} />
-                        )}
-                        {selectedCollection !== 'All' && (
-                            <FilterChip label={collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή'} onClear={() => setSelectedCollection('All')} />
-                        )}
-                        {onlyInStock && (
-                            <FilterChip label="Διαθέσιμα" onClear={() => setOnlyInStock(false)} />
-                        )}
+                        {selectedGender !== 'All' && <FilterChip label={GENDER_OPTS.find(g => g.v === selectedGender)?.l || ''} onClear={() => setSelectedGender('All')} />}
+                        {selectedFinish !== null && <FilterChip label={FINISH_LABELS[selectedFinish] || selectedFinish} onClear={() => setSelectedFinish(null)} />}
+                        {selectedStone !== null && <FilterChip label={selectedStone} onClear={() => setSelectedStone(null)} />}
+                        {selectedCollection !== 'All' && <FilterChip label={collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή'} onClear={() => setSelectedCollection('All')} />}
+                        {onlyInStock && <FilterChip label="Διαθέσιμα" onClear={() => setOnlyInStock(false)} />}
                     </div>
                 )}
             </div>
 
-            {/* ── Results count ─────────────────────────────────────────── */}
-            <div className="px-3 pt-2 pb-1 flex items-center justify-between shrink-0">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    {filteredProducts.length} προϊόντα
-                </span>
+            {/* Results count */}
+            <div className="px-3 pt-2 pb-1 shrink-0">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filteredProducts.length} προϊόντα</span>
             </div>
 
-            {/* ── Product Grid ──────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
-                <div className="grid grid-cols-3 sm:grid-cols-4 landscape:grid-cols-4 xl:grid-cols-5 gap-2 pb-28 landscape:pb-8">
-                    {filteredProducts.map(p => (
-                        <CatalogueCard key={p.sku} product={p} />
-                    ))}
-                </div>
-
-                {filteredProducts.length === 0 && (
+            {/* ── Virtualized product grid ──────────────────────────────── */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar px-2">
+                {filteredProducts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
                         <PackageOpen size={40} className="opacity-20" />
-                        <p className="font-black text-sm text-center">Δεν βρέθηκαν προϊόντα.</p>
-                        {activeFilterCount > 0 && (
-                            <button onClick={clearAllFilters} className="text-xs font-black text-[#060b00] underline">
-                                Καθαρισμός φίλτρων
-                            </button>
-                        )}
+                        <p className="font-black text-sm">Δεν βρέθηκαν προϊόντα.</p>
+                        {activeCount > 0 && <button onClick={clearAll} className="text-xs font-black text-[#060b00] underline">Καθαρισμός φίλτρων</button>}
+                    </div>
+                ) : (
+                    <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                        {rowVirtualizer.getVirtualItems().map(vRow => (
+                            <div
+                                key={vRow.key}
+                                data-index={vRow.index}
+                                ref={rowVirtualizer.measureElement}
+                                style={{ position: 'absolute', top: vRow.start, left: 0, right: 0 }}
+                                className="grid grid-cols-3 gap-2 pb-2"
+                            >
+                                {productRows[vRow.index].map(p => (
+                                    <CatalogueCard key={p.sku} product={p} />
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
