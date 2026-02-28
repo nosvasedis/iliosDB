@@ -65,7 +65,7 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
     const { finish, stone } = getVariantComponents(suffix, gender);
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    const finishLabel = FINISH_CODES[finish.code] ?? finish.code || 'Λουστρέ';
+    const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
             <span>{finishLabel}</span>
