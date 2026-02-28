@@ -89,7 +89,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         return Array.from(new Set(allProducts.filter(p => !p.is_component).map(p => p.category))).sort();
     }, [allProducts]);
 
-    // Derived: filtered products for catalog
+    // Derived: filtered products for catalog — sorted A→Z by SKU
     const catalogProducts = useMemo(() => {
         return allProducts.filter(p => {
             if (p.is_component) return false;
@@ -104,7 +104,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             if (catalogCategory && p.category !== catalogCategory) return false;
             if (catalogGender && p.gender !== catalogGender) return false;
             return true;
-        });
+        }).sort((a, b) => a.sku.localeCompare(b.sku));
     }, [allProducts, catalogSearch, catalogCollectionId, catalogCategory, catalogGender, catalogOnlyWithImage]);
 
     const handleToggleSelectAll = () => {
@@ -653,8 +653,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 <button
                     onClick={() => setActiveTab('labels')}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'labels'
-                            ? 'bg-slate-900 text-white shadow-md'
-                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        ? 'bg-slate-900 text-white shadow-md'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                         }`}
                 >
                     <Tag size={16} />
@@ -663,8 +663,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 <button
                     onClick={() => setActiveTab('catalog')}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'catalog'
-                            ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
-                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                         }`}
                 >
                     <BookImage size={16} />
@@ -1050,10 +1050,10 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             <button
                                 onClick={handleToggleSelectAll}
                                 className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${selectedSkus.size > 0 && selectedSkus.size === catalogProducts.length
-                                        ? 'bg-violet-600 border-violet-600 text-white'
-                                        : selectedSkus.size > 0
-                                            ? 'bg-violet-100 border-violet-400 text-violet-600'
-                                            : 'border-slate-300 bg-white hover:border-violet-400'
+                                    ? 'bg-violet-600 border-violet-600 text-white'
+                                    : selectedSkus.size > 0
+                                        ? 'bg-violet-100 border-violet-400 text-violet-600'
+                                        : 'border-slate-300 bg-white hover:border-violet-400'
                                     }`}
                             >
                                 {selectedSkus.size > 0 && <Check size={14} />}
@@ -1090,14 +1090,14 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         key={product.sku}
                                         onClick={() => handleToggleSku(product.sku)}
                                         className={`relative rounded-2xl overflow-hidden border-2 cursor-pointer transition-all duration-200 group ${isSelected
-                                                ? 'border-violet-500 shadow-lg shadow-violet-100 scale-[1.02]'
-                                                : 'border-slate-200 hover:border-violet-300 hover:shadow-md hover:scale-[1.01]'
+                                            ? 'border-violet-500 shadow-lg shadow-violet-100 scale-[1.02]'
+                                            : 'border-slate-200 hover:border-violet-300 hover:shadow-md hover:scale-[1.01]'
                                             } bg-white`}
                                     >
                                         {/* Selection badge */}
                                         <div className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected
-                                                ? 'bg-violet-600 border-violet-600 text-white'
-                                                : 'bg-white/80 border-slate-300 group-hover:border-violet-400'
+                                            ? 'bg-violet-600 border-violet-600 text-white'
+                                            : 'bg-white/80 border-slate-300 group-hover:border-violet-400'
                                             }`}>
                                             {isSelected && <Check size={13} />}
                                         </div>

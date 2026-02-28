@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, PriceListPrintData, Offer, SupplierOrder } from '../types';
-import { GlobalSettings } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
 import OfferPrintView from './OfferPrintView';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
@@ -8,7 +7,7 @@ import ProductionWorkerView from './ProductionWorkerView';
 import AggregatedProductionView from './AggregatedProductionView';
 import PreparationView from './PreparationView';
 import TechnicianView from './TechnicianView';
-import PriceListPrintView from './PriceListPrintView';
+import PriceListPrintView, { PriceListPrintData } from './PriceListPrintView';
 import AnalyticsPrintReport from './AnalyticsPrintReport';
 import OrderFinancialReport from './OrderFinancialReport';
 import BarcodeView from './BarcodeView';
@@ -274,6 +273,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 {photoCatalogPrintData && photoCatalogPrintData.length > 0 && (
                     <PhotoCatalogPrintView
                         products={photoCatalogPrintData}
+                        molds={molds}
                         date={new Date().toLocaleDateString('el-GR')}
                     />
                 )}

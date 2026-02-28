@@ -1,37 +1,25 @@
 import React from 'react';
-import { Product } from '../types';
-import { getVariantComponents } from '../utils/pricingEngine';
+import { Product, Mold } from '../types';
 
 interface Props {
     products: Product[];
+    molds: Mold[];
     title?: string;
     date?: string;
 }
 
 const ITEMS_PER_PAGE = 12; // 3 columns × 4 rows
 
-// Build a short human-readable description for a product's variants (suffixes).
-// Returns something like "Χρυσό · Ρουμπίνι, Ασημί · Σαπφείρ"
-function buildVariantDescriptions(product: Product): string {
-    if (!product.variants || product.variants.length === 0) return '';
-
-    // Limit to first 4 variants to stay compact
-    const shown = product.variants.slice(0, 4);
-    const descs = shown
-        .map(v => v.description || buildSuffixLabel(v.suffix, product))
-        .filter(Boolean);
-
-    const extra = product.variants.length > 4 ? ` +${product.variants.length - 4}` : '';
-    return descs.join(', ') + extra;
-}
-
-function buildSuffixLabel(suffix: string, product: Product): string {
-    if (!suffix) return 'Λούστρο';
-    const { finish, stone } = getVariantComponents(suffix, product.gender);
-    const parts: string[] = [];
-    if (finish.name) parts.push(finish.name);
-    if (stone.name) parts.push(stone.name);
-    return parts.join(' · ') || suffix;
+// Build a comma-separated list of mold descriptions for a product.
+function getMoldDescriptions(product: Product, allMolds: Mold[]): string {
+    if (!product.molds || product.molds.length === 0) return '';
+    return product.molds
+        .map(pm => {
+            const mold = allMolds.find(m => m.code === pm.code);
+            return mold?.description || pm.code;
+        })
+        .filter(Boolean)
+        .join(', ');
 }
 
 // Chunk array into pages
@@ -43,7 +31,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
     return pages;
 }
 
-export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κατάλογος', date }: Props) {
+export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτο-κατάλογος', date }: Props) {
     // Sort by SKU ascending (consistent with all other views in the app)
     const sorted = [...products].sort((a, b) => a.sku.localeCompare(b.sku));
     const pages = chunk(sorted, ITEMS_PER_PAGE);
@@ -83,11 +71,14 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                 }
 
                 .catalog-page {
-                    width: 210mm;
+                    width: 194mm;
+                    height: 277mm;
+                    overflow: hidden;
                     padding: 0;
                     background: white;
                     box-sizing: border-box;
-                    display: block;
+                    display: flex;
+                    flex-direction: column;
                 }
 
                 .catalog-header {
@@ -116,7 +107,9 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                 .catalog-grid {
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
-                    gap: 4mm;
+                    gap: 3mm;
+                    flex: 1;
+                    min-height: 0;
                 }
 
                 .catalog-card {
@@ -126,7 +119,6 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                     background: white;
                     display: flex;
                     flex-direction: column;
-                    break-inside: avoid;
                 }
 
                 .catalog-img-wrapper {
@@ -187,11 +179,12 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                     letter-spacing: 0.05em;
                 }
 
-                .catalog-variants {
-                    font-size: 6.5pt;
+                .catalog-molds {
+                    font-size: 6pt;
                     color: #475569;
                     line-height: 1.4;
                     font-weight: 400;
+                    font-style: italic;
                 }
 
                 .catalog-footer {
@@ -221,7 +214,6 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                     {/* Grid */}
                     <div className="catalog-grid">
                         {pageItems.map((product) => {
-                            const variantDesc = buildVariantDescriptions(product);
                             return (
                                 <div key={product.sku} className="catalog-card">
                                     {/* Image */}
@@ -257,9 +249,12 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                                         <div className="catalog-category">
                                             {product.category} · {product.gender === 'Women' ? 'Γυναικείο' : product.gender === 'Men' ? 'Ανδρικό' : 'Unisex'}
                                         </div>
-                                        {variantDesc && (
-                                            <div className="catalog-variants">{variantDesc}</div>
-                                        )}
+                                        {(() => {
+                                            const moldDesc = getMoldDescriptions(product, molds);
+                                            return moldDesc ? (
+                                                <div className="catalog-molds">{moldDesc}</div>
+                                            ) : null;
+                                        })()}
                                     </div>
                                 </div>
                             );

@@ -205,7 +205,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         const rawVal = e.target.value.toUpperCase();
         const parts = rawVal.split(/\s+/);
         const skuPart = parts[0];
-        const sizePart = parts.length > 1 ? parts[1] : '';
+        const explicitSizePart = parts.length > 1 ? parts[1] : '';
 
         setScanInput(rawVal);
 
@@ -214,11 +214,13 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
+            setSelectedSize('');
             return;
         }
 
         let bestMaster: Product | null = null;
         let suffixPart = '';
+        let rawSuffixFromSku = '';
 
         const exactMaster = products.find(p => p.sku === skuPart && !p.is_component);
         const potentialMasters = products.filter(p => skuPart.startsWith(p.sku) && !p.is_component);
@@ -227,31 +229,37 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         if (exactMaster) {
             bestMaster = exactMaster;
             suffixPart = '';
+            rawSuffixFromSku = '';
         } else if (longestPrefixMaster) {
             bestMaster = longestPrefixMaster;
-            suffixPart = skuPart.replace(longestPrefixMaster.sku, '');
+            rawSuffixFromSku = skuPart.slice(longestPrefixMaster.sku.length);
+            suffixPart = rawSuffixFromSku;
         }
 
         let candidates: Product[] = [];
         if (bestMaster) {
             candidates = [bestMaster];
         } else {
-            candidates = products.filter(p => !p.is_component).filter(p => {
-                if (p.sku.startsWith(skuPart)) return true;
-                if (skuPart.length >= 3 && p.sku.includes(skuPart)) return true;
-                return false;
-            }).sort((a, b) => {
-                const aExact = a.sku === skuPart;
-                const bExact = b.sku === skuPart;
-                if (aExact && !bExact) return -1;
-                if (!aExact && bExact) return 1;
-                const aStarts = a.sku.startsWith(skuPart);
-                const bStarts = b.sku.startsWith(skuPart);
-                if (aStarts && !bStarts) return -1;
-                if (!aStarts && bStarts) return 1;
-                if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
-                return a.sku.localeCompare(b.sku);
-            }).slice(0, 6);
+            candidates = products
+                .filter(p => !p.is_component)
+                .filter(p => {
+                    if (p.sku.startsWith(skuPart)) return true;
+                    if (skuPart.length >= 3 && p.sku.includes(skuPart)) return true;
+                    return false;
+                })
+                .sort((a, b) => {
+                    const aExact = a.sku === skuPart;
+                    const bExact = b.sku === skuPart;
+                    if (aExact && !bExact) return -1;
+                    if (!aExact && bExact) return 1;
+                    const aStarts = a.sku.startsWith(skuPart);
+                    const bStarts = b.sku.startsWith(skuPart);
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
+                    return a.sku.localeCompare(b.sku);
+                })
+                .slice(0, 6);
         }
         setCandidateProducts(candidates);
 
@@ -260,16 +268,66 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             const sizing = getSizingInfo(bestMaster);
             setSizeMode(sizing);
 
+            // Start from the explicit size (second token), but also support inline size
+            // like RN045P67 or BR12319 by peeling off the size from the SKU part.
+            let sizePart = explicitSizePart;
+            let effectiveSuffixPart = suffixPart;
+
+            if (sizing && !sizePart && rawSuffixFromSku) {
+                let token = rawSuffixFromSku.toUpperCase();
+
+                // If the product has variants, try to peel off the variant suffix from the token
+                if (bestMaster.variants && bestMaster.variants.length > 0) {
+                    for (const v of bestMaster.variants) {
+                        const variantSuffix = v.suffix.toUpperCase();
+                        if (token.startsWith(variantSuffix)) {
+                            const remainder = token.slice(variantSuffix.length);
+                            effectiveSuffixPart = v.suffix;
+                            if (remainder) {
+                                sizePart = remainder;
+                            }
+                            token = remainder || '';
+                            break;
+                        }
+                    }
+                }
+
+                // If we still don't have an explicit size and the remaining token looks like a size,
+                // interpret it as such (e.g. "67" for rings, "19" / "19CM" for bracelets).
+                if (!sizePart && token) {
+                    const numeric = /^[0-9]{2,3}$/;
+                    const lengthLike = /^[0-9]{2,3}(CM)?$/;
+                    if (
+                        (sizing.type === 'Νούμερο' && numeric.test(token)) ||
+                        (sizing.type === 'Μήκος' && lengthLike.test(token))
+                    ) {
+                        sizePart = token;
+                    }
+                }
+            }
+
             if (sizing && sizePart) {
-                const matchedSize = sizing.sizes.find(s => s === sizePart || (sizing.type === 'Μήκος' && s.startsWith(sizePart)));
-                if (matchedSize) setSelectedSize(matchedSize);
+                const normalizedSize = sizePart.toUpperCase();
+                const matchedSize = sizing.sizes.find(stored => {
+                    const upperStored = stored.toUpperCase();
+                    if (sizing.type === 'Μήκος') {
+                        const baseStored = upperStored.replace(/CM$/, '');
+                        const baseInput = normalizedSize.replace(/CM$/, '');
+                        return upperStored === normalizedSize || baseStored === baseInput;
+                    }
+                    return upperStored === normalizedSize;
+                });
+                if (matchedSize) {
+                    setSelectedSize(matchedSize);
+                }
             } else if (!sizePart) {
                 setSelectedSize('');
             }
 
             if (bestMaster.variants) {
+                const searchSuffix = (effectiveSuffixPart || '').toUpperCase();
                 const validVariants = bestMaster.variants
-                    .filter(v => v.suffix.startsWith(suffixPart))
+                    .filter(v => v.suffix.toUpperCase().startsWith(searchSuffix))
                     .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
                 setFilteredVariants(validVariants);
             } else {
@@ -347,8 +405,77 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const executeAddItem = () => {
         const skuCode = scanInput.split(/\s+/)[0];
         if (!skuCode) return;
+
+        // First, try the standard barcode/SKU resolution logic
         const match = findProductByScannedCode(skuCode, products);
-        if (!match) { showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, 'error'); return; }
+
+        if (!match) {
+            // Fallback: if we're in Smart Entry and have an active master, try to interpret
+            // patterns like RN045P67 or BR12319 as [MASTER][VARIANT?][SIZE].
+            if (activeMaster) {
+                const activeSku = activeMaster.sku.toUpperCase();
+                const upperCode = skuCode.toUpperCase();
+
+                if (upperCode.startsWith(activeSku)) {
+                    let tail = upperCode.slice(activeSku.length);
+                    let chosenVariant: ProductVariant | null = null;
+
+                    if (activeMaster.variants && activeMaster.variants.length > 0 && tail) {
+                        for (const v of activeMaster.variants) {
+                            const variantSuffix = v.suffix.toUpperCase();
+                            if (tail.startsWith(variantSuffix)) {
+                                chosenVariant = v;
+                                tail = tail.slice(variantSuffix.length);
+                                break;
+                            }
+                        }
+                    }
+
+                    const sizing = getSizingInfo(activeMaster);
+                    let sizeToUse = selectedSize;
+
+                    if (sizing && !sizeToUse && tail) {
+                        const normalized = tail.toUpperCase();
+                        const matchedSize = sizing.sizes.find(stored => {
+                            const upperStored = stored.toUpperCase();
+                            if (sizing.type === 'Μήκος') {
+                                const baseStored = upperStored.replace(/CM$/, '');
+                                const baseInput = normalized.replace(/CM$/, '');
+                                return upperStored === normalized || baseStored === baseInput;
+                            }
+                            return upperStored === normalized;
+                        });
+                        if (matchedSize) {
+                            sizeToUse = matchedSize;
+                        }
+                    }
+
+                    // Sized products must have an explicit or inferred size
+                    if (sizing && !sizeToUse) {
+                        showToast('Παρακαλώ επιλέξτε μέγεθος.', 'error');
+                        return;
+                    }
+
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    showToast(`${activeMaster.sku}${chosenVariant?.suffix || ''} προστέθηκε`, 'success');
+                    _addItemToOrder(activeMaster, chosenVariant, scanQty, sizeToUse, itemNotes);
+                    setActiveMaster(null);
+                    setScanQty(1);
+                    setSelectedSize('');
+                    setItemNotes('');
+                    setSizeMode(null);
+                    setScanInput('');
+                    setCandidateProducts([]);
+                    setFilteredVariants([]);
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                    return;
+                }
+            }
+
+            showToast(`Ο κωδικός ${skuCode} δεν βρέθηκε.`, 'error');
+            return;
+        }
+
         const { product, variant } = match;
         if (product.is_component) {
             showToast(`Το ${product.sku} είναι εξάρτημα και δεν διατίθεται για πώληση.`, 'error');
@@ -361,13 +488,21 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 showToast('Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.', 'error');
                 setActiveMaster(product);
                 setCandidateProducts([product]);
-                if (product.variants) setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+                if (product.variants) {
+                    setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+                }
                 return;
             }
         }
         _addItemToOrder(product, variant ?? null, scanQty, selectedSize, itemNotes);
-        setScanInput(''); setScanQty(1); setItemNotes(''); setSelectedSize('');
-        setCandidateProducts([]); setActiveMaster(null); setFilteredVariants([]); setSizeMode(null);
+        setScanInput('');
+        setScanQty(1);
+        setItemNotes('');
+        setSelectedSize('');
+        setCandidateProducts([]);
+        setActiveMaster(null);
+        setFilteredVariants([]);
+        setSizeMode(null);
         inputRef.current?.focus();
         showToast('Το προϊόν προστέθηκε.', 'success');
     };
