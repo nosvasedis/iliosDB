@@ -6,7 +6,7 @@
  */
 
 const DB_NAME = 'IliosERP_Offline_Mirror';
-const DB_VERSION = 3; 
+const DB_VERSION = 3;
 const STORE_NAME = 'table_cache';
 const SYNC_STORE = 'sync_queue';
 
@@ -51,7 +51,7 @@ export const offlineDb = {
             const tx = db.transaction(STORE_NAME, 'readonly');
             const store = tx.objectStore(STORE_NAME);
             const request = store.get(tableName);
-            
+
             return new Promise((resolve, reject) => {
                 request.onsuccess = () => resolve(request.result || null);
                 request.onerror = () => reject(request.error);
@@ -62,13 +62,13 @@ export const offlineDb = {
         }
     },
 
-    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean }): Promise<number> => {
+    enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }): Promise<number> => {
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         const store = tx.objectStore(SYNC_STORE);
-        const request = store.add({ 
-            ...operation, 
-            timestamp: new Date().toISOString() 
+        const request = store.add({
+            ...operation,
+            timestamp: new Date().toISOString()
         });
 
         return new Promise((resolve, reject) => {

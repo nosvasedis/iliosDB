@@ -107,7 +107,7 @@ async function safeMutate(
     tableName: string,
     method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT',
     data: any,
-    options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean }
+    options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
 ): Promise<{ data: any, error: any, queued: boolean }> {
     if (isLocalMode) {
         const table = await offlineDb.getTable(tableName) || [];
@@ -158,7 +158,8 @@ async function safeMutate(
         data,
         match: options?.match,
         onConflict: options?.onConflict,
-        ignoreDuplicates: options?.ignoreDuplicates
+        ignoreDuplicates: options?.ignoreDuplicates,
+        noSelect: options?.noSelect
     });
 
     if (!navigator.onLine) {
@@ -167,13 +168,22 @@ async function safeMutate(
 
     try {
         let query;
-        if (method === 'INSERT') query = supabase.from(tableName).insert(data).select();
-        else if (method === 'UPDATE') query = supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku }).select();
-        else if (method === 'DELETE') query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
-        else if (method === 'UPSERT') query = supabase.from(tableName).upsert(data, {
-            onConflict: options?.onConflict,
-            ignoreDuplicates: options?.ignoreDuplicates
-        }).select();
+        if (method === 'INSERT') {
+            query = options?.noSelect
+                ? supabase.from(tableName).insert(data)
+                : supabase.from(tableName).insert(data).select();
+        } else if (method === 'UPDATE') {
+            query = options?.noSelect
+                ? supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku })
+                : supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku }).select();
+        } else if (method === 'DELETE') {
+            query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
+        } else if (method === 'UPSERT') {
+            query = supabase.from(tableName).upsert(data, {
+                onConflict: options?.onConflict,
+                ignoreDuplicates: options?.ignoreDuplicates
+            }).select();
+        }
 
         const { data: resData, error } = await query!;
         if (error) throw error;
@@ -720,11 +730,14 @@ export const api = {
     },
 
     deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
-    saveOrder: async (o: Order): Promise<void> => { await safeMutate('orders', 'INSERT', o); },
+    saveOrder: async (o: Order): Promise<void> => {
+        // noSelect: orders RLS allows INSERT but blocks read-back → causes PGRST204 with .select()
+        await safeMutate('orders', 'INSERT', o, { noSelect: true });
+    },
 
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order): Promise<void> => {
-        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id } });
+        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
 
         // Smart Reconciliation: If order is in production, sync items to batches
         // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
