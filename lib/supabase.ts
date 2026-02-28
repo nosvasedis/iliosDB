@@ -352,16 +352,99 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 export const api = {
     lookupAfm: async (afm: string): Promise<{ name: string; address: string } | null> => {
         if (!afm || afm.length < 9) throw new Error("Invalid AFM length");
-        try {
-            const res = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
-            if (!res.ok) throw new Error("Network error");
-            const data = await res.json();
-            if (!data.valid) return null;
-            return { name: data.name, address: data.address };
-        } catch (e) {
-            console.error("AFM Lookup failed:", e);
-            throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
+
+        // Try multiple validation methods in order of reliability
+        const methods = [
+            // Method 1: VIES API (most reliable for EU VAT numbers)
+            async () => {
+                try {
+                    const response = await fetch('https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            countryCode: 'EL',
+                            vatNumber: afm
+                        })
+                    });
+
+                    if (!response.ok) throw new Error("VIES API error");
+
+                    const data = await response.json();
+                    if (data.valid && data.name && data.address) {
+                        return {
+                            name: data.name,
+                            address: data.address
+                        };
+                    }
+                    return null;
+                } catch (error) {
+                    console.warn("VIES API failed:", error);
+                    return null;
+                }
+            },
+
+            // Method 2: Alternative validation service (fallback)
+            async () => {
+                try {
+                    const response = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
+                    if (!response.ok) throw new Error("VATComply API error");
+
+                    const data = await response.json();
+                    if (data.valid && data.name && data.address) {
+                        return {
+                            name: data.name,
+                            address: data.address
+                        };
+                    }
+                    return null;
+                } catch (error) {
+                    console.warn("VATComply API failed:", error);
+                    return null;
+                }
+            },
+
+            // Method 3: Basic format validation (last resort)
+            async () => {
+                // Basic AFM format validation for Greece
+                // AFM should be 9 digits, last digit is checksum
+                if (!/^\d{9}$/.test(afm)) {
+                    throw new Error("Invalid AFM format - must be 9 digits");
+                }
+
+                // Simple checksum validation (basic algorithm)
+                const digits = afm.split('').map(d => parseInt(d));
+                let sum = 0;
+                for (let i = 0; i < 8; i++) {
+                    sum += digits[i] * (2 ** (8 - i));
+                }
+                const remainder = sum % 11;
+                const checksum = remainder === 0 ? 0 : 11 - remainder;
+
+                if (checksum !== digits[8]) {
+                    throw new Error("Invalid AFM checksum");
+                }
+
+                // If format is valid but no data found, return null
+                return null;
+            }
+        ];
+
+        // Try each method in sequence
+        for (const method of methods) {
+            try {
+                const result = await method();
+                if (result) {
+                    return result;
+                }
+            } catch (error) {
+                // Continue to next method if current one fails
+                continue;
+            }
         }
+
+        throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
     },
 
     getSettings: async (): Promise<GlobalSettings> => {
