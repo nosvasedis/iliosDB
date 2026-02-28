@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
 import { uploadProductImage, supabase, deleteProduct, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
@@ -810,9 +810,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     };
 
     const handleStandardFormula = () => {
-        const breakdown = currentCostCalc.breakdown;
-        const weight = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-        const suggested = calculateSuggestedWholesalePrice(weight, breakdown.silver, breakdown.labor, breakdown.materials);
+        const suggested = getIliosSuggestedPriceForProduct(editedProduct, null, settings, allMaterials, allProducts);
         setCalculatedPrice(suggested);
 
         if (suggested > 0 && suggested > masterCost) {
@@ -950,11 +948,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
     const getSuggestedPriceForVariant = (suffix: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
         const est = estimateVariantCost(editedProduct, suffix, settings, allMaterials, allProducts);
-        const costBreakdown = est.breakdown;
-        const weight = est.breakdown.details?.total_weight || (editedProduct.weight_g + (editedProduct.secondary_weight_g || 0));
+        const hasVariants = (editedProduct.variants?.length ?? 0) > 0;
 
         if (mode === 'formula') {
-            return calculateSuggestedWholesalePrice(weight, costBreakdown.silver, costBreakdown.labor, costBreakdown.materials);
+            return getIliosSuggestedPriceForProduct(editedProduct, hasVariants ? suffix : null, settings, allMaterials, allProducts);
         } else {
             // Margin Mode
             const totalCost = est.total;

@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, calculateSuggestedWholesalePrice, splitSkuComponents } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, getIliosSuggestedPriceForProduct, splitSkuComponents } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 import { FINISH_COLORS, STONE_TEXT_COLORS } from '../hooks/useOrderState';
 import { Info } from 'lucide-react';
@@ -550,8 +550,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             if (p.variants && p.variants.length > 0) {
                 p.variants.forEach(v => {
                     const estCost = estimateVariantCost(p, v.suffix, settings, materials, products!);
+                    const suggestedPrice = getIliosSuggestedPriceForProduct(p, v.suffix, settings, materials, products!);
                     const weight = estCost.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
-                    const suggestedPrice = calculateSuggestedWholesalePrice(weight, estCost.breakdown.silver, estCost.breakdown.labor, estCost.breakdown.materials);
                     items.push({
                         masterSku: p.sku,
                         variantSku: `${p.sku}${v.suffix}`,
@@ -568,8 +568,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 });
             } else {
                 const costCalc = calculateProductCost(p, settings, materials, products!);
+                const suggestedPrice = getIliosSuggestedPriceForProduct(p, null, settings, materials, products!);
                 const weight = costCalc.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
-                const suggestedPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
                 items.push({
                     masterSku: p.sku,
                     variantSku: p.sku,

@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem, ProductVariant } from '../types';
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle, Play } from 'lucide-react';
-import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, calculateSuggestedWholesalePrice, estimateVariantCost } from '../utils/pricingEngine';
+import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, getIliosSuggestedPriceForProduct, estimateVariantCost } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -55,7 +55,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [processingSingleId, setProcessingSingleId] = useState<string | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
-  
+  const [forceApplyFormula, setForceApplyFormula] = useState(false);
+
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [snapshotNote, setSnapshotNote] = useState('');
   const [selectedSnapshot, setSelectedSnapshot] = useState<PriceSnapshot | null>(null);
@@ -78,6 +79,7 @@ export default function PricingManager({ products, settings, materials }: Props)
     setCalculatedData([]);
     setMarkupPercent(0);
     setMarkupMode('adjust');
+    setForceApplyFormula(false);
     setSelectedSnapshot(null);
   };
 
@@ -133,12 +135,6 @@ export default function PricingManager({ products, settings, materials }: Props)
                 : calculateProductCost(product, settings, materials, products);
             
             const freshCost = costCalc.total;
-            
-            // Formula Weight Logic:
-            // For variants, use the total_weight from the estimate details (handles components correctly).
-            // For master, fallback to product weights.
-            const weight = (costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0)));
-            
             costBasis = freshCost;
 
             if (mode === 'cost') {
@@ -155,7 +151,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                     if (margin >= 1) newVal = 0; 
                     else newVal = roundPrice(freshCost / (1 - margin));
                 } else if (markupMode === 'formula') {
-                    newVal = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+                    newVal = getIliosSuggestedPriceForProduct(product, variantSuffix, settings, materials, products);
                 }
             }
 
@@ -199,12 +195,16 @@ export default function PricingManager({ products, settings, materials }: Props)
 
     setCalculatedData(sortedItems);
     setIsCalculated(true);
-    
+
+    const changeCount = sortedItems.filter(i => i.hasChange).length;
     if (mode === 'cost') {
         showToast(`Υπολογίστηκε νέο κόστος για ${items.length} κωδικούς (Βάση: ${formatDecimal(settings.last_calc_silver_price, 2)}€/g).`, 'info');
     } else {
         const msg = markupMode === 'formula' ? 'Υπολογίστηκαν τιμές Formula (Ilios).' : `Υπολογίστηκαν νέες τιμές (${markupPercent}%).`;
         showToast(msg, 'info');
+        if (markupMode === 'formula' && changeCount === 0) {
+            showToast('Όλες οι τιμές ταιριάζουν ήδη με τον Τύπο Ilios.', 'info');
+        }
     }
   };
 
@@ -226,7 +226,6 @@ export default function PricingManager({ products, settings, materials }: Props)
               : calculateProductCost(product, settings, materials, products);
           
           const freshCost = costCalc.total;
-          const weight = (costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0)));
 
           // 2. Determine New Price based on current Mode Settings
           let newVal = 0;
@@ -241,7 +240,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                   if (margin >= 1) newVal = 0; 
                   else newVal = roundPrice(freshCost / (1 - margin));
               } else if (markupMode === 'formula') {
-                  newVal = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+                  newVal = getIliosSuggestedPriceForProduct(product, variantSuffix, settings, materials, products);
               }
           }
 
@@ -308,8 +307,11 @@ export default function PricingManager({ products, settings, materials }: Props)
   });
 
   const commitPrices = async () => {
-    // 1. Identify ONLY items that genuinely need an update
-    const updatesToApply = isCalculated ? calculatedData.filter(i => i.hasChange) : [];
+    // 1. Identify items to update: by default only those with hasChange; in formula mode allow "force apply to all"
+    const forceApply = mode === 'selling' && markupMode === 'formula' && forceApplyFormula;
+    const updatesToApply = isCalculated
+      ? (forceApply ? calculatedData : calculatedData.filter(i => i.hasChange))
+      : [];
     const count = updatesToApply.length;
 
     if (count === 0) {
@@ -665,15 +667,21 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 {progress.failed > 0 && <div className="absolute top-0 right-0 h-full bg-red-500" style={{ width: `${(progress.failed / progress.total) * 100}%` }}></div>}
                             </div>
                         )}
+                        {mode === 'selling' && markupMode === 'formula' && (
+                            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                                <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                                <span>Εφαρμογή σε όλους (ακόμα και χωρίς αλλαγή)</span>
+                            </label>
+                        )}
                         <div className="flex gap-3 justify-center">
-                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
+                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); setForceApplyFormula(false); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
                                 Ακύρωση
                             </button>
                             <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
                                 {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
                                 {isCommitting 
                                     ? `Ενημέρωση (${progress ? Math.round((progress.current/progress.total)*100) : 0}%)...` 
-                                    : `Εφαρμογή σε ${calculatedData.filter(i => i.hasChange).length}`}
+                                    : `Εφαρμογή σε ${(mode === 'selling' && markupMode === 'formula' && forceApplyFormula) ? calculatedData.length : calculatedData.filter(i => i.hasChange).length}`}
                             </button>
                         </div>
                         {progress?.failed ? <p className="text-[10px] text-red-500 text-center font-bold">{progress.failed} απέτυχαν (θα αγνοηθούν)</p> : null}

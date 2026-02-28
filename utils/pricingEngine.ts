@@ -267,7 +267,7 @@ export const calculateProductCost = (
             silver: silverBaseCost,
             materials: parseFloat(materialsCost.toFixed(2)), // Final visual rounding
             labor: laborTotal,
-            details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost }
+            details: { ...(product.labor || {}), casting_cost: castingCost, setter_cost: labor.setter_cost || 0, technician_cost: technicianCost, subcontract_cost: labor.subcontract_cost || 0, plating_cost: platingCost, total_weight: totalWeight }
         }
     };
 };
@@ -573,6 +573,25 @@ export const estimateVariantCost = (
             }
         }
     };
+};
+
+/**
+ * Single source of truth for Ilios Formula suggested wholesale price.
+ * Use this everywhere (Registry, ProductDetails, PricingManager, Offers, New Product) so all entry points get the same result.
+ */
+export const getIliosSuggestedPriceForProduct = (
+    product: Product,
+    variantSuffix: string | null,
+    settings: GlobalSettings,
+    allMaterials: Material[],
+    allProducts: Product[]
+): number => {
+    const isVariantRow = variantSuffix !== null;
+    const costCalc = isVariantRow
+        ? estimateVariantCost(product, variantSuffix, settings, allMaterials, allProducts)
+        : calculateProductCost(product, settings, allMaterials, allProducts);
+    const weight = costCalc.breakdown.details?.total_weight ?? (product.weight_g + (product.secondary_weight_g || 0));
+    return calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
 };
 
 export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {
