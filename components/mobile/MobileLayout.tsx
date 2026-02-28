@@ -34,14 +34,14 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
             w-full px-4 py-2 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors duration-300 z-50 shadow-sm
             ${!isOnline ? 'bg-red-500 text-white' :
             isSyncing ? 'bg-blue-600 text-white' :
-              'bg-amber-500 text-white'}
-          `}>
+              'bg-amber-500 text-white'}`}
+        >
           {!isOnline ? (
-            <><WifiOff size={12} /> Offline Mode - Local Save</>
+            <><WifiOff size={12} /> Χωρίς Σύνδεση – Τοπική Αποθήκευση</>
           ) : isSyncing ? (
-            <><RefreshCw size={12} className="animate-spin" /> Syncing Data...</>
+            <><RefreshCw size={12} className="animate-spin" /> Συγχρονισμός Δεδομένων...</>
           ) : (
-            <><CloudOff size={12} /> {pendingCount} Pending Changes</>
+            <><CloudOff size={12} /> {pendingCount} Εκκρεμείς Αλλαγές</>
           )}
         </div>
       )}
