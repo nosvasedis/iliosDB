@@ -307,10 +307,17 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     }, []);
 
     // Persist draft on every change (new orders only)
+    // Strip product_details to avoid QuotaExceededError (base64 image_url can be huge)
     useEffect(() => {
         if (initialOrder) return;
         if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); return; }
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes }));
+        try {
+            const lightItems = items.map(({ product_details, ...rest }) => rest);
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items: lightItems, vatRate, discountPercent, orderNotes }));
+        } catch (e) {
+            // QuotaExceededError — silently skip; autosave is best-effort
+            console.warn('Draft autosave skipped (storage full):', e);
+        }
     }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, initialOrder]);
 
     const handleSelectCustomer = (c: Customer) => {
@@ -626,7 +633,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                 {/* ── Variant Selector (active master) — metal then stone carousel ── */}
                 {activeMaster && (
-                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95 flex flex-col max-h-[90vh] overflow-hidden">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
                         {/* Header: image + SKU + back button */}
                         <div className="flex gap-3 items-start shrink-0">
                             {/* Product image */}
@@ -705,8 +712,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                         {/* With variants: 1) Metal, 2) Stone carousel */}
                         {activeMaster.variants && activeMaster.variants.length > 0 && (
-                            <div className="flex flex-col gap-4 min-h-0 flex-1">
-                                <div className="shrink-0">
+                            <div className="flex flex-col gap-4">
+                                <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">1. Μέταλλο</label>
                                     <div className="flex flex-wrap gap-2">
                                         {finishOrder.map(code => {
@@ -728,37 +735,40 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                 </div>
 
                                 {selectedFinish !== null && (
-                                    <div className="flex flex-col gap-2 min-h-0 flex-1">
-                                        <div className="flex items-center justify-between shrink-0">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
                                             <label className="text-[10px] font-black text-slate-400 uppercase">2. Πέτρα / Επιλογή</label>
                                             <button type="button" onClick={() => setSelectedFinish(null)} className="text-xs font-bold text-slate-500 hover:text-slate-700">← Αλλαγή μέταλλου</button>
                                         </div>
                                         {variantsForSelectedFinish.length === 1 ? (
                                             <button
                                                 onClick={() => handleAddItem(variantsForSelectedFinish[0])}
-                                                className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99] shrink-0"
+                                                className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
                                             >
                                                 <SkuColored sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} />
                                                 <span className="text-white/90 text-xs font-bold">{formatCurrency(variantsForSelectedFinish[0].selling_price || 0)}</span>
                                                 Προσθήκη
                                             </button>
                                         ) : (
-                                            <div className="overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 flex gap-3 snap-x snap-mandatory custom-scrollbar min-h-0">
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {variantsForSelectedFinish.map(v => {
                                                     const { stone } = getVariantComponents(v.suffix, activeMaster.gender);
                                                     const price = v.selling_price || activeMaster.selling_price || 0;
+                                                    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-violet-600';
                                                     return (
                                                         <button
                                                             key={v.suffix}
                                                             onClick={() => handleAddItem(v)}
-                                                            className="shrink-0 w-[140px] sm:w-[160px] snap-center flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-emerald-400 hover:shadow-md active:scale-95 transition-all text-center"
+                                                            className="flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-slate-100 bg-white hover:border-emerald-400 hover:shadow-md active:scale-95 transition-all text-center gap-1"
                                                         >
-                                                            <span className={`text-sm font-black ${STONE_TEXT_COLORS[stone.code] || 'text-slate-700'}`}>
+                                                            <span className={`text-sm font-black leading-tight ${stoneColor}`}>
                                                                 {stone.name || stone.code || '—'}
                                                             </span>
-                                                            <span className="text-[10px] text-slate-500 font-bold mt-0.5">{stone.code}</span>
-                                                            <span className="text-base font-black text-slate-900 mt-2">{formatCurrency(price)}</span>
-                                                            <span className="text-[10px] font-bold text-emerald-600 mt-1">Προσθήκη</span>
+                                                            {stone.name && stone.code && (
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 ${stoneColor}`}>{stone.code}</span>
+                                                            )}
+                                                            <span className="text-sm font-black text-slate-900 mt-1">{formatCurrency(price)}</span>
+                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+ Προσθήκη</span>
                                                         </button>
                                                     );
                                                 })}
