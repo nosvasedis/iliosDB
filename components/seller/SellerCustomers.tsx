@@ -8,6 +8,11 @@ import CustomerDetailsModal from '../CustomerDetailsModal';
 import MobileCustomerForm from '../mobile/MobileCustomerForm';
 import { normalizedIncludes } from '../../utils/greekSearch';
 
+// Normalize for duplicate check: lowercase, strip accents and spaces
+const normalizeStr = (s: string) =>
+    s.toLowerCase().replace(/\s+/g, ' ').trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
 export default function SellerCustomers() {
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -39,6 +44,26 @@ export default function SellerCustomers() {
     }, [orders]);
 
     const handleCreateCustomer = async (c: Customer) => {
+        // Duplicate detection
+        if (customers) {
+            const normalized = normalizeStr(c.full_name);
+            const dup = customers.find(existing => {
+                if (existingNameMatch(existing.full_name, normalized)) return true;
+                if (c.vat_number && existing.vat_number && c.vat_number === existing.vat_number) return true;
+                if (c.phone && existing.phone && c.phone.replace(/\D/g, '') === existing.phone.replace(/\D/g, '')) return true;
+                return false;
+            });
+            if (dup) {
+                const ok = await confirm({
+                    title: 'Πιθανό διπλότυπο',
+                    message: `Μοιάζει με υπάρχοντα πελάτη: "${dup.full_name}"${dup.vat_number ? ` (ΑΦΜ: ${dup.vat_number})` : ''}. Θέλετε να συνεχίσετε;`,
+                    isDestructive: false,
+                    confirmText: 'Ναι, δημιουργία ανεξάρτητα',
+                    cancelText: 'Ακύρωση'
+                });
+                if (!ok) return;
+            }
+        }
         try {
             await api.saveCustomer(c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -49,6 +74,11 @@ export default function SellerCustomers() {
             showToast('Σφάλμα δημιουργίας.', 'error');
             throw e;
         }
+    };
+
+    const existingNameMatch = (existingName: string, normalized: string) => {
+        if (!normalized) return false;
+        return normalizeStr(existingName) === normalized;
     };
 
     const handleUpdateCustomer = async (c: Customer) => {

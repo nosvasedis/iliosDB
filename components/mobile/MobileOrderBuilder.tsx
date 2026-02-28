@@ -1,10 +1,10 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../../types';
 import {
     ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, User, Check, AlertCircle,
     ImageIcon, Camera, StickyNote, Minus, Percent, Loader2, FolderKanban, Tag,
-    BookOpen, ChevronLeft, ShoppingBag, Hash
+    BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
@@ -41,7 +41,12 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
     'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
     'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
+    // Extended stone codes
+    'DI': 'text-cyan-300', 'ZI': 'text-indigo-400', 'AG': 'text-amber-600', 'CZ': 'text-violet-500',
+    'PE': 'text-white drop-shadow', 'ON': 'text-black', 'LPA': 'text-blue-400', 'MO': 'text-blue-300',
+    'GA': 'text-red-400', 'TO': 'text-orange-400', 'AB': 'text-purple-400', 'ST': 'text-sky-600',
+    'SP': 'text-fuchsia-600', 'TU': 'text-teal-400', 'XT': 'text-slate-700', 'OT': 'text-yellow-600',
 };
 
 const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: any }) => {
@@ -181,9 +186,12 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
     );
 };
 
+// ─── Draft persistence helpers ────────────────────────────────────────────────
+const DRAFT_KEY = 'seller_order_draft';
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
     const { user, profile } = useAuth();
     const queryClient = useQueryClient();
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
@@ -213,6 +221,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
+    const [showDraftBanner, setShowDraftBanner] = useState(false);
+    const [cartExpanded, setCartExpanded] = useState(true);
 
     // ── SKU Input State ──────────────────────────────────────────────────────
     const [input, setInput] = useState('');
@@ -261,6 +271,48 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setSuggestions(results);
     }, [input, products]);
 
+    // ── Autosave draft to sessionStorage (new orders only) ──────────────────
+    useEffect(() => {
+        if (initialOrder) return; // editing existing — no draft logic
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (raw) {
+            try {
+                const draft = JSON.parse(raw);
+                if (draft.items?.length > 0 || draft.customerName) {
+                    setShowDraftBanner(true);
+                }
+            } catch { }
+        }
+    }, []);
+
+    const restoreDraft = useCallback(() => {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        try {
+            const draft = JSON.parse(raw);
+            if (draft.customerName) setCustomerName(draft.customerName);
+            if (draft.customerPhone) setCustomerPhone(draft.customerPhone);
+            if (draft.customerId) setCustomerId(draft.customerId);
+            if (draft.items?.length) setItems(draft.items);
+            if (draft.vatRate !== undefined) setVatRate(draft.vatRate);
+            if (draft.discountPercent !== undefined) setDiscountPercent(draft.discountPercent);
+            if (draft.orderNotes) setOrderNotes(draft.orderNotes);
+        } catch { }
+        setShowDraftBanner(false);
+    }, []);
+
+    const discardDraft = useCallback(() => {
+        sessionStorage.removeItem(DRAFT_KEY);
+        setShowDraftBanner(false);
+    }, []);
+
+    // Persist draft on every change (new orders only)
+    useEffect(() => {
+        if (initialOrder) return;
+        if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); return; }
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes }));
+    }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, initialOrder]);
+
     const handleSelectCustomer = (c: Customer) => {
         setCustomerId(c.id);
         setCustomerName(c.full_name);
@@ -287,13 +339,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
     const handleAddItem = (variant: ProductVariant | null) => {
         if (!activeMaster) return;
-        const unitPrice = variant?.selling_price || activeMaster.selling_price || 0;
+        const master = activeMaster; // capture before state reset
+        const unitPrice = variant?.selling_price || master.selling_price || 0;
         const newItem: OrderItem = {
-            sku: activeMaster.sku,
+            sku: master.sku,
             variant_suffix: variant?.suffix,
             quantity: qty,
             price_at_order: unitPrice,
-            product_details: activeMaster,
+            product_details: master,
             size_info: selectedSize || undefined,
             notes: itemNotes || undefined
         };
@@ -311,18 +364,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             }
             return [newItem, ...prev];
         });
-        showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
-        setActiveMaster(null);
+        showToast(`${master.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
+        // Stay on the same master SKU — only reset variant selection so seller can
+        // immediately pick a different metal/stone for the same SKU
         setSelectedFinish(null);
-        setQty(1);
         setSelectedSize('');
         setItemNotes('');
-        setSizeMode(null);
-        setInput('');
-        // Refocus to the input after a short delay
-        setTimeout(() => {
-            inputRef.current?.focus();
-        }, 100);
+        setQty(1);
+        setCartExpanded(false); // collapse cart briefly to show variant picker clearly
     };
 
     // Called from CatalogBrowser when user taps a product
@@ -373,12 +422,31 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             if (initialOrder) await api.updateOrder(orderPayload);
             else await api.saveOrder(orderPayload);
             queryClient.invalidateQueries({ queryKey: ['orders'] });
+            sessionStorage.removeItem(DRAFT_KEY);
             onBack();
         } catch (e) {
             showToast('Σφάλμα αποθήκευσης', 'error');
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleBackNav = async () => {
+        if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); onBack(); return; }
+        const choice = await confirm({
+            title: 'Αποχώρηση από παραγγελία',
+            message: 'Θέλετε να αποθηκεύσετε την παραγγελία πριν φύγετε;',
+            isDestructive: false,
+            confirmText: 'Αποθήκευση',
+            cancelText: 'Απόρριψη και έξοδος'
+        });
+        if (choice === true) {
+            await handleSaveOrder();
+        } else if (choice === false) {
+            sessionStorage.removeItem(DRAFT_KEY);
+            onBack();
+        }
+        // if null/undefined (dialog dismissed) — stay
     };
 
     const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
@@ -395,10 +463,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
 
-            {/* ── Top Bar ────────────────────────────────────────────────── */}
+            {/* ── Top Bar ──────────────────────────────────────────── */}
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
-                <button onClick={onBack} className="p-2 -ml-2 text-slate-500">
-                    <ArrowLeft size={24} />
+                {/* Back button — shows warning if items exist */}
+                <button
+                    onClick={handleBackNav}
+                    className={`flex items-center gap-1.5 p-2 -ml-2 rounded-xl transition-colors ${items.length > 0
+                        ? 'text-amber-600 hover:bg-amber-50'
+                        : 'text-slate-500 hover:bg-slate-100'
+                        }`}
+                >
+                    <ArrowLeft size={22} />
+                    {items.length > 0 && <span className="text-[10px] font-black uppercase tracking-wide">Ακύρωση</span>}
                 </button>
                 <div className="font-black text-slate-800 text-lg">
                     {initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα Παραγγελία'}
@@ -411,6 +487,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                 </button>
             </div>
+
+            {/* Draft restore banner */}
+            {showDraftBanner && (
+                <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center gap-3 z-10 shrink-0">
+                    <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                    <span className="text-xs font-bold text-amber-800 flex-1">Βρέθηκε αναπάντητη παραγγελία — συνέχεια;</span>
+                    <button onClick={restoreDraft} className="text-xs font-black text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">Ναι</button>
+                    <button onClick={discardDraft} className="text-xs font-bold text-amber-500 px-1">Όχι</button>
+                </div>
+            )}
 
             {/* ── Scrollable Body — portrait/landscape optimized ─────────── */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar flex flex-col gap-4 pb-40 landscape:max-w-3xl landscape:mx-auto landscape:px-6">
@@ -540,14 +626,31 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
                 {/* ── Variant Selector (active master) — metal then stone carousel ── */}
                 {activeMaster && (
-                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95 flex flex-col max-h-[85vh] overflow-hidden">
-                        <div className="flex justify-between items-start shrink-0">
-                            <div className="min-w-0">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95 flex flex-col max-h-[90vh] overflow-hidden">
+                        {/* Header: image + SKU + back button */}
+                        <div className="flex gap-3 items-start shrink-0">
+                            {/* Product image */}
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 shadow-sm">
+                                {activeMaster.image_url
+                                    ? <img src={activeMaster.image_url} className="w-full h-full object-cover" alt={activeMaster.sku} />
+                                    : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={28} /></div>
+                                }
+                            </div>
+                            <div className="flex-1 min-w-0">
                                 <SkuColored sku={activeMaster.sku} suffix="" gender={activeMaster.gender} />
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
+                                {items.filter(i => i.sku === activeMaster.sku).length > 0 && (
+                                    <div className="mt-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                        <Check size={9} /> {items.filter(i => i.sku === activeMaster.sku).length} προστέθηκαν
+                                    </div>
+                                )}
                             </div>
-                            <button onClick={() => { setActiveMaster(null); setSelectedFinish(null); }} className="p-2 bg-slate-50 rounded-full shrink-0 ml-2">
-                                <X size={20} />
+                            <button
+                                onClick={() => { setActiveMaster(null); setSelectedFinish(null); }}
+                                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full shrink-0 transition-colors"
+                                title="Επιστροφή στην αναζήτηση"
+                            >
+                                <X size={18} />
                             </button>
                         </div>
 
@@ -668,12 +771,34 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                     </div>
                 )}
 
-                {/* ── Items List ────────────────────────────────────────── */}
+                {/* ── Items List (Collapsible Cart) ─────────────────────── */}
                 <div className="space-y-2">
-                    <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest ml-1">
-                        Είδη Παραγγελίας ({items.length})
-                    </h3>
-                    {items.map((item, idx) => (
+                    {/* Cart accordion header */}
+                    <button
+                        onClick={() => setCartExpanded(v => !v)}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all ${cartExpanded
+                            ? 'bg-white border-slate-200 shadow-sm'
+                            : items.length > 0
+                                ? 'bg-[#060b00] border-[#060b00] text-white shadow-md'
+                                : 'bg-white border-slate-200 shadow-sm'
+                            }`}
+                    >
+                        <ShoppingCart size={16} className={cartExpanded ? 'text-slate-500' : items.length > 0 ? 'text-amber-400' : 'text-slate-400'} />
+                        <span className={`flex-1 text-left text-xs font-black uppercase tracking-wide ${cartExpanded ? 'text-slate-700' : items.length > 0 ? 'text-white' : 'text-slate-500'
+                            }`}>
+                            Καλάθι Παραγγελίας
+                        </span>
+                        {items.length > 0 && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${cartExpanded ? 'bg-slate-100 text-slate-600' : 'bg-white/20 text-white'
+                                }`}>
+                                {items.length} είδη · {formatCurrency(netAmount)}
+                            </span>
+                        )}
+                        <ChevronRight size={14} className={`transition-transform duration-200 ${cartExpanded ? 'rotate-90 text-slate-400' : 'text-slate-400'
+                            }`} />
+                    </button>
+
+                    {cartExpanded && items.map((item, idx) => (
                         <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">

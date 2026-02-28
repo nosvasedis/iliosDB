@@ -35,6 +35,11 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
     'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
     'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
+    // Extended
+    'DI': 'text-cyan-300', 'ZI': 'text-indigo-400', 'AG': 'text-amber-600', 'CZ': 'text-violet-500',
+    'PE': 'text-slate-600', 'ON': 'text-gray-900', 'LPA': 'text-blue-400', 'MO': 'text-blue-300',
+    'GA': 'text-red-400', 'TO': 'text-orange-400', 'AB': 'text-purple-400', 'ST': 'text-sky-600',
+    'SP': 'text-fuchsia-600', 'TU': 'text-teal-400', 'XT': 'text-slate-700', 'OT': 'text-yellow-600',
 };
 
 // ─── SKU Color Coding Component ─────────────────────────────────────────────
@@ -244,7 +249,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                         <div className="flex justify-between items-end mt-0.5">
                             <span className="text-[8px] text-slate-400 truncate max-w-[50%]">{product.category}</span>
                             <div className="text-right leading-none">
-                                <div className="font-black text-[#060b00] text-[13px]">
+                                <div className="font-black text-[#060b00] text-base">
                                     {displayPrice > 0 ? formatCurrency(displayPrice) : '—'}
                                 </div>
                             </div>

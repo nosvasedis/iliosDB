@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
 import { useAuth } from '../AuthContext';
+import { useUI } from '../UIProvider';
 import {
     Search, Plus, Loader2, Clock, Package, CheckCircle, Truck, XCircle,
-    ChevronDown, ChevronUp, Edit, ShoppingCart
+    ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 
@@ -49,8 +50,9 @@ const FILTER_TABS: Array<{ key: 'all' | OrderStatus; label: string }> = [
 ];
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
-const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = ({ order, onEdit }) => {
+const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDelete: (id: string) => Promise<void> }> = ({ order, onEdit, onDelete }) => {
     const [expanded, setExpanded] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const canEdit = order.status === OrderStatus.Pending;
     const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const netValue = order.total_price / (1 + activeVat);
@@ -108,13 +110,27 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
                         </div>
                     ))}
                     {canEdit && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-                            className="w-full mt-3 bg-white border border-slate-200 text-slate-700 hover:text-[#060b00] hover:border-[#060b00]
-                                       py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-colors"
-                        >
-                            <Edit size={14} /> Επεξεργασία
-                        </button>
+                        <div className="flex gap-2 mt-3">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onEdit(order); }}
+                                className="flex-1 bg-white border border-slate-200 text-slate-700 hover:text-[#060b00] hover:border-[#060b00]
+                                           py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-colors"
+                            >
+                                <Edit size={14} /> Επεξεργασία
+                            </button>
+                            <button
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setIsDeleting(true);
+                                    try { await onDelete(order.id); } finally { setIsDeleting(false); }
+                                }}
+                                disabled={isDeleting}
+                                className="px-4 py-2.5 rounded-xl text-xs font-black bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                            >
+                                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                Διαγραφή
+                            </button>
+                        </div>
                     )}
                 </div>
             )}
@@ -125,9 +141,23 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerOrders({ onCreate, onEdit }: Props) {
     const { user } = useAuth();
+    const { confirm, showToast } = useUI();
+    const queryClient = useQueryClient();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | OrderStatus>('all');
+
+    const handleDeleteOrder = async (id: string) => {
+        const yes = await confirm({ title: 'Διαγραφή Παραγγελίας', message: 'Θέλετε να διαγράψετε οριστικά αυτή την παραγγελία;', isDestructive: true });
+        if (!yes) return;
+        try {
+            await api.deleteOrder(id);
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            showToast('Η παραγγελία διαγράφηκε.', 'success');
+        } catch (e) {
+            showToast('Σφάλμα διαγραφής.', 'error');
+        }
+    };
 
     const myOrders = orders?.filter(o => o.seller_id === user?.id) || [];
 
@@ -181,8 +211,8 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
                         key={tab.key}
                         onClick={() => setActiveFilter(tab.key)}
                         className={`px-3.5 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border ${activeFilter === tab.key
-                                ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
-                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                            ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                             }`}
                     >
                         {tab.label}
@@ -200,7 +230,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
             <div className="flex-1 overflow-y-auto space-y-3 pb-28 landscape:pb-8 custom-scrollbar
                             landscape:grid landscape:grid-cols-2 landscape:gap-3 landscape:space-y-0">
                 {filteredOrders.map(order => (
-                    <SellerOrderCard key={order.id} order={order} onEdit={onEdit} />
+                    <SellerOrderCard key={order.id} order={order} onEdit={onEdit} onDelete={handleDeleteOrder} />
                 ))}
                 {filteredOrders.length === 0 && (
                     <div className="landscape:col-span-2 flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
