@@ -54,17 +54,35 @@ const getStatusColor = (status: OrderStatus) => {
     }
 };
 
+// Deterministic tag color palette — same tag name always gets the same color
+const TAG_PALETTE = [
+    { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+    { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+    { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+    { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
+    { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+    { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
+];
+
+function getTagColor(tag: string) {
+    let hash = 0;
+    for (let i = 0; i < tag.length; i++) hash = ((hash * 31) + tag.charCodeAt(i)) >>> 0;
+    return TAG_PALETTE[hash % TAG_PALETTE.length];
+}
+
 // Modal for selecting which parts/shipments of an order to print
-const OrderPartSelectorModal = ({ 
-    order, 
-    batches, 
+const OrderPartSelectorModal = ({
+    order,
+    batches,
     products,
-    onClose, 
+    onClose,
     onPrintSelected,
-    onPrintAll 
-}: { 
-    order: Order; 
-    batches: ProductionBatch[]; 
+    onPrintAll
+}: {
+    order: Order;
+    batches: ProductionBatch[];
     products: Product[];
     onClose: () => void;
     onPrintSelected: (selectedBatches: ProductionBatch[]) => void;
@@ -104,8 +122,8 @@ const OrderPartSelectorModal = ({
     const getShipmentValue = (shipmentBatches: ProductionBatch[]) => {
         let value = 0;
         shipmentBatches.forEach(b => {
-            const item = order.items.find(i => 
-                i.sku === b.sku && 
+            const item = order.items.find(i =>
+                i.sku === b.sku &&
                 (i.variant_suffix || '') === (b.variant_suffix || '') &&
                 (i.size_info || '') === (b.size_info || '')
             );
@@ -145,12 +163,12 @@ const OrderPartSelectorModal = ({
                         const summary = getShipmentSummary(shipmentBatches);
                         const value = getShipmentValue(shipmentBatches);
                         const isSelected = selectedShipments.has(dateKey);
-                        const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { 
-                            day: 'numeric', 
-                            month: 'short', 
+                        const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', {
+                            day: 'numeric',
+                            month: 'short',
                             year: 'numeric',
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                            hour: '2-digit',
+                            minute: '2-digit'
                         });
 
                         // Get stage breakdown
@@ -163,17 +181,15 @@ const OrderPartSelectorModal = ({
                             <button
                                 key={dateKey}
                                 onClick={() => toggleShipment(dateKey)}
-                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
-                                    isSelected 
-                                        ? 'border-blue-500 bg-blue-50 shadow-sm' 
+                                className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${isSelected
+                                        ? 'border-blue-500 bg-blue-50 shadow-sm'
                                         : 'border-slate-200 bg-white hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex items-start gap-3">
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                                            isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
-                                        }`}>
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
+                                            }`}>
                                             {isSelected ? <CheckCircle size={14} /> : <Package size={14} />}
                                         </div>
                                         <div>
@@ -205,13 +221,13 @@ const OrderPartSelectorModal = ({
                 <div className="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0 space-y-3">
                     {/* Selection Controls */}
                     <div className="flex gap-2">
-                        <button 
+                        <button
                             onClick={selectAll}
                             className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                         >
                             Επιλογή Όλων
                         </button>
-                        <button 
+                        <button
                             onClick={deselectAll}
                             className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                         >
@@ -270,7 +286,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     onShowPartSelector?: () => void;
 }) => {
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
-    
+
     // Check if order has multiple shipments (parts)
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
@@ -432,6 +448,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
 
     // Create/Edit/Manage State
     const [isCreating, setIsCreating] = useState(false);
@@ -443,6 +460,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
     // Group Management in Modal
     const [tagInput, setTagInput] = useState('');
+    const [tagInputFocused, setTagInputFocused] = useState(false);
 
     const enrichedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -463,7 +481,23 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         }) || [];
     }, [batches, products, materials]);
 
-    // Derived: Filter orders based on Tab and Search
+    // Derived: All unique tags across all orders (for filter bar + autocomplete)
+    const allTags = useMemo(() => {
+        if (!orders) return [];
+        const tagSet = new Set<string>();
+        orders.forEach(o => o.tags?.forEach(t => tagSet.add(t)));
+        return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'el'));
+    }, [orders]);
+
+    const toggleTagFilter = (tag: string) => {
+        setSelectedTags(prev => {
+            const next = new Set(prev);
+            if (next.has(tag)) next.delete(tag); else next.add(tag);
+            return next;
+        });
+    };
+
+    // Derived: Filter orders based on Tab, Search, and Tag Filter
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
 
@@ -472,6 +506,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             const isArchived = o.is_archived === true;
             if (activeTab === 'active' && isArchived) return false;
             if (activeTab === 'archived' && !isArchived) return false;
+
+            // Tag filter (AND logic: order must have ALL selected tags)
+            if (selectedTags.size > 0) {
+                const orderTags = new Set(o.tags || []);
+                for (const t of selectedTags) {
+                    if (!orderTags.has(t)) return false;
+                }
+            }
 
             // Search Filter (ID, Name, Tags)
             if (!searchTerm) return true;
@@ -482,7 +524,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
             );
         });
-    }, [orders, activeTab, searchTerm]);
+    }, [orders, activeTab, searchTerm, selectedTags]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
     const ordersRowVirtualizer = useVirtualizer({
@@ -727,6 +769,47 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 />
             </div>
 
+            {/* TAG FILTER BAR */}
+            {allTags.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase shrink-0">
+                            <Tag size={13} />
+                            Φίλτρο
+                            {selectedTags.size > 0 && (
+                                <span className="bg-emerald-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{selectedTags.size}</span>
+                            )}
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap flex-1">
+                            {allTags.map(tag => {
+                                const isActive = selectedTags.has(tag);
+                                const c = getTagColor(tag);
+                                return (
+                                    <button
+                                        key={tag}
+                                        onClick={() => toggleTagFilter(tag)}
+                                        className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${isActive
+                                                ? `${c.bg} ${c.text} ${c.border} shadow-sm ring-2 ring-offset-1 ring-current/20`
+                                                : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        {tag}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {selectedTags.size > 0 && (
+                            <button
+                                onClick={() => setSelectedTags(new Set())}
+                                className="shrink-0 text-xs font-bold text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors"
+                            >
+                                <X size={12} /> Όλα
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                     {/* Table header - sticky */}
@@ -758,9 +841,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                             <div className="font-bold text-slate-800">{order.customer_name}</div>
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1 mt-1 flex-wrap">
-                                                    {order.tags.map(t => (
-                                                        <span key={t} className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 font-bold uppercase">{t}</span>
-                                                    ))}
+                                                    {order.tags.map(t => {
+                                                        const c = getTagColor(t);
+                                                        return (
+                                                            <span key={t} className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${c.bg} ${c.text} ${c.border}`}>{t}</span>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
@@ -810,25 +896,61 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                         <div className="p-6 space-y-4 overflow-y-auto">
 
                             {/* Tags Management */}
-                            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                <label className="text-xs font-bold text-indigo-800 uppercase mb-2 flex items-center gap-2"><Layers size={14} /> Ετικέτες / Ομαδοποίηση</label>
-                                <div className="flex gap-2 mb-2">
-                                    <input
-                                        value={tagInput}
-                                        onChange={e => setTagInput(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleAddTag()}
-                                        placeholder="Προσθήκη ετικέτας (π.χ. 'Έκθεση A')..."
-                                        className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                    />
-                                    <button onClick={handleAddTag} disabled={!tagInput.trim()} className="bg-indigo-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-indigo-700 transition-colors disabled:opacity-50">Προσθήκη</button>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {managingOrder.tags && managingOrder.tags.map(t => (
-                                        <span key={t} className="bg-white border border-indigo-200 text-indigo-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                                            {t} <button onClick={() => handleRemoveTag(t)} className="hover:text-red-500"><X size={12} /></button>
-                                        </span>
-                                    ))}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <label className="text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-2"><Layers size={14} /> Ετικέτες / Ομαδοποίηση</label>
+                                {/* Existing tags */}
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {managingOrder.tags && managingOrder.tags.map(t => {
+                                        const c = getTagColor(t);
+                                        return (
+                                            <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5`}>
+                                                {t} <button onClick={() => handleRemoveTag(t)} className="opacity-60 hover:opacity-100 hover:text-red-600 transition-opacity"><X size={11} /></button>
+                                            </span>
+                                        );
+                                    })}
                                     {(!managingOrder.tags || managingOrder.tags.length === 0) && <span className="text-xs text-slate-400 italic">Καμία ετικέτα.</span>}
+                                </div>
+                                {/* Input + autocomplete */}
+                                <div className="relative">
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={tagInput}
+                                            onChange={e => setTagInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+                                            onFocus={() => setTagInputFocused(true)}
+                                            onBlur={() => setTimeout(() => setTagInputFocused(false), 150)}
+                                            placeholder="Προσθήκη ετικέτας (π.χ. 'Έκθεση A')..."
+                                            className="flex-1 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-400/20 bg-white"
+                                        />
+                                        <button onClick={handleAddTag} disabled={!tagInput.trim()} className="bg-slate-800 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-black transition-colors disabled:opacity-40">Προσθήκη</button>
+                                    </div>
+                                    {/* Autocomplete dropdown */}
+                                    {tagInputFocused && (() => {
+                                        const currentTags = managingOrder.tags || [];
+                                        const suggestions = allTags.filter(t =>
+                                            !currentTags.includes(t) &&
+                                            (tagInput.trim() === '' || t.toLowerCase().includes(tagInput.toLowerCase()))
+                                        );
+                                        if (suggestions.length === 0) return null;
+                                        return (
+                                            <div className="absolute left-0 right-12 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
+                                                {suggestions.map(s => {
+                                                    const c = getTagColor(s);
+                                                    return (
+                                                        <button
+                                                            key={s}
+                                                            onMouseDown={() => { setTagInput(s); }}
+                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                                        >
+                                                            <span className={`w-2.5 h-2.5 rounded-full ${c.bg} ${c.border} border-2`} />
+                                                            <span className={`font-medium ${c.text}`}>{s}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -873,17 +995,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
             {printModalOrder && (
                 <PrintOptionsModal
-                    order={printModalOrder} 
+                    order={printModalOrder}
                     onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
-                    onPrintOrder={onPrintOrder} 
+                    onPrintOrder={onPrintOrder}
                     onPrintLabels={onPrintLabels}
-                    onPrintAggregated={onPrintAggregated} 
-                    onPrintPreparation={onPrintPreparation} 
+                    onPrintAggregated={onPrintAggregated}
+                    onPrintPreparation={onPrintPreparation}
                     onPrintTechnician={onPrintTechnician}
                     onPrintAnalytics={onPrintAnalytics}
                     onShowPartSelector={() => setShowPartSelector(true)}
-                    products={products} 
-                    allBatches={enrichedBatches} 
+                    products={products}
+                    allBatches={enrichedBatches}
                     showToast={showToast}
                 />
             )}
@@ -903,8 +1025,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             const partialItems = new Map<string, { item: typeof printModalOrder.items[0], qty: number }>();
                             selectedBatches.forEach(b => {
                                 const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
-                                const existingItem = printModalOrder.items.find(i => 
-                                    i.sku === b.sku && 
+                                const existingItem = printModalOrder.items.find(i =>
+                                    i.sku === b.sku &&
                                     (i.variant_suffix || '') === (b.variant_suffix || '') &&
                                     (i.size_info || '') === (b.size_info || '')
                                 );
@@ -915,18 +1037,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                     partialItems.get(key)!.qty += b.quantity;
                                 }
                             });
-                            
+
                             // Calculate the partial order total based on selected items
                             const partialTotal = Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0);
-                            
+
                             // Apply discount to partial total
                             const discountFactor = 1 - ((printModalOrder.discount_percent || 0) / 100);
                             const discountedPartialTotal = partialTotal * discountFactor;
-                            
+
                             // Apply VAT to get final partial total
                             const vatRate = printModalOrder.vat_rate !== undefined ? printModalOrder.vat_rate : 0.24;
                             const partialGrandTotal = discountedPartialTotal * (1 + vatRate);
-                            
+
                             const modifiedOrder: Order = {
                                 ...printModalOrder,
                                 items: Array.from(partialItems.values()).map(({ item, qty }) => ({
