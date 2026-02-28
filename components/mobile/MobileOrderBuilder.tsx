@@ -16,6 +16,7 @@ import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
+import MobileCustomerForm from './MobileCustomerForm';
 
 interface Props {
     onBack: () => void;
@@ -237,6 +238,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [qty, setQty] = useState(1);
     const [showScanner, setShowScanner] = useState(false);
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
+    const [showCreateClientScreen, setShowCreateClientScreen] = useState(false);
+    const [resolvedVariant, setResolvedVariant] = useState<ProductVariant | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -262,10 +265,25 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
 
-    // ── Smart SKU search ─────────────────────────────────────────────────────
+    // ── Smart SKU search + full-code resolution (e.g. SK005PAK) ─────────────────
     useEffect(() => {
         const term = input.trim().toUpperCase();
         if (term.length < 2) { setSuggestions([]); return; }
+        // If input matches a full product+variant code (e.g. SK005PAK), resolve immediately
+        const fullMatch = findProductByScannedCode(term, products);
+        if (fullMatch?.variant && fullMatch.product && !fullMatch.product.is_component) {
+            setActiveMaster(fullMatch.product);
+            setResolvedVariant(fullMatch.variant);
+            setSuggestions([]);
+            setInput('');
+            const sizing = getSizingInfo(fullMatch.product);
+            setSizeMode(sizing || null);
+            setSelectedSize('');
+            setSelectedFinish(null);
+            setItemNotes('');
+            setQty(1);
+            return;
+        }
         const results = products.filter(p => {
             if (p.is_component) return false;
             return p.sku.startsWith(term) || (term.length >= 3 && p.sku.includes(term));
@@ -332,6 +350,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const handleSelectMaster = (p: Product) => {
         setActiveMaster(p);
+        setResolvedVariant(null);
         setInput('');
         setSuggestions([]);
         setSelectedFinish(null);
@@ -340,10 +359,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setSelectedSize('');
         setItemNotes('');
         setQty(1);
-        // Refocus to the input after a short delay
-        setTimeout(() => {
-            inputRef.current?.focus();
-        }, 100);
+        setTimeout(() => inputRef.current?.focus(), 100);
     };
 
     const handleAddItem = (variant: ProductVariant | null) => {
@@ -374,13 +390,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             return [newItem, ...prev];
         });
         showToast(`${master.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
-        // Stay on the same master SKU — only reset variant selection so seller can
-        // immediately pick a different metal/stone for the same SKU
+        setResolvedVariant(null);
         setSelectedFinish(null);
         setSelectedSize('');
         setItemNotes('');
         setQty(1);
-        setCartExpanded(false); // collapse cart briefly to show variant picker clearly
+        setCartExpanded(false);
     };
 
     // Called from CatalogBrowser when user taps a product
@@ -407,32 +422,64 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         }
     };
 
+    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
+    const discountAmount = subtotal * (discountPercent / 100);
+    const netAmount = subtotal - discountAmount;
+    const vatAmount = netAmount * vatRate;
+    const grandTotal = netAmount + vatAmount;
+
+    const performOrderSave = useCallback(async (customerNameVal: string, customerPhoneVal: string, customerIdVal: string | null, vatRateVal: number) => {
+        const orderPayload: Order = {
+            id: initialOrder?.id || generateOrderId(),
+            customer_name: customerNameVal,
+            customer_phone: customerPhoneVal,
+            customer_id: customerIdVal || undefined,
+            seller_id: (attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined,
+            seller_name: (attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined,
+            items,
+            total_price: grandTotal,
+            vat_rate: vatRateVal,
+            discount_percent: discountPercent,
+            status: initialOrder?.status || OrderStatus.Pending,
+            created_at: initialOrder?.created_at || new Date().toISOString(),
+            notes: orderNotes,
+            tags: initialOrder?.tags || []
+        };
+        if (initialOrder) await api.updateOrder(orderPayload);
+        else await api.saveOrder(orderPayload);
+        await queryClient.refetchQueries({ queryKey: ['orders'] });
+        await queryClient.refetchQueries({ queryKey: ['customers'] });
+        sessionStorage.removeItem(DRAFT_KEY);
+        onBack();
+    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack]);
+
     const handleSaveOrder = async () => {
-        if (!customerName) { showToast('Το όνομα πελάτη είναι υποχρεωτικό.', 'error'); return; }
         if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
+        if (!customerName) {
+            setShowCreateClientScreen(true);
+            return;
+        }
         setIsSaving(true);
         try {
-            const orderPayload: Order = {
-                id: initialOrder?.id || generateOrderId(),
-                customer_name: customerName,
-                customer_phone: customerPhone,
-                customer_id: customerId || undefined,
-                seller_id: (attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined,
-                seller_name: (attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined,
-                items,
-                total_price: grandTotal,
-                vat_rate: vatRate,
-                discount_percent: discountPercent,
-                status: initialOrder?.status || OrderStatus.Pending,
-                created_at: initialOrder?.created_at || new Date().toISOString(),
-                notes: orderNotes,
-                tags: initialOrder?.tags || []
-            };
-            if (initialOrder) await api.updateOrder(orderPayload);
-            else await api.saveOrder(orderPayload);
-            await queryClient.refetchQueries({ queryKey: ['orders'] });
-            sessionStorage.removeItem(DRAFT_KEY);
-            onBack();
+            await performOrderSave(customerName, customerPhone, customerId, vatRate);
+        } catch (e) {
+            showToast('Σφάλμα αποθήκευσης', 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreateClientAndSaveOrder = async (form: Customer) => {
+        try {
+            const saved = await api.saveCustomer(form);
+            if (!saved) { showToast('Σφάλμα αποθήκευσης πελάτη.', 'error'); return; }
+            setCustomerId(saved.id);
+            setCustomerName(saved.full_name);
+            setCustomerPhone(saved.phone || '');
+            if (saved.vat_rate !== undefined && saved.vat_rate !== null) setVatRate(saved.vat_rate);
+            setShowCreateClientScreen(false);
+            setIsSaving(true);
+            await performOrderSave(saved.full_name, saved.phone || '', saved.id, saved.vat_rate ?? VatRegime.Standard);
         } catch (e) {
             showToast('Σφάλμα αποθήκευσης', 'error');
         } finally {
@@ -458,19 +505,24 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         // if null/undefined (dialog dismissed) — stay
     };
 
-    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-    const discountAmount = subtotal * (discountPercent / 100);
-    const netAmount = subtotal - discountAmount;
-    const vatAmount = netAmount * vatRate;
-    const grandTotal = netAmount + vatAmount;
-
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
         return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
+    const emptyCustomer: Customer = { id: '', full_name: '', created_at: '' };
+
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
+
+            {/* ── Create Client screen (when saving order without client) ── */}
+            {showCreateClientScreen && (
+                <MobileCustomerForm
+                    customer={emptyCustomer}
+                    onSave={handleCreateClientAndSaveOrder}
+                    onCancel={() => setShowCreateClientScreen(false)}
+                />
+            )}
 
             {/* ── Top Bar ──────────────────────────────────────────── */}
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
@@ -587,7 +639,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         type="text"
                                         value={input}
                                         onChange={e => setInput(e.target.value.toUpperCase())}
-                                        placeholder="Αναζήτηση κωδικού..."
+                                        onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
                                         className="flex-1 bg-transparent p-2 outline-none font-black text-slate-900 uppercase"
                                     />
                                     <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-600">
@@ -633,12 +686,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </div>
                 )}
 
-                {/* ── Variant Selector (active master) — metal then stone carousel ── */}
+                {/* ── Variant Selector (active master) — metal then stone carousel or resolved single variant ── */}
                 {activeMaster && (
                     <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
-                        {/* Header: image + SKU + back button */}
+                        {/* Header: image + SKU (with suffix when resolved) + back button */}
                         <div className="flex gap-3 items-start shrink-0">
-                            {/* Product image */}
                             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 shadow-sm">
                                 {activeMaster.image_url
                                     ? <img src={activeMaster.image_url} className="w-full h-full object-cover" alt={activeMaster.sku} />
@@ -646,7 +698,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 }
                             </div>
                             <div className="flex-1 min-w-0">
-                                <SkuColored sku={activeMaster.sku} suffix="" gender={activeMaster.gender} />
+                                <SkuColored sku={activeMaster.sku} suffix={resolvedVariant?.suffix ?? ''} gender={activeMaster.gender} />
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
                                 {items.filter(i => i.sku === activeMaster.sku).length > 0 && (
                                     <div className="mt-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
@@ -655,7 +707,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 )}
                             </div>
                             <button
-                                onClick={() => { setActiveMaster(null); setSelectedFinish(null); }}
+                                onClick={() => { setActiveMaster(null); setSelectedFinish(null); setResolvedVariant(null); }}
                                 className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full shrink-0 transition-colors"
                                 title="Επιστροφή στην αναζήτηση"
                             >
@@ -703,8 +755,21 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </div>
                         </div>
 
+                        {/* Resolved full code (e.g. SK005PAK): single variant — note + Add only */}
+                        {resolvedVariant && (
+                            <div className="flex flex-col gap-4 shrink-0">
+                                <button
+                                    onClick={() => handleAddItem(resolvedVariant)}
+                                    className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
+                                >
+                                    <span className="text-white/90 text-xs font-bold">{formatCurrency(resolvedVariant.selling_price || activeMaster.selling_price || 0)}</span>
+                                    Προσθήκη
+                                </button>
+                            </div>
+                        )}
+
                         {/* No variants: single Add */}
-                        {(!activeMaster.variants || activeMaster.variants.length === 0) && (
+                        {!resolvedVariant && (!activeMaster.variants || activeMaster.variants.length === 0) && (
                             <div className="shrink-0">
                                 <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base active:scale-[0.99]">
                                     Προσθήκη
@@ -713,7 +778,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         )}
 
                         {/* With variants: 1) Metal, 2) Stone carousel */}
-                        {activeMaster.variants && activeMaster.variants.length > 0 && (
+                        {!resolvedVariant && activeMaster.variants && activeMaster.variants.length > 0 && (
                             <div className="flex flex-col gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">1. Μέταλλο</label>

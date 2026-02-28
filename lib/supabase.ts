@@ -620,6 +620,85 @@ export const api = {
         });
     },
 
+    getProductsCatalog: async (params: { limit?: number; offset?: number } = {}): Promise<{ products: Product[]; hasMore: boolean }> => {
+        const limit = Math.min(params.limit ?? 60, 100);
+        const offset = params.offset ?? 0;
+        if (isLocalMode || !navigator.onLine) {
+            const all = await api.getProducts();
+            const products = all.slice(offset, offset + limit);
+            return { products, hasMore: offset + limit < all.length };
+        }
+        try {
+            const { data: prodData, error: prodErr } = await fetchWithTimeout(
+                supabase.from('products').select('*, suppliers(*)').order('sku').range(offset, offset + limit - 1),
+                6000
+            );
+            if (prodErr) throw prodErr;
+            if (!prodData || prodData.length === 0) return { products: [], hasMore: false };
+            const skus = prodData.map((p: any) => p.sku);
+            const [varRes, collRes, stockRes] = await Promise.all([
+                supabase.from('product_variants').select('*').in('product_sku', skus),
+                supabase.from('product_collections').select('*').in('product_sku', skus),
+                supabase.from('product_stock').select('*').in('product_sku', skus)
+            ]);
+            const varData = varRes.data || [];
+            const prodCollData = collRes.data || [];
+            const stockData = stockRes.data || [];
+            const stockMap = new Map<string, any[]>();
+            stockData.forEach((s: any) => {
+                const key = s.variant_suffix ? `${s.product_sku}::${s.variant_suffix}` : s.product_sku;
+                if (!stockMap.has(key)) stockMap.set(key, []);
+                stockMap.get(key)!.push(s);
+            });
+            const variantMap = new Map<string, any[]>();
+            varData.forEach((v: any) => {
+                if (!variantMap.has(v.product_sku)) variantMap.set(v.product_sku, []);
+                variantMap.get(v.product_sku)!.push(v);
+            });
+            const collectionsMap = new Map<string, number[]>();
+            prodCollData.forEach((pc: any) => {
+                if (!collectionsMap.has(pc.product_sku)) collectionsMap.set(pc.product_sku, []);
+                collectionsMap.get(pc.product_sku)!.push(pc.collection_id);
+            });
+            const products: Product[] = prodData.map((p: any) => {
+                const customStock: Record<string, number> = {};
+                const pStock = stockMap.get(p.sku) || [];
+                pStock.forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
+                customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
+                customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
+                const baseVariants = variantMap.get(p.sku) || [];
+                const pVariants: ProductVariant[] = baseVariants.map((v: any) => {
+                    const vCustomStock: Record<string, number> = {};
+                    const vStock = stockMap.get(`${p.sku}::${v.suffix}`) || [];
+                    vStock.forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
+                    vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
+                    return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
+                });
+                return {
+                    sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender,
+                    image_url: resolveImageUrl(p.image_url),
+                    weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: (p.production_type as ProductionType) || 'InHouse', supplier_id: p.supplier_id,
+                    supplier_sku: p.supplier_sku,
+                    supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock,
+                    molds: [],
+                    is_component: p.is_component, variants: pVariants, recipe: [], collections: collectionsMap.get(p.sku) || [],
+                    labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) },
+                    created_at: p.created_at || new Date(0).toISOString()
+                };
+            });
+            return { products, hasMore: products.length === limit };
+        } catch (err) {
+            const all = await offlineDb.getTable('products').then((d: any[]) => d || []);
+            const fallback = all.slice(offset, offset + limit).map((p: any) => ({
+                ...p,
+                variants: [],
+                collections: [],
+                labor: {}
+            }));
+            return { products: fallback as any, hasMore: offset + limit < all.length };
+        }
+    },
+
     getWarehouses: async (): Promise<Warehouse[]> => {
         const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
         if (!data || data.length === 0) return [{ id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true }, { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }];

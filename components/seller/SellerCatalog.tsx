@@ -1,17 +1,19 @@
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Product, Gender, ProductVariant } from '../../types';
+import { Product, Gender, ProductVariant, ProductionType } from '../../types';
 import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
 import { useUI } from '../UIProvider';
 import SellerImageLightbox from './SellerImageLightbox';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
-interface Props { products: Product[]; }
+const CATALOG_PAGE_SIZE = 60;
+
+interface Props { products?: Product[]; }
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
 const FINISH_ORDER = ['', 'P', 'X', 'D', 'H'];
@@ -284,9 +286,26 @@ const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) 
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function SellerCatalog({ products }: Props) {
+export default function SellerCatalog({ products: productsProp }: Props) {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     const { showToast } = useUI();
+
+    const {
+        data: catalogData,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading: catalogLoading
+    } = useInfiniteQuery({
+        queryKey: ['productsCatalog'],
+        queryFn: ({ pageParam = 0 }) => api.getProductsCatalog({ limit: CATALOG_PAGE_SIZE, offset: pageParam }),
+        getNextPageParam: (lastPage, allPages) => lastPage.hasMore ? allPages.length * CATALOG_PAGE_SIZE : undefined,
+        initialPageParam: 0,
+        enabled: productsProp == null
+    });
+
+    const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);
+    const products = productsProp ?? catalogProducts;
 
     // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
@@ -295,6 +314,9 @@ export default function SellerCatalog({ products }: Props) {
     const [selectedCollection, setSelectedCollection] = useState<number | 'All'>('All');
     const [selectedFinish, setSelectedFinish] = useState<string | null>(null);
     const [selectedStone, setSelectedStone] = useState<string | null>(null);
+    const [stoneFilterMode, setStoneFilterMode] = useState<'All' | 'with' | 'without'>('All');
+    const [selectedProductionType, setSelectedProductionType] = useState<'All' | ProductionType>('All');
+    const [sortBy, setSortBy] = useState<'sku' | 'created_at'>('sku');
     const [onlyInStock, setOnlyInStock] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
@@ -339,24 +361,33 @@ export default function SellerCatalog({ products }: Props) {
         });
         return Array.from(map.entries())
             .sort((a, b) => b[1].count - a[1].count)
-            .slice(0, 14)
             .map(([code, { name }]) => ({ code, name }));
     }, [sellable]);
 
     // ── Filtered products ────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
+        const hasAnyStone = (p: Product) => p.variants?.some(v => !!getVariantComponents(v.suffix, p.gender).stone.code);
         return sellable.filter(p => {
             const matchSearch = !search || p.sku.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase());
             const matchGroup = selectedGroup === 'All' || getCategoryGroup(p.category) === selectedGroup;
             const matchGender = selectedGender === 'All' || p.gender === selectedGender;
             const matchCollection = selectedCollection === 'All' || p.collections?.includes(selectedCollection as number);
             const matchFinish = !selectedFinish || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).finish.code === selectedFinish));
-            const matchStone = !selectedStone || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).stone.code === selectedStone));
+            const matchStoneSpecific = !selectedStone || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).stone.code === selectedStone));
+            const matchStoneMode = stoneFilterMode === 'All' || (stoneFilterMode === 'with' && hasAnyStone(p)) || (stoneFilterMode === 'without' && !hasAnyStone(p));
+            const matchProductionType = selectedProductionType === 'All' || p.production_type === selectedProductionType;
             const totalStock = (p.stock_qty || 0) + (p.variants?.reduce((s, v) => s + (v.stock_qty || 0), 0) || 0);
             const matchStock = !onlyInStock || totalStock > 0;
-            return matchSearch && matchGroup && matchGender && matchCollection && matchFinish && matchStone && matchStock;
-        }).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [sellable, search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, onlyInStock]);
+            return matchSearch && matchGroup && matchGender && matchCollection && matchFinish && matchStoneSpecific && matchStoneMode && matchProductionType && matchStock;
+        }).sort((a, b) => {
+            if (sortBy === 'created_at') {
+                const ta = a.created_at || '';
+                const tb = b.created_at || '';
+                return tb.localeCompare(ta);
+            }
+            return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }, [sellable, search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
     // ── Virtualizer setup: group products into rows ──────────────────────────
     const productRows = useMemo(() => {
@@ -375,13 +406,15 @@ export default function SellerCatalog({ products }: Props) {
     });
 
     // ── Active filter count ──────────────────────────────────────────────────
-    const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, onlyInStock].filter(Boolean).length;
+    const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, stoneFilterMode !== 'All', selectedProductionType !== 'All', onlyInStock].filter(Boolean).length;
 
     const clearAll = () => {
         setSelectedGender('All');
         setSelectedCollection('All');
         setSelectedFinish(null);
         setSelectedStone(null);
+        setStoneFilterMode('All');
+        setSelectedProductionType('All');
         setOnlyInStock(false);
     };
 
@@ -396,6 +429,15 @@ export default function SellerCatalog({ products }: Props) {
     };
 
     const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Unisex' }];
+
+    if (productsProp == null && catalogLoading && catalogProducts.length === 0) {
+        return (
+            <div className="flex flex-col h-full bg-slate-50 items-center justify-center gap-4">
+                <div className="w-10 h-10 border-2 border-[#060b00] border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-bold text-slate-500">Φόρτωση καταλόγου...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -456,20 +498,54 @@ export default function SellerCatalog({ products }: Props) {
                             </div>
                         )}
 
-                        {/* Stone filter */}
-                        {availableStones.length > 0 && (
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Πέτρα</p>
-                                <div className="flex gap-1.5 flex-wrap">
+                        {/* Stone: With/Without + specific stones */}
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Πέτρα</p>
+                            <div className="flex gap-1.5 flex-wrap mb-2">
+                                {(['All', 'with', 'without'] as const).map(mode => (
+                                    <button key={mode} onClick={() => setStoneFilterMode(mode === stoneFilterMode ? 'All' : mode)}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${stoneFilterMode === mode ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                        {mode === 'All' ? 'Όλα' : mode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'}
+                                    </button>
+                                ))}
+                            </div>
+                            {availableStones.length > 0 && (
+                                <div className="flex gap-1.5 flex-wrap max-h-24 overflow-y-auto">
                                     {availableStones.map(s => (
                                         <button key={s.code} onClick={() => setSelectedStone(selectedStone === s.code ? null : s.code)}
                                             className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s.code ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                            <span className={`${selectedStone === s.code ? 'text-white' : (STONE_TEXT_COLORS[s.code] || 'text-slate-600')}`}>{s.name}</span>
+                                            <span className={selectedStone === s.code ? 'text-white' : (STONE_TEXT_COLORS[s.code] || 'text-slate-600')}>{s.name}</span>
                                         </button>
                                     ))}
                                 </div>
+                            )}
+                        </div>
+
+                        {/* Production type */}
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Τύπος παραγωγής</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                                {(['All', ProductionType.InHouse, ProductionType.Imported] as const).map(pt => (
+                                    <button key={pt} onClick={() => setSelectedProductionType(selectedProductionType === pt ? 'All' : pt)}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedProductionType === pt ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                        {pt === 'All' ? 'Όλα' : pt === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'}
+                                    </button>
+                                ))}
                             </div>
-                        )}
+                        </div>
+
+                        {/* Sort */}
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Ταξινόμηση</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                                <button onClick={() => setSortBy('sku')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${sortBy === 'sku' ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                    Κωδικός
+                                </button>
+                                <button onClick={() => setSortBy('created_at')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${sortBy === 'created_at' ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                    Νεότερα
+                                </button>
+                            </div>
+                        </div>
 
                         {/* Collections */}
                         {collections && collections.length > 0 && (
@@ -525,6 +601,8 @@ export default function SellerCatalog({ products }: Props) {
                         {selectedGender !== 'All' && <FilterChip label={GENDER_OPTS.find(g => g.v === selectedGender)?.l || ''} onClear={() => setSelectedGender('All')} />}
                         {selectedFinish !== null && <FilterChip label={FINISH_CODES[selectedFinish] ?? selectedFinish} onClear={() => setSelectedFinish(null)} />}
                         {selectedStone !== null && <FilterChip label={availableStones.find(x => x.code === selectedStone)?.name ?? selectedStone} onClear={() => setSelectedStone(null)} />}
+                        {stoneFilterMode !== 'All' && <FilterChip label={stoneFilterMode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'} onClear={() => setStoneFilterMode('All')} />}
+                        {selectedProductionType !== 'All' && <FilterChip label={selectedProductionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setSelectedProductionType('All')} />}
                         {selectedCollection !== 'All' && <FilterChip label={collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή'} onClear={() => setSelectedCollection('All')} />}
                         {onlyInStock && <FilterChip label="Διαθέσιμα" onClear={() => setOnlyInStock(false)} />}
                     </div>
@@ -545,21 +623,41 @@ export default function SellerCatalog({ products }: Props) {
                         {activeCount > 0 && <button onClick={clearAll} className="text-xs font-black text-[#060b00] underline">Καθαρισμός φίλτρων</button>}
                     </div>
                 ) : (
-                    <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
-                        {rowVirtualizer.getVirtualItems().map(vRow => (
-                            <div
-                                key={vRow.key}
-                                data-index={vRow.index}
-                                ref={rowVirtualizer.measureElement}
-                                style={{ position: 'absolute', top: vRow.start, left: 0, right: 0 }}
-                                className="grid grid-cols-3 gap-2 pb-2"
-                            >
-                                {productRows[vRow.index].map(p => (
-                                    <CatalogueCard key={p.sku} product={p} />
-                                ))}
+                    <>
+                        <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                            {rowVirtualizer.getVirtualItems().map(vRow => (
+                                <div
+                                    key={vRow.key}
+                                    data-index={vRow.index}
+                                    ref={rowVirtualizer.measureElement}
+                                    style={{ position: 'absolute', top: vRow.start, left: 0, right: 0 }}
+                                    className="grid grid-cols-3 gap-2 pb-2"
+                                >
+                                    {productRows[vRow.index].map(p => (
+                                        <CatalogueCard key={p.sku} product={p} />
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                        {productsProp == null && hasNextPage && (
+                            <div className="py-4 flex justify-center">
+                                <button
+                                    onClick={() => fetchNextPage()}
+                                    disabled={isFetchingNextPage}
+                                    className="px-6 py-3 rounded-xl bg-[#060b00] text-white text-sm font-black disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isFetchingNextPage ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Φόρτωση...
+                                        </>
+                                    ) : (
+                                        'Φόρτωση περισσότερων'
+                                    )}
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
 

@@ -16,15 +16,7 @@ export default function SellerApp() {
   const [activePage, setActivePage] = useState('dashboard');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   
-  const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-
-  if (isLoading || !products) {
-      return (
-          <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-              <Loader2 size={32} className="animate-spin text-emerald-600"/>
-          </div>
-      );
-  }
+  const { data: products, isLoading: productsLoading } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
 
   const handleCreateOrder = () => {
       setEditingOrder(null);
@@ -50,7 +42,11 @@ export default function SellerApp() {
       content = <SellerOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} />;
       break;
     case 'order-builder':
-      content = (
+      content = productsLoading || !products ? (
+        <div className="h-full flex items-center justify-center bg-slate-50">
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
+        </div>
+      ) : (
         <div className="bg-white h-full">
             <MobileOrderBuilder 
                 onBack={handleOrderBack} 
@@ -62,10 +58,16 @@ export default function SellerApp() {
       );
       break;
     case 'catalog':
-      content = <SellerCatalog products={products} />;
+      content = <SellerCatalog />;
       break;
     case 'collections':
-      content = <SellerCollections products={products} />;
+      content = productsLoading || !products ? (
+        <div className="h-full flex items-center justify-center bg-slate-50">
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
+        </div>
+      ) : (
+        <SellerCollections products={products} />
+      );
       break;
     case 'customers':
       content = <SellerCustomers />;

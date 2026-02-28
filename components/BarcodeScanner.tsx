@@ -18,13 +18,14 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
     const [zoom, setZoom] = useState(1.0);
     const [zoomCapabilities, setZoomCapabilities] = useState<{min: number, max: number, step: number} | null>(null);
     
-    // Engine Hints: 
-    // 1 (TRY_HARDER): Crucial for SATO/TSC legacy prints (thermal spread/fading).
-    // 2 (POSSIBLE_FORMATS): Locked to QR_CODE (11) for max speed.
+    // Engine Hints for max robustness (sideways, skewed, non-linear, low contrast):
+    // TRY_HARDER (1): Uses more CPU per frame and tries multiple orientations internally —
+    // ZXing handles rotation/sideways QR codes without app-level rotation.
+    // POSSIBLE_FORMATS (2): QR_CODE (11) only for speed; TRY_HARDER still improves decode on difficult prints.
     const hints = useMemo(() => {
         const map = new Map();
-        map.set(1, true); 
-        map.set(2, [11]); 
+        map.set(1, true);  // TRY_HARDER
+        map.set(2, [11]);  // POSSIBLE_FORMATS: QR_CODE
         return map;
     }, []);
 
@@ -63,7 +64,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
             }
         },
         paused: false,
-        timeBetweenDecodingAttempts: 100, // Aggressive polling for "Instant" feel
+        timeBetweenDecodingAttempts: 130, // Slightly higher than 100ms so TRY_HARDER has more CPU per frame for sideways/skewed QR
         constraints: {
             video: {
                 facingMode: 'environment',
@@ -189,7 +190,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
             {/* VIEWPORT */}
             <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#050505]">
                 <video 
-                    ref={ref} 
+                    ref={ref as React.RefObject<HTMLVideoElement>} 
                     className="w-full h-full object-cover scale-[1.0] brightness-110 contrast-110" 
                     playsInline 
                     muted
