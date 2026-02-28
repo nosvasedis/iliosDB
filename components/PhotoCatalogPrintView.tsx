@@ -44,7 +44,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κατάλογος', date }: Props) {
-    const pages = chunk(products, ITEMS_PER_PAGE);
+    // Sort by SKU ascending (consistent with all other views in the app)
+    const sorted = [...products].sort((a, b) => a.sku.localeCompare(b.sku));
+    const pages = chunk(sorted, ITEMS_PER_PAGE);
     const printDate = date || new Date().toLocaleDateString('el-GR');
 
     return (
@@ -82,12 +84,10 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
 
                 .catalog-page {
                     width: 210mm;
-                    min-height: 297mm;
                     padding: 0;
                     background: white;
                     box-sizing: border-box;
-                    display: flex;
-                    flex-direction: column;
+                    display: block;
                 }
 
                 .catalog-header {
@@ -117,8 +117,6 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
                     gap: 4mm;
-                    flex: 1;
-                    align-content: start;
                 }
 
                 .catalog-card {
@@ -133,7 +131,7 @@ export default function PhotoCatalogPrintView({ products, title = 'Φωτο-κα
 
                 .catalog-img-wrapper {
                     width: 100%;
-                    aspect-ratio: 1 / 1;
+                    aspect-ratio: 4 / 3;
                     background: #f8fafc;
                     overflow: hidden;
                     position: relative;
