@@ -430,7 +430,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             };
             if (initialOrder) await api.updateOrder(orderPayload);
             else await api.saveOrder(orderPayload);
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await queryClient.refetchQueries({ queryKey: ['orders'] });
             sessionStorage.removeItem(DRAFT_KEY);
             onBack();
         } catch (e) {
