@@ -136,7 +136,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                 />
             </div>
             {/* Product grid */}
-            <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 max-h-64 overflow-y-auto custom-scrollbar pb-1">
+            <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2 max-h-96 overflow-y-auto custom-scrollbar pb-1">
                 {filteredProducts.map(p => (
                     <button
                         key={p.sku}
@@ -150,7 +150,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                             }
                         </div>
                         <div className="p-1.5">
-                            <div className="text-[10px] font-black text-slate-800 truncate">{p.sku}</div>
+                            <SkuColored sku={p.sku} suffix="" gender={p.gender} />
                             <div className="text-[9px] text-slate-400 truncate">{p.category}</div>
                         </div>
                     </button>
@@ -233,6 +233,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setSelectedSize('');
         setItemNotes('');
         setQty(1);
+        // Refocus to the input after a short delay
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 100);
     };
 
     const handleAddItem = (variant: ProductVariant | null) => {
@@ -268,6 +272,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setItemNotes('');
         setSizeMode(null);
         setInput('');
+        // Refocus to the input after a short delay
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 100);
     };
 
     // Called from CatalogBrowser when user taps a product

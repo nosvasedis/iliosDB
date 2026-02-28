@@ -78,7 +78,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
         </div>
 
         {/* Nav items */}
-        <div className="flex flex-col gap-1 p-2 flex-1">
+        <div className="flex flex-col gap-1 p-2">
           {NAV_ITEMS.map(item => (
             <SideNavItem
               key={item.id}
@@ -91,7 +91,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
         </div>
 
         {/* New Order FAB */}
-        <div className="p-2 mb-2">
+        <div className="p-2">
           <button
             onClick={() => onNavigate('order-builder')}
             className="w-full flex flex-col items-center justify-center py-3 bg-[#060b00] rounded-2xl text-amber-400 shadow-lg active:scale-95 transition-transform gap-1"
@@ -101,8 +101,8 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
           </button>
         </div>
 
-        {/* Sign out */}
-        <div className="p-2 border-t border-slate-100 mb-1">
+        {/* Sign out - pushed to bottom */}
+        <div className="p-2 border-t border-slate-100 mt-auto mb-1">
           <button
             onClick={() => signOut()}
             className="w-full flex items-center justify-center py-2 text-slate-300 hover:text-red-400 transition-colors rounded-xl hover:bg-red-50"

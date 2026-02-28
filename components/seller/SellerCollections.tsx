@@ -1,11 +1,45 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Collection, Product } from '../../types';
+import { Collection, Product, Gender } from '../../types';
 import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import SellerImageLightbox from './SellerImageLightbox';
+
+// ─── Color coding constants ─────────────────────────────────────────────────────
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-500',
+    'P': 'text-slate-500',
+    'D': 'text-orange-500',
+    'H': 'text-cyan-400',
+    '': 'text-slate-400'
+};
+
+const STONE_TEXT_COLORS: Record<string, string> = {
+    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
+    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
+    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
+    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
+};
+
+// ─── SKU Color Coding Component ─────────────────────────────────────────────
+const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+    return (
+        <span className="font-black">
+            <span className="text-slate-900">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
+};
 
 interface Props {
     products: Product[];
@@ -13,12 +47,17 @@ interface Props {
     onAddToOrder?: (product: Product, variantSuffix?: string) => void;
 }
 
-// ─── Product Grid Card ────────────────────────────────────────────────────────
+// ─── Product Grid Card with swipe functionality ───────────────────────────────────
 const ProductGridCard: React.FC<{
     product: Product;
     onAddToOrder?: (product: Product, variantSuffix?: string) => void;
 }> = ({ product, onAddToOrder }) => {
     const [viewIndex, setViewIndex] = useState(0);
+    const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
+    const [dragOffset, setDragOffset] = useState(0);
+    const touchStartX = useRef<number | null>(null);
+    const isAnimating = useRef(false);
+
     const variants = useMemo(() => product.variants || [], [product.variants]);
     const hasVariants = variants.length > 0;
     const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
@@ -28,13 +67,45 @@ const ProductGridCard: React.FC<{
         ? (currentVariant.selling_price || 0)
         : (product.selling_price || 0);
 
+    const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
+        if (isAnimating.current || newIdx === viewIndex) return;
+        isAnimating.current = true;
+        setSlideDir(dir);
+        setTimeout(() => {
+            setViewIndex(newIdx);
+            setSlideDir(null);
+            isAnimating.current = false;
+        }, 180);
+    }, [viewIndex]);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (!hasVariants || variants.length <= 1) return;
+        touchStartX.current = e.touches[0].clientX;
+        setDragOffset(0);
+    }, [hasVariants, variants.length]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        if (touchStartX.current === null) return;
+        const delta = e.touches[0].clientX - touchStartX.current;
+        setDragOffset(Math.max(-90, Math.min(90, delta)));
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        if (touchStartX.current === null) return;
+        const d = dragOffset;
+        if (d < -35) goToIndex((viewIndex + 1) % variants.length, 'left');
+        else if (d > 35) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
+        touchStartX.current = null;
+        setDragOffset(0);
+    }, [dragOffset, viewIndex, variants.length, goToIndex]);
+
     const nextVariant = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev + 1) % variants.length);
+        if (hasVariants) goToIndex((viewIndex + 1) % variants.length, 'left');
     };
     const prevVariant = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (hasVariants) setViewIndex(prev => (prev - 1 + variants.length) % variants.length);
+        if (hasVariants) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
     };
 
     const handleAdd = (e: React.MouseEvent) => {
@@ -46,6 +117,13 @@ const ProductGridCard: React.FC<{
 
     const [showLightbox, setShowLightbox] = useState(false);
 
+    // Animated info strip classes
+    const infoClass = slideDir === 'left'
+        ? '-translate-x-full opacity-0'
+        : slideDir === 'right'
+            ? 'translate-x-full opacity-0'
+            : 'translate-x-0 opacity-100';
+
     return (
         <>
             {showLightbox && (
@@ -55,8 +133,14 @@ const ProductGridCard: React.FC<{
                 />
             )}
             <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-100 flex flex-col h-full relative">
-                {/* Image */}
-                <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden">
+                {/* Image with touch support */}
+                <div
+                    className="aspect-[4/5] bg-slate-50 relative overflow-hidden"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
+                >
                     {product.image_url ? (
                         <img
                             src={product.image_url}
@@ -70,6 +154,18 @@ const ProductGridCard: React.FC<{
                         </div>
                     )}
 
+                    {/* Swipe direction hint during drag */}
+                    {Math.abs(dragOffset) > 20 && variants.length > 1 && (
+                        <div className={`absolute top-1/2 -translate-y-1/2 z-30 ${dragOffset > 0 ? 'left-2' : 'right-2'}`}>
+                            <div className="bg-white/80 backdrop-blur-sm rounded-full p-1 shadow">
+                                {dragOffset > 0
+                                    ? <ChevronLeft size={12} className="text-slate-700" />
+                                    : <ChevronRight size={12} className="text-slate-700" />
+                                }
+                            </div>
+                        </div>
+                    )}
+
                     {/* Zoom hint on hover */}
                     <button
                         onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
@@ -78,10 +174,14 @@ const ProductGridCard: React.FC<{
                         <Expand size={13} />
                     </button>
 
-                    {/* SKU overlay */}
+                    {/* SKU overlay with animation */}
                     <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
-                        <h3 className="text-white font-black text-sm leading-none truncate drop-shadow-sm">{displaySku}</h3>
-                        <p className="text-white/70 text-[10px] font-medium truncate mt-0.5">{product.category}</p>
+                        <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
+                            <h3 className="text-white font-black text-sm leading-none truncate drop-shadow-sm">
+                                <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
+                            </h3>
+                            <p className="text-white/70 text-[10px] font-medium truncate mt-0.5">{product.category}</p>
+                        </div>
                     </div>
 
                     {/* Variant navigation */}
@@ -102,7 +202,7 @@ const ProductGridCard: React.FC<{
 
                 {/* Footer */}
                 <div className="p-3 flex justify-between items-center bg-white">
-                    <span className="text-blue-700 font-black text-sm">
+                    <span className="font-black text-[#060b00] text-sm">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </span>
                     {onAddToOrder && (

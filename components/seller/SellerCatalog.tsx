@@ -37,6 +37,20 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
 };
 
+// ─── SKU Color Coding Component ─────────────────────────────────────────────
+const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
+    const { finish, stone } = getVariantComponents(suffix || '', gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+    return (
+        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">
+            <span className="text-slate-900">{sku}</span>
+            <span className={fColor}>{finish.code}</span>
+            <span className={sColor}>{stone.code}</span>
+        </span>
+    );
+};
+
 // ─── Category grouping ────────────────────────────────────────────────────────
 const CATEGORY_PREFIXES = ['Βραχιόλι', 'Κολιέ', 'Σκουλαρίκι', 'Δαχτυλίδι', 'Τσόκερ', 'Σετ', 'Αλυσίδα', 'Τσάντα', 'Καρφίτσα'];
 const getCategoryGroup = (category: string): string => {
@@ -219,7 +233,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                 <div className="px-1.5 pt-1 pb-0.5 overflow-hidden">
                     <div className={`flex flex-col gap-0.5 transition-all duration-[180ms] ease-out ${infoClass}`}>
                         {/* SKU */}
-                        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">{displaySku}</span>
+                        <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
 
                         {/* Finish badge */}
                         {currentVariant && (
@@ -230,14 +244,9 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                         <div className="flex justify-between items-end mt-0.5">
                             <span className="text-[8px] text-slate-400 truncate max-w-[50%]">{product.category}</span>
                             <div className="text-right leading-none">
-                                <div className="font-black text-[#060b00] text-[11px]">
+                                <div className="font-black text-[#060b00] text-[13px]">
                                     {displayPrice > 0 ? formatCurrency(displayPrice) : '—'}
                                 </div>
-                                {currentVariant && displayPrice !== basePrice && basePrice > 0 && (
-                                    <div className={`text-[7px] font-bold ${displayPrice > basePrice ? 'text-amber-600' : 'text-slate-400'}`}>
-                                        {displayPrice > basePrice ? `+${formatCurrency(displayPrice - basePrice)}` : `${formatCurrency(displayPrice - basePrice)}`}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
