@@ -350,7 +350,7 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 };
 
 export const api = {
-    lookupAfm: async (afm: string): Promise<{ name: string; address: string } | null> => {
+    lookupAfm: async (afm: string): Promise<{ name: string; address: string | null; phone: string | null; email: string | null } | null> => {
         // Strip any country prefix and whitespace/dashes the user may have typed
         const cleanAfm = afm.replace(/^EL/i, '').replace(/[-\s]/g, '').trim();
 
@@ -370,8 +370,13 @@ export const api = {
                 throw new Error(msg);
             }
 
-            if (data.name && data.address) {
-                return { name: data.name, address: data.address };
+            if (data.name) {
+                return {
+                    name: data.name,
+                    address: data.address || null,
+                    phone: data.phone || null,
+                    email: data.email || null,
+                };
             }
 
             throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");

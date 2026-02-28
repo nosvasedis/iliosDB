@@ -187,8 +187,16 @@ const CustomerDetailsModal = ({
         try {
             const result = await api.lookupAfm(editForm.vat_number);
             if (result) {
-                setEditForm(prev => ({ ...prev, full_name: result.name, address: result.address }));
-                showToast("Τα στοιχεία βρέθηκαν!", "success");
+                setEditForm(prev => ({
+                    ...prev,
+                    full_name: result.name || prev.full_name,
+                    address: result.address || prev.address,
+                    // Fill phone / email only if the field is currently empty
+                    phone: (!prev.phone && result.phone) ? result.phone : prev.phone,
+                    email: (!prev.email && result.email) ? result.email : prev.email,
+                }));
+                const filled = ['Επωνυμία', result.address ? 'Διεύθυνση' : null, result.phone ? 'Τηλέφωνο' : null, result.email ? 'Email' : null].filter(Boolean).join(', ');
+                showToast(`Βρέθηκαν: ${filled}`, "success");
             } else {
                 showToast("Δεν βρέθηκαν στοιχεία.", "info");
             }

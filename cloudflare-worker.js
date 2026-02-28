@@ -108,6 +108,9 @@ export default {
           });
         }
 
+        // Helper: clean up "---" placeholder values the APIs sometimes return
+        const cleanField = (val) => (val && val.trim() && val.trim() !== '---' ? val.trim() : null);
+
         // Attempt 1: VIES REST API (EU official)
         try {
           const viesRes = await fetch('https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number', {
@@ -116,28 +119,37 @@ export default {
             body: JSON.stringify({ countryCode: 'EL', vatNumber: afm }),
           });
           if (viesRes.ok) {
-            const viesData = await viesRes.json();
-            if (viesData.valid && viesData.name && viesData.address) {
-              return new Response(JSON.stringify({ name: viesData.name, address: viesData.address, source: 'VIES' }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
+            const d = await viesRes.json();
+            if (d.valid && d.name) {
+              return new Response(JSON.stringify({
+                source: 'VIES',
+                name: cleanField(d.name),
+                address: cleanField(d.address),
+                // VIES does not expose phone/email in its REST response
+                phone: null,
+                email: null,
+              }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
             }
           }
         } catch (e) {
           console.warn('VIES lookup failed:', e.message);
         }
 
-        // Attempt 2: VATComply fallback
+        // Attempt 2: VATComply fallback (returns richer data when available)
         try {
           const vatRes = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`, {
             headers: { 'Accept': 'application/json' },
           });
           if (vatRes.ok) {
-            const vatData = await vatRes.json();
-            if (vatData.valid && vatData.name && vatData.address) {
-              return new Response(JSON.stringify({ name: vatData.name, address: vatData.address, source: 'VATComply' }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
+            const d = await vatRes.json();
+            if (d.valid && d.name) {
+              return new Response(JSON.stringify({
+                source: 'VATComply',
+                name: cleanField(d.name),
+                address: cleanField(d.address),
+                phone: cleanField(d.phone),
+                email: cleanField(d.email),
+              }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
             }
           }
         } catch (e) {
