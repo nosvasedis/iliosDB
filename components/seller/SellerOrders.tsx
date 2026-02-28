@@ -73,6 +73,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void }> = 
                     <div className="text-[10px] text-slate-400 font-medium">
                         {order.items.length} {order.items.length === 1 ? 'είδος' : 'είδη'} &nbsp;·&nbsp;
                         {new Date(order.created_at).toLocaleDateString('el-GR')}
+                        {order.seller_name && <span className="ml-1.5 text-slate-500">· Πλάσιε: {order.seller_name}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-lg font-black text-slate-900">{formatCurrency(netValue)}</span>

@@ -6,13 +6,13 @@ import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, Chev
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import SellerImageLightbox from './SellerImageLightbox';
 
-// ─── Color coding constants ─────────────────────────────────────────────────────
+// ─── Color coding constants (match SellerCatalog) ─────────────────────────────────
 const FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-500',
-    'P': 'text-slate-500',
-    'D': 'text-orange-500',
-    'H': 'text-cyan-400',
-    '': 'text-slate-400'
+    'X': 'bg-amber-100 text-amber-800 border-amber-300',
+    'P': 'bg-stone-100 text-stone-700 border-stone-300',
+    'D': 'bg-rose-100 text-rose-800 border-rose-300',
+    'H': 'bg-cyan-100 text-cyan-800 border-cyan-300',
+    '': 'bg-emerald-50 text-emerald-800 border-emerald-200',
 };
 
 const STONE_TEXT_COLORS: Record<string, string> = {
@@ -27,13 +27,13 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
-// ─── SKU Color Coding Component ─────────────────────────────────────────────
+// ─── SKU Color Coding Component (match Catalog styling) ───────────────────────────
 const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix || '', gender);
     const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
     const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
     return (
-        <span className="font-black">
+        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">
             <span className="text-slate-900">{sku}</span>
             <span className={fColor}>{finish.code}</span>
             <span className={sColor}>{stone.code}</span>
@@ -174,16 +174,6 @@ const ProductGridCard: React.FC<{
                         <Expand size={13} />
                     </button>
 
-                    {/* SKU overlay with animation */}
-                    <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
-                        <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
-                            <h3 className="text-white font-black text-sm leading-none truncate drop-shadow-sm">
-                                <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
-                            </h3>
-                            <p className="text-white/70 text-[10px] font-medium truncate mt-0.5">{product.category}</p>
-                        </div>
-                    </div>
-
                     {/* Variant navigation */}
                     {hasVariants && variants.length > 1 && (
                         <div className="absolute top-2 right-2 flex bg-black/40 backdrop-blur-md rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
@@ -200,8 +190,16 @@ const ProductGridCard: React.FC<{
                     )}
                 </div>
 
+                {/* Light strip: SKU + category (match Catalog) */}
+                <div className="px-3 pt-2 pb-1.5 bg-white border-t border-slate-50">
+                    <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
+                        <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
+                        <p className="text-[9px] text-slate-400 font-bold truncate mt-0.5">{product.category}</p>
+                    </div>
+                </div>
+
                 {/* Footer */}
-                <div className="p-3 flex justify-between items-center bg-white">
+                <div className="p-3 flex justify-between items-center bg-white border-t border-slate-50">
                     <span className="font-black text-[#060b00] text-sm">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </span>

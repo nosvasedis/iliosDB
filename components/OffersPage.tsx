@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange, estimateVariantCost } from '../utils/pricingEngine';
+import { normalizedIncludes } from '../utils/greekSearch';
+import { generateOrderId } from '../utils/orderUtils';
 
 interface Props {
     products: Product[];
@@ -45,7 +47,7 @@ export default function OffersPage({ products, materials, settings, collections,
     // Filtered Customers for Search
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
+        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
     const handleSelectCustomer = (c: Customer) => {
@@ -271,13 +273,7 @@ export default function OffersPage({ products, materials, settings, collections,
 
         try {
             // 1. Create Order
-            const now = new Date();
-            const year = now.getFullYear().toString().slice(-2);
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const day = now.getDate().toString().padStart(2, '0');
-            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-            const newOrderId = `ORD-${year}${month}${day}-${random}`;
-
+            const newOrderId = generateOrderId();
             const orderPayload = {
                 id: newOrderId,
                 customer_id: offer.customer_id,

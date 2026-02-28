@@ -85,6 +85,7 @@ const OrderCard: React.FC<{
                             <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
                         <h3 className="font-bold text-slate-800 text-base truncate">{order.customer_name}</h3>
+                        {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</p>}
                         {order.tags && order.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                                 {order.tags.map(t => (
@@ -419,7 +420,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                         <div className="flex justify-between items-start mb-6">
                             <div>
                                 <h3 className="text-xl font-black text-slate-900">Διαχείριση Παραγγελίας</h3>
-                                <p className="text-xs font-bold text-slate-500 uppercase mt-1">{managingOrder.customer_name} • #{managingOrder.id.slice(-6)}</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase mt-1">{managingOrder.customer_name} • #{managingOrder.id.slice(-6)}{managingOrder.seller_name ? ` · ${managingOrder.seller_name}` : ''}</p>
                             </div>
                             <button onClick={() => setManagingOrder(null)} className="p-2 bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>

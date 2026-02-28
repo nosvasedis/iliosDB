@@ -186,7 +186,7 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
                                     </div>
                                     <div>
                                         <div className="font-bold text-slate-800 text-sm">{order.customer_name}</div>
-                                        <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                        <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">

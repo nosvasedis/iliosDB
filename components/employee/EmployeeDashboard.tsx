@@ -103,7 +103,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-800">{order.customer_name}</div>
-                                            <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                            <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                         </div>
                                     </div>
                                     <div className="text-right">

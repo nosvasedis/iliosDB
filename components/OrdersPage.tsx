@@ -145,7 +145,7 @@ const OrderPartSelectorModal = ({
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Επιλογή Τμημάτων για Εκτύπωση</h2>
-                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id.slice(-8)} • {order.customer_name}</p>
+                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id.slice(-8)} • {order.customer_name}{order.seller_name ? ` · ${order.seller_name}` : ''}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
                 </div>
@@ -400,7 +400,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Επιλογές Εκτύπωσης</h2>
-                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id}</p>
+                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id}{order.seller_name ? ` · ${order.seller_name}` : ''}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
                 </div>
@@ -839,6 +839,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            {order.seller_name && <div className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</div>}
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1 mt-1 flex-wrap">
                                                     {order.tags.map(t => {

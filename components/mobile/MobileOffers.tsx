@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatCurrency, formatDecimal, calculateProductCost, calculateSuggestedWholesalePrice, findProductByScannedCode, expandSkuRange } from '../../utils/pricingEngine';
+import { normalizedIncludes } from '../../utils/greekSearch';
+import { generateOrderId } from '../../utils/orderUtils';
 import BarcodeScanner from '../BarcodeScanner';
 
 interface Props {
@@ -116,7 +118,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
+        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
     // --- ACTIONS ---
@@ -318,9 +320,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const handleConvert = async (offer: Offer) => {
         if (!await confirm({ title: 'Μετατροπή', message: 'Δημιουργία παραγγελίας; Η τιμή του ασημιού θα κλειδωθεί.', confirmText: 'Ναι' })) return;
         try {
-            const now = new Date();
-            const orderId = `ORD-${now.getFullYear().toString().slice(-2)}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-
+            const orderId = generateOrderId();
             await api.saveOrder({
                 id: orderId,
                 customer_id: offer.customer_id,

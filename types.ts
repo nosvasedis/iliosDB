@@ -207,7 +207,8 @@ export interface Order {
   customer_id?: string;
   customer_name: string;
   customer_phone?: string;
-  seller_id?: string; // NEW: Track which seller created this order
+  seller_id?: string; // Track which seller created this order
+  seller_name?: string; // Display name of seller (Πλάσιε) for display everywhere
   created_at: string;
   status: OrderStatus;
   items: OrderItem[];

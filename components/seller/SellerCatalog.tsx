@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Product, Gender, ProductVariant } from '../../types';
 import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import { FINISH_CODES } from '../../constants';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
@@ -14,7 +15,6 @@ interface Props { products: Product[]; }
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
 const FINISH_ORDER = ['', 'P', 'X', 'D', 'H'];
-const FINISH_LABELS: Record<string, string> = { '': 'Λουστρέ', 'X': 'Χρυσό', 'P': 'Ασήμι', 'D': 'Ροζ', 'H': 'Λευκό' };
 const FINISH_COLORS: Record<string, string> = {
     'X': 'bg-amber-100 text-amber-800 border-amber-300',
     'P': 'bg-stone-100 text-stone-700 border-stone-300',
@@ -65,7 +65,7 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
     const { finish, stone } = getVariantComponents(suffix, gender);
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    const finishLabel = (!finish.code || finish.code === '') ? 'Λουστρέ' : finish.code;
+    const finishLabel = FINISH_CODES[finish.code] ?? finish.code || 'Λουστρέ';
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
             <span>{finishLabel}</span>
@@ -318,19 +318,24 @@ export default function SellerCatalog({ products }: Props) {
     }, [sellable]);
 
     const availableStones = useMemo(() => {
-        const counts = new Map<string, number>();
+        const map = new Map<string, { name: string; count: number }>();
         sellable.forEach(p => {
             if (p.variants && p.variants.length > 0) {
                 p.variants.forEach(v => {
-                    const s = getVariantComponents(v.suffix, p.gender).stone.code;
-                    if (s) counts.set(s, (counts.get(s) || 0) + 1);
+                    const stone = getVariantComponents(v.suffix, p.gender).stone;
+                    if (stone.code) {
+                        const name = stone.name || stone.code;
+                        const existing = map.get(stone.code);
+                        if (!existing) map.set(stone.code, { name, count: 1 });
+                        else map.set(stone.code, { name: existing.name, count: existing.count + 1 });
+                    }
                 });
             }
         });
-        return Array.from(counts.entries())
-            .sort((a, b) => b[1] - a[1])
+        return Array.from(map.entries())
+            .sort((a, b) => b[1].count - a[1].count)
             .slice(0, 14)
-            .map(([code]) => code);
+            .map(([code, { name }]) => ({ code, name }));
     }, [sellable]);
 
     // ── Filtered products ────────────────────────────────────────────────────
@@ -439,7 +444,7 @@ export default function SellerCatalog({ products }: Props) {
                                     {availableFinishes.map(f => (
                                         <button key={f} onClick={() => setSelectedFinish(selectedFinish === f ? null : f)}
                                             className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedFinish === f ? 'ring-2 ring-offset-1 ' + (FINISH_COLORS[f] || '') + ' ring-slate-600' : (FINISH_COLORS[f] || 'bg-slate-50 text-slate-500 border-slate-200')}`}>
-                                            {FINISH_LABELS[f] || f}
+                                            {FINISH_CODES[f] ?? f}
                                         </button>
                                     ))}
                                 </div>
@@ -452,9 +457,9 @@ export default function SellerCatalog({ products }: Props) {
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Πέτρα</p>
                                 <div className="flex gap-1.5 flex-wrap">
                                     {availableStones.map(s => (
-                                        <button key={s} onClick={() => setSelectedStone(selectedStone === s ? null : s)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                            <span className={`${selectedStone === s ? 'text-white' : (STONE_TEXT_COLORS[s] || 'text-slate-600')}`}>{s}</span>
+                                        <button key={s.code} onClick={() => setSelectedStone(selectedStone === s.code ? null : s.code)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s.code ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                            <span className={`${selectedStone === s.code ? 'text-white' : (STONE_TEXT_COLORS[s.code] || 'text-slate-600')}`}>{s.name}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -513,8 +518,8 @@ export default function SellerCatalog({ products }: Props) {
                 {activeCount > 0 && !showFilters && (
                     <div className="flex gap-2 flex-wrap animate-in slide-in-from-top-1">
                         {selectedGender !== 'All' && <FilterChip label={GENDER_OPTS.find(g => g.v === selectedGender)?.l || ''} onClear={() => setSelectedGender('All')} />}
-                        {selectedFinish !== null && <FilterChip label={FINISH_LABELS[selectedFinish] || selectedFinish} onClear={() => setSelectedFinish(null)} />}
-                        {selectedStone !== null && <FilterChip label={selectedStone} onClear={() => setSelectedStone(null)} />}
+                        {selectedFinish !== null && <FilterChip label={FINISH_CODES[selectedFinish] ?? selectedFinish} onClear={() => setSelectedFinish(null)} />}
+                        {selectedStone !== null && <FilterChip label={availableStones.find(x => x.code === selectedStone)?.name ?? selectedStone} onClear={() => setSelectedStone(null)} />}
                         {selectedCollection !== 'All' && <FilterChip label={collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή'} onClear={() => setSelectedCollection('All')} />}
                         {onlyInStock && <FilterChip label="Διαθέσιμα" onClear={() => setOnlyInStock(false)} />}
                     </div>

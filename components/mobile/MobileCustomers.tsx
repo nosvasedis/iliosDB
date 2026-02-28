@@ -6,6 +6,7 @@ import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, 
 import { Customer, Supplier, VatRegime } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { normalizedIncludes } from '../../utils/greekSearch';
 import MobileSupplierDetails from './MobileSupplierDetails';
 
 interface Props {
@@ -50,7 +51,7 @@ export default function MobileCustomers({ mode }: Props) {
         if (mode === 'customers') {
             if (!customers) return [];
             return customers.filter(c =>
-                c.full_name.toLowerCase().includes(search.toLowerCase()) ||
+                normalizedIncludes(c.full_name, search) ||
                 (c.phone && c.phone.includes(search))
             ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
         } else {

@@ -103,7 +103,7 @@ export default function EmployeeOrders() {
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-800 text-sm">{order.customer_name}</div>
-                                                <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                                <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                             </div>
                                         </div>
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${getStatusColor(order.status)}`}>
@@ -140,7 +140,10 @@ export default function EmployeeOrders() {
                                 return (
                                     <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setEditingOrder(order)}>
                                         <td className="p-4 font-mono font-bold text-slate-600">#{order.id}</td>
-                                        <td className="p-4 font-bold text-slate-800">{order.customer_name}</td>
+                                        <td className="p-4">
+                                            <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            {order.seller_name && <div className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</div>}
+                                        </td>
                                         <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
                                         <td className="p-4 text-right font-black text-slate-900">{formatCurrency(netValue)}</td>
                                         <td className="p-4 text-center">

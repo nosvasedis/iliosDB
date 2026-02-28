@@ -9,6 +9,8 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import { normalizedIncludes } from '../../utils/greekSearch';
+import { generateOrderId } from '../../utils/orderUtils';
 import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
@@ -61,12 +63,25 @@ interface CatalogBrowserProps {
     products: Product[];
     collections: Collection[];
     onSelectProduct: (product: Product) => void;
+    /** Controlled: when provided, parent owns step/collection so state persists across unmount (e.g. after adding item) */
+    step?: CatalogStep;
+    onStepChange?: (step: CatalogStep) => void;
+    selectedCollection?: Collection | null;
+    onCollectionSelect?: (col: Collection | null) => void;
 }
 
-const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, onSelectProduct }) => {
-    const [step, setStep] = useState<CatalogStep>('collections');
-    const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, onSelectProduct, step: controlledStep, onStepChange, selectedCollection: controlledCollection, onCollectionSelect }) => {
+    const [internalStep, setInternalStep] = useState<CatalogStep>('collections');
+    const [internalCollection, setInternalCollection] = useState<Collection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    const step = controlledStep !== undefined ? controlledStep : internalStep;
+    const setStep = onStepChange || setInternalStep;
+    const selectedCollection = controlledCollection !== undefined ? controlledCollection : internalCollection;
+    const setSelectedCollection = (col: Collection | null) => {
+        if (onCollectionSelect) onCollectionSelect(col);
+        else setInternalCollection(col);
+    };
 
     const filteredProducts = useMemo(() => {
         if (!selectedCollection) return [];
@@ -118,7 +133,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
         <div className="space-y-3">
             {/* Sub-header */}
             <div className="flex items-center gap-2">
-                <button onClick={() => setStep('collections')} className="p-1.5 bg-slate-100 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors">
+                <button onClick={() => { setStep('collections'); setSelectedCollection(null); }} className="p-1.5 bg-slate-100 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors">
                     <ChevronLeft size={16} />
                 </button>
                 <span className="font-black text-slate-800 flex-1 truncate">{selectedCollection?.name}</span>
@@ -166,7 +181,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
     const { showToast } = useUI();
-    const { profile } = useAuth();
+    const { user, profile } = useAuth();
     const queryClient = useQueryClient();
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
@@ -175,6 +190,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
     // ── Input Mode (seller only): 'sku' | 'catalog' ─────────────────────────
     const [inputMode, setInputMode] = useState<'sku' | 'catalog'>('sku');
+
+    // ── Catalog browser state (lifted so we stay in same collection after adding item) ──
+    const [catalogStep, setCatalogStep] = useState<CatalogStep>('collections');
+    const [catalogCollection, setCatalogCollection] = useState<Collection | null>(null);
 
     // ── Order State ──────────────────────────────────────────────────────────
     const [customerName, setCustomerName] = useState(initialOrder?.customer_name || '');
@@ -308,11 +327,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
         setIsSaving(true);
         try {
             const orderPayload: Order = {
-                id: initialOrder?.id || `ORD-${Date.now()}`,
+                id: initialOrder?.id || generateOrderId(),
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_id: customerId || undefined,
-                seller_id: isSeller ? profile?.id : undefined,
+                seller_id: isSeller ? (profile?.id ?? user?.id) : undefined,
+                seller_name: isSeller ? (profile?.full_name || user?.email || undefined) : undefined,
                 items,
                 total_price: grandTotal,
                 vat_rate: vatRate,
@@ -341,7 +361,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
 
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c => c.full_name.toLowerCase().includes(customerName.toLowerCase())).slice(0, 5);
+        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
     return (
@@ -478,6 +498,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                                 products={products}
                                 collections={collections}
                                 onSelectProduct={handleCatalogSelectProduct}
+                                step={catalogStep}
+                                onStepChange={setCatalogStep}
+                                selectedCollection={catalogCollection}
+                                onCollectionSelect={setCatalogCollection}
                             />
                         )}
                     </div>
@@ -598,8 +622,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
             {/* ── Footer Summary ─────────────────────────────────────────── */}
             <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
                 <div className="flex justify-between items-center mb-3 px-2">
-                    <div className="text-slate-500 text-[10px] font-bold uppercase">Καθαρή Αξία: {formatCurrency(netAmount)}</div>
-                    <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
+                    <div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Καθαρή Αξία</div>
+                        <div className="text-slate-800 font-black text-lg">{formatCurrency(netAmount)}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Με ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</div>
+                        <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
+                    </div>
                 </div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70">
                     {isSaving

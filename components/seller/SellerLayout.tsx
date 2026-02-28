@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { id: 'catalog', icon: BookOpen, label: 'Κατάλογος' },
   { id: 'collections', icon: FolderKanban, label: 'Συλλογές' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
+  { id: 'customers', icon: Users, label: 'Πελάτες' },
 ];
 
 // ─── Portrait Bottom NavItem ──────────────────────────────────────────────────

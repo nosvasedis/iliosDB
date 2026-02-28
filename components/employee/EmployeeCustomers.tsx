@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import { normalizedIncludes } from '../../utils/greekSearch';
 
 export default function EmployeeCustomers() {
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
@@ -22,8 +23,8 @@ export default function EmployeeCustomers() {
     const filteredList = useMemo(() => {
         if (tab === 'customers') {
             if (!customers) return [];
-            return customers.filter(c => 
-                c.full_name.toLowerCase().includes(search.toLowerCase()) || 
+            return customers.filter(c =>
+                normalizedIncludes(c.full_name, search) ||
                 (c.phone && c.phone.includes(search))
             );
         } else {

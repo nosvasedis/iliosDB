@@ -3,6 +3,8 @@ import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRe
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
+import { normalizedIncludes } from '../utils/greekSearch';
+import { generateOrderId } from '../utils/orderUtils';
 import { getSizingInfo } from '../utils/sizing';
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
@@ -136,7 +138,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
         return customers.filter(c =>
-            c.full_name.toLowerCase().includes(customerName.toLowerCase()) ||
+            normalizedIncludes(c.full_name, customerName) ||
             (c.phone && c.phone.includes(customerName))
         ).slice(0, 5);
     }, [customers, customerName]);
@@ -656,12 +658,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 await api.updateOrder(updatedOrder);
                 showToast('Η παραγγελία ενημερώθηκε.', 'success');
             } else {
-                const now = new Date();
-                const year = now.getFullYear().toString().slice(-2);
-                const month = (now.getMonth() + 1).toString().padStart(2, '0');
-                const day = now.getDate().toString().padStart(2, '0');
-                const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-                const newOrderId = `ORD-${year}${month}${day}-${random}`;
+                const newOrderId = generateOrderId();
                 const newOrder: Order = {
                     id: newOrderId,
                     customer_id: selectedCustomerId || undefined,
