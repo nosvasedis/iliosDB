@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
+import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { Collection, Product } from '../../types';
 import { FolderKanban, Plus, Trash2, Search, X, ChevronRight, Check } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -55,7 +56,7 @@ export default function MobileCollections() {
             : [...currentIds, selectedCollection.id];
         
         await api.setProductCollections(sku, newIds);
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        invalidateProductsAndCatalog(queryClient);
     };
 
     const collectionProducts = useMemo(() => {

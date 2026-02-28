@@ -5,6 +5,7 @@ import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, T
 import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, calculateSuggestedWholesalePrice, estimateVariantCost } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
@@ -280,7 +281,7 @@ export default function PricingManager({ products, settings, materials }: Props)
           }
 
           // 5. Success
-          await queryClient.invalidateQueries({ queryKey: ['products'] });
+          await invalidateProductsAndCatalog(queryClient);
           showToast(`${item.sku}: Ενημερώθηκε σε ${formatCurrency(newVal)}`, 'success');
 
       } catch (error) {
@@ -399,7 +400,7 @@ export default function PricingManager({ products, settings, materials }: Props)
 
         // Wait a beat to ensure DB is consistent before refetch
         await new Promise(resolve => setTimeout(resolve, 500));
-        await queryClient.invalidateQueries({ queryKey: ['products'] });
+        await invalidateProductsAndCatalog(queryClient);
         
         setIsCalculated(false);
         setCalculatedData([]);
@@ -502,7 +503,7 @@ export default function PricingManager({ products, settings, materials }: Props)
       setIsCommitting(true);
       try {
           await api.revertToPriceSnapshot(snap.id);
-          queryClient.invalidateQueries({ queryKey: ['products'] });
+          await invalidateProductsAndCatalog(queryClient);
           showToast("Οι τιμές επανήλθαν επιτυχώς!", "success");
       } catch (err) {
           showToast("Σφάλμα κατά την επαναφορά.", "error");

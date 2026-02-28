@@ -8,6 +8,7 @@ import BarcodeScanner from './BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, calculateSuggestedWholesalePrice, splitSkuComponents } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
 import { FINISH_COLORS, STONE_TEXT_COLORS } from '../hooks/useOrderState';
@@ -718,7 +719,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         masterProduct.variants = newVariants;
                         try {
                             await api.saveProduct(masterProduct);
-                            queryClient.invalidateQueries({ queryKey: ['products'] });
+                            invalidateProductsAndCatalog(queryClient);
                             showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                         } catch (e) {
                             showToast('Σφάλμα αποθήκευσης τιμής', 'error');
@@ -728,7 +729,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     masterProduct.selling_price = newPrice;
                     try {
                         await api.saveProduct(masterProduct);
-                        queryClient.invalidateQueries({ queryKey: ['products'] });
+                        invalidateProductsAndCatalog(queryClient);
                         showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                     } catch (e) {
                         showToast('Σφάλμα αποθήκευσης τιμής', 'error');
@@ -740,7 +741,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             if (product && product.selling_price !== newPrice) {
                 try {
                     await api.saveProduct({ ...product, selling_price: newPrice });
-                    queryClient.invalidateQueries({ queryKey: ['products'] });
+                    invalidateProductsAndCatalog(queryClient);
                     showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                 } catch (error) {
                     showToast('Σφάλμα αποθήκευσης τιμής', 'error');

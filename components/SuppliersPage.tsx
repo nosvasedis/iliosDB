@@ -3,6 +3,7 @@ import { Supplier, Product, Material, SupplierOrder } from '../types';
 import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, CheckCircle, FileText, Printer } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
@@ -156,7 +157,7 @@ export default function SuppliersPage() {
         if (!selectedSupplier) return;
         try {
             await supabase.from('products').update({ supplier_id: selectedSupplier.id }).eq('sku', sku);
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
             showToast("Προϊόν συνδέθηκε.", "success");
         } catch (e) { showToast("Σφάλμα.", "error"); }
     };
@@ -164,7 +165,7 @@ export default function SuppliersPage() {
     const handleUnlinkProduct = async (sku: string) => {
         try {
             await supabase.from('products').update({ supplier_id: null }).eq('sku', sku);
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
             showToast("Σύνδεση αφαιρέθηκε.", "success");
         } catch (e) { showToast("Σφάλμα.", "error"); }
     };
@@ -175,7 +176,7 @@ export default function SuppliersPage() {
         try {
             await api.receiveSupplierOrder(order);
             queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
             queryClient.invalidateQueries({ queryKey: ['materials'] });
             showToast("Παραλαβή ολοκληρώθηκε.", "success");
         } catch (e) { showToast("Σφάλμα παραλαβής.", "error"); }

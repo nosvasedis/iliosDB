@@ -8,6 +8,7 @@ import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
+import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 
 // Visual Helpers (Shared)
 const FINISH_COLORS: Record<string, string> = {
@@ -297,7 +298,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             
             // UI Updates
             setQmHistory(prev => [{ sku: `${targetSku}${targetSuffix||''}`, qty: qmQty, type: mode, time: new Date() }, ...prev].slice(0, 5));
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
             showToast(`${mode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${qmQty} τεμ.`, "success");
             
             // Reset logic

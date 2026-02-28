@@ -7,6 +7,7 @@ import { api } from '../lib/supabase';
 import { FINISH_CODES } from '../constants';
 import { getSteps, availableFinishes } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 
 export interface UseNewProductStateProps {
     products: Product[];
@@ -538,7 +539,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (productionType === ProductionType.InHouse && recipe.length > 0) { for (const r of recipe) { const { queued } = await api.insertRecipe({ parent_sku: finalMasterSku, type: r.type, material_id: r.type === 'raw' ? r.id : null, component_sku: r.type === 'component' ? r.sku : null, quantity: r.quantity }); if (queued) anyPartQueued = true; } }
             await api.deleteProductMolds(finalMasterSku);
             if (productionType === ProductionType.InHouse && selectedMolds.length > 0) { for (const m of selectedMolds) { const { queued } = await api.insertProductMold({ product_sku: finalMasterSku, mold_code: m.code, quantity: m.quantity }); if (queued) anyPartQueued = true; } }
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
             if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
             else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
             setVariants(finalVariants);

@@ -9,6 +9,7 @@ import { uploadProductImage, supabase, deleteProduct, R2_PUBLIC_URL, AUTH_KEY_SE
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
@@ -1165,6 +1166,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             }
 
             await queryClient.refetchQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
 
             if (onSave) onSave(finalEditedProduct);
             showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
@@ -1189,6 +1191,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         if (result.success) {
             await queryClient.refetchQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
             onClose();
             showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
         } else {
@@ -1207,7 +1210,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 if (publicUrl) {
                     setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
                     await api.saveProduct({ ...editedProduct, image_url: publicUrl });
-                    queryClient.invalidateQueries({ queryKey: ['products'] });
+                    await invalidateProductsAndCatalog(queryClient);
                     showToast("Η φωτογραφία ενημερώθηκε.", "success");
                 }
             } catch (error) {
@@ -1256,7 +1259,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await api.saveProduct(updatedProduct);
             
             // Invalidate queries to refresh the UI
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
             
             showToast("Η φωτογραφία διαγράφηκε επιτυχώς.", "success");
         } catch (error) {
@@ -1455,7 +1458,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             // but react-query invalidation will handle it best.
             setEditedProduct(prev => ({ ...prev, sku: newSku }));
 
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
             showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
         } catch (e: any) {
             console.error(e);

@@ -4,6 +4,7 @@ import { Product, ProductVariant, Warehouse, Order, OrderStatus, Mold, Gender } 
 import { Search, Store, ArrowLeftRight, Package, X, Plus, Trash2, Edit2, ArrowRight, ShoppingBag, AlertTriangle, CheckCircle, Zap, ScanBarcode, ChevronDown, Printer, Filter, ImageIcon, Camera, Ruler, Loader2, Minus, History, Sparkles, ArrowDown, ArrowUp, Lightbulb, Save, MapPin, Layers, Box, Activity, Eye, EyeOff } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import BarcodeScanner from './BarcodeScanner';
@@ -564,7 +565,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
             }
 
             setRecentActions(prev => [{ id: Math.random().toString(36), sku: scanInput, amount: scanQty, target: whName, timestamp: new Date(), type: quickMode }, ...prev].slice(0, 5));
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
             showToast(`${quickMode === 'add' ? 'Προστέθηκαν' : 'Αφαιρέθηκαν'} ${scanQty} τεμ. στο ${scanInput}`, "success");
 
             // Reset relevant state
@@ -609,7 +610,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
             await recordStockMovement(sku, diff, `Manual Set: ${whName}`, suffix || undefined);
         }
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        invalidateProductsAndCatalog(queryClient);
         showToast("Το απόθεμα ενημερώθηκε.", "success");
     };
 
@@ -631,7 +632,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
             };
             await updateStock(sourceId, currentSourceQty - transferQty); await updateStock(targetId, (transferItem.locationStock[targetId] || 0) + transferQty);
             await recordStockMovement(sku, transferQty, `Transfer: ${getWarehouseNameClean(warehouses!.find(w => w.id === sourceId)!)} -> ${getWarehouseNameClean(warehouses!.find(w => w.id === targetId)!)}`, variantSuffix);
-            queryClient.invalidateQueries({ queryKey: ['products'] }); showToast("Η μεταφορά ολοκληρώθηκε.", "success"); setTransferModalOpen(false);
+            invalidateProductsAndCatalog(queryClient); showToast("Η μεταφορά ολοκληρώθηκε.", "success"); setTransferModalOpen(false);
         } catch (e: any) { showToast(`Σφάλμα: ${e.message}`, "error"); } finally { setIsTransferring(false); }
     };
 

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
+import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { Product } from '../../types';
 
 export const useProducts = () => {
@@ -14,7 +15,7 @@ export const useSaveProduct = () => {
     return useMutation({
         mutationFn: api.saveProduct,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
         }
     });
 };
@@ -24,7 +25,7 @@ export const useRenameProduct = () => {
     return useMutation({
         mutationFn: ({ oldSku, newSku }: { oldSku: string, newSku: string }) => api.renameProduct(oldSku, newSku),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['production_batches'] });
         }
@@ -37,7 +38,7 @@ export const useDeleteProduct = () => {
         mutationFn: ({ sku, imageUrl }: { sku: string, imageUrl?: string | null }) =>
             import('../../lib/supabase').then(m => m.deleteProduct(sku, imageUrl)),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            invalidateProductsAndCatalog(queryClient);
         }
     });
 };

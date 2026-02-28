@@ -9,6 +9,7 @@ import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedC
 import BarcodeView from './BarcodeView';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -334,7 +335,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 successCount++;
             }
 
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            await invalidateProductsAndCatalog(queryClient);
 
             // Add to Log
             const logDetails = items.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));

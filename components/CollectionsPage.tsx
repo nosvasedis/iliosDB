@@ -4,6 +4,7 @@ import { Collection, Product } from '../types';
 import { FolderKanban, Plus, Trash2, X, Search, Loader2, Printer, ScanBarcode, PackagePlus, Info, Sparkles, Save, Wand2, Quote, PenTool, FileText } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';
@@ -94,7 +95,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             : [...currentCollections, collectionId];
         
         await api.setProductCollections(sku, newCollections);
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        invalidateProductsAndCatalog(queryClient);
     };
 
     const expandSkuRange = (token: string): string[] => {
@@ -165,7 +166,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             
             if (newAssociations.length > 0) {
                 await api.addProductsToCollection(newAssociations);
-                await queryClient.invalidateQueries({ queryKey: ['products'] });
+                await invalidateProductsAndCatalog(queryClient);
                 setBulkSkus('');
                 showToast(`Προστέθηκαν ${foundCount} κωδικοί.`, 'success');
             } else if (foundCount > 0) {

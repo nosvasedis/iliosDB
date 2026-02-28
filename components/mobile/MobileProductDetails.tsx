@@ -7,6 +7,7 @@ import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import html2canvas from 'html2canvas';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 
@@ -231,7 +232,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: null, warehouse_id: warehouseId, quantity: type === 'set' ? qty : Math.max(0, (product.location_stock?.[warehouseId] || 0) + finalQty) }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
           }
           await recordStockMovement(product.sku, type === 'set' ? 0 : finalQty, type === 'set' ? `Stock Set: ${whName}` : `Manual Adj: ${whName}`, activeVariant?.suffix || undefined);
-          queryClient.invalidateQueries({ queryKey: ['products'] });
+          invalidateProductsAndCatalog(queryClient);
           showToast("Ενημερώθηκε.", "success"); setAdjustModal(null);
       } catch (e) { showToast("Σφάλμα.", "error"); }
   };
@@ -254,7 +255,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           };
           await update(sourceId, -qty); await update(targetId, qty);
           await recordStockMovement(sku, qty, `Transfer: ${warehouses.find(w=>w.id===sourceId)?.name} -> ${warehouses.find(w=>w.id===targetId)?.name}`, suffix || undefined);
-          queryClient.invalidateQueries({ queryKey: ['products'] }); showToast("Ολοκληρώθηκε.", "success"); setTransferModal(null);
+          invalidateProductsAndCatalog(queryClient); showToast("Ολοκληρώθηκε.", "success"); setTransferModal(null);
       } catch (e) { showToast("Σφάλμα.", "error"); }
   };
 
