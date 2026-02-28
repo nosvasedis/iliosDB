@@ -9,9 +9,9 @@ import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
 import { useUI } from '../UIProvider';
 import SellerImageLightbox from './SellerImageLightbox';
-import { useVirtualizer } from '@tanstack/react-virtual';
 
 const CATALOG_PAGE_SIZE = 60;
+const PAGE_SIZE = 60;
 
 interface Props { products?: Product[]; }
 
@@ -327,6 +327,12 @@ export default function SellerCatalog({ products: productsProp }: Props) {
     const [onlyInStock, setOnlyInStock] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
+
+    // Reset pagination when any filter changes
+    useEffect(() => {
+        setCurrentPage(0);
+    }, [search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -396,21 +402,13 @@ export default function SellerCatalog({ products: productsProp }: Props) {
         });
     }, [sellable, search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
-    // ── Virtualizer setup: group products into rows ──────────────────────────
-    const productRows = useMemo(() => {
-        const rows: Product[][] = [];
-        for (let i = 0; i < filteredProducts.length; i += GRID_COLS) {
-            rows.push(filteredProducts.slice(i, i + GRID_COLS));
-        }
-        return rows;
-    }, [filteredProducts]);
+    // ── Pagination ───────────────────────────────────────────────────────────
+    const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
 
-    const rowVirtualizer = useVirtualizer({
-        count: productRows.length,
-        getScrollElement: () => scrollRef.current,
-        estimateSize: () => 210, // px per row (image + info + dots + gap)
-        overscan: 4,
-    });
+    const paginatedProducts = useMemo(() => {
+        const start = currentPage * PAGE_SIZE;
+        return filteredProducts.slice(start, start + PAGE_SIZE);
+    }, [filteredProducts, currentPage]);
 
     // ── Active filter count ──────────────────────────────────────────────────
     const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, stoneFilterMode !== 'All', selectedProductionType !== 'All', onlyInStock].filter(Boolean).length;
@@ -619,15 +617,15 @@ export default function SellerCatalog({ products: productsProp }: Props) {
             {/* Results count */}
             <div className="px-3 pt-2 pb-1 shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {filteredProducts.length} προϊόντα
-                {productsProp == null && isFetchingNextPage && (
-                  <span className="ml-1.5 text-emerald-600 font-normal">(φόρτωση...)</span>
-                )}
-              </span>
+                    {filteredProducts.length} προϊόντα
+                    {productsProp == null && isFetchingNextPage && (
+                        <span className="ml-1.5 text-emerald-600 font-normal">(φόρτωση...)</span>
+                    )}
+                </span>
             </div>
 
-            {/* ── Virtualized product grid ──────────────────────────────── */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar px-2">
+            {/* ── Paginated product grid ──────────────────────────────── */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-6">
                 {filteredProducts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
                         <PackageOpen size={40} className="opacity-20" />
@@ -636,37 +634,50 @@ export default function SellerCatalog({ products: productsProp }: Props) {
                     </div>
                 ) : (
                     <>
-                        <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
-                            {rowVirtualizer.getVirtualItems().map(vRow => (
-                                <div
-                                    key={vRow.key}
-                                    data-index={vRow.index}
-                                    ref={rowVirtualizer.measureElement}
-                                    style={{ position: 'absolute', top: vRow.start, left: 0, right: 0 }}
-                                    className="grid grid-cols-3 gap-2 pb-2"
-                                >
-                                    {productRows[vRow.index].map(p => (
-                                        <CatalogueCard key={p.sku} product={p} />
-                                    ))}
-                                </div>
+                        <div className="grid grid-cols-3 gap-2 pb-4">
+                            {paginatedProducts.map(p => (
+                                <CatalogueCard key={p.sku} product={p} />
                             ))}
                         </div>
-                        {productsProp == null && hasNextPage && (
-                            <div className="py-4 flex justify-center">
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-4 py-6 bg-white rounded-2xl shadow-sm border border-slate-100 mt-2 mb-4">
                                 <button
-                                    onClick={() => fetchNextPage()}
-                                    disabled={isFetchingNextPage}
-                                    className="px-6 py-3 rounded-xl bg-[#060b00] text-white text-sm font-black disabled:opacity-50 flex items-center gap-2"
+                                    onClick={() => {
+                                        setCurrentPage(p => Math.max(0, p - 1));
+                                        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === 0}
+                                    className="p-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
                                 >
-                                    {isFetchingNextPage ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                            Φόρτωση...
-                                        </>
-                                    ) : (
-                                        'Φόρτωση περισσότερων'
-                                    )}
+                                    <ChevronLeft size={20} />
                                 </button>
+
+                                <span className="text-sm font-black text-slate-700">
+                                    Σελίδα {currentPage + 1} / {totalPages}
+                                </span>
+
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage(p => Math.min(totalPages - 1, p + 1));
+                                        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    disabled={currentPage === totalPages - 1}
+                                    className="p-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Loading More Background Catalog Indicator */}
+                        {productsProp == null && hasNextPage && isFetchingNextPage && (
+                            <div className="py-2 flex justify-center">
+                                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full">
+                                    <span className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                    Συγχρονισμός καταλόγου...
+                                </span>
                             </div>
                         )}
                     </>
