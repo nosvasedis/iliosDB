@@ -59,9 +59,9 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
 
             {/* Items List */}
             <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50">
-                {state.displayItems.map(item => (
+                {state.displayItems.map((item, index) => (
                     <div
-                        key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes}`}
+                        key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${index}`}
                         className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
                         <div className="flex items-center justify-between gap-4">

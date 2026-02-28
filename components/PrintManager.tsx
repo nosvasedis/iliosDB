@@ -12,6 +12,7 @@ import PriceListPrintView from './PriceListPrintView';
 import AnalyticsPrintReport from './AnalyticsPrintReport';
 import OrderFinancialReport from './OrderFinancialReport';
 import BarcodeView from './BarcodeView';
+import PhotoCatalogPrintView from './PhotoCatalogPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface PrintManagerProps {
@@ -30,6 +31,7 @@ interface PrintManagerProps {
     priceListPrintData: PriceListPrintData | null;
     analyticsPrintData: any | null;
     orderAnalyticsData: { stats: any, order: Order } | null;
+    photoCatalogPrintData: Product[] | null;
     setPrintItems: (items: []) => void;
     setOrderToPrint: (order: Order | null) => void;
     setOfferToPrint: (offer: Offer | null) => void;
@@ -41,6 +43,7 @@ interface PrintManagerProps {
     setPriceListPrintData: (data: PriceListPrintData | null) => void;
     setAnalyticsPrintData: (data: any | null) => void;
     setOrderAnalyticsData: (data: { stats: any, order: Order } | null) => void;
+    setPhotoCatalogPrintData: (data: Product[] | null) => void;
 }
 
 export const PrintManager: React.FC<PrintManagerProps> = ({
@@ -48,11 +51,11 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     printItems, orderToPrint, offerToPrint, supplierOrderToPrint,
     batchToPrint, aggregatedPrintData, preparationPrintData,
     technicianPrintData, priceListPrintData, analyticsPrintData,
-    orderAnalyticsData,
+    orderAnalyticsData, photoCatalogPrintData,
     setPrintItems, setOrderToPrint, setOfferToPrint, setSupplierOrderToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setPriceListPrintData, setAnalyticsPrintData,
-    setOrderAnalyticsData
+    setOrderAnalyticsData, setPhotoCatalogPrintData
 }) => {
     const printContainerRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -75,7 +78,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     };
 
     useEffect(() => {
-        const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint;
+        const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0);
         if (shouldPrint && settings && products && materials) {
             const timer = setTimeout(() => {
                 const printContent = printContainerRef.current;
@@ -96,7 +99,10 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     }
                 };
 
-                if (priceListPrintData) {
+                if (photoCatalogPrintData && photoCatalogPrintData.length > 0) {
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    docTitle = `Photo_Catalog_${dateStr}_${photoCatalogPrintData.length}items`;
+                } else if (priceListPrintData) {
                     docTitle = priceListPrintData.title;
                 } else if (orderAnalyticsData) {
                     const safeName = getSafeClientName(orderAnalyticsData.order.customer_name);
@@ -163,7 +169,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     setAggregatedPrintData(null); setPreparationPrintData(null);
                     setTechnicianPrintData(null); setPriceListPrintData(null);
                     setAnalyticsPrintData(null); setOrderAnalyticsData(null);
-                    setSupplierOrderToPrint(null);
+                    setSupplierOrderToPrint(null); setPhotoCatalogPrintData(null);
                     restoreWindowTitle();
                 };
 
@@ -225,7 +231,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
             return () => clearTimeout(timer);
         }
-    }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint, settings, products, materials]);
+    }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint, photoCatalogPrintData, settings, products, materials]);
 
     if (!settings || !products || !materials || !molds) return null;
 
@@ -264,6 +270,12 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                             />
                         ))}
                     </div>
+                )}
+                {photoCatalogPrintData && photoCatalogPrintData.length > 0 && (
+                    <PhotoCatalogPrintView
+                        products={photoCatalogPrintData}
+                        date={new Date().toLocaleDateString('el-GR')}
+                    />
                 )}
             </div>
             <iframe

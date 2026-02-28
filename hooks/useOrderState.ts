@@ -416,7 +416,12 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Item Mutation Actions ---
     const updateQuantity = (item: OrderItem, qty: number) => {
-        const idx = selectedItems.indexOf(item);
+        const idx = selectedItems.findIndex(i =>
+            i.sku === item.sku &&
+            i.variant_suffix === item.variant_suffix &&
+            i.size_info === item.size_info &&
+            (i.notes || '') === (item.notes || '')
+        );
         if (idx === -1) return;
         if (qty <= 0) {
             setSelectedItems(prev => prev.filter((_, i) => i !== idx));
@@ -431,7 +436,12 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const updateItemNotes = (item: OrderItem, notes: string) => {
-        const idx = selectedItems.indexOf(item);
+        const idx = selectedItems.findIndex(i =>
+            i.sku === item.sku &&
+            i.variant_suffix === item.variant_suffix &&
+            i.size_info === item.size_info &&
+            (i.notes || '') === (item.notes || '')
+        );
         if (idx === -1) return;
         setSelectedItems(prev => {
             const updated = [...prev];
@@ -441,7 +451,12 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const handleRemoveItem = (item: OrderItem) => {
-        const idx = selectedItems.indexOf(item);
+        const idx = selectedItems.findIndex(i =>
+            i.sku === item.sku &&
+            i.variant_suffix === item.variant_suffix &&
+            i.size_info === item.size_info &&
+            (i.notes || '') === (item.notes || '')
+        );
         if (idx !== -1) setSelectedItems(prev => prev.filter((_, i) => i !== idx));
         setPriceDiffs(null);
     };
