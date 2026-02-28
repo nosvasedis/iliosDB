@@ -140,12 +140,17 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerOrders({ onCreate, onEdit }: Props) {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const { confirm, showToast } = useUI();
     const queryClient = useQueryClient();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | OrderStatus>('all');
+
+    // The seller's identity — used for both primary (seller_id) and fallback (seller_name) matching
+    const sellerId = profile?.id ?? user?.id;
+    const sellerEmail = user?.email ?? '';
+    const sellerFullName = profile?.full_name ?? '';
 
     const handleDeleteOrder = async (id: string) => {
         const yes = await confirm({ title: 'Διαγραφή Παραγγελίας', message: 'Θέλετε να διαγράψετε οριστικά αυτή την παραγγελία;', isDestructive: true });
@@ -159,7 +164,15 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         }
     };
 
-    const myOrders = orders?.filter(o => o.seller_id === user?.id) || [];
+    // Match by seller_id (primary) OR seller_name (fallback for orders saved before migration)
+    const myOrders = (orders || []).filter(o => {
+        if (o.seller_id && sellerId && o.seller_id === sellerId) return true;
+        if (o.seller_name) {
+            if (sellerFullName && o.seller_name === sellerFullName) return true;
+            if (sellerEmail && o.seller_name === sellerEmail) return true;
+        }
+        return false;
+    });
 
     const filteredOrders = myOrders.filter(o => {
         const matchesStatus = activeFilter === 'all' || o.status === activeFilter;
