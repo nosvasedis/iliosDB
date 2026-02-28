@@ -96,6 +96,61 @@ export default {
         }
       }
 
+      // --- SPECIAL ROUTE: VAT / AFM LOOKUP (CORS Proxy) ---
+      // This route is PUBLIC (no auth) because it's a read-only lookup.
+      // The Worker proxies the request to avoid browser CORS restrictions.
+      if (url.pathname === '/vat-lookup') {
+        const afm = url.searchParams.get('afm');
+        if (!afm || !/^\d{9}$/.test(afm)) {
+          return new Response(JSON.stringify({ error: 'Invalid AFM: must be exactly 9 digits' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Attempt 1: VIES REST API (EU official)
+        try {
+          const viesRes = await fetch('https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ countryCode: 'EL', vatNumber: afm }),
+          });
+          if (viesRes.ok) {
+            const viesData = await viesRes.json();
+            if (viesData.valid && viesData.name && viesData.address) {
+              return new Response(JSON.stringify({ name: viesData.name, address: viesData.address, source: 'VIES' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('VIES lookup failed:', e.message);
+        }
+
+        // Attempt 2: VATComply fallback
+        try {
+          const vatRes = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`, {
+            headers: { 'Accept': 'application/json' },
+          });
+          if (vatRes.ok) {
+            const vatData = await vatRes.json();
+            if (vatData.valid && vatData.name && vatData.address) {
+              return new Response(JSON.stringify({ name: vatData.name, address: vatData.address, source: 'VATComply' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('VATComply lookup failed:', e.message);
+        }
+
+        // Both APIs failed or returned no data
+        return new Response(JSON.stringify({ error: 'Δεν βρέθηκαν στοιχεία για το ΑΦΜ αυτό.' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // 5. Parse the Filename
       // FIX: Handle root path requests gracefully to avoid "Missing filename" log noise
       if (url.pathname === '/' || url.pathname === '') {

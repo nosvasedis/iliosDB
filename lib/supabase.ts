@@ -351,101 +351,36 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 
 export const api = {
     lookupAfm: async (afm: string): Promise<{ name: string; address: string } | null> => {
-        if (!afm || afm.length < 9) throw new Error("Invalid AFM length");
+        // Strip any country prefix and whitespace/dashes the user may have typed
+        const cleanAfm = afm.replace(/^EL/i, '').replace(/[-\s]/g, '').trim();
 
-        // Try multiple validation methods in order of reliability
-        const methods = [
-            // Method 1: VIES API (most reliable for EU VAT numbers)
-            async () => {
-                try {
-                    const response = await fetch('https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            countryCode: 'EL',
-                            vatNumber: afm
-                        })
-                    });
-
-                    if (!response.ok) throw new Error("VIES API error");
-
-                    const data = await response.json();
-                    if (data.valid && data.name && data.address) {
-                        return {
-                            name: data.name,
-                            address: data.address
-                        };
-                    }
-                    return null;
-                } catch (error) {
-                    console.warn("VIES API failed:", error);
-                    return null;
-                }
-            },
-
-            // Method 2: Alternative validation service (fallback)
-            async () => {
-                try {
-                    const response = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`);
-                    if (!response.ok) throw new Error("VATComply API error");
-
-                    const data = await response.json();
-                    if (data.valid && data.name && data.address) {
-                        return {
-                            name: data.name,
-                            address: data.address
-                        };
-                    }
-                    return null;
-                } catch (error) {
-                    console.warn("VATComply API failed:", error);
-                    return null;
-                }
-            },
-
-            // Method 3: Basic format validation (last resort)
-            async () => {
-                // Basic AFM format validation for Greece
-                // AFM should be 9 digits, last digit is checksum
-                if (!/^\d{9}$/.test(afm)) {
-                    throw new Error("Invalid AFM format - must be 9 digits");
-                }
-
-                // Simple checksum validation (basic algorithm)
-                const digits = afm.split('').map(d => parseInt(d));
-                let sum = 0;
-                for (let i = 0; i < 8; i++) {
-                    sum += digits[i] * (2 ** (8 - i));
-                }
-                const remainder = sum % 11;
-                const checksum = remainder === 0 ? 0 : 11 - remainder;
-
-                if (checksum !== digits[8]) {
-                    throw new Error("Invalid AFM checksum");
-                }
-
-                // If format is valid but no data found, return null
-                return null;
-            }
-        ];
-
-        // Try each method in sequence
-        for (const method of methods) {
-            try {
-                const result = await method();
-                if (result) {
-                    return result;
-                }
-            } catch (error) {
-                // Continue to next method if current one fails
-                continue;
-            }
+        if (!cleanAfm || cleanAfm.length !== 9 || !/^\d{9}$/.test(cleanAfm)) {
+            throw new Error("Μη έγκυρο ΑΦΜ: πρέπει να αποτελείται από 9 ψηφία.");
         }
 
-        throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
+        // Call our Cloudflare Worker proxy — it runs server-side so there are no CORS issues.
+        const proxyUrl = `${CLOUDFLARE_WORKER_URL}/vat-lookup?afm=${cleanAfm}`;
+        try {
+            const response = await fetch(proxyUrl);
+            const data = await response.json() as any;
+
+            if (!response.ok) {
+                // Worker returned a 404 (no data found) or 400 (bad request)
+                const msg = data?.error || "Δεν βρέθηκαν στοιχεία για το ΑΦΜ αυτό.";
+                throw new Error(msg);
+            }
+
+            if (data.name && data.address) {
+                return { name: data.name, address: data.address };
+            }
+
+            throw new Error("Δεν βρέθηκαν στοιχεία. Ελέγξτε το ΑΦΜ ή τη σύνδεση.");
+        } catch (err: any) {
+            // Re-throw with the original message so the UI can display it
+            throw new Error(err.message || "Σφάλμα κατά την αναζήτηση ΑΦΜ.");
+        }
     },
+
 
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
@@ -796,12 +731,12 @@ export const api = {
         await safeMutate('orders', 'DELETE', null, { match: { id: id } });
     },
 
-    updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => { 
+    updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => {
         // First get current batch to log the transition
         const { data: currentBatch } = await supabase.from('production_batches').select('current_stage').eq('id', id).single();
-        
+
         await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } });
-        
+
         // Log the stage transition in history
         try {
             await supabase.from('batch_stage_history').insert({
@@ -817,7 +752,7 @@ export const api = {
         }
     },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
-    
+
     // Batch History
     getBatchHistory: async (batchId: string): Promise<any[]> => {
         if (isLocalMode) return [];
@@ -834,7 +769,7 @@ export const api = {
             return [];
         }
     },
-    
+
     logBatchHistory: async (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string): Promise<void> => {
         if (isLocalMode) return;
         try {
@@ -1123,7 +1058,7 @@ export const api = {
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-            
+
             // Check if assembly stage is required based on SKU
             const requires_assembly = requiresAssemblyStage(item.sku);
 
@@ -1166,7 +1101,7 @@ export const api = {
         const sanitizedNew = sanitizeBatchData(newBatchData);
         await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: new Date().toISOString() }, { match: { id: originalBatchId } });
         await safeMutate('production_batches', 'INSERT', sanitizedNew);
-        
+
         // Log history for the new batch (creation at target stage)
         try {
             await supabase.from('batch_stage_history').insert({
