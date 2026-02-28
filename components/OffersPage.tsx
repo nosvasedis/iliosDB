@@ -54,6 +54,9 @@ export default function OffersPage({ products, materials, settings, collections,
     const [offerNotes, setOfferNotes] = useState('');
     const [items, setItems] = useState<OrderItem[]>([]);
 
+    // Convert-after-edit state
+    const [pendingConvertOffer, setPendingConvertOffer] = useState<Offer | null>(null);
+
     // Input State
     const [selectedCollectionId, setSelectedCollectionId] = useState<number | ''>('');
     const [isFetchingPrice, setIsFetchingPrice] = useState(false);
@@ -334,9 +337,24 @@ export default function OffersPage({ products, materials, settings, collections,
             else await api.saveOffer(offerPayload);
 
             queryClient.invalidateQueries({ queryKey: ['offers'] });
-            setIsCreating(false);
-            setEditingOffer(null);
-            showToast("Η προσφορά αποθηκεύτηκε.", "success");
+            
+            // Check if we need to convert to order after saving
+            if (pendingConvertOffer) {
+                const offerToConvert = {
+                    ...pendingConvertOffer,
+                    ...offerPayload,
+                    items: items,
+                    total_price: grandTotal
+                };
+                setIsCreating(false);
+                setEditingOffer(null);
+                setPendingConvertOffer(null);
+                await performConvertToOrder(offerToConvert);
+            } else {
+                setIsCreating(false);
+                setEditingOffer(null);
+                showToast("Η προσφορά αποθηκεύτηκε.", "success");
+            }
         } catch (e) {
             showToast("Σφάλμα αποθήκευσης.", "error");
         } finally {
@@ -345,14 +363,26 @@ export default function OffersPage({ products, materials, settings, collections,
     };
 
     const handleConvertToOrder = async (offer: Offer) => {
-        const yes = await confirm({
-            title: 'Μετατροπή σε Παραγγελία',
-            message: 'Η προσφορά θα μετατραπεί σε ενεργή παραγγελία. Η τιμή του ασημιού θα κλειδωθεί για αυτή την παραγγελία.',
-            confirmText: 'Μετατροπή'
+        // Show confirmation dialog with edit option
+        const choice = await confirm({
+            title: 'Έλεγχος Προσφοράς',
+            message: 'Υπάρχουν αλλαγές που θέλετε να κάνετε στην προσφορά πριν τη μετατρέψετε σε παραγγελία;',
+            confirmText: 'Ναι, θέλω να επεξεργαστώ',
+            cancelText: 'Όχι, μετατροπή άμεσα'
         });
 
-        if (!yes) return;
+        if (choice === true) {
+            // User wants to edit first - navigate to edit mode
+            setPendingConvertOffer(offer);
+            handleEditOffer(offer);
+        } else if (choice === false) {
+            // User wants direct conversion
+            await performConvertToOrder(offer);
+        }
+        // If choice is undefined (dialog dismissed), do nothing
+    };
 
+    const performConvertToOrder = async (offer: Offer) => {
         try {
             // 1. Create Order
             const newOrderId = generateOrderId();
@@ -367,7 +397,8 @@ export default function OffersPage({ products, materials, settings, collections,
                 total_price: offer.total_price,
                 notes: `Converted from Offer #${offer.id.slice(0, 8)}. ${offer.notes || ''}`,
                 custom_silver_rate: offer.custom_silver_price,
-                vat_rate: offer.vat_rate !== undefined ? offer.vat_rate : 0.24
+                vat_rate: offer.vat_rate !== undefined ? offer.vat_rate : 0.24,
+                discount_percent: offer.discount_percent
             };
 
             await api.saveOrder(orderPayload as any);

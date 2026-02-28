@@ -66,6 +66,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const [isFetchingPrice, setIsFetchingPrice] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Convert-after-edit state
+    const [pendingConvertOffer, setPendingConvertOffer] = useState<Offer | null>(null);
+
     // Customer Search State
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
 
@@ -308,8 +311,22 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             else await api.saveOffer(payload);
 
             await queryClient.invalidateQueries({ queryKey: ['offers'] });
-            showToast("Η προσφορά αποθηκεύτηκε.", "success");
-            setView('list');
+
+            // Check if we need to convert to order after saving
+            if (pendingConvertOffer) {
+                const offerToConvert = {
+                    ...pendingConvertOffer,
+                    ...payload,
+                    items: items,
+                    total_price: grandTotal
+                };
+                setView('list');
+                setPendingConvertOffer(null);
+                await performConvertToOrder(offerToConvert);
+            } else {
+                showToast("Η προσφορά αποθηκεύτηκε.", "success");
+                setView('list');
+            }
         } catch (e) {
             showToast("Σφάλμα αποθήκευσης.", "error");
         } finally {
@@ -318,7 +335,26 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     };
 
     const handleConvert = async (offer: Offer) => {
-        if (!await confirm({ title: 'Μετατροπή', message: 'Δημιουργία παραγγελίας; Η τιμή του ασημιού θα κλειδωθεί.', confirmText: 'Ναι' })) return;
+        // Show confirmation dialog with edit option
+        const choice = await confirm({
+            title: 'Έλεγχος Προσφοράς',
+            message: 'Υπάρχουν αλλαγές που θέλετε να κάνετε στην προσφορά πριν τη μετατρέψετε σε παραγγελία;',
+            confirmText: 'Ναι, θέλω να επεξεργαστώ',
+            cancelText: 'Όχι, μετατροπή άμεσα'
+        });
+
+        if (choice === true) {
+            // User wants to edit first - navigate to edit mode
+            setPendingConvertOffer(offer);
+            initBuilder(offer);
+        } else if (choice === false) {
+            // User wants direct conversion
+            await performConvertToOrder(offer);
+        }
+        // If choice is undefined (dialog dismissed), do nothing
+    };
+
+    const performConvertToOrder = async (offer: Offer) => {
         try {
             const orderId = generateOrderId();
             await api.saveOrder({
