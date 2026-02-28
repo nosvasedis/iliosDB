@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, Factory, Package, Menu, WifiOff, RefreshCw, CloudOff } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Factory, Package, Menu, WifiOff, RefreshCw, CloudOff, Database, FileText, Users } from 'lucide-react';
 
 interface MobileLayoutProps {
   children?: React.ReactNode;
@@ -13,11 +13,14 @@ interface MobileLayoutProps {
 
 export default function MobileLayout({ children, activePage, onNavigate, isOnline = true, isSyncing = false, pendingCount = 0 }: MobileLayoutProps) {
   const navItems = [
-    { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Αρχική' },
-    { id: 'orders', icon: <ShoppingCart size={20} />, label: 'Παραγγελίες' },
-    { id: 'production', icon: <Factory size={20} />, label: 'Παραγωγή' },
-    { id: 'inventory', icon: <Package size={20} />, label: 'Αποθήκη' },
-    { id: 'menu', icon: <Menu size={20} />, label: 'Μενού' },
+    { id: 'dashboard', icon: <LayoutDashboard size={18} />, label: 'Αρχική' },
+    { id: 'registry', icon: <Database size={18} />, label: 'Μητρώο' },
+    { id: 'orders', icon: <ShoppingCart size={18} />, label: 'Παραγγελίες' },
+    { id: 'offers', icon: <FileText size={18} />, label: 'Προσφορές' },
+    { id: 'production', icon: <Factory size={18} />, label: 'Παραγωγή' },
+    { id: 'inventory', icon: <Package size={18} />, label: 'Αποθήκη' },
+    { id: 'customers', icon: <Users size={18} />, label: 'Πελάτες' },
+    { id: 'menu', icon: <Menu size={18} />, label: 'Μενού' },
   ];
 
   const showStatus = !isOnline || isSyncing || pendingCount > 0;
@@ -49,26 +52,33 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
       </main>
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] print:hidden">
-        <div className="flex justify-around items-center h-16">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200 pb-safe z-50 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] print:hidden">
+        <div className="flex justify-around items-center h-16 px-0.5">
           {navItems.map((item) => {
-            const isActive = activePage === item.id || (item.id === 'menu' && !['dashboard', 'orders', 'production', 'inventory'].includes(activePage));
+            const isActive = activePage === item.id || (item.id === 'menu' && !navItems.some(ni => ni.id !== 'menu' && ni.id === activePage));
             return (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-                  }`}
+                className={`flex flex-col items-center justify-center w-full h-full relative transition-all duration-300 ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-500'}`}
               >
-                <div className={`p-1 rounded-xl transition-all duration-300 ${isActive ? 'bg-emerald-50 scale-110' : ''}`}>
-                  {item.icon}
+                <div className={`p-1.5 rounded-xl mb-0.5 transition-all duration-500 ${isActive ? 'bg-emerald-50 scale-110 shadow-sm shadow-emerald-100/50' : 'opacity-80'}`}>
+                  {React.cloneElement(item.icon as React.ReactElement, { size: 18, strokeWidth: isActive ? 2.5 : 2 })}
                 </div>
-                <span className="text-[10px] font-bold">{item.label}</span>
+                <span className={`text-[8.5px] font-bold truncate w-full text-center px-0.5 tracking-tight transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+                  {item.label}
+                </span>
+
+                {/* Active Indicator Dot */}
+                {isActive && (
+                  <div className="absolute bottom-1 w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-in fade-in zoom-in duration-500" />
+                )}
               </button>
             );
           })}
         </div>
       </nav>
+
     </div>
   );
 }
