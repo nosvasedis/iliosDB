@@ -21,6 +21,8 @@ interface Props {
     onBack: () => void;
     initialOrder: Order | null;
     products: Product[];
+    /** When true (e.g. from SellerApp), always set seller_id/seller_name on save regardless of profile.role */
+    attachSeller?: boolean;
 }
 
 // ─── Color coding helpers (unchanged) ─────────────────────────────────────────
@@ -190,7 +192,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
 const DRAFT_KEY = 'seller_order_draft';
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function MobileOrderBuilder({ onBack, initialOrder, products }: Props) {
+export default function MobileOrderBuilder({ onBack, initialOrder, products, attachSeller = false }: Props) {
     const { showToast, confirm } = useUI();
     const { user, profile } = useAuth();
     const queryClient = useQueryClient();
@@ -415,8 +417,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products }: P
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_id: customerId || undefined,
-                seller_id: isSeller ? (profile?.id ?? user?.id) : undefined,
-                seller_name: isSeller ? (profile?.full_name || user?.email || undefined) : undefined,
+                seller_id: (attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined,
+                seller_name: (attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined,
                 items,
                 total_price: grandTotal,
                 vat_rate: vatRate,

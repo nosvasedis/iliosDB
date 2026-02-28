@@ -76,17 +76,30 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
     const { user, profile } = useAuth();
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
 
+    // Same "my orders" logic as SellerOrders: seller_id match OR seller_name fallback
+    const sellerId = profile?.id ?? user?.id;
+    const sellerFullName = profile?.full_name ?? '';
+    const sellerEmail = user?.email ?? '';
+    const isMyOrder = (o: { seller_id?: string; seller_name?: string }) => {
+        if (o.seller_id && sellerId && o.seller_id === sellerId) return true;
+        if (o.seller_name) {
+            if (sellerFullName && o.seller_name === sellerFullName) return true;
+            if (sellerEmail && o.seller_name === sellerEmail) return true;
+        }
+        return false;
+    };
+
     const stats = useMemo(() => {
         if (!orders) return { totalSales: 0, pendingCount: 0, completedCount: 0, recent: [] };
 
-        const myOrders = orders.filter(o => o.seller_id === user?.id);
+        const myOrders = orders.filter(isMyOrder);
         const totalSales = myOrders.reduce((sum, o) => sum + (o.total_price / (1 + (o.vat_rate || 0.24))), 0);
         const pendingCount = myOrders.filter(o => o.status === OrderStatus.Pending).length;
         const completedCount = myOrders.filter(o => o.status === OrderStatus.Delivered).length;
         const recent = [...myOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
 
         return { totalSales, pendingCount, completedCount, recent };
-    }, [orders, user]);
+    }, [orders, sellerId, sellerFullName, sellerEmail]);
 
     return (
         <div className="p-5 space-y-6 pb-28 landscape:pb-8 landscape:max-w-4xl landscape:mx-auto">

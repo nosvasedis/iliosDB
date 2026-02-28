@@ -55,7 +55,8 @@ export default function SellerApp() {
             <MobileOrderBuilder 
                 onBack={handleOrderBack} 
                 initialOrder={editingOrder} 
-                products={products} 
+                products={products}
+                attachSeller={true}
             />
         </div>
       );
