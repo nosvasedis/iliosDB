@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Product, Gender, ProductVariant, ProductionType } from '../../types';
 import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -73,10 +73,11 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
     const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
+    const stoneLabel = stone.name || stone.code;
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
             <span>{finishLabel}</span>
-            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stone.code}</span></>)}
+            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stoneLabel}</span></>)}
         </div>
     );
 };
@@ -306,6 +307,12 @@ export default function SellerCatalog({ products: productsProp }: Props) {
 
     const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);
     const products = productsProp ?? catalogProducts;
+
+    // Auto-load remaining catalog pages in background so search + category filters have full data
+    useEffect(() => {
+        if (productsProp != null || !hasNextPage || isFetchingNextPage) return;
+        fetchNextPage();
+    }, [productsProp, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
@@ -611,7 +618,12 @@ export default function SellerCatalog({ products: productsProp }: Props) {
 
             {/* Results count */}
             <div className="px-3 pt-2 pb-1 shrink-0">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filteredProducts.length} προϊόντα</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {filteredProducts.length} προϊόντα
+                {productsProp == null && isFetchingNextPage && (
+                  <span className="ml-1.5 text-emerald-600 font-normal">(φόρτωση...)</span>
+                )}
+              </span>
             </div>
 
             {/* ── Virtualized product grid ──────────────────────────────── */}

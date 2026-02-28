@@ -52,7 +52,7 @@ function getGreeting() {
     const hour = new Date().getHours();
     if (hour < 12) return 'Καλημέρα';
     if (hour < 18) return 'Καλησπέρα';
-    return 'Καλονύχτα';
+    return 'Καληνύχτα';
 }
 
 // Greek order status labels
