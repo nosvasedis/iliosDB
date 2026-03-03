@@ -259,6 +259,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
                     {state.isSaving ? <><Loader2 size={18} className="animate-spin" /> Αποθήκευση...</> : <><Save size={18} /> Αποθήκευση Εντολής</>}
                 </button>
             </div>
+            </div>
 
             {editingItem && (
                 <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
