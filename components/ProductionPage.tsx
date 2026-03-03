@@ -25,6 +25,7 @@ interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
+    onPrintAssembly?: (batches: ProductionBatch[]) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
@@ -129,7 +130,7 @@ const getAgeInfo = (dateStr: string) => {
     return { label, style };
 };
 
-type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
+type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly';
 type LabelPrintSortMode = 'as_sent' | 'customer';
 type ProductionQuickPickEntry = {
     order: Order;
@@ -935,7 +936,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 };
 
 
-export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
+export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAssembly, onPrintLabels }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -1096,18 +1097,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
 
         const orderMap = new Map(orders.map(order => [order.id, order]));
-        const groupedByOrder = enhancedBatches.reduce((acc, batch) => {
+        const groupedByOrder = enhancedBatches.reduce<Record<string, EnhancedProductionBatch[]>>((acc, batch) => {
             if (!batch.order_id) return acc;
             if (!acc[batch.order_id]) acc[batch.order_id] = [];
             acc[batch.order_id].push(batch);
             return acc;
-        }, {} as Record<string, EnhancedProductionBatch[]>);
+        }, {});
 
         return Object.entries(groupedByOrder)
-            .map(([orderId, orderBatches]) => {
+            .map(([orderId, batches]) => {
                 const order = orderMap.get(orderId);
                 if (!order) return null;
 
+                const orderBatches = batches as EnhancedProductionBatch[];
                 const totalQty = orderBatches.reduce((sum, batch) => sum + batch.quantity, 0);
                 const readyQty = orderBatches
                     .filter(batch => batch.current_stage === ProductionStage.Ready)
@@ -1507,6 +1509,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (type === 'technician') onPrintTechnician(selected);
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
+        else if (type === 'assembly' && onPrintAssembly) onPrintAssembly(selected);
         else if (type === 'labels') {
             const printQueue = buildLabelPrintQueue(selected, labelPrintSortMode);
             if (printQueue.length > 0 && onPrintLabels) {
@@ -1638,6 +1641,12 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.requires_assembly), 'assembly')}
+                        className="flex items-center gap-2 bg-pink-50 text-pink-700 px-4 py-2 rounded-xl hover:bg-pink-100 font-bold transition-all shadow-sm border border-pink-200 disabled:opacity-50 text-xs"
+                    >
+                        <Layers size={14} /> Συναρμολόγηση
+                    </button>
                     <button
                         onClick={() => handlePrintRequest(enhancedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
                         className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-xs"
@@ -1869,7 +1878,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     title={
                         printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
                             printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' :
-                                printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' : 'Συγκεντρωτική Εκτύπωση'
+                                printSelectorState.type === 'assembly' ? 'Εκτύπωση Συναρμολόγησης' :
+                                    printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' : 'Συγκεντρωτική Εκτύπωση'
                     }
                     labelSortMode={printSelectorState.type === 'labels' ? labelPrintSortMode : undefined}
                     onLabelSortModeChange={printSelectorState.type === 'labels' ? setLabelPrintSortMode : undefined}

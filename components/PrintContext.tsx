@@ -27,6 +27,8 @@ interface PrintContextType {
     setPreparationPrintData: (data: { batches: ProductionBatch[] } | null) => void;
     technicianPrintData: { batches: ProductionBatch[] } | null;
     setTechnicianPrintData: (data: { batches: ProductionBatch[] } | null) => void;
+    assemblyPrintData: { batches: ProductionBatch[] } | null;
+    setAssemblyPrintData: (data: { batches: ProductionBatch[] } | null) => void;
     priceListPrintData: PriceListPrintData | null;
     setPriceListPrintData: (data: PriceListPrintData | null) => void;
     analyticsPrintData: any | null;
@@ -54,6 +56,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
     const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
     const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
+    const [assemblyPrintData, setAssemblyPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
     const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
     const [analyticsPrintData, setAnalyticsPrintData] = useState<any | null>(null);
     const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
@@ -69,6 +72,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 aggregatedPrintData, setAggregatedPrintData,
                 preparationPrintData, setPreparationPrintData,
                 technicianPrintData, setTechnicianPrintData,
+                assemblyPrintData, setAssemblyPrintData,
                 priceListPrintData, setPriceListPrintData,
                 analyticsPrintData, setAnalyticsPrintData,
                 orderAnalyticsData, setOrderAnalyticsData,

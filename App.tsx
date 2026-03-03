@@ -181,9 +181,9 @@ function AppContent() {
   const {
     setPrintItems, setOrderToPrint, setOfferToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
-    setTechnicianPrintData, setPriceListPrintData, setAnalyticsPrintData,
+    setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint,
-    printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
+    printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   // Local state for app connectivity context
@@ -408,6 +408,10 @@ function AppContent() {
     setTechnicianPrintData({ batches });
   };
 
+  const handlePrintAssembly = (batches: ProductionBatch[]) => {
+    setAssemblyPrintData({ batches });
+  };
+
   const handlePrintOrderAnalytics = (order: Order) => {
     if (!products || !materials || !settings) return;
 
@@ -443,6 +447,7 @@ function AppContent() {
         aggregatedPrintData={aggregatedPrintData}
         preparationPrintData={preparationPrintData}
         technicianPrintData={technicianPrintData}
+        assemblyPrintData={assemblyPrintData}
         priceListPrintData={priceListPrintData}
         analyticsPrintData={analyticsPrintData}
         orderAnalyticsData={orderAnalyticsData}
@@ -455,6 +460,7 @@ function AppContent() {
         setAggregatedPrintData={setAggregatedPrintData}
         setPreparationPrintData={setPreparationPrintData}
         setTechnicianPrintData={setTechnicianPrintData}
+        setAssemblyPrintData={setAssemblyPrintData}
         setPriceListPrintData={setPriceListPrintData}
         setAnalyticsPrintData={setAnalyticsPrintData}
         setOrderAnalyticsData={setOrderAnalyticsData}
@@ -568,7 +574,7 @@ function AppContent() {
 
                 setOrderToPrint(modifiedOrder);
               }} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'suppliers' && <SuppliersPage />}
               {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}
