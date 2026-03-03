@@ -14,6 +14,15 @@ export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
     '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
 };
 
+// Subtle container background by metal (finish) suffix
+const METAL_CONTAINER_STYLES: Record<string, string> = {
+    'X': 'bg-amber-50/80 border-amber-100',
+    'P': 'bg-slate-50/80 border-slate-200',
+    'D': 'bg-orange-50/80 border-orange-100',
+    'H': 'bg-cyan-50/80 border-cyan-100',
+    '': 'bg-slate-50/80 border-slate-100'
+};
+
 const TEXT_FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
 };
@@ -215,6 +224,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     // Calculate finish for styling
     const { finish, stone } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
     const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
+    const metalContainerClass = METAL_CONTAINER_STYLES[finish.code] || METAL_CONTAINER_STYLES[''];
 
     const timeInfo = getTimeInStage(batch.updated_at);
 
@@ -223,7 +233,8 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             draggable={!!onDragStart}
             onDragStart={onDragStart ? (e) => onDragStart(e, batch.id) : undefined}
             onClick={() => onClick(batch)}
-            className={`bg-white p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
+            className={`p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
+                    ${metalContainerClass}
                     ${batch.on_hold
                     ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
                     : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}

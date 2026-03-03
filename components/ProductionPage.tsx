@@ -89,6 +89,15 @@ const TEXT_STONE_COLORS: Record<string, string> = {
     'AX': 'text-emerald-700'
 };
 
+// Subtle matte container styles for finder results by metal suffix
+const FINDER_METAL_CONTAINER_STYLES: Record<string, string> = {
+    'X': 'bg-amber-50/80 border-amber-100',
+    'P': 'bg-slate-50/80 border-slate-200',
+    'D': 'bg-orange-50/80 border-orange-100',
+    'H': 'bg-cyan-50/80 border-cyan-100',
+    '': 'bg-slate-50/80 border-slate-100'
+};
+
 const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender: any }) => {
     const { finish, stone } = getVariantComponents(suffix || '', gender);
     const fColor = TEXT_FINISH_COLORS[finish.code] || 'text-slate-400';
@@ -1818,9 +1827,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
                                     const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
                                     const age = getAgeInfo(b.updated_at);
+                                    const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details?.gender);
+                                    const finderMetalClass = FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
 
                                     return (
-                                        <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-slate-50 rounded-xl p-3 hover:bg-white border border-slate-200 hover:border-emerald-300 transition-all group cursor-pointer">
+                                        <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass}`}>
                                             <div className="flex justify-between items-start">
                                                 <div className="flex items-start gap-3">
                                                     {/* Image */}
