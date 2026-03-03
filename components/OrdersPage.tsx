@@ -4,12 +4,13 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 
 // Group batches by their created_at timestamp to simulate "Shipments" / "Parts"
 const groupBatchesByShipment = (batches: ProductionBatch[]) => {
@@ -830,6 +831,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
                                 const netValue = order.total_price / (1 + activeVat);
                                 const ready = isOrderReady(order);
+                                const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
+                                const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
                                 return (
                                     <div
                                         key={order.id}
@@ -840,7 +843,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                     >
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
                                         <div className="p-4">
-                                            <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            <div className={`font-bold ${isRetailOrder ? 'italic text-fuchsia-700' : 'text-slate-800'}`}>
+                                                {order.customer_name}
+                                                {isRetailOrder && retailClientLabel && (
+                                                    <span className="not-italic text-xs font-bold text-fuchsia-600 ml-2">({retailClientLabel})</span>
+                                                )}
+                                            </div>
                                             {order.seller_name && (
                                                 <div className="mt-1.5">
                                                     <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700">
@@ -899,7 +907,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
-                                <p className="text-sm text-slate-500 font-bold">{managingOrder.customer_name}</p>
+                                <p className={`text-sm font-bold ${managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME ? 'italic text-fuchsia-700' : 'text-slate-500'}`}>
+                                    {managingOrder.customer_name}
+                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
+                                        <span className="not-italic text-xs font-bold text-fuchsia-600 ml-2">({extractRetailClientFromNotes(managingOrder.notes).retailClientLabel})</span>
+                                    )}
+                                </p>
                             </div>
                             <button onClick={() => setManagingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>
