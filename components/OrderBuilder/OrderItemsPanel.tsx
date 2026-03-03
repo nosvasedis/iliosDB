@@ -1,6 +1,9 @@
-import React from 'react';
-import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2 } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
+import React, { useMemo, useState } from 'react';
+import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil } from 'lucide-react';
+import { FINISH_CODES } from '../../constants';
+import { OrderItem } from '../../types';
+import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState } from '../../hooks/useOrderState';
 
 interface Props {
@@ -10,9 +13,93 @@ interface Props {
 
 export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) => {
     const { state, setters, actions } = orderState;
+    const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
+    const [editFinish, setEditFinish] = useState('');
+    const [editVariantSuffix, setEditVariantSuffix] = useState('');
+    const [editSizeInfo, setEditSizeInfo] = useState('');
+
+    const editProduct = editingItem?.product_details;
+    const editVariants = editProduct?.variants || [];
+
+    const editSizeMode = useMemo(() => {
+        if (!editProduct) return null;
+        return getSizingInfo(editProduct);
+    }, [editProduct]);
+
+    const editVariantsByFinish = useMemo(() => {
+        if (!editProduct || editVariants.length === 0) return {} as Record<string, typeof editVariants>;
+        const map: Record<string, typeof editVariants> = {};
+        const order = ['', 'P', 'X', 'D', 'H'];
+
+        editVariants.forEach(v => {
+            const { finish } = getVariantComponents(v.suffix, editProduct.gender);
+            const code = finish.code ?? '';
+            if (!map[code]) map[code] = [];
+            map[code].push(v);
+        });
+
+        order.forEach(code => {
+            if (map[code]) map[code].sort((a, b) => a.suffix.localeCompare(b.suffix));
+        });
+
+        return map;
+    }, [editProduct, editVariants]);
+
+    const editFinishOptions = useMemo(() => {
+        const order = ['', 'P', 'X', 'D', 'H'];
+        const preferred = order.filter(code => editVariantsByFinish[code]?.length);
+        const extras = Object.keys(editVariantsByFinish).filter(code => !order.includes(code));
+        return [...preferred, ...extras];
+    }, [editVariantsByFinish]);
+
+    const editStoneOptions = useMemo(() => {
+        return editVariantsByFinish[editFinish] || [];
+    }, [editVariantsByFinish, editFinish]);
+
+    const openEditItem = (item: OrderItem) => {
+        setEditingItem(item);
+        const product = item.product_details;
+        const variants = product?.variants || [];
+
+        if (variants.length > 0) {
+            const currentSuffix = item.variant_suffix ?? '';
+            const safeSuffix = variants.some(v => v.suffix === currentSuffix) ? currentSuffix : variants[0].suffix;
+            const { finish } = getVariantComponents(safeSuffix, product?.gender);
+            setEditVariantSuffix(safeSuffix);
+            setEditFinish(finish.code ?? '');
+        } else {
+            setEditVariantSuffix('');
+            setEditFinish('');
+        }
+
+        setEditSizeInfo(item.size_info || '');
+    };
+
+    const handleEditFinishChange = (finishCode: string) => {
+        setEditFinish(finishCode);
+        const options = editVariantsByFinish[finishCode] || [];
+        if (options.length === 0) return;
+        const hasCurrent = options.some(v => v.suffix === editVariantSuffix);
+        setEditVariantSuffix(hasCurrent ? editVariantSuffix : options[0].suffix);
+    };
+
+    const closeEditModal = () => {
+        setEditingItem(null);
+        setEditFinish('');
+        setEditVariantSuffix('');
+        setEditSizeInfo('');
+    };
+
+    const handleConfirmEdit = () => {
+        if (!editingItem) return;
+        const nextVariant = editVariants.length > 0 ? editVariantSuffix : undefined;
+        actions.updateItemVariantAndSize(editingItem, nextVariant, editSizeInfo || undefined);
+        closeEditModal();
+    };
 
     return (
-        <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative">
+        <>
+            <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα ({state.selectedItems.length})</label>
@@ -85,6 +172,9 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
                                     <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
                                     <button onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12} /></button>
                                 </div>
+                                <button onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
+                                    <Pencil size={15} />
+                                </button>
                                 <button onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                                     <Trash2 size={16} />
                                 </button>
@@ -169,6 +259,86 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
                     {state.isSaving ? <><Loader2 size={18} className="animate-spin" /> Αποθήκευση...</> : <><Save size={18} /> Αποθήκευση Εντολής</>}
                 </button>
             </div>
-        </div>
+
+            {editingItem && (
+                <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase">Επεξεργασία SKU</h3>
+                                <p className="text-xs text-slate-500 font-bold mt-1">{editingItem.sku}</p>
+                            </div>
+                            <button onClick={closeEditModal} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {editVariants.length > 0 && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Μέταλλο</label>
+                                    <select
+                                        value={editFinish}
+                                        onChange={e => handleEditFinishChange(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    >
+                                        {editFinishOptions.map(code => (
+                                            <option key={code} value={code}>
+                                                {FINISH_CODES[code] || code || 'Λουστρέ'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Πέτρα</label>
+                                    <select
+                                        value={editVariantSuffix}
+                                        onChange={e => setEditVariantSuffix(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    >
+                                        {editStoneOptions.map(v => {
+                                            const { stone } = getVariantComponents(v.suffix, editProduct?.gender);
+                                            const stoneLabel = stone.name && stone.code
+                                                ? `${stone.name} (${stone.code})`
+                                                : (stone.name || stone.code || 'Χωρίς πέτρα');
+                                            return (
+                                                <option key={v.suffix} value={v.suffix}>
+                                                    {stoneLabel}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {editSizeMode && (
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">{editSizeMode.type}</label>
+                                <select
+                                    value={editSizeInfo}
+                                    onChange={e => setEditSizeInfo(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                >
+                                    <option value="">Χωρίς {editSizeMode.type}</option>
+                                    {editSizeMode.sizes.map(size => (
+                                        <option key={size} value={size}>{size}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button onClick={closeEditModal} className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                                Ακύρωση
+                            </button>
+                            <button onClick={handleConfirmEdit} className="px-3 py-2 rounded-xl text-xs font-black text-white bg-[#060b00] hover:bg-black transition-colors">
+                                Αποθήκευση
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 };

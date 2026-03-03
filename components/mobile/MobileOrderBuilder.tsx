@@ -4,7 +4,7 @@ import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRe
 import {
     ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, User, Check, AlertCircle,
     ImageIcon, Camera, StickyNote, Minus, Percent, Loader2, FolderKanban, Tag,
-    BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart
+    BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart, Pencil
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../../lib/supabase';
@@ -226,6 +226,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
     const [showDraftBanner, setShowDraftBanner] = useState(false);
     const [cartExpanded, setCartExpanded] = useState(true);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editFinish, setEditFinish] = useState('');
+    const [editVariantSuffix, setEditVariantSuffix] = useState('');
+    const [editSizeInfo, setEditSizeInfo] = useState('');
 
     // ── SKU Input State ──────────────────────────────────────────────────────
     const [input, setInput] = useState('');
@@ -264,6 +268,47 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     }, [variantsByFinish]);
 
     const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
+
+    const editingItem = editingIndex !== null ? items[editingIndex] : null;
+    const editingProduct = useMemo(() => {
+        if (!editingItem) return null;
+        return products.find(p => p.sku === editingItem.sku) || editingItem.product_details || null;
+    }, [editingItem, products]);
+
+    const editingVariants = editingProduct?.variants || [];
+    const editingSizeMode = useMemo(() => {
+        if (!editingProduct) return null;
+        return getSizingInfo(editingProduct);
+    }, [editingProduct]);
+
+    const editVariantsByFinish = useMemo(() => {
+        if (!editingProduct || editingVariants.length === 0) return {} as Record<string, ProductVariant[]>;
+        const map: Record<string, ProductVariant[]> = {};
+        const order = ['', 'P', 'X', 'D', 'H'];
+
+        editingVariants.forEach(v => {
+            const { finish } = getVariantComponents(v.suffix, editingProduct.gender);
+            const code = finish.code ?? '';
+            if (!map[code]) map[code] = [];
+            map[code].push(v);
+        });
+
+        order.forEach(code => {
+            if (map[code]) map[code].sort((a, b) => a.suffix.localeCompare(b.suffix));
+        });
+        return map;
+    }, [editingProduct, editingVariants]);
+
+    const editFinishOptions = useMemo(() => {
+        const order = ['', 'P', 'X', 'D', 'H'];
+        const preferred = order.filter(code => editVariantsByFinish[code]?.length);
+        const extras = Object.keys(editVariantsByFinish).filter(code => !order.includes(code));
+        return [...preferred, ...extras];
+    }, [editVariantsByFinish]);
+
+    const editStoneOptions = useMemo(() => {
+        return editVariantsByFinish[editFinish] || [];
+    }, [editVariantsByFinish, editFinish]);
 
     // ── Smart SKU search + full-code resolution (e.g. SK005PAK) ─────────────────
     useEffect(() => {
@@ -420,6 +465,100 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         } else {
             showToast(`Μη έγκυρος κωδικός.`, 'error');
         }
+    };
+
+    const updateItemVariantAndSize = (itemIndex: number, nextVariantSuffix: string | undefined, nextSizeInfo: string | undefined) => {
+        setItems(prev => {
+            if (itemIndex < 0 || itemIndex >= prev.length) return prev;
+
+            const current = prev[itemIndex];
+            const product = products.find(p => p.sku === current.sku) || current.product_details;
+
+            let nextPrice = current.price_at_order;
+            if (product) {
+                if (nextVariantSuffix !== undefined) {
+                    const variant = product.variants?.find(v => v.suffix === nextVariantSuffix);
+                    nextPrice = variant?.selling_price || product.selling_price || 0;
+                } else {
+                    nextPrice = product.selling_price || 0;
+                }
+            }
+
+            const edited: OrderItem = {
+                ...current,
+                variant_suffix: nextVariantSuffix,
+                size_info: nextSizeInfo,
+                price_at_order: nextPrice,
+                product_details: product || current.product_details
+            };
+
+            const mergeIdx = prev.findIndex((candidate, i) =>
+                i !== itemIndex &&
+                candidate.sku === edited.sku &&
+                candidate.variant_suffix === edited.variant_suffix &&
+                candidate.size_info === edited.size_info &&
+                (candidate.notes || '') === (edited.notes || '')
+            );
+
+            if (mergeIdx !== -1) {
+                const merged = [...prev];
+                merged[mergeIdx] = {
+                    ...merged[mergeIdx],
+                    quantity: merged[mergeIdx].quantity + edited.quantity
+                };
+                merged.splice(itemIndex, 1);
+                return merged;
+            }
+
+            const updated = [...prev];
+            updated[itemIndex] = edited;
+            return updated;
+        });
+    };
+
+    const openItemEditor = (idx: number) => {
+        const item = items[idx];
+        if (!item) return;
+        setEditingIndex(idx);
+
+        const product = products.find(p => p.sku === item.sku) || item.product_details;
+        const variants = product?.variants || [];
+
+        if (variants.length > 0) {
+            const currentSuffix = item.variant_suffix ?? '';
+            const safeSuffix = variants.some(v => v.suffix === currentSuffix) ? currentSuffix : variants[0].suffix;
+            const { finish } = getVariantComponents(safeSuffix, product?.gender);
+            setEditVariantSuffix(safeSuffix);
+            setEditFinish(finish.code ?? '');
+        } else {
+            setEditVariantSuffix('');
+            setEditFinish('');
+        }
+
+        setEditSizeInfo(item.size_info || '');
+    };
+
+    const handleEditFinishChange = (finishCode: string) => {
+        setEditFinish(finishCode);
+        const options = editVariantsByFinish[finishCode] || [];
+        if (options.length === 0) return;
+        const hasCurrent = options.some(v => v.suffix === editVariantSuffix);
+        setEditVariantSuffix(hasCurrent ? editVariantSuffix : options[0].suffix);
+    };
+
+    const closeItemEditor = () => {
+        setEditingIndex(null);
+        setEditFinish('');
+        setEditVariantSuffix('');
+        setEditSizeInfo('');
+    };
+
+    const handleConfirmItemEdit = () => {
+        if (editingIndex === null) return;
+        const nextVariant = editingVariants.length > 0 ? editVariantSuffix : undefined;
+        updateItemVariantAndSize(editingIndex, nextVariant, editSizeInfo || undefined);
+        showToast('Το είδος ενημερώθηκε.', 'success');
+        closeItemEditor();
     };
 
     const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
@@ -887,9 +1026,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
                                         <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
-                                        <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1">
-                                            <Trash2 size={16} />
-                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => openItemEditor(idx)} className="text-blue-300 hover:text-blue-500 p-1" title="Επεξεργασία SKU">
+                                                <Pencil size={15} />
+                                            </button>
+                                            <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
@@ -947,6 +1091,86 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     }
                 </button>
             </div>
+
+            {editingItem && (
+                <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4">
+                    <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase">Επεξεργασία SKU</h3>
+                                <p className="text-xs text-slate-500 font-bold mt-1">{editingItem.sku}</p>
+                            </div>
+                            <button onClick={closeItemEditor} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {editingVariants.length > 0 && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Μέταλλο</label>
+                                    <select
+                                        value={editFinish}
+                                        onChange={e => handleEditFinishChange(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                    >
+                                        {editFinishOptions.map(code => (
+                                            <option key={code} value={code}>
+                                                {FINISH_CODES[code] || code || 'Λουστρέ'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Πέτρα</label>
+                                    <select
+                                        value={editVariantSuffix}
+                                        onChange={e => setEditVariantSuffix(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                    >
+                                        {editStoneOptions.map(v => {
+                                            const { stone } = getVariantComponents(v.suffix, editingProduct?.gender);
+                                            const stoneLabel = stone.name && stone.code
+                                                ? `${stone.name} (${stone.code})`
+                                                : (stone.name || stone.code || 'Χωρίς πέτρα');
+                                            return (
+                                                <option key={v.suffix} value={v.suffix}>
+                                                    {stoneLabel}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {editingSizeMode && (
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">{editingSizeMode.type}</label>
+                                <select
+                                    value={editSizeInfo}
+                                    onChange={e => setEditSizeInfo(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                >
+                                    <option value="">Χωρίς {editingSizeMode.type}</option>
+                                    {editingSizeMode.sizes.map(size => (
+                                        <option key={size} value={size}>{size}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button onClick={closeItemEditor} className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                                Ακύρωση
+                            </button>
+                            <button onClick={handleConfirmItemEdit} className="px-3 py-2 rounded-xl text-xs font-black text-white bg-[#060b00] hover:bg-black transition-colors">
+                                Αποθήκευση
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Saving overlay */}
             {isSaving && (

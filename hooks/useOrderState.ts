@@ -587,6 +587,71 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         });
     };
 
+    const updateItemVariantAndSize = (item: OrderItem, nextVariantSuffix: string | undefined, nextSizeInfo: string | undefined) => {
+        const idx = selectedItems.findIndex(i =>
+            i.sku === item.sku &&
+            i.variant_suffix === item.variant_suffix &&
+            i.size_info === item.size_info &&
+            (i.notes || '') === (item.notes || '')
+        );
+        if (idx === -1) return;
+
+        setSelectedItems(prev => {
+            const dynamicIdx = prev.findIndex(i =>
+                i.sku === item.sku &&
+                i.variant_suffix === item.variant_suffix &&
+                i.size_info === item.size_info &&
+                (i.notes || '') === (item.notes || '')
+            );
+            if (dynamicIdx === -1) return prev;
+
+            const current = prev[dynamicIdx];
+            const product = products.find(p => p.sku === current.sku) || current.product_details;
+
+            let nextPrice = current.price_at_order;
+            if (product) {
+                if (nextVariantSuffix !== undefined) {
+                    const variant = product.variants?.find(v => v.suffix === nextVariantSuffix);
+                    nextPrice = variant?.selling_price || product.selling_price || 0;
+                } else {
+                    nextPrice = product.selling_price || 0;
+                }
+            }
+
+            const edited: OrderItem = {
+                ...current,
+                variant_suffix: nextVariantSuffix,
+                size_info: nextSizeInfo,
+                price_at_order: nextPrice,
+                product_details: product || current.product_details
+            };
+
+            const mergeIdx = prev.findIndex((candidate, i) =>
+                i !== dynamicIdx &&
+                candidate.sku === edited.sku &&
+                candidate.variant_suffix === edited.variant_suffix &&
+                candidate.size_info === edited.size_info &&
+                (candidate.notes || '') === (edited.notes || '')
+            );
+
+            if (mergeIdx !== -1) {
+                const merged = [...prev];
+                merged[mergeIdx] = {
+                    ...merged[mergeIdx],
+                    quantity: merged[mergeIdx].quantity + edited.quantity
+                };
+                merged.splice(dynamicIdx, 1);
+                return merged;
+            }
+
+            const updated = [...prev];
+            updated[dynamicIdx] = edited;
+            return updated;
+        });
+        setPriceDiffs(null);
+        showToast('Το είδος ενημερώθηκε.', 'success');
+    };
+
     const handleRemoveItem = (item: OrderItem) => {
         const idx = selectedItems.findIndex(i =>
             i.sku === item.sku &&
@@ -742,7 +807,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             handleSelectCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, handleScanInOrder,
-            updateQuantity, updateItemNotes, handleRemoveItem,
+            updateQuantity, updateItemNotes, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, handleSaveOrder, handleBack,
             getSkuComponents,
         },
