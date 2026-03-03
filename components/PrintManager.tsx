@@ -156,9 +156,9 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     const singleOrder = getSingleOrderFromAssemblyRows(assemblyPrintData.rows);
                     if (singleOrder) {
                         const safeName = getSafeClientName(singleOrder.customerName);
-                        docTitle = `Assembly_${safeName || 'Order'}_${singleOrder.orderId}`;
+                        docTitle = `Synarmologisi_${safeName || 'Paraggelia'}_${singleOrder.orderId}`;
                     } else {
-                        docTitle = `Assembly_Sheet_${dateStr}`;
+                        docTitle = `Synarmologisi_Fyllo_${dateStr}`;
                     }
                 } else if (printItems.length > 0) {
                     const format = printItems[0].format || 'standard';

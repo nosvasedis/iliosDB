@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus, VatRegime } from '../types';
 import { Phone, Mail, MapPin, FileText, Save, Loader2, X, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Zap, Wallet, Calculator } from 'lucide-react';
-import { api } from '../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 
@@ -40,7 +40,8 @@ export default function CustomerDetailsModal({
     onDelete,
     onPrintOrder
 }: CustomerDetailsModalProps) {
-    const [isEditing, setIsEditing] = useState(customer.full_name === '');
+    const isRetailSystemCustomer = customer.id === RETAIL_CUSTOMER_ID;
+    const [isEditing, setIsEditing] = useState(customer.full_name === '' && !isRetailSystemCustomer);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
@@ -104,6 +105,10 @@ export default function CustomerDetailsModal({
     }, [customer, orders]);
 
     const handleSave = async () => {
+        if (isRetailSystemCustomer) {
+            showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
+            return;
+        }
         if (!editForm.full_name.trim()) {
             showToast("Το ονοματεπώνυμο είναι υποχρεωτικό.", "error");
             return;
@@ -171,6 +176,11 @@ export default function CustomerDetailsModal({
                             ) : (
                                 <div className="flex items-center gap-3 flex-wrap">
                                     <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-1 truncate">{customer.full_name}</h2>
+                                    {isRetailSystemCustomer && (
+                                        <span className="text-[10px] font-black uppercase tracking-widest bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-2 py-1 rounded-full shadow-sm">
+                                            System
+                                        </span>
+                                    )}
                                     {stats.totalSpent > 1000 && (
                                         <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200 px-2 py-1 rounded-full shadow-sm">
                                             <Trophy size={10} /> VIP
@@ -210,8 +220,16 @@ export default function CustomerDetailsModal({
                             </>
                         ) : (
                             <>
-                                <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm text-sm">Επεξεργασία</button>
-                                <button onClick={() => onDelete(customer.id)} className="p-2.5 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-xl hover:bg-red-50 hover:border-red-100 transition-colors shadow-sm"><Trash2 size={18} /></button>
+                                {!isRetailSystemCustomer ? (
+                                    <>
+                                        <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm text-sm">Επεξεργασία</button>
+                                        <button onClick={() => onDelete(customer.id)} className="p-2.5 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-xl hover:bg-red-50 hover:border-red-100 transition-colors shadow-sm"><Trash2 size={18} /></button>
+                                    </>
+                                ) : (
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700">
+                                        Μόνο Ανάγνωση
+                                    </span>
+                                )}
                             </>
                         )}
                     </div>

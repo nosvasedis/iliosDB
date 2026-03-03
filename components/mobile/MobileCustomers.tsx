@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2 } from 'lucide-react';
 import { Customer, Supplier, VatRegime } from '../../types';
 import { useUI } from '../UIProvider';
@@ -106,6 +106,14 @@ export default function MobileCustomers({ mode }: Props) {
             if (editType === 'customer') {
                 // Determine if this is an update by checking the list
                 const isExisting = customers?.some(c => c.id === editData.id);
+                if (!isExisting && editData.full_name.trim() === RETAIL_CUSTOMER_NAME) {
+                    showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", "error");
+                    return;
+                }
+                if (isExisting && editData.id === RETAIL_CUSTOMER_ID) {
+                    showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
+                    return;
+                }
                 if (isExisting) await api.updateCustomer(editData.id, editData);
                 else await api.saveCustomer(editData);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -172,6 +180,8 @@ export default function MobileCustomers({ mode }: Props) {
         return <MobileSupplierDetails supplier={viewSupplier} onClose={() => setViewSupplier(null)} />;
     }
 
+    const isRetailSystemCustomer = editType === 'customer' && editData?.id === RETAIL_CUSTOMER_ID;
+
     if (isEditing) {
         return (
             <div className="flex flex-col h-full bg-slate-50">
@@ -194,12 +204,13 @@ export default function MobileCustomers({ mode }: Props) {
                                     <input
                                         value={editData.vat_number || ''}
                                         onChange={e => setEditData({ ...editData, vat_number: e.target.value })}
+                                        disabled={isRetailSystemCustomer}
                                         className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-slate-900 font-mono"
                                         placeholder="9 ψηφία..."
                                     />
                                     <button
                                         onClick={handleAfmLookup}
-                                        disabled={isSearchingAfm}
+                                        disabled={isSearchingAfm || isRetailSystemCustomer}
                                         className="p-3 bg-blue-500 text-white rounded-xl shadow-md active:scale-95"
                                     >
                                         {isSearchingAfm ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} className="fill-current" />}
@@ -215,6 +226,7 @@ export default function MobileCustomers({ mode }: Props) {
                             <input
                                 value={editType === 'customer' ? editData.full_name : editData.name}
                                 onChange={e => setEditData({ ...editData, [editType === 'customer' ? 'full_name' : 'name']: e.target.value })}
+                                disabled={isRetailSystemCustomer}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20"
                                 placeholder="Πληκτρολογήστε όνομα..."
                                 autoFocus={!editData.full_name && !editData.name}
@@ -236,6 +248,7 @@ export default function MobileCustomers({ mode }: Props) {
                                 <input
                                     value={editData.phone || ''}
                                     onChange={e => setEditData({ ...editData, phone: e.target.value })}
+                                    disabled={isRetailSystemCustomer}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                                     type="tel"
                                 />
@@ -245,6 +258,7 @@ export default function MobileCustomers({ mode }: Props) {
                                 <input
                                     value={editData.email || ''}
                                     onChange={e => setEditData({ ...editData, email: e.target.value })}
+                                    disabled={isRetailSystemCustomer}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                                     type="email"
                                 />
@@ -255,6 +269,7 @@ export default function MobileCustomers({ mode }: Props) {
                             <input
                                 value={editData.address || ''}
                                 onChange={e => setEditData({ ...editData, address: e.target.value })}
+                                disabled={isRetailSystemCustomer}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                             />
                         </div>
@@ -264,6 +279,7 @@ export default function MobileCustomers({ mode }: Props) {
                                 <select
                                     value={editData.vat_rate !== undefined ? editData.vat_rate : VatRegime.Standard}
                                     onChange={e => setEditData({ ...editData, vat_rate: parseFloat(e.target.value) })}
+                                    disabled={isRetailSystemCustomer}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 font-bold"
                                 >
                                     <option value={VatRegime.Standard}>24% (Κανονικό)</option>
@@ -277,6 +293,7 @@ export default function MobileCustomers({ mode }: Props) {
                             <textarea
                                 value={editData.notes || ''}
                                 onChange={e => setEditData({ ...editData, notes: e.target.value })}
+                                disabled={isRetailSystemCustomer}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 h-24 resize-none"
                                 placeholder="Πρόσθετα σχόλια..."
                             />
@@ -284,8 +301,8 @@ export default function MobileCustomers({ mode }: Props) {
                     </div>
 
                     <div className="flex gap-3">
-                        <button onClick={handleSave} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-1 flex items-center justify-center gap-2 hover:bg-black transition-all">
-                            <Save size={20} /> Αποθήκευση
+                        <button onClick={handleSave} disabled={isRetailSystemCustomer} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-1 flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50">
+                            <Save size={20} /> {isRetailSystemCustomer ? 'System - Μόνο Ανάγνωση' : 'Αποθήκευση'}
                         </button>
                     </div>
                 </div>
@@ -334,7 +351,10 @@ export default function MobileCustomers({ mode }: Props) {
                                     {mode === 'customers' ? <User size={24} /> : <Globe size={24} />}
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
+                                        {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                                    </div>
                                     {mode === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
                                 </div>
                             </div>

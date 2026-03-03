@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
+import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Offer, Product, Customer, OrderItem, VatRegime } from '../../types';
 import {
     Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw,
@@ -13,6 +13,7 @@ import { formatCurrency, formatDecimal, calculateProductCost, calculateSuggested
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
 import BarcodeScanner from '../BarcodeScanner';
+import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 
 interface Props {
     onPrintOffer: (offer: Offer) => void;
@@ -56,6 +57,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     const [vatRate, setVatRate] = useState<number>(VatRegime.Standard);
     const [notes, setNotes] = useState('');
+    const [retailClientLabel, setRetailClientLabel] = useState('');
     const [items, setItems] = useState<OrderItem[]>([]);
 
     // --- BUILDER UI STATE ---
@@ -78,6 +80,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     // Initialize Builder
     const initBuilder = (offer?: Offer) => {
         if (offer) {
+            const parsedNotes = extractRetailClientFromNotes(offer.notes);
             setEditingId(offer.id);
             setCustomerName(offer.customer_name);
             setCustomerPhone(offer.customer_phone || '');
@@ -85,7 +88,8 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setCustomSilverPrice(offer.custom_silver_price);
             setDiscountPercent(offer.discount_percent);
             setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
-            setNotes(offer.notes || '');
+            setNotes(parsedNotes.cleanNotes || '');
+            setRetailClientLabel(parsedNotes.retailClientLabel);
             const syncedItems = (offer.items || []).map(item => {
                 const product = products?.find(p => p.sku === item.sku);
                 return {
@@ -103,6 +107,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setDiscountPercent(0);
             setVatRate(VatRegime.Standard);
             setNotes('');
+            setRetailClientLabel('');
             setItems([]);
         }
         setView('builder');
@@ -124,9 +129,15 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
+    const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+
     // --- ACTIONS ---
 
     const handleSelectCustomer = (c: Customer) => {
+        if (c.id === RETAIL_CUSTOMER_ID || c.full_name === RETAIL_CUSTOMER_NAME) {
+            handleUseRetailCustomer();
+            return;
+        }
         setCustomerId(c.id);
         setCustomerName(c.full_name);
         setCustomerPhone(c.phone || '');
@@ -135,6 +146,14 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         } else {
             setVatRate(VatRegime.Standard);
         }
+        setShowCustSuggestions(false);
+    };
+
+    const handleUseRetailCustomer = () => {
+        setCustomerId(RETAIL_CUSTOMER_ID);
+        setCustomerName(RETAIL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setVatRate(VatRegime.Standard);
         setShowCustSuggestions(false);
     };
 
@@ -290,12 +309,14 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         if (items.length === 0) { showToast("Προσθέστε τουλάχιστον ένα είδος.", "error"); return; }
 
         setIsSaving(true);
+        const isRetailOffer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+        const composedNotes = isRetailOffer ? composeNotesWithRetailClient(notes, retailClientLabel) : notes;
 
         const payload: Offer = {
             id: editingId || crypto.randomUUID(),
-            customer_name: customerName,
-            customer_phone: customerPhone,
-            customer_id: customerId || undefined,
+            customer_name: isRetailOffer ? RETAIL_CUSTOMER_NAME : customerName,
+            customer_phone: isRetailOffer ? '' : customerPhone,
+            customer_id: isRetailOffer ? RETAIL_CUSTOMER_ID : (customerId || undefined),
             items: items,
             custom_silver_price: customSilverPrice,
             discount_percent: discountPercent,
@@ -303,7 +324,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             total_price: grandTotal,
             status: editingId ? (offers?.find(o => o.id === editingId)?.status || 'Pending') : 'Pending',
             created_at: editingId ? (offers?.find(o => o.id === editingId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
-            notes: notes
+            notes: composedNotes
         };
 
         try {
@@ -357,11 +378,12 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const performConvertToOrder = async (offer: Offer) => {
         try {
             const orderId = generateOrderId();
+            const isRetailOrder = offer.customer_id === RETAIL_CUSTOMER_ID || offer.customer_name === RETAIL_CUSTOMER_NAME;
             await api.saveOrder({
                 id: orderId,
-                customer_id: offer.customer_id,
-                customer_name: offer.customer_name,
-                customer_phone: offer.customer_phone,
+                customer_id: isRetailOrder ? RETAIL_CUSTOMER_ID : offer.customer_id,
+                customer_name: isRetailOrder ? RETAIL_CUSTOMER_NAME : offer.customer_name,
+                customer_phone: isRetailOrder ? '' : offer.customer_phone,
                 created_at: new Date().toISOString(),
                 status: 'Pending',
                 items: offer.items,
@@ -369,7 +391,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 vat_rate: offer.vat_rate,
                 discount_percent: offer.discount_percent,
                 custom_silver_rate: offer.custom_silver_price,
-                notes: `From Offer #${offer.id.slice(0, 6)}. ${offer.notes || ''}`
+                notes: offer.notes || ''
             } as any);
 
             await api.updateOffer({ ...offer, status: 'Accepted' });
@@ -425,7 +447,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                         <div className="relative z-20">
                             <input
                                 value={customerName}
-                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); }}
+                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
                                 placeholder="Αναζήτηση ή Όνομα..."
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-purple-400"
                                 onFocus={() => setShowCustSuggestions(true)}
@@ -440,6 +462,24 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 </div>
                             )}
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleUseRetailCustomer}
+                            className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                        >
+                            Χρήση Λιανικής
+                        </button>
+                        {isRetailCustomer && (
+                            <div className="mt-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                                <input
+                                    value={retailClientLabel}
+                                    onChange={e => setRetailClientLabel(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
+                                    placeholder="π.χ. Κατάστημα Νάξου"
+                                />
+                            </div>
+                        )}
                         <div className="flex items-center gap-2 mt-2">
                             <Phone size={14} className="text-slate-400" />
                             <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Τηλέφωνο" className="flex-1 p-2 bg-transparent border-b border-slate-200 outline-none text-sm font-medium" />

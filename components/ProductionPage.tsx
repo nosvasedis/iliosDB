@@ -492,7 +492,7 @@ const AssemblyOrderSelectorModal = ({
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                             <Layers size={18} className="text-pink-600" /> Εκτύπωση Συναρμολόγησης
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε εντολές (Pending / In Production) για τον assembler.</p>
+                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε εντολές (Εκκρεμείς / Σε Παραγωγή) για τον υπεύθυνο συναρμολόγησης.</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
                         <X size={20} />
@@ -539,10 +539,10 @@ const AssemblyOrderSelectorModal = ({
                                     </div>
                                     <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase">
                                         <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
-                                            Assembly SKU: {candidate.assemblySkuCount}
+                                            Κωδικοί Συναρμολόγησης: {candidate.assemblySkuCount}
                                         </div>
                                         <div className="bg-pink-50 border border-pink-200 rounded-lg px-2 py-1 text-pink-700">
-                                            Qty: {candidate.totalAssemblyQty}
+                                            Τεμάχια: {candidate.totalAssemblyQty}
                                         </div>
                                     </div>
                                 </button>
@@ -1768,7 +1768,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
 
             {/* HEADER MOVED TO TOP AND THINNER */}
-            <div className="shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 lg:gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-[#060b00] text-white rounded-xl">
                         <Factory size={20} />
@@ -1781,7 +1781,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 </div>
 
                 {/* ORDER FINDER (DESKTOP) */}
-                <div className="flex-1 max-w-xl w-full mx-4 flex gap-2">
+                <div className="flex-1 min-w-[260px] max-w-2xl w-full mx-4 flex gap-2">
                     <button
                         onClick={() => setQuickPickerOpen(true)}
                         disabled={quickPickEntries.length === 0}
@@ -1797,7 +1797,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     >
                         <Users size={20} />
                     </button>
-                    <div className="relative group flex-1">
+                    <div className="relative group flex-1 min-w-0">
                         <input
                             type="text"
                             value={finderTerm}
@@ -1867,31 +1867,31 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                         onClick={() => setAssemblyOrderSelectorOpen(true)}
                         disabled={assemblyOrderCandidates.length === 0}
-                        className="flex items-center gap-2 bg-pink-50 text-pink-700 px-4 py-2 rounded-xl hover:bg-pink-100 font-bold transition-all shadow-sm border border-pink-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                        className="flex items-center gap-1.5 bg-pink-50 text-pink-700 px-3 py-1.5 rounded-xl hover:bg-pink-100 font-semibold transition-all shadow-sm border border-pink-200 disabled:opacity-50 disabled:cursor-not-allowed text-[11px]"
                     >
-                        <Layers size={14} /> Συναρμολόγηση
+                        <Layers size={12} /> Συναρμολόγηση
                     </button>
                     <button
                         onClick={() => handlePrintRequest(enhancedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
-                        className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-100 font-bold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-xs"
+                        className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl hover:bg-blue-100 font-semibold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-[11px]"
                     >
-                        <BookOpen size={14} /> Προετοιμασία
+                        <BookOpen size={12} /> Προετοιμασία
                     </button>
                     <button
                         onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.current_stage === ProductionStage.Polishing), 'technician')}
-                        className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-100 font-bold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-xs"
+                        className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl hover:bg-purple-100 font-semibold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-[11px]"
                     >
-                        <Hammer size={14} /> Τεχνίτης
+                        <Hammer size={12} /> Τεχνίτης
                     </button>
                     <button
                         onClick={() => handlePrintRequest(enhancedBatches, 'aggregated')}
-                        className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-200 font-bold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-xs"
+                        className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl hover:bg-slate-200 font-semibold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-[11px]"
                     >
-                        <FileText size={14} /> Συγκεντρωτική
+                        <FileText size={12} /> Συγκεντρωτική
                     </button>
                 </div>
             </div>

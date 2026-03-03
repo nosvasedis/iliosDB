@@ -97,7 +97,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                             {totalOrders} Εντολές
                         </span>
                         <span className="bg-pink-50 text-pink-700 px-3 py-1 rounded-full font-bold border border-pink-200">
-                            {totalSKUs} SKU
+                            {totalSKUs} κωδικοί
                         </span>
                         <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold border border-slate-200">
                             {totalItems} τεμ.
@@ -108,7 +108,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
 
             <main className="space-y-8">
                 {customerGroups.map((customerGroup, customerIndex) => (
-                    <div key={customerGroup.customerName} className="break-inside-avoid">
+                    <div key={customerGroup.customerName} className="mb-8">
                         <div className="bg-pink-50 border border-pink-200 rounded-xl p-3 mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
@@ -161,7 +161,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                                             />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">
-                                                                No Img
+                                                                Χωρίς εικόνα
                                                             </div>
                                                         )}
                                                     </div>

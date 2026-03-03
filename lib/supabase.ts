@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -296,6 +296,19 @@ export const SYSTEM_IDS = {
     CENTRAL: '00000000-0000-0000-0000-000000000001',
     SHOWROOM: '00000000-0000-0000-0000-000000000002'
 };
+
+export const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
+export const RETAIL_CUSTOMER_NAME = 'Λιανική';
+export const RETAIL_NOTE_PREFIX = '[ΛΙΑΝΙΚΗ_ΠΕΛΑΤΗΣ]:';
+
+const getRetailCustomerPayload = (): Partial<Customer> => ({
+    id: RETAIL_CUSTOMER_ID,
+    full_name: RETAIL_CUSTOMER_NAME,
+    phone: '',
+    vat_rate: VatRegime.Standard,
+    notes: '',
+    created_at: new Date(0).toISOString()
+});
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
     // Feature 3C: Local Image Storage Support
@@ -706,7 +719,9 @@ export const api = {
     },
 
     getCustomers: async (): Promise<Customer[]> => {
-        return fetchFullTable('customers', '*', (q) => q.order('full_name'));
+        await api.ensureRetailCustomer();
+        const list = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
+        return (list as Customer[]).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'el', { sensitivity: 'base' }));
     },
 
     getOrders: async (): Promise<Order[]> => {
@@ -798,17 +813,50 @@ export const api = {
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => {
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
         const payload = { ...c };
+        if ((payload.full_name || '').trim() === RETAIL_CUSTOMER_NAME && payload.id !== RETAIL_CUSTOMER_ID) {
+            throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
+        }
         if (payload.id === '') delete payload.id;
 
         const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' });
         return result.data;
     },
 
+    ensureRetailCustomer: async (): Promise<Customer> => {
+        const retailDefaults = getRetailCustomerPayload();
+        const customers = await fetchFullTable('customers', '*', (q) => q.eq('id', RETAIL_CUSTOMER_ID));
+        const existing = (customers || [])[0] as Customer | undefined;
+
+        const needsUpsert = !existing || existing.full_name !== RETAIL_CUSTOMER_NAME;
+        if (needsUpsert) {
+            await api.saveCustomer({
+                ...(existing || {}),
+                ...retailDefaults
+            });
+        }
+
+        return {
+            ...(existing || {}),
+            ...retailDefaults
+        } as Customer;
+    },
+
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
+        if (id === RETAIL_CUSTOMER_ID) {
+            throw new Error('Ο πελάτης Λιανική είναι προστατευμένος και δεν μπορεί να τροποποιηθεί.');
+        }
+        if ((updates.full_name || '').trim() === RETAIL_CUSTOMER_NAME) {
+            throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
+        }
         await safeMutate('customers', 'UPDATE', updates, { match: { id } });
     },
 
-    deleteCustomer: async (id: string): Promise<void> => { await safeMutate('customers', 'DELETE', null, { match: { id } }); },
+    deleteCustomer: async (id: string): Promise<void> => {
+        if (id === RETAIL_CUSTOMER_ID) {
+            throw new Error('Ο πελάτης Λιανική είναι προστατευμένος και δεν μπορεί να διαγραφεί.');
+        }
+        await safeMutate('customers', 'DELETE', null, { match: { id } });
+    },
     saveOrder: async (o: Order): Promise<void> => {
         // noSelect: orders RLS allows INSERT but blocks read-back → causes PGRST204 with .select()
         await safeMutate('orders', 'INSERT', o, { noSelect: true });

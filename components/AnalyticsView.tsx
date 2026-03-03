@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Order, Product, OrderStatus, Gender, MaterialType, GlobalSettings } from '../types';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area, ComposedChart, Line
@@ -61,9 +61,12 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
         const orderSilverPrice = order.custom_silver_rate || globalSettings.silver_price_gram;
         const effectiveSettings = { ...globalSettings, silver_price_gram: orderSilverPrice };
 
+        const shouldRankCustomer = !(order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME);
         const cKey = order.customer_id || order.customer_name;
-        if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
-        customerRanking[cKey].orders += 1;
+        if (shouldRankCustomer) {
+            if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
+            customerRanking[cKey].orders += 1;
+        }
 
         // Time Grouping (Monthly)
         const date = new Date(order.created_at);
@@ -128,7 +131,9 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             salesOverTime[monthKey].revenue += revenue;
 
             // Add to customer ranking
-            customerRanking[cKey].revenue += revenue;
+            if (shouldRankCustomer) {
+                customerRanking[cKey].revenue += revenue;
+            }
 
             // Breakdown sums using the detailed cost result from pricing engine
             silverCostSum += (costResult.breakdown.silver * item.quantity);

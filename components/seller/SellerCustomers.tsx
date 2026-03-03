@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Customer, VatRegime } from '../../types';
 import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -44,6 +44,10 @@ export default function SellerCustomers() {
     }, [orders]);
 
     const handleCreateCustomer = async (c: Customer) => {
+        if (c.full_name.trim() === RETAIL_CUSTOMER_NAME) {
+            showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", 'error');
+            return;
+        }
         // Duplicate detection
         if (customers) {
             const normalized = normalizeStr(c.full_name);
@@ -157,7 +161,10 @@ export default function SellerCustomers() {
                                 <User size={18} />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <div className="font-bold text-slate-900 truncate">{c.full_name}</div>
+                                <div className="flex items-center gap-2">
+                                    <div className="font-bold text-slate-900 truncate">{c.full_name}</div>
+                                    {c.id === RETAIL_CUSTOMER_ID && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                                </div>
                                 {latestOrdersMap[c.id] && (
                                     <div className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">
                                         <Clock size={10} /> Τελευταία: {new Date(latestOrdersMap[c.id]).toLocaleDateString('el-GR')}

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Customer, Order, VatRegime } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import { normalizedIncludes } from '../utils/greekSearch';
@@ -16,9 +16,10 @@ interface CustomerCardProps {
     customer: Customer;
     onClick: () => void;
     latestOrderDate?: string;
+    isSystem?: boolean;
 }
 
-const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOrderDate }) => {
+const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOrderDate, isSystem }) => {
     return (
         <div
             onClick={onClick}
@@ -36,9 +37,12 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
             </div>
 
             <div className="mb-2">
-                <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={customer.full_name}>
-                    {customer.full_name}
-                </h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={customer.full_name}>
+                        {customer.full_name}
+                    </h3>
+                    {isSystem && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                </div>
                 {customer.vat_number && (
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
                 )}
@@ -96,6 +100,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     }, [orders]);
 
     const handleCreateCustomer = async (c: Customer) => {
+        if (c.full_name.trim() === RETAIL_CUSTOMER_NAME) {
+            showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", "error");
+            return;
+        }
         try {
             await api.saveCustomer(c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -192,6 +200,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             customer={c}
                             onClick={() => { setSelectedCustomer(c); setIsCreating(false); }}
                             latestOrderDate={latestOrdersMap[c.id]}
+                            isSystem={c.id === RETAIL_CUSTOMER_ID}
                         />
                     ))}
                     {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}

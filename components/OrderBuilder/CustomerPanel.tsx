@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Tag, Plus, X, Percent, Check } from 'lucide-react';
+import { User, Tag, Plus, X, Percent, Check, Store } from 'lucide-react';
 import { VatRegime } from '../../types';
 import { useOrderState } from '../../hooks/useOrderState';
 
@@ -28,7 +28,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                             setters.setCustomerName(e.target.value);
                             setters.setCustomerSearch(e.target.value);
                             setters.setShowCustomerResults(true);
-                            if (!e.target.value) setters.setSelectedCustomerId(null);
+                            setters.setSelectedCustomerId(null);
                         }}
                         onFocus={() => setters.setShowCustomerResults(true)}
                     />
@@ -45,6 +45,14 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                     )}
                 </div>
 
+                <button
+                    type="button"
+                    onClick={actions.handleUseRetailCustomer}
+                    className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
+                >
+                    <Store size={14} /> Χρήση Λιανικής
+                </button>
+
                 {/* Phone */}
                 <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τηλέφωνο</label>
@@ -55,6 +63,18 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         onChange={e => setters.setCustomerPhone(e.target.value)}
                     />
                 </div>
+
+                {state.isRetailCustomer && (
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                        <input
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium text-slate-800 focus:ring-2 focus:ring-fuchsia-500/20"
+                            placeholder="π.χ. Κατάστημα Νάξου"
+                            value={state.retailClientLabel}
+                            onChange={e => setters.setRetailClientLabel(e.target.value)}
+                        />
+                    </div>
+                )}
 
                 {/* Tags */}
                 <div>

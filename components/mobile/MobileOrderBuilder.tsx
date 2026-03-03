@@ -7,7 +7,7 @@ import {
     BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart, Pencil
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, SYSTEM_IDS } from '../../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
 import { normalizedIncludes } from '../../utils/greekSearch';
@@ -17,6 +17,7 @@ import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
+import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 
 interface Props {
     onBack: () => void;
@@ -208,11 +209,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     // ── Catalog browser state (lifted so we stay in same collection after adding item) ──
     const [catalogStep, setCatalogStep] = useState<CatalogStep>('collections');
     const [catalogCollection, setCatalogCollection] = useState<Collection | null>(null);
+    const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
+    const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
 
     // ── Order State ──────────────────────────────────────────────────────────
-    const [customerName, setCustomerName] = useState(initialOrder?.customer_name || '');
-    const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
-    const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
+    const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
+    const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
+    const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
     const [items, setItems] = useState<OrderItem[]>(() => {
         const baseItems = initialOrder?.items || [];
         return baseItems.map(item => {
@@ -223,7 +226,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
-    const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
+    const [orderNotes, setOrderNotes] = useState(initialRetailNotes.cleanNotes || '');
+    const [retailClientLabel, setRetailClientLabel] = useState(initialRetailNotes.retailClientLabel || '');
     const [showDraftBanner, setShowDraftBanner] = useState(false);
     const [cartExpanded, setCartExpanded] = useState(true);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -246,6 +250,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [resolvedVariant, setResolvedVariant] = useState<ProductVariant | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
+    const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
 
     // Group variants by finish (metal) for two-step selection
     const variantsByFinish = useMemo(() => {
@@ -355,13 +360,19 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (!raw) return;
         try {
             const draft = JSON.parse(raw);
-            if (draft.customerName) setCustomerName(draft.customerName);
-            if (draft.customerPhone) setCustomerPhone(draft.customerPhone);
-            if (draft.customerId) setCustomerId(draft.customerId);
+            const draftCustomerName = draft.customerName || '';
+            const draftCustomerId = draft.customerId || null;
+            const isRetailDraft = draftCustomerId === RETAIL_CUSTOMER_ID || draftCustomerName === RETAIL_CUSTOMER_NAME;
+            const parsedDraftNotes = extractRetailClientFromNotes(draft.orderNotes || '');
+
+            setCustomerName(isRetailDraft ? RETAIL_CUSTOMER_NAME : draftCustomerName);
+            setCustomerPhone(isRetailDraft ? '' : (draft.customerPhone || ''));
+            setCustomerId(isRetailDraft ? RETAIL_CUSTOMER_ID : draftCustomerId);
             if (draft.items?.length) setItems(draft.items);
             if (draft.vatRate !== undefined) setVatRate(draft.vatRate);
             if (draft.discountPercent !== undefined) setDiscountPercent(draft.discountPercent);
-            if (draft.orderNotes) setOrderNotes(draft.orderNotes);
+            setOrderNotes(parsedDraftNotes.cleanNotes || '');
+            setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
         } catch { }
         setShowDraftBanner(false);
     }, []);
@@ -378,14 +389,26 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); return; }
         try {
             const lightItems = items.map(({ product_details, ...rest }) => rest);
-            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items: lightItems, vatRate, discountPercent, orderNotes }));
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items: lightItems, vatRate, discountPercent, orderNotes, retailClientLabel }));
         } catch (e) {
             // QuotaExceededError — silently skip; autosave is best-effort
             console.warn('Draft autosave skipped (storage full):', e);
         }
-    }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, initialOrder]);
+    }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, initialOrder]);
+
+    const handleUseRetailCustomer = () => {
+        setCustomerId(RETAIL_CUSTOMER_ID);
+        setCustomerName(RETAIL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setVatRate(VatRegime.Standard);
+        setShowCustSuggestions(false);
+    };
 
     const handleSelectCustomer = (c: Customer) => {
+        if (c.id === RETAIL_CUSTOMER_ID || c.full_name === RETAIL_CUSTOMER_NAME) {
+            handleUseRetailCustomer();
+            return;
+        }
         setCustomerId(c.id);
         setCustomerName(c.full_name);
         setCustomerPhone(c.phone || '');
@@ -568,11 +591,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const grandTotal = netAmount + vatAmount;
 
     const performOrderSave = useCallback(async (customerNameVal: string, customerPhoneVal: string, customerIdVal: string | null, vatRateVal: number) => {
+        const isRetailOrder = customerIdVal === RETAIL_CUSTOMER_ID || customerNameVal.trim() === RETAIL_CUSTOMER_NAME;
+        const effectiveCustomerId = isRetailOrder ? RETAIL_CUSTOMER_ID : (customerIdVal || undefined);
+        const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerNameVal;
+        const effectiveCustomerPhone = isRetailOrder ? '' : customerPhoneVal;
+        const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
         const orderPayload: Order = {
             id: initialOrder?.id || generateOrderId(),
-            customer_name: customerNameVal,
-            customer_phone: customerPhoneVal,
-            customer_id: customerIdVal || undefined,
+            customer_name: effectiveCustomerName,
+            customer_phone: effectiveCustomerPhone,
+            customer_id: effectiveCustomerId,
             seller_id: (attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined,
             seller_name: (attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined,
             items,
@@ -581,7 +609,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             discount_percent: discountPercent,
             status: initialOrder?.status || OrderStatus.Pending,
             created_at: initialOrder?.created_at || new Date().toISOString(),
-            notes: orderNotes,
+            notes: composedNotes,
             tags: initialOrder?.tags || []
         };
         if (initialOrder) await api.updateOrder(orderPayload);
@@ -590,7 +618,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         await queryClient.refetchQueries({ queryKey: ['customers'] });
         sessionStorage.removeItem(DRAFT_KEY);
         onBack();
-    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack]);
+    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack]);
 
     const handleSaveOrder = async () => {
         if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
@@ -710,7 +738,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 className="flex-1 outline-none font-bold text-slate-800 text-base"
                                 placeholder="Όνομα Πελάτη..."
                                 value={customerName}
-                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); if (!e.target.value) setCustomerId(null); }}
+                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
                                 onFocus={() => setShowCustSuggestions(true)}
                             />
                             {customerId && <Check size={16} className="text-emerald-500" />}
@@ -723,6 +751,24 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         <span className="text-slate-400 text-xs">{c.phone}</span>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleUseRetailCustomer}
+                            className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                        >
+                            Χρήση Λιανικής
+                        </button>
+                        {isRetailCustomer && (
+                            <div className="mt-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                                <input
+                                    value={retailClientLabel}
+                                    onChange={e => setRetailClientLabel(e.target.value)}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
+                                    placeholder="π.χ. Κατάστημα Νάξου"
+                                />
                             </div>
                         )}
                         {/* VAT + Discount */}

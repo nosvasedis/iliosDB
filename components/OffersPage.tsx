@@ -3,11 +3,12 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Customer, Offer, OfferStatus, OrderItem, GlobalSettings, Collection, Material, VatRegime } from '../types';
 import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw, Loader2, ArrowRight, Ban, FolderKanban, Coins, Percent, X, AlertTriangle, ImageIcon, ScanBarcode, Lightbulb } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../lib/supabase';
+import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange, estimateVariantCost, getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
+import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -52,6 +53,7 @@ export default function OffersPage({ products, materials, settings, collections,
     const [discountPercent, setDiscountPercent] = useState(0);
     const [vatRate, setVatRate] = useState<number>(VatRegime.Standard);
     const [offerNotes, setOfferNotes] = useState('');
+    const [retailClientLabel, setRetailClientLabel] = useState('');
     const [items, setItems] = useState<OrderItem[]>([]);
 
     // Convert-after-edit state
@@ -78,7 +80,21 @@ export default function OffersPage({ products, materials, settings, collections,
         return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
 
+    const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+
+    const handleUseRetailCustomer = () => {
+        setCustomerId(RETAIL_CUSTOMER_ID);
+        setCustomerName(RETAIL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setVatRate(VatRegime.Standard);
+        setShowCustomerResults(false);
+    };
+
     const handleSelectCustomer = (c: Customer) => {
+        if (c.id === RETAIL_CUSTOMER_ID || c.full_name === RETAIL_CUSTOMER_NAME) {
+            handleUseRetailCustomer();
+            return;
+        }
         setCustomerId(c.id);
         setCustomerName(c.full_name);
         setCustomerPhone(c.phone || '');
@@ -86,6 +102,7 @@ export default function OffersPage({ products, materials, settings, collections,
     };
 
     const handleEditOffer = (offer: Offer) => {
+        const parsedNotes = extractRetailClientFromNotes(offer.notes);
         setEditingOffer(offer);
         setCustomerName(offer.customer_name);
         setCustomerPhone(offer.customer_phone || '');
@@ -93,7 +110,8 @@ export default function OffersPage({ products, materials, settings, collections,
         setCustomSilverPrice(offer.custom_silver_price);
         setDiscountPercent(offer.discount_percent);
         setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
-        setOfferNotes(offer.notes || '');
+        setOfferNotes(parsedNotes.cleanNotes || '');
+        setRetailClientLabel(parsedNotes.retailClientLabel);
         const syncedItems = (offer.items || []).map(item => {
             const product = products.find(p => p.sku === item.sku);
             return {
@@ -317,11 +335,13 @@ export default function OffersPage({ products, materials, settings, collections,
         if (items.length === 0) { showToast("Η προσφορά είναι κενή.", "error"); return; }
 
         setIsSaving(true);
+        const isRetailOffer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+        const composedNotes = isRetailOffer ? composeNotesWithRetailClient(offerNotes, retailClientLabel) : offerNotes;
         const offerPayload: Offer = {
             id: editingOffer ? editingOffer.id : crypto.randomUUID(),
-            customer_id: customerId || undefined,
-            customer_name: customerName,
-            customer_phone: customerPhone,
+            customer_id: isRetailOffer ? RETAIL_CUSTOMER_ID : (customerId || undefined),
+            customer_name: isRetailOffer ? RETAIL_CUSTOMER_NAME : customerName,
+            customer_phone: isRetailOffer ? '' : customerPhone,
             created_at: editingOffer ? editingOffer.created_at : new Date().toISOString(),
             status: editingOffer ? editingOffer.status : 'Pending',
             custom_silver_price: customSilverPrice,
@@ -329,7 +349,7 @@ export default function OffersPage({ products, materials, settings, collections,
             vat_rate: vatRate,
             items: items,
             total_price: grandTotal,
-            notes: offerNotes
+            notes: composedNotes
         };
 
         try {
@@ -395,7 +415,7 @@ export default function OffersPage({ products, materials, settings, collections,
                 status: 'Pending',
                 items: offer.items,
                 total_price: offer.total_price,
-                notes: `Converted from Offer #${offer.id.slice(0, 8)}. ${offer.notes || ''}`,
+                notes: offer.notes || '',
                 custom_silver_rate: offer.custom_silver_price,
                 vat_rate: offer.vat_rate !== undefined ? offer.vat_rate : 0.24,
                 discount_percent: offer.discount_percent
@@ -502,7 +522,7 @@ export default function OffersPage({ products, materials, settings, collections,
                         <p className="text-sm text-slate-500">Δημιουργήστε μια προσαρμοσμένη οικονομική προσφορά.</p>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); setVatRate(VatRegime.Standard); }} disabled={isSaving} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">Ακύρωση</button>
+                        <button onClick={() => { setIsCreating(false); setEditingOffer(null); setItems([]); setVatRate(VatRegime.Standard); setOfferNotes(''); setRetailClientLabel(''); }} disabled={isSaving} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">Ακύρωση</button>
                         <button onClick={handleSaveOffer} disabled={isSaving} className="px-6 py-2 bg-[#060b00] text-white font-bold rounded-xl shadow-lg hover:bg-black transition-all flex items-center gap-2 disabled:opacity-70 min-w-[140px] justify-center">
                             {isSaving ? <><Loader2 size={16} className="animate-spin" /> Αποθήκευση...</> : <><Save size={16} /> Αποθήκευση</>}
                         </button>
@@ -534,7 +554,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                     className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
                                     placeholder="Αναζήτηση..."
                                     value={customerName}
-                                    onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); if (!e.target.value) setCustomerId(null); }}
+                                    onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); setCustomerId(null); }}
                                     onFocus={() => setShowCustomerResults(true)}
                                 />
                                 {showCustomerResults && customerName && !customerId && filteredCustomers.length > 0 && (
@@ -547,6 +567,24 @@ export default function OffersPage({ products, materials, settings, collections,
                                     </div>
                                 )}
                             </div>
+                            <button
+                                type="button"
+                                onClick={handleUseRetailCustomer}
+                                className="w-full p-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                            >
+                                Χρήση Λιανικής
+                            </button>
+                            {isRetailCustomer && (
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                                    <input
+                                        value={retailClientLabel}
+                                        onChange={e => setRetailClientLabel(e.target.value)}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
+                                        placeholder="π.χ. Κατάστημα Νάξου"
+                                    />
+                                </div>
+                            )}
                             <div className="flex items-center gap-2 border-t border-slate-50 pt-2">
                                 <Phone size={14} className="text-slate-400" />
                                 <input className="flex-1 outline-none text-sm text-slate-600 font-medium placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
@@ -811,7 +849,7 @@ export default function OffersPage({ products, materials, settings, collections,
                     </h1>
                     <p className="text-slate-500 mt-1 ml-14">Διαχείριση οικονομικών προσφορών.</p>
                 </div>
-                <button onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setVatRate(VatRegime.Standard); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
+                <button onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setCustomerPhone(''); setOfferNotes(''); setRetailClientLabel(''); setVatRate(VatRegime.Standard); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
                     <Plus size={20} /> Νέα Προσφορά
                 </button>
             </div>

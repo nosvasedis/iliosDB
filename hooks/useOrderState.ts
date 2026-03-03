@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
 import { getSizingInfo } from '../utils/sizing';
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
+import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -44,12 +45,15 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const { profile } = useAuth();
     const queryClient = useQueryClient();
     const isSeller = profile?.role === 'seller';
+    const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
+    const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
 
     // --- Customer & Order Meta State ---
-    const [customerName, setCustomerName] = useState(initialOrder?.customer_name || '');
-    const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
-    const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialOrder?.customer_id || null);
-    const [orderNotes, setOrderNotes] = useState(initialOrder?.notes || '');
+    const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
+    const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
+    const [orderNotes, setOrderNotes] = useState(initialRetailNotes.cleanNotes || '');
+    const [retailClientLabel, setRetailClientLabel] = useState(initialRetailNotes.retailClientLabel || '');
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
@@ -97,10 +101,16 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 try {
                     const draft = JSON.parse(savedDraft);
                     if (draft.timestamp && (Date.now() - draft.timestamp < 86400000)) {
-                        setCustomerName(draft.customerName || '');
-                        setCustomerPhone(draft.customerPhone || '');
-                        setSelectedCustomerId(draft.selectedCustomerId || null);
-                        setOrderNotes(draft.orderNotes || '');
+                        const draftCustomerName = draft.customerName || '';
+                        const draftSelectedCustomerId = draft.selectedCustomerId || null;
+                        const isRetailDraft = draftSelectedCustomerId === RETAIL_CUSTOMER_ID || draftCustomerName === RETAIL_CUSTOMER_NAME;
+                        const parsedDraftNotes = extractRetailClientFromNotes(draft.orderNotes || '');
+
+                        setCustomerName(isRetailDraft ? RETAIL_CUSTOMER_NAME : draftCustomerName);
+                        setCustomerPhone(isRetailDraft ? '' : (draft.customerPhone || ''));
+                        setSelectedCustomerId(isRetailDraft ? RETAIL_CUSTOMER_ID : draftSelectedCustomerId);
+                        setOrderNotes(parsedDraftNotes.cleanNotes || '');
+                        setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
                         setDiscountPercent(draft.discountPercent || 0);
                         const syncedItems = (draft.selectedItems || []).map((item: any) => {
@@ -125,12 +135,12 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         if (!initialOrder) {
             const draftData = {
                 customerName, customerPhone, selectedCustomerId,
-                orderNotes, vatRate, discountPercent, selectedItems, tags,
+                orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags,
                 timestamp: Date.now()
             };
             localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(draftData));
         }
-    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, vatRate, discountPercent, selectedItems, tags]);
+    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags]);
 
     const clearDraft = () => localStorage.removeItem(DRAFT_ORDER_KEY);
 
@@ -180,6 +190,10 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Customer Actions ---
     const handleSelectCustomer = (c: Customer) => {
+        if (c.id === RETAIL_CUSTOMER_ID || c.full_name === RETAIL_CUSTOMER_NAME) {
+            handleUseRetailCustomer();
+            return;
+        }
         setSelectedCustomerId(c.id);
         setCustomerName(c.full_name);
         setCustomerPhone(c.phone || '');
@@ -188,6 +202,15 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         } else {
             setVatRate(VatRegime.Standard);
         }
+        setCustomerSearch('');
+        setShowCustomerResults(false);
+    };
+
+    const handleUseRetailCustomer = () => {
+        setSelectedCustomerId(RETAIL_CUSTOMER_ID);
+        setCustomerName(RETAIL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setVatRate(VatRegime.Standard);
         setCustomerSearch('');
         setShowCustomerResults(false);
     };
@@ -707,17 +730,23 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         if (selectedItems.length === 0) { showToast('Προσθέστε τουλάχιστον ένα προϊόν.', 'error'); return; }
         setIsSaving(true);
         try {
+            const isRetailOrder = selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+            const effectiveCustomerId = isRetailOrder ? RETAIL_CUSTOMER_ID : (selectedCustomerId || undefined);
+            const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerName;
+            const effectiveCustomerPhone = isRetailOrder ? '' : customerPhone;
+            const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
+
             if (initialOrder) {
                 const updatedOrder: Order = {
                     ...initialOrder,
-                    customer_id: selectedCustomerId || undefined,
-                    customer_name: customerName,
-                    customer_phone: customerPhone,
+                    customer_id: effectiveCustomerId,
+                    customer_name: effectiveCustomerName,
+                    customer_phone: effectiveCustomerPhone,
                     items: selectedItems,
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
-                    notes: orderNotes,
+                    notes: composedNotes,
                     tags
                 };
                 await api.updateOrder(updatedOrder);
@@ -726,9 +755,9 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 const newOrderId = generateOrderId();
                 const newOrder: Order = {
                     id: newOrderId,
-                    customer_id: selectedCustomerId || undefined,
-                    customer_name: customerName,
-                    customer_phone: customerPhone,
+                    customer_id: effectiveCustomerId,
+                    customer_name: effectiveCustomerName,
+                    customer_phone: effectiveCustomerPhone,
                     seller_id: isSeller ? profile?.id : undefined,
                     created_at: new Date().toISOString(),
                     status: OrderStatus.Pending,
@@ -736,7 +765,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
-                    notes: orderNotes,
+                    notes: composedNotes,
                     tags
                 };
                 await api.saveOrder(newOrder);
@@ -777,8 +806,9 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         state: {
             // Customer
             customerName, customerPhone, selectedCustomerId,
-            orderNotes, vatRate, discountPercent, tags, tagInput,
+            orderNotes, retailClientLabel, vatRate, discountPercent, tags, tagInput,
             customerSearch, showCustomerResults, isSaving,
+            isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
             // Smart entry
             scanInput, scanQty, itemNotes,
             candidateProducts, activeMaster, filteredVariants,
@@ -796,7 +826,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         },
         setters: {
             setCustomerName, setCustomerPhone, setSelectedCustomerId,
-            setOrderNotes, setVatRate, setDiscountPercent, setTagInput,
+            setOrderNotes, setRetailClientLabel, setVatRate, setDiscountPercent, setTagInput,
             setCustomerSearch, setShowCustomerResults,
             setScanInput, setScanQty, setItemNotes,
             setActiveMaster, setFilteredVariants, setSelectedSize,
@@ -804,7 +834,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setSortOrder, setItemSearchTerm,
         },
         actions: {
-            handleSelectCustomer, handleAddTag, removeTag,
+            handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, handleScanInOrder,
             updateQuantity, updateItemNotes, updateItemVariantAndSize, handleRemoveItem,
