@@ -843,10 +843,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                     >
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
                                         <div className="p-4">
-                                            <div className={`font-bold ${isRetailOrder ? 'italic text-fuchsia-700' : 'text-slate-800'}`}>
-                                                {order.customer_name}
-                                                {isRetailOrder && retailClientLabel && (
-                                                    <span className="not-italic text-xs font-bold text-fuchsia-600 ml-2">({retailClientLabel})</span>
+                                            <div className="font-bold text-slate-800">
+                                                {isRetailOrder ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold">
+                                                        <span>{order.customer_name}</span>
+                                                        {retailClientLabel && (
+                                                            <span className="text-[10px] uppercase tracking-wide text-emerald-500">
+                                                                {retailClientLabel}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                ) : (
+                                                    order.customer_name
                                                 )}
                                             </div>
                                             {order.seller_name && (
@@ -907,10 +915,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
-                                <p className={`text-sm font-bold ${managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME ? 'italic text-fuchsia-700' : 'text-slate-500'}`}>
-                                    {managingOrder.customer_name}
-                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
-                                        <span className="not-italic text-xs font-bold text-fuchsia-600 ml-2">({extractRetailClientFromNotes(managingOrder.notes).retailClientLabel})</span>
+                                <p className="text-sm font-bold text-slate-500">
+                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold">
+                                            <span>{managingOrder.customer_name}</span>
+                                            {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
+                                                <span className="text-[10px] uppercase tracking-wide text-emerald-500">
+                                                    {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel}
+                                                </span>
+                                            )}
+                                        </span>
+                                    ) : (
+                                        managingOrder.customer_name
                                     )}
                                 </p>
                             </div>

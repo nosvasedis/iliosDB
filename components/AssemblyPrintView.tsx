@@ -76,23 +76,23 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
     );
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
-            <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-4 mx-auto shadow-lg print:shadow-none print:p-4 print:w-full">
+            <div className="flex justify-between items-center border-b-2 border-slate-900 pb-3 mb-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-20">
+                    <div className="w-16">
                         <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                            <Layers size={28} className="text-pink-600" />
+                        <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                            <Layers size={22} className="text-pink-600" />
                             Συναρμολόγηση
                         </h1>
-                        <p className="text-slate-500 text-sm font-bold mt-1">Φύλλο Εργασίας Συναρμολόγησης</p>
+                        <p className="text-slate-500 text-xs font-bold mt-0.5">Φύλλο Εργασίας Συναρμολόγησης</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-slate-600 text-sm font-bold">Ημ/νία: {new Date().toLocaleDateString('el-GR')}</p>
-                    <div className="flex items-center justify-end gap-4 mt-2 text-xs">
+                    <p className="text-slate-600 text-xs font-bold">Ημ/νία: {new Date().toLocaleDateString('el-GR')}</p>
+                    <div className="flex items-center justify-end gap-2 mt-1.5 text-[11px]">
                         <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-bold border border-blue-200">
                             {totalOrders} Εντολές
                         </span>
@@ -106,33 +106,33 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                 </div>
             </div>
 
-            <main className="space-y-8">
+            <main className="space-y-5">
                 {customerGroups.map((customerGroup, customerIndex) => (
-                    <div key={customerGroup.customerName} className="mb-8">
-                        <div className="bg-pink-50 border border-pink-200 rounded-xl p-3 mb-4 flex items-center justify-between">
+                    <div key={customerGroup.customerName} className="mb-5">
+                        <div className="bg-pink-50 border border-pink-200 rounded-lg p-2.5 mb-3 flex items-center justify-between break-inside-avoid">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
-                                    <User size={20} className="text-pink-600" />
+                                <div className="w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center">
+                                    <User size={16} className="text-pink-600" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-black text-slate-900">{customerGroup.customerName}</h2>
+                                    <h2 className="text-base font-black text-slate-900 leading-tight">{customerGroup.customerName}</h2>
                                     <p className="text-xs font-bold text-pink-600">
                                         {customerGroup.orders.length} εντολές
                                     </p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <span className="text-2xl font-black text-pink-700">
+                                <span className="text-xl font-black text-pink-700">
                                     {customerGroup.orders.reduce((sum, order) => sum + order.items.reduce((a, item) => a + item.row.quantity, 0), 0)}
                                 </span>
                                 <span className="text-xs font-bold text-pink-500 ml-1">τεμ.</span>
                             </div>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                             {customerGroup.orders.map((orderGroup) => (
-                                <section key={`${customerGroup.customerName}_${orderGroup.orderId}`} className="space-y-3">
-                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                <section key={`${customerGroup.customerName}_${orderGroup.orderId}`} className="space-y-2.5">
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 break-inside-avoid">
                                         <p className="text-xs font-black text-slate-700 uppercase tracking-wide">
                                             Εντολή #{formatOrderId(orderGroup.orderId)}
                                         </p>
@@ -141,7 +141,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                         </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-2.5">
                                         {orderGroup.items.map((item) => {
                                             const { row, product } = item;
                                             const fullSku = `${row.sku}${row.variant_suffix || ''}`;
@@ -150,9 +150,10 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                             return (
                                                 <div
                                                     key={row.id}
-                                                    className="border-2 border-slate-200 rounded-xl p-3 flex gap-3 bg-white"
+                                                    className="border border-slate-200 rounded-lg p-2 flex gap-2 bg-white break-inside-avoid"
+                                                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
                                                 >
-                                                    <div className="w-24 h-24 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                                    <div className="w-16 h-16 bg-slate-100 rounded-md overflow-hidden border border-slate-200 shrink-0">
                                                         {product?.image_url ? (
                                                             <img
                                                                 src={product.image_url}
@@ -168,33 +169,33 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
 
                                                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                                                         <div>
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span className="text-xl font-black text-slate-900 tracking-tight">
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <span className="text-base font-black text-slate-900 tracking-tight leading-tight">
                                                                     {fullSku}
                                                                 </span>
                                                                 {row.size_info && (
-                                                                    <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs font-black">
+                                                                    <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-black leading-none">
                                                                         <Hash size={10} className="inline mr-0.5" />
                                                                         {row.size_info}
                                                                     </span>
                                                                 )}
                                                             </div>
 
-                                                            <p className="text-sm font-bold text-slate-600 line-clamp-2">
+                                                            <p className="text-xs font-bold text-slate-600 leading-tight line-clamp-2">
                                                                 {product?.description || product?.category || '—'}
                                                             </p>
                                                             {variantDesc && (
-                                                                <p className="text-xs font-medium text-pink-600 mt-0.5">
+                                                                <p className="text-[11px] font-medium text-pink-600 mt-0.5 leading-tight">
                                                                     {variantDesc}
                                                                 </p>
                                                             )}
                                                         </div>
 
-                                                        <div className="flex items-center justify-between mt-2">
-                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                        <div className="flex items-center justify-between mt-1.5">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                                                 Ποσότητα
                                                             </span>
-                                                            <span className="bg-pink-100 text-pink-800 px-3 py-1 rounded-lg text-lg font-black border border-pink-200">
+                                                            <span className="bg-pink-100 text-pink-800 px-2 py-0.5 rounded text-base font-black border border-pink-200 leading-tight">
                                                                 x{row.quantity}
                                                             </span>
                                                         </div>
@@ -208,7 +209,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                         </div>
 
                         {customerIndex < customerGroups.length - 1 && (
-                            <div className="mt-8 border-b-2 border-dashed border-slate-200"></div>
+                            <div className="mt-5 border-b-2 border-dashed border-slate-200"></div>
                         )}
                     </div>
                 ))}
@@ -221,7 +222,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                 )}
             </main>
 
-            <footer className="mt-8 pt-4 border-t border-slate-200 text-center">
+            <footer className="mt-5 pt-3 border-t border-slate-200 text-center">
                 <p className="text-xs text-slate-400 uppercase tracking-widest">
                     Ilios Kosmima ERP • Φύλλο Συναρμολόγησης
                 </p>
