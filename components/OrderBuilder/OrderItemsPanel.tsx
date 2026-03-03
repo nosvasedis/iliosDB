@@ -101,24 +101,24 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
         <>
             <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιεχόμενα ({state.selectedItems.length})</label>
-                <div className="flex items-center gap-2">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.14em] leading-none">Περιεχόμενα ({state.selectedItems.length})</label>
+                <div className="flex items-center gap-1.5">
                     <button
                         onClick={actions.handleRecalculatePrices}
-                        className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all"
+                        className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-3 rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors"
                     >
                         <RefreshCw size={12} /> Συγχρονισμός Τιμών
                     </button>
                     <button
                         onClick={() => setters.setSortOrder(prev => prev === 'input' ? 'alpha' : 'input')}
-                        className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                        className="h-8 inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-white border border-slate-200 px-2.5 rounded-xl hover:bg-slate-50 transition-colors"
                     >
                         <ArrowDownAZ size={12} /> {state.sortOrder === 'input' ? 'Χρον.' : 'Αλφ.'}
                     </button>
                     <button
                         onClick={onOpenScanner}
-                        className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-all active:scale-95"
+                        className="h-8 inline-flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 rounded-xl border border-blue-200 transition-colors active:scale-95"
                     >
                         <Camera size={14} />
                     </button>

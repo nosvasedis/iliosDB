@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, Customer, Order } from '../types';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { useOrderState } from '../hooks/useOrderState';
 import { CustomerPanel } from './OrderBuilder/CustomerPanel';
 import { SmartEntryPanel } from './OrderBuilder/SmartEntryPanel';
@@ -57,6 +57,19 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     onScan={actions.handleScanInOrder}
                     onClose={() => orderState.setters.setShowScanner(false)}
                 />
+            )}
+
+            {/* Full-screen Saving Overlay */}
+            {state.isSaving && (
+                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                    <div className="relative">
+                        <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
+                        <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">
+                            <Loader2 size={34} className="animate-spin text-slate-800" />
+                        </div>
+                    </div>
+                    <p className="text-base font-black text-slate-700 tracking-widest uppercase">Αποθήκευση...</p>
+                </div>
             )}
         </div>
     );
