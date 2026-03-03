@@ -4,6 +4,7 @@ import { APP_LOGO } from '../constants';
 import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote, Hammer } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { GlobalSettings } from '../types';
+import { formatOrderId } from '../utils/orderUtils';
 
 interface Props {
     data: AggregatedData;
@@ -84,7 +85,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <>
                             <h1 className="text-xl font-black text-slate-800 uppercase tracking-tight">Εντολη Παραγωγησ</h1>
                             <div className="flex items-center justify-end gap-3 text-xs mt-1">
-                                <span className="font-mono font-bold text-slate-600">#{data.orderId}</span>
+                                <span className="font-mono font-bold text-slate-600">#{formatOrderId(data.orderId)}</span>
                                 <span className="text-slate-400">|</span>
                                 <span className="font-bold text-slate-900">{data.customerName}</span>
                             </div>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
-import { TrendingUp, Wallet, Tag, Target, Calendar, User, Coins, Hammer, Box, AlertTriangle } from 'lucide-react';
+import { Wallet, Tag, Target, Coins, Hammer, Box, AlertTriangle, Weight } from 'lucide-react';
+import { formatOrderId } from '../utils/orderUtils';
 
 interface Props {
     stats: any; // Result from calculateBusinessStats
@@ -18,6 +19,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
     const silverPct = (stats.costBreakdown.silver / stats.totalCost) * 100;
     const laborPct = (stats.costBreakdown.labor / stats.totalCost) * 100;
     const matPct = (stats.costBreakdown.materials / stats.totalCost) * 100;
+    const orderWeightGrams = (stats.silverSoldKg || 0) * 1000;
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto page-break-after-always relative flex flex-col">
@@ -33,23 +35,30 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                 <div className="flex items-center gap-4">
                     <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain" />
                     <div className="flex flex-col border-l-2 border-slate-200 pl-4">
-                         <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">Αναλυση Κερδοφοριας</h1>
+                         <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">Οικονομικη Αναλυση</h1>
                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Order Job Costing</p>
                     </div>
                 </div>
                 <div className="text-right">
                     <div className="flex items-center justify-end gap-2 mb-1">
                         <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Εντολη</span>
-                        <span className="font-mono font-bold text-sm bg-slate-100 px-2 rounded">#{orderId.slice(0, 8)}</span>
+                        <span className="font-mono font-bold text-sm bg-slate-100 px-2 rounded">#{formatOrderId(orderId)}</span>
                     </div>
                     <div className="flex items-center justify-end gap-2">
                          <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Πελατης</span>
                          <span className="font-bold text-sm">{customerName}</span>
                     </div>
-                    <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-1 inline-flex">
-                        <Coins size={10} className="text-slate-400"/>
-                        <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
-                        <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(silverPrice, 2)} €/g</span>
+                    <div className="flex items-center justify-end gap-2 mt-1">
+                        <div className="flex items-center gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 inline-flex">
+                            <Coins size={10} className="text-slate-400"/>
+                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
+                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(silverPrice, 2)} €/g</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 inline-flex">
+                            <Weight size={10} className="text-slate-400"/>
+                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Βαρος</span>
+                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(orderWeightGrams, 1)} g</span>
+                        </div>
                     </div>
                 </div>
             </div>

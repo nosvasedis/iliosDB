@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
-import { Order, Product, Customer, GlobalSettings } from '../types';
+import { Order, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import QRCode from 'qrcode';
-import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User, Weight, Coins } from 'lucide-react';
-import { transliterateForBarcode, formatDecimal } from '../utils/pricingEngine';
+import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User } from 'lucide-react';
+import { transliterateForBarcode } from '../utils/pricingEngine';
+import { formatOrderId } from '../utils/orderUtils';
 
 interface Props {
     order: Order;
@@ -37,7 +38,6 @@ const QRCodeImage: React.FC<{ sku: string }> = ({ sku }) => {
 
 export default function OrderInvoiceView({ order }: Props) {
     const { data: allProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
-    const { data: settings } = useQuery<GlobalSettings>({ queryKey: ['settings'], queryFn: api.getSettings });
     const queryClient = useQueryClient();
     const allCustomers = queryClient.getQueryData<Customer[]>(['customers']);
     const customer = order.customer_id
@@ -59,15 +59,6 @@ export default function OrderInvoiceView({ order }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
-
-    const silverPrice = order.custom_silver_rate || settings?.silver_price_gram || 0;
-
-    // Calculate Total Silver Weight
-    const totalSilverWeight = order.items.reduce((acc, item) => {
-        const product = allProducts?.find(p => p.sku === item.sku);
-        const weightPerItem = product ? (product.weight_g + (product.secondary_weight_g || 0)) : 0;
-        return acc + (weightPerItem * item.quantity);
-    }, 0);
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -93,7 +84,7 @@ export default function OrderInvoiceView({ order }: Props) {
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Παραστατικο Παραγγελιας</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Hash size={10}/> {order.id.slice(0, 12)}</span>
+                        <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1"><Calendar size={10}/> {formatDate(order.created_at)}</span>
                     </div>
@@ -128,9 +119,6 @@ export default function OrderInvoiceView({ order }: Props) {
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Συνολο</span>
                     <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}€</span>
-                    <div className="text-[8px] text-slate-500 font-bold uppercase mt-1 flex items-center gap-1">
-                        <Coins size={8}/> Ag: {formatDecimal(silverPrice, 2)} €/g
-                    </div>
                 </div>
             </div>
 
@@ -244,14 +232,6 @@ export default function OrderInvoiceView({ order }: Props) {
                         <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}€</span>
                     </div>
                     
-                    {/* SILVER WEIGHT INDICATOR */}
-                    {totalSilverWeight > 0 && (
-                        <div className="flex justify-between items-center text-slate-500 mb-1 pb-1 border-b border-slate-200">
-                            <span className="flex items-center gap-1"><Weight size={11}/> Βάρος (Ag):</span>
-                            <span className="tabular-nums font-bold">{totalSilverWeight.toFixed(1)}g</span>
-                        </div>
-                    )}
-
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
                         <span className="uppercase">Γενικο Συνολο:</span>
                         <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}€</span>
