@@ -3,6 +3,7 @@ import { AssemblyPrintRow, Product } from '../types';
 import { APP_LOGO } from '../constants';
 import { Layers, User, Hash } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
+import { getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
     rows: AssemblyPrintRow[];
@@ -23,6 +24,14 @@ interface CustomerGroup {
     customerName: string;
     orders: OrderGroup[];
 }
+
+const TEXT_FINISH_COLORS: Record<string, string> = {
+    'X': 'text-amber-600',
+    'P': 'text-slate-500',
+    'D': 'text-orange-600',
+    'H': 'text-cyan-500',
+    '': 'text-slate-400'
+};
 
 export default function AssemblyPrintView({ rows, allProducts }: Props) {
     const customerGroups = useMemo(() => {
@@ -141,19 +150,19 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                         </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2.5">
+                                    <div className="grid grid-cols-3 gap-2.5">
                                         {orderGroup.items.map((item) => {
                                             const { row, product } = item;
-                                            const fullSku = `${row.sku}${row.variant_suffix || ''}`;
-                                            const variantDesc = product?.variants?.find(v => v.suffix === row.variant_suffix)?.description;
+                                            const { finish } = getVariantComponents(row.variant_suffix || '', product?.gender);
+                                            const finishColor = TEXT_FINISH_COLORS[finish.code] || TEXT_FINISH_COLORS[''];
 
                                             return (
                                                 <div
                                                     key={row.id}
-                                                    className="border border-slate-200 rounded-lg p-2 flex gap-2 bg-white break-inside-avoid"
+                                                    className="border border-slate-200 rounded-lg p-1.5 flex gap-1.5 bg-white break-inside-avoid"
                                                     style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
                                                 >
-                                                    <div className="w-16 h-16 bg-slate-100 rounded-md overflow-hidden border border-slate-200 shrink-0">
+                                                    <div className="w-14 h-14 bg-slate-100 rounded-md overflow-hidden border border-slate-200 shrink-0">
                                                         {product?.image_url ? (
                                                             <img
                                                                 src={product.image_url}
@@ -168,34 +177,26 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                                     </div>
 
                                                     <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                                        <div>
-                                                            <div className="flex items-center gap-1.5 mb-0.5">
-                                                                <span className="text-base font-black text-slate-900 tracking-tight leading-tight">
-                                                                    {fullSku}
+                                                        <div className="flex items-center flex-wrap gap-0.5 mb-0.5">
+                                                            <span className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                                                                {row.sku}
+                                                            </span>
+                                                            <span className={`text-sm font-black leading-tight ${finishColor}`}>
+                                                                {finish.code}
+                                                            </span>
+                                                            {row.size_info && (
+                                                                <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[9px] font-black leading-none inline-flex items-center gap-0.5">
+                                                                    <Hash size={9} />
+                                                                    {row.size_info}
                                                                 </span>
-                                                                {row.size_info && (
-                                                                    <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-black leading-none">
-                                                                        <Hash size={10} className="inline mr-0.5" />
-                                                                        {row.size_info}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            <p className="text-xs font-bold text-slate-600 leading-tight line-clamp-2">
-                                                                {product?.description || product?.category || '—'}
-                                                            </p>
-                                                            {variantDesc && (
-                                                                <p className="text-[11px] font-medium text-pink-600 mt-0.5 leading-tight">
-                                                                    {variantDesc}
-                                                                </p>
                                                             )}
                                                         </div>
 
-                                                        <div className="flex items-center justify-between mt-1.5">
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                                                                 Ποσότητα
                                                             </span>
-                                                            <span className="bg-pink-100 text-pink-800 px-2 py-0.5 rounded text-base font-black border border-pink-200 leading-tight">
+                                                            <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded text-sm font-black border border-pink-200 leading-tight">
                                                                 x{row.quantity}
                                                             </span>
                                                         </div>

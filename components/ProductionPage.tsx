@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase } from '../lib/supabase';
+import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow } from '../types';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
@@ -15,6 +15,7 @@ import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
 import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { requiresAssemblyStage } from '../constants';
 
 interface Props {
@@ -1305,6 +1306,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             .map((order) => {
                 const mergedRows = new Map<string, AssemblyPrintRow>();
 
+                const isRetailOrder =
+                    order.customer_id === RETAIL_CUSTOMER_ID ||
+                    order.customer_name === RETAIL_CUSTOMER_NAME;
+                const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
+                const displayCustomerName =
+                    isRetailOrder && retailClientLabel
+                        ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
+                        : order.customer_name;
+
                 order.items.forEach((item, index) => {
                     if (!requiresAssemblyStage(item.sku)) return;
 
@@ -1324,7 +1334,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     mergedRows.set(key, {
                         id: `assembly-order-${order.id}-${index}`,
                         order_id: order.id,
-                        customer_name: order.customer_name,
+                        customer_name: displayCustomerName,
                         sku: item.sku,
                         variant_suffix: item.variant_suffix,
                         size_info: item.size_info,
