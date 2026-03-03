@@ -530,7 +530,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const ordersRowVirtualizer = useVirtualizer({
         count: filteredOrders.length,
         getScrollElement: () => ordersScrollRef.current,
-        estimateSize: () => 64,
+        estimateSize: () => 96,
         overscan: 8
     });
 
@@ -833,19 +833,28 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 return (
                                     <div
                                         key={order.id}
+                                        data-index={virtualRow.index}
+                                        ref={ordersRowVirtualizer.measureElement}
                                         className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
-                                        style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                                        style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">{order.customer_name}</div>
-                                            {order.seller_name && <div className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</div>}
+                                            {order.seller_name && (
+                                                <div className="mt-1.5">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700">
+                                                        <span className="uppercase tracking-wide text-[9px] text-sky-600">Πλάσιε</span>
+                                                        <span className="text-sky-800">{order.seller_name}</span>
+                                                    </span>
+                                                </div>
+                                            )}
                                             {order.tags && order.tags.length > 0 && (
-                                                <div className="flex gap-1 mt-1 flex-wrap">
+                                                <div className="flex gap-1.5 mt-2 flex-wrap">
                                                     {order.tags.map(t => {
                                                         const c = getTagColor(t);
                                                         return (
-                                                            <span key={t} className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${c.bg} ${c.text} ${c.border}`}>{t}</span>
+                                                            <span key={t} className={`text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide ${c.bg} ${c.text} ${c.border}`}>{t}</span>
                                                         );
                                                     })}
                                                 </div>
