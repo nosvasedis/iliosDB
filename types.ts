@@ -338,6 +338,22 @@ export interface AggregatedData {
   customerName?: string;
 }
 
+export interface AssemblyPrintRow {
+  id: string;
+  order_id: string;
+  customer_name: string;
+  sku: string;
+  variant_suffix?: string;
+  size_info?: string;
+  quantity: number;
+}
+
+export interface AssemblyPrintData {
+  rows: AssemblyPrintRow[];
+  selected_order_ids: string[];
+  generated_at: string;
+}
+
 // --- NEW SUPPLIER ORDER TYPES ---
 
 export type SupplierOrderType = 'Product' | 'Material';

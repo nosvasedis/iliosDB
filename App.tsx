@@ -40,7 +40,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
@@ -281,6 +281,7 @@ function AppContent() {
           aggregatedPrintData={aggregatedPrintData}
           preparationPrintData={preparationPrintData}
           technicianPrintData={technicianPrintData}
+          assemblyPrintData={assemblyPrintData}
           priceListPrintData={priceListPrintData}
           analyticsPrintData={analyticsPrintData}
           orderAnalyticsData={orderAnalyticsData}
@@ -293,6 +294,7 @@ function AppContent() {
           setAggregatedPrintData={setAggregatedPrintData}
           setPreparationPrintData={setPreparationPrintData}
           setTechnicianPrintData={setTechnicianPrintData}
+          setAssemblyPrintData={setAssemblyPrintData}
           setPriceListPrintData={setPriceListPrintData}
           setAnalyticsPrintData={setAnalyticsPrintData}
           setOrderAnalyticsData={setOrderAnalyticsData}
@@ -408,8 +410,8 @@ function AppContent() {
     setTechnicianPrintData({ batches });
   };
 
-  const handlePrintAssembly = (batches: ProductionBatch[]) => {
-    setAssemblyPrintData({ batches });
+  const handlePrintAssembly = (data: AssemblyPrintData) => {
+    setAssemblyPrintData(data);
   };
 
   const handlePrintOrderAnalytics = (order: Order) => {

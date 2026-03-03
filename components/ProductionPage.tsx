@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow } from '../types';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
@@ -25,7 +25,7 @@ interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
-    onPrintAssembly?: (batches: ProductionBatch[]) => void;
+    onPrintAssembly?: (data: AssemblyPrintData) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
@@ -139,6 +139,13 @@ type ProductionQuickPickEntry = {
     readyQty: number;
     inProgressQty: number;
     latestUpdate: number;
+};
+
+type AssemblyOrderCandidate = {
+    order: Order;
+    rows: AssemblyPrintRow[];
+    assemblySkuCount: number;
+    totalAssemblyQty: number;
 };
 
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
@@ -418,6 +425,150 @@ const QuickProductionPickerModal = ({
                             Δεν βρέθηκαν πελάτες σε παραγωγή.
                         </div>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AssemblyOrderSelectorModal = ({
+    isOpen,
+    onClose,
+    candidates,
+    onConfirm
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    candidates: AssemblyOrderCandidate[];
+    onConfirm: (selectedOrderIds: string[]) => void;
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set(candidates.map(c => c.order.id)));
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setSearchTerm('');
+        setSelectedOrderIds(new Set(candidates.map(c => c.order.id)));
+    }, [isOpen, candidates]);
+
+    const filteredCandidates = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return candidates;
+        return candidates.filter((candidate) =>
+            candidate.order.customer_name.toLowerCase().includes(term) ||
+            candidate.order.id.toLowerCase().includes(term)
+        );
+    }, [candidates, searchTerm]);
+
+    const visibleIds = filteredCandidates.map(c => c.order.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedOrderIds.has(id));
+
+    const toggleAllVisible = () => {
+        const next = new Set(selectedOrderIds);
+        if (allVisibleSelected) {
+            visibleIds.forEach(id => next.delete(id));
+        } else {
+            visibleIds.forEach(id => next.add(id));
+        }
+        setSelectedOrderIds(next);
+    };
+
+    const toggleOrder = (orderId: string) => {
+        const next = new Set(selectedOrderIds);
+        if (next.has(orderId)) next.delete(orderId);
+        else next.add(orderId);
+        setSelectedOrderIds(next);
+    };
+
+    const selectedCount = selectedOrderIds.size;
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-3xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                            <Layers size={18} className="text-pink-600" /> Εκτύπωση Συναρμολόγησης
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε εντολές (Pending / In Production) για τον assembler.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="p-4 border-b border-slate-100 bg-white flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Αναζήτηση πελάτη ή εντολής..."
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-300"
+                        />
+                    </div>
+                    <button
+                        onClick={toggleAllVisible}
+                        className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                        {allVisibleSelected ? <><Square size={14} /> Αποεπιλογή</> : <><CheckSquare size={14} /> Επιλογή Όλων</>}
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 bg-slate-50/30 custom-scrollbar space-y-2">
+                    {filteredCandidates.length > 0 ? (
+                        filteredCandidates.map((candidate) => {
+                            const selected = selectedOrderIds.has(candidate.order.id);
+                            return (
+                                <button
+                                    key={candidate.order.id}
+                                    onClick={() => toggleOrder(candidate.order.id)}
+                                    className={`w-full text-left p-4 rounded-2xl border transition-all ${selected ? 'bg-pink-50 border-pink-300 ring-1 ring-pink-100' : 'bg-white border-slate-200 hover:border-pink-200'}`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-black text-slate-900 break-words">{candidate.order.customer_name}</div>
+                                            <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(candidate.order.id)}</div>
+                                        </div>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
+                                            {selected && <Check size={13} className="text-white" />}
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase">
+                                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
+                                            Assembly SKU: {candidate.assemblySkuCount}
+                                        </div>
+                                        <div className="bg-pink-50 border border-pink-200 rounded-lg px-2 py-1 text-pink-700">
+                                            Qty: {candidate.totalAssemblyQty}
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })
+                    ) : (
+                        <div className="text-center py-12 text-slate-400 italic text-sm">
+                            Δεν βρέθηκαν επιλέξιμες εντολές.
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3">
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                        Ακύρωση
+                    </button>
+                    <button
+                        onClick={() => {
+                            onConfirm(Array.from(selectedOrderIds));
+                            onClose();
+                        }}
+                        disabled={selectedCount === 0}
+                        className="px-6 py-2.5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <Printer size={18} /> Εκτύπωση ({selectedCount})
+                    </button>
                 </div>
             </div>
         </div>
@@ -971,6 +1122,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     // PRINT SELECTOR MODAL STATE
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: EnhancedProductionBatch[] }>({ isOpen: false, type: '', batches: [] });
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
+    const [assemblyOrderSelectorOpen, setAssemblyOrderSelectorOpen] = useState(false);
 
     const [splitModalState, setSplitModalState] = useState<{
         batch: ProductionBatch;
@@ -1131,6 +1283,64 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             .filter((entry): entry is ProductionQuickPickEntry => entry !== null)
             .sort((a, b) => b.latestUpdate - a.latestUpdate);
     }, [orders, enhancedBatches]);
+
+    const assemblyOrderCandidates = useMemo(() => {
+        if (!orders || orders.length === 0) return [] as AssemblyOrderCandidate[];
+
+        return orders
+            .filter((order) =>
+                !order.is_archived &&
+                (order.status === OrderStatus.Pending || order.status === OrderStatus.InProduction) &&
+                order.items.some((item) => requiresAssemblyStage(item.sku))
+            )
+            .map((order) => {
+                const mergedRows = new Map<string, AssemblyPrintRow>();
+
+                order.items.forEach((item, index) => {
+                    if (!requiresAssemblyStage(item.sku)) return;
+
+                    const key = [
+                        order.id,
+                        item.sku,
+                        item.variant_suffix || '',
+                        item.size_info || ''
+                    ].join('::');
+
+                    const existing = mergedRows.get(key);
+                    if (existing) {
+                        existing.quantity += item.quantity;
+                        return;
+                    }
+
+                    mergedRows.set(key, {
+                        id: `assembly-order-${order.id}-${index}`,
+                        order_id: order.id,
+                        customer_name: order.customer_name,
+                        sku: item.sku,
+                        variant_suffix: item.variant_suffix,
+                        size_info: item.size_info,
+                        quantity: item.quantity
+                    });
+                });
+
+                const rows = Array.from(mergedRows.values()).sort((a, b) => {
+                    const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
+                    const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+                    const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
+                    if (bySku !== 0) return bySku;
+                    return (a.size_info || '').localeCompare(b.size_info || '');
+                });
+
+                return {
+                    order,
+                    rows,
+                    assemblySkuCount: rows.length,
+                    totalAssemblyQty: rows.reduce((sum, row) => sum + row.quantity, 0)
+                } as AssemblyOrderCandidate;
+            })
+            .filter((candidate) => candidate.rows.length > 0)
+            .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
+    }, [orders]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -1504,12 +1714,29 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         }).filter((item): item is NonNullable<typeof item> => item !== null);
     };
 
+    const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[]) => {
+        if (!onPrintAssembly) return;
+
+        const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
+        const rows = selectedCandidates.flatMap((candidate) => candidate.rows);
+
+        if (rows.length === 0) {
+            showToast("Δεν βρέθηκαν assembly είδη για τις επιλεγμένες εντολές.", "info");
+            return;
+        }
+
+        onPrintAssembly({
+            rows,
+            selected_order_ids: selectedOrderIds,
+            generated_at: new Date().toISOString()
+        });
+    };
+
     const executePrint = (selected: ProductionBatch[]) => {
         const type = printSelectorState.type;
         if (type === 'technician') onPrintTechnician(selected);
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
-        else if (type === 'assembly' && onPrintAssembly) onPrintAssembly(selected);
         else if (type === 'labels') {
             const printQueue = buildLabelPrintQueue(selected, labelPrintSortMode);
             if (printQueue.length > 0 && onPrintLabels) {
@@ -1642,8 +1869,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
                 <div className="flex items-center gap-2 flex-wrap">
                     <button
-                        onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.requires_assembly), 'assembly')}
-                        className="flex items-center gap-2 bg-pink-50 text-pink-700 px-4 py-2 rounded-xl hover:bg-pink-100 font-bold transition-all shadow-sm border border-pink-200 disabled:opacity-50 text-xs"
+                        onClick={() => setAssemblyOrderSelectorOpen(true)}
+                        disabled={assemblyOrderCandidates.length === 0}
+                        className="flex items-center gap-2 bg-pink-50 text-pink-700 px-4 py-2 rounded-xl hover:bg-pink-100 font-bold transition-all shadow-sm border border-pink-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                     >
                         <Layers size={14} /> Συναρμολόγηση
                     </button>
@@ -1868,6 +2096,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onViewHistory={handleViewHistory}
                 />
             )}
+
+            <AssemblyOrderSelectorModal
+                isOpen={assemblyOrderSelectorOpen}
+                onClose={() => setAssemblyOrderSelectorOpen(false)}
+                candidates={assemblyOrderCandidates}
+                onConfirm={handleAssemblyOrderPrintConfirm}
+            />
 
             {printSelectorState.isOpen && (
                 <PrintSelectorModal

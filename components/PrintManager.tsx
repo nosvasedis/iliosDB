@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, AssemblyPrintRow } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
 import OfferPrintView from './OfferPrintView';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
@@ -28,7 +28,7 @@ interface PrintManagerProps {
     aggregatedPrintData: AggregatedData | null;
     preparationPrintData: { batches: ProductionBatch[] } | null;
     technicianPrintData: { batches: ProductionBatch[] } | null;
-    assemblyPrintData: { batches: ProductionBatch[] } | null;
+    assemblyPrintData: AssemblyPrintData | null;
     priceListPrintData: PriceListPrintData | null;
     analyticsPrintData: any | null;
     orderAnalyticsData: { stats: any, order: Order } | null;
@@ -41,7 +41,7 @@ interface PrintManagerProps {
     setAggregatedPrintData: (data: AggregatedData | null) => void;
     setPreparationPrintData: (data: { batches: ProductionBatch[] } | null) => void;
     setTechnicianPrintData: (data: { batches: ProductionBatch[] } | null) => void;
-    setAssemblyPrintData: (data: { batches: ProductionBatch[] } | null) => void;
+    setAssemblyPrintData: (data: AssemblyPrintData | null) => void;
     setPriceListPrintData: (data: PriceListPrintData | null) => void;
     setAnalyticsPrintData: (data: any | null) => void;
     setOrderAnalyticsData: (data: { stats: any, order: Order } | null) => void;
@@ -77,6 +77,14 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
         const enriched = batches as Array<ProductionBatch & { customer_name?: string }>;
         const customerName = enriched.find(b => b.customer_name)?.customer_name;
         return { orderId: orderIds[0], customerName };
+    };
+
+    const getSingleOrderFromAssemblyRows = (rows: AssemblyPrintRow[]) => {
+        const orderIds = [...new Set(rows.map(r => r.order_id).filter(Boolean))];
+        if (orderIds.length !== 1) return null;
+        const orderId = orderIds[0];
+        const customerName = rows.find(r => r.order_id === orderId)?.customer_name;
+        return { orderId, customerName };
     };
 
     useEffect(() => {
@@ -145,7 +153,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                         docTitle = `Technician_Sheet_${dateStr}`;
                     }
                 } else if (assemblyPrintData) {
-                    const singleOrder = getSingleOrderFromBatches(assemblyPrintData.batches);
+                    const singleOrder = getSingleOrderFromAssemblyRows(assemblyPrintData.rows);
                     if (singleOrder) {
                         const safeName = getSafeClientName(singleOrder.customerName);
                         docTitle = `Assembly_${safeName || 'Order'}_${singleOrder.orderId}`;
@@ -255,7 +263,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
                 {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
                 {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
-                {assemblyPrintData && <AssemblyPrintView batches={assemblyPrintData.batches} allProducts={products} />}
+                {assemblyPrintData && <AssemblyPrintView rows={assemblyPrintData.rows} allProducts={products} />}
                 {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
                 {analyticsPrintData && <AnalyticsPrintReport stats={analyticsPrintData} title={analyticsPrintData.title} />}
                 {orderAnalyticsData && (
