@@ -844,17 +844,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">
-                                                {isRetailOrder ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold">
-                                                        <span>{order.customer_name}</span>
-                                                        {retailClientLabel && (
-                                                            <span className="text-[10px] uppercase tracking-wide text-emerald-500">
-                                                                {retailClientLabel}
-                                                            </span>
-                                                        )}
+                                                {order.customer_name}
+                                                {isRetailOrder && retailClientLabel && (
+                                                    <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-600">
+                                                        {retailClientLabel}
                                                     </span>
-                                                ) : (
-                                                    order.customer_name
                                                 )}
                                             </div>
                                             {order.seller_name && (
@@ -916,17 +910,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
                                 <p className="text-sm font-bold text-slate-500">
-                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold">
-                                            <span>{managingOrder.customer_name}</span>
-                                            {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
-                                                <span className="text-[10px] uppercase tracking-wide text-emerald-500">
-                                                    {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel}
-                                                </span>
-                                            )}
+                                    {managingOrder.customer_name}
+                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
+                                        <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-600">
+                                            {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel}
                                         </span>
-                                    ) : (
-                                        managingOrder.customer_name
                                     )}
                                 </p>
                             </div>

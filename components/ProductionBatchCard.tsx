@@ -14,13 +14,14 @@ export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
     '': { style: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Λουστρέ' }
 };
 
-// Subtle container background by metal (finish) suffix
+// Subtle container styling by metal (finish) suffix
+// NOTE: Keep these visually distinct from stage column colors (no strong fills).
 const METAL_CONTAINER_STYLES: Record<string, string> = {
-    'X': 'bg-amber-50/80 border-amber-100',
-    'P': 'bg-slate-50/80 border-slate-200',
-    'D': 'bg-orange-50/80 border-orange-100',
-    'H': 'bg-cyan-50/80 border-cyan-100',
-    '': 'bg-slate-50/80 border-slate-100'
+    'X': 'bg-white border-amber-300 ring-1 ring-amber-100/70',
+    'P': 'bg-white border-stone-300 ring-1 ring-stone-100/70',
+    'D': 'bg-white border-orange-300 ring-1 ring-orange-100/70',
+    'H': 'bg-white border-cyan-300 ring-1 ring-cyan-100/70',
+    '': 'bg-white border-slate-200 ring-1 ring-slate-100/70'
 };
 
 const TEXT_FINISH_COLORS: Record<string, string> = {
