@@ -2,12 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2 } from 'lucide-react';
-import { Customer, Supplier, VatRegime } from '../../types';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft } from 'lucide-react';
+import { Customer, Supplier, VatRegime, OrderStatus } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import MobileSupplierDetails from './MobileSupplierDetails';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 
 interface Props {
     mode: 'customers' | 'suppliers';
@@ -94,7 +95,11 @@ export default function MobileCustomers({ mode }: Props) {
         } else {
             setEditType('customer');
             setEditData({ ...item });
-            setIsEditing(true);
+            if (item.id === RETAIL_CUSTOMER_ID) {
+                setShowRetailStats(true);
+            } else {
+                setIsEditing(true);
+            }
         }
     };
 
@@ -182,6 +187,180 @@ export default function MobileCustomers({ mode }: Props) {
 
     const isRetailSystemCustomer = editType === 'customer' && editData?.id === RETAIL_CUSTOMER_ID;
 
+    // Retail stats view for Λιανική
+    const [showRetailStats, setShowRetailStats] = useState(false);
+
+    // Retail customer statistics
+    const retailStats = useMemo(() => {
+        if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
+        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === RETAIL_CUSTOMER_ID)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate || 0.24)), 0);
+        const orderCount = customerOrders.length;
+        const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
+        let totalItems = 0;
+        const catStats: Record<string, { count: number; value: number }> = {};
+        customerOrders.forEach(o => {
+            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
+            o.items.forEach(item => {
+                const cat = item.product_details?.category || 'Άλλο';
+                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
+                catStats[cat].count += item.quantity;
+                catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
+                totalItems += item.quantity;
+            });
+        });
+        const prefData = Object.entries(catStats).map(([name, s]) => ({ name, count: s.count, value: s.value, percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0 })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        const latestOrder = customerOrders[0];
+        const oldestOrder = customerOrders[customerOrders.length - 1];
+        let activeMonths = 0;
+        if (latestOrder && oldestOrder) {
+            activeMonths = Math.max(1, Math.round((new Date(latestOrder.created_at).getTime() - new Date(oldestOrder.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30)));
+        }
+
+        // Top retail clients
+        const clientMap: Record<string, { name: string; orderCount: number; totalRevenue: number }> = {};
+        customerOrders.forEach(o => {
+            const label = extractRetailClientFromNotes(o.notes).retailClientLabel || 'Χωρίς τελικό πελάτη';
+            if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
+            clientMap[label].orderCount += 1;
+            clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate || 0.24));
+        });
+        const topClients = Object.values(clientMap).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 8);
+
+        // Recent orders with labels
+        const recentOrders = customerOrders.slice(0, 5).map(o => ({
+            order: o,
+            retailClientLabel: extractRetailClientFromNotes(o.notes).retailClientLabel
+        }));
+
+        return { totalSpent, orderCount, avgOrderValue, totalItems, latestOrder, activeMonths, prefData, topClients, recentOrders };
+    }, [orders, editData]);
+
+    // When retail customer is clicked, show stats view instead of edit form
+    if (showRetailStats && retailStats) {
+        return (
+            <div className="flex flex-col h-full bg-slate-50">
+                <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
+                    <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <ShoppingBag className="text-fuchsia-600" size={20} />
+                        Επισκόπηση Λιανικής
+                    </h2>
+                    <button onClick={() => setShowRetailStats(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
+                </div>
+
+                <div className="p-4 flex-1 overflow-y-auto space-y-4 pb-24">
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Wallet size={10} /> Τζίρος (Καθαρός)</div>
+                            <div className="text-xl font-black text-slate-800">{formatCurrency(retailStats.totalSpent)}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><ShoppingBag size={10} /> Παραγγελίες</div>
+                            <div className="text-xl font-black text-slate-800">{retailStats.orderCount} <span className="text-xs text-slate-400">τεμ.</span></div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><PieChart size={10} /> Μ.Ο. Αξίας</div>
+                            <div className="text-xl font-black text-slate-800">{formatCurrency(retailStats.avgOrderValue)}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Package size={10} /> Τεμάχια</div>
+                            <div className="text-xl font-black text-slate-800">{retailStats.totalItems}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Calendar size={10} /> Τελευταία Παρ.</div>
+                            <div className="text-lg font-black text-slate-800">{retailStats.latestOrder ? new Date(retailStats.latestOrder.created_at).toLocaleDateString('el-GR') : '-'}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="text-[9px] font-black text-teal-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Clock size={10} /> Ενεργοί Μήνες</div>
+                            <div className="text-xl font-black text-slate-800">{retailStats.activeMonths} <span className="text-xs text-slate-400">μήνες</span></div>
+                        </div>
+                    </div>
+
+                    {/* Top Categories */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><Trophy size={14} className="text-amber-500" /> Κορυφαίες Κατηγορίες</h3>
+                        {retailStats.prefData.length > 0 ? (
+                            <div className="space-y-3">
+                                {retailStats.prefData.map((item, i) => (
+                                    <div key={item.name} className="flex items-center gap-3">
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 border ${i === 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{i + 1}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-slate-700 text-xs truncate">{item.name}</span>
+                                                <span className="font-mono font-black text-slate-800 text-xs shrink-0 ml-2">{formatCurrency(item.value)}</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-500" style={{ width: `${item.percentage}%` }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="text-xs text-slate-400 text-center py-4">Δεν υπάρχουν δεδομένα.</div>}
+                    </div>
+
+                    {/* Top Retail Clients */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><UsersIcon size={14} className="text-indigo-500" /> Κορυφαίοι Τελικοί Πελάτες</h3>
+                        {retailStats.topClients.length > 0 ? (
+                            <div className="space-y-2.5">
+                                {retailStats.topClients.map((client, i) => {
+                                    const maxRev = retailStats.topClients[0]?.totalRevenue || 1;
+                                    const isUnlabeled = client.name === 'Χωρίς τελικό πελάτη';
+                                    return (
+                                        <div key={client.name} className="flex items-center gap-3">
+                                            <div className={`w-6 h-6 rounded-md flex items-center justify-center font-black text-[9px] shrink-0 border ${i === 0 ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{i + 1}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-center mb-0.5">
+                                                    <span className={`font-bold text-xs truncate ${isUnlabeled ? 'text-slate-400 italic' : 'text-slate-700'}`}>{client.name}</span>
+                                                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                        <span className="text-[9px] font-bold text-slate-400">{client.orderCount} παρ.</span>
+                                                        <span className="font-mono font-black text-slate-800 text-xs">{formatCurrency(client.totalRevenue)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${(client.totalRevenue / maxRev) * 100}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : <div className="text-xs text-slate-400 text-center py-4">Δεν υπάρχουν δεδομένα.</div>}
+                    </div>
+
+                    {/* Recent Orders */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3"><ShoppingBag size={14} className="text-blue-500" /> Πρόσφατες Παραγγελίες</h3>
+                        {retailStats.recentOrders.length > 0 ? (
+                            <div className="space-y-2">
+                                {retailStats.recentOrders.map(({ order, retailClientLabel }) => {
+                                    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                                    const hasLabel = !!retailClientLabel;
+                                    return (
+                                        <div key={order.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="font-mono font-bold text-slate-600 text-[10px]">#{order.id.slice(0, 6).toUpperCase()}</span>
+                                                <span className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
+                                            </div>
+                                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[120px] ${hasLabel ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
+                                                {hasLabel ? retailClientLabel : '-'}
+                                            </span>
+                                            <span className="font-mono font-black text-xs text-slate-800 shrink-0">{formatCurrency(netValue)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : <div className="text-xs text-slate-400 text-center py-4">Δεν υπάρχουν παραγγελίες.</div>}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (isEditing) {
         return (
             <div className="flex flex-col h-full bg-slate-50">
@@ -195,14 +374,16 @@ export default function MobileCustomers({ mode }: Props) {
 
                 {isRetailSystemCustomer && (
                     <div className="px-4 pt-3">
-                        <div className="bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800 text-xs rounded-2xl px-4 py-3 space-y-1">
-                            <div className="font-bold text-[11px] uppercase tracking-wider">Συστημικός πελάτης Λιανικής</div>
-                            <p className="text-xs leading-relaxed">
-                                Ο πελάτης Λιανική είναι συστημικός πελάτης που αντιπροσωπεύει πολλές διαφορετικές λιανικές πωλήσεις
-                                και δεν μπορεί να τροποποιηθεί ή να διαγραφεί. Ο τελικός πελάτης δηλώνεται ανά παραγγελία στο πεδίο
-                                «Τελικός πελάτης λιανικής».
-                            </p>
-                        </div>
+                        <button
+                            onClick={() => { setIsEditing(false); setShowRetailStats(true); }}
+                            className="w-full bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800 text-xs rounded-2xl px-4 py-3 flex items-center justify-between active:scale-[0.98] transition-transform"
+                        >
+                            <div>
+                                <div className="font-bold text-[11px] uppercase tracking-wider">Συστημικός πελάτης Λιανικής</div>
+                                <p className="text-[10px] mt-0.5 text-fuchsia-600">Πατήστε για επισκόπηση στατιστικών</p>
+                            </div>
+                            <ShoppingBag size={18} className="text-fuchsia-500" />
+                        </button>
                     </div>
                 )}
 
