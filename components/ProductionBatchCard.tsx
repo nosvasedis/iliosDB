@@ -40,6 +40,16 @@ const TEXT_STONE_COLORS: Record<string, string> = {
     'AX': 'text-emerald-700'
 };
 
+// Very subtle SKU container background/border per finish
+// Intentionally light so it supports, but doesn't fight with, the colored SKU characters.
+const SKU_CONTAINER_STYLES: Record<string, string> = {
+    'X': 'bg-amber-50/60 border-amber-100',
+    'P': 'bg-stone-50 border-stone-100',
+    'D': 'bg-orange-50/60 border-orange-100',
+    'H': 'bg-cyan-50/60 border-cyan-100',
+    '': 'bg-slate-50/80 border-slate-100'
+};
+
 // Stage colors for the expanding button
 const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
     'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
@@ -226,6 +236,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     const { finish, stone } = getVariantComponents(batch.variant_suffix || '', batch.product_details?.gender);
     const finishConfig = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
     const metalContainerClass = METAL_CONTAINER_STYLES[finish.code] || METAL_CONTAINER_STYLES[''];
+    const skuContainerClass = SKU_CONTAINER_STYLES[finish.code] || SKU_CONTAINER_STYLES[''];
 
     const timeInfo = getTimeInStage(batch.updated_at);
 
@@ -322,7 +333,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                 </div>
                 <div className="min-w-0 flex-1">
                     {/* SKU line: base + metal suffix (color) + stone suffix (color) */}
-                    <div className="inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50/80 mb-1">
+                    <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border mb-1 ${skuContainerClass}`}>
                         <span className="font-black text-sm leading-none text-slate-800">{batch.sku}</span>
                         <span className={`font-black text-sm leading-none ${TEXT_FINISH_COLORS[finish.code] ?? 'text-slate-400'}`}>{finish.code}</span>
                         <span className={`font-black text-sm leading-none ${TEXT_STONE_COLORS[stone.code] ?? 'text-emerald-500'}`}>{stone.code}</span>
