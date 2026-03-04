@@ -193,6 +193,19 @@ export default function MobileCustomers({ mode }: Props) {
                     <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
                 </div>
 
+                {isRetailSystemCustomer && (
+                    <div className="px-4 pt-3">
+                        <div className="bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800 text-xs rounded-2xl px-4 py-3 space-y-1">
+                            <div className="font-bold text-[11px] uppercase tracking-wider">Συστημικός πελάτης Λιανικής</div>
+                            <p className="text-xs leading-relaxed">
+                                Ο πελάτης Λιανική είναι συστημικός πελάτης που αντιπροσωπεύει πολλές διαφορετικές λιανικές πωλήσεις
+                                και δεν μπορεί να τροποποιηθεί ή να διαγραφεί. Ο τελικός πελάτης δηλώνεται ανά παραγγελία στο πεδίο
+                                «Τελικός πελάτης λιανικής».
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-sm">
                         {editType === 'customer' && (
@@ -301,8 +314,12 @@ export default function MobileCustomers({ mode }: Props) {
                     </div>
 
                     <div className="flex gap-3">
-                        <button onClick={handleSave} disabled={isRetailSystemCustomer} className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-1 flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50">
-                            <Save size={20} /> {isRetailSystemCustomer ? 'System - Μόνο Ανάγνωση' : 'Αποθήκευση'}
+                        <button
+                            onClick={handleSave}
+                            disabled={isRetailSystemCustomer}
+                            className="p-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex-1 flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50"
+                        >
+                            <Save size={20} /> {isRetailSystemCustomer ? 'Συστημικός πελάτης - Μόνο Ανάγνωση' : 'Αποθήκευση'}
                         </button>
                     </div>
                 </div>
@@ -353,7 +370,11 @@ export default function MobileCustomers({ mode }: Props) {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
-                                        {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                                        {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID && (
+                                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
+                                                Σύστημα
+                                            </span>
+                                        )}
                                     </div>
                                     {mode === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
                                 </div>

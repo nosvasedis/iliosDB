@@ -163,7 +163,11 @@ export default function SellerCustomers() {
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                     <div className="font-bold text-slate-900 truncate">{c.full_name}</div>
-                                    {c.id === RETAIL_CUSTOMER_ID && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                                    {c.id === RETAIL_CUSTOMER_ID && (
+                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
+                                            Σύστημα
+                                        </span>
+                                    )}
                                 </div>
                                 {latestOrdersMap[c.id] && (
                                     <div className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">

@@ -41,7 +41,11 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
                     <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={customer.full_name}>
                         {customer.full_name}
                     </h3>
-                    {isSystem && <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">System</span>}
+                    {isSystem && (
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
+                            Σύστημα
+                        </span>
+                    )}
                 </div>
                 {customer.vat_number && (
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>

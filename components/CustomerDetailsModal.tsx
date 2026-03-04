@@ -4,6 +4,7 @@ import { Phone, Mail, MapPin, FileText, Save, Loader2, X, TrendingUp, ShoppingBa
 import { api, RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
@@ -104,6 +105,13 @@ export default function CustomerDetailsModal({
         return { totalSpent, orderCount, avgOrderValue, history: customerOrders, prefData, totalItems, latestOrder, statusMarker, statusColor };
     }, [customer, orders]);
 
+    const retailOrdersWithLabels = isRetailSystemCustomer
+        ? stats.history.slice(0, 10).map(o => ({
+            order: o,
+            retailClientLabel: extractRetailClientFromNotes(o.notes).retailClientLabel
+        }))
+        : [];
+
     const handleSave = async () => {
         if (isRetailSystemCustomer) {
             showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
@@ -178,7 +186,7 @@ export default function CustomerDetailsModal({
                                     <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-1 truncate">{customer.full_name}</h2>
                                     {isRetailSystemCustomer && (
                                         <span className="text-[10px] font-black uppercase tracking-widest bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-2 py-1 rounded-full shadow-sm">
-                                            System
+                                            Συστημικός πελάτης
                                         </span>
                                     )}
                                     {stats.totalSpent > 1000 && (
@@ -255,61 +263,177 @@ export default function CustomerDetailsModal({
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 custom-scrollbar relative">
                     {(!customer.id || activeTab === 'info') && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto md:mx-0">
-                            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><Phone size={16} className="text-blue-500" /> Στοιχεία Επικοινωνίας</h3>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Τηλέφωνο</label>
-                                            {isEditing ? <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium" value={editForm.phone || ''} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Προσθήκη Τηλεφώνου..." /> : <div className="font-bold text-slate-700 text-sm">{customer.phone || '-'}</div>}
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Email</label>
-                                            {isEditing ? <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium" value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} placeholder="Προσθήκη Email..." /> : <div className="font-bold text-slate-700 text-sm">{customer.email || '-'}</div>}
-                                        </div>
-                                    </div>
+                        isRetailSystemCustomer ? (
+                            <div className="max-w-4xl mx-auto md:mx-0 space-y-6">
+                                <div className="bg-white p-6 rounded-2xl border border-fuchsia-100 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 text-sm mb-3">
+                                        Ειδικός πελάτης Λιανικής
+                                    </h3>
+                                    <p className="text-sm text-slate-600 leading-relaxed mb-2">
+                                        Ο πελάτης <span className="font-semibold">Λιανική</span> είναι συστημικός πελάτης που χρησιμοποιείται
+                                        για πωλήσεις λιανικής. Αντιπροσωπεύει πολλούς διαφορετικούς τελικούς πελάτες (φυσικά πρόσωπα ή καταστήματα)
+                                        και δεν αντιστοιχεί σε έναν συγκεκριμένο ΑΦΜ.
+                                    </p>
+                                    <p className="text-sm text-slate-600 leading-relaxed mb-2">
+                                        Δεν μπορεί να τροποποιηθεί ή να διαγραφεί και προστατεύεται από το σύστημα για να διασφαλίζεται η συνέπεια
+                                        των παραγγελιών και των αναφορών.
+                                    </p>
+                                    <p className="text-sm text-slate-600 leading-relaxed">
+                                        Στις παραγγελίες και προσφορές με πελάτη Λιανική μπορείτε να καταγράφετε τον
+                                        <span className="font-semibold"> τελικό πελάτη λιανικής</span> στο αντίστοιχο πεδίο. Η πληροφορία αυτή
+                                        αποθηκεύεται στις σημειώσεις της παραγγελίας και εμφανίζεται παρακάτω, μαζί με το ιστορικό λιανικών πωλήσεων.
+                                    </p>
                                 </div>
-                            </div>
 
-                            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4 h-fit">
-                                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500" /> Στοιχεία Τιμολόγησης</h3>
-                                <div className="space-y-4">
-                                    {isEditing && (
-                                        <div>
-                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Αυτόματη συμπλήρωση μέσω ΑΦΜ</label>
-                                            <div className="flex gap-2">
-                                                <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium font-mono" placeholder="Καταχωρήστε ΑΦΜ..." value={editForm.vat_number || ''} onChange={e => setEditForm({ ...editForm, vat_number: e.target.value })} />
-                                                <button onClick={handleAfmLookup} disabled={isSearchingAfm} className="px-4 py-3 bg-slate-800 hover:bg-black text-white rounded-xl shadow-md transition-all shrink-0">
-                                                    {isSearchingAfm ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-                                                </button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                                        <h3 className="font-bold text-slate-800 text-sm mb-1">Βασικά στοιχεία</h3>
+                                        <div className="text-sm text-slate-600">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Καθεστώς ΦΠΑ</span>
+                                                <span className="font-bold text-blue-600 text-sm bg-blue-50 px-3 py-1.5 rounded-lg inline-block">
+                                                    {((customer.vat_rate || 0.24) * 100).toFixed(0)}% ΦΠΑ
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-3">
+                                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ημερομηνία δημιουργίας</span>
+                                                <span className="font-mono text-xs text-slate-600">
+                                                    {new Date(customer.created_at).toLocaleDateString('el-GR')}
+                                                </span>
                                             </div>
                                         </div>
-                                    )}
-                                    <div>
-                                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Καθεστώς ΦΠΑ</label>
-                                        {isEditing ? (
-                                            <select className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-bold text-slate-700" value={editForm.vat_rate} onChange={e => setEditForm({ ...editForm, vat_rate: parseFloat(e.target.value) })}>
-                                                <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                                                <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                                                <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                                            </select>
-                                        ) : (
-                                            <div className="font-bold text-blue-600 text-sm bg-blue-50 px-3 py-1.5 rounded-lg inline-block">{((customer.vat_rate || 0.24) * 100).toFixed(0)}% ΦΠΑ</div>
-                                        )}
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                                        <h3 className="font-bold text-slate-800 text-sm mb-1">Στοιχεία επικοινωνίας (ενδεικτικά)</h3>
+                                        <p className="text-xs text-slate-500 mb-2">
+                                            Τα πεδία επικοινωνίας για τον πελάτη Λιανική χρησιμοποιούνται μόνο πληροφοριακά και δεν
+                                            αντιστοιχούν σε συγκεκριμένο πρόσωπο.
+                                        </p>
+                                        <div className="space-y-2 text-sm text-slate-700">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Τηλέφωνο</span>
+                                                <span className="font-medium">{customer.phone || '-'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email</span>
+                                                <span className="font-medium">{customer.email || '-'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Διεύθυνση</span>
+                                                <span className="font-medium text-right">{customer.address || '-'}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500" /> Σημειώσεις</h3>
-                                {isEditing ? (
-                                    <textarea className="w-full p-4 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium h-32 resize-none" placeholder="Εσωτερικές σημειώσεις για τον πελάτη..." value={editForm.notes || ''} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
-                                ) : (
-                                    <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium min-h-[100px]">{customer.notes || 'Καμία σημείωση.'}</p>
-                                )}
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 text-sm mb-4">Παραγγελίες με πελάτη Λιανική</h3>
+                                    {retailOrdersWithLabels.length > 0 ? (
+                                        <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+                                            {retailOrdersWithLabels.map(({ order, retailClientLabel }) => {
+                                                const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                                                const hasLabel = !!retailClientLabel;
+                                                return (
+                                                    <div
+                                                        key={order.id}
+                                                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100"
+                                                    >
+                                                        <div className="flex flex-col text-xs text-slate-600">
+                                                            <span className="font-mono font-bold text-slate-800 text-sm">
+                                                                #{order.id.slice(0, 6).toUpperCase()}
+                                                            </span>
+                                                            <span>{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
+                                                        </div>
+                                                        <div className="flex-1 px-3 text-xs">
+                                                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+                                                                Τελικός πελάτης
+                                                            </span>
+                                                            <span
+                                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${hasLabel
+                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                                                }`}
+                                                            >
+                                                                {hasLabel ? retailClientLabel : 'Χωρίς συμπληρωμένο τελικό πελάτη'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-right text-xs">
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                Καθαρή Αξία
+                                                            </div>
+                                                            <div className="font-black text-sm text-slate-800">
+                                                                {formatCurrency(netValue)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-slate-500">
+                                            Δεν υπάρχουν καταγεγραμμένες παραγγελίες με πελάτη Λιανική.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto md:mx-0">
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><Phone size={16} className="text-blue-500" /> Στοιχεία Επικοινωνίας</h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Τηλέφωνο</label>
+                                                {isEditing ? <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium" value={editForm.phone || ''} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Προσθήκη Τηλεφώνου..." /> : <div className="font-bold text-slate-700 text-sm">{customer.phone || '-'}</div>}
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Email</label>
+                                                {isEditing ? <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium" value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} placeholder="Προσθήκη Email..." /> : <div className="font-bold text-slate-700 text-sm">{customer.email || '-'}</div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4 h-fit">
+                                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500" /> Στοιχεία Τιμολόγησης</h3>
+                                    <div className="space-y-4">
+                                        {isEditing && (
+                                            <div>
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Αυτόματη συμπλήρωση μέσω ΑΦΜ</label>
+                                                <div className="flex gap-2">
+                                                    <input className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium font-mono" placeholder="Καταχωρήστε ΑΦΜ..." value={editForm.vat_number || ''} onChange={e => setEditForm({ ...editForm, vat_number: e.target.value })} />
+                                                    <button onClick={handleAfmLookup} disabled={isSearchingAfm} className="px-4 py-3 bg-slate-800 hover:bg-black text-white rounded-xl shadow-md transition-all shrink-0">
+                                                        {isSearchingAfm ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Καθεστώς ΦΠΑ</label>
+                                            {isEditing ? (
+                                                <select className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-bold text-slate-700" value={editForm.vat_rate} onChange={e => setEditForm({ ...editForm, vat_rate: parseFloat(e.target.value) })}>
+                                                    <option value={VatRegime.Standard}>24% (Κανονικό)</option>
+                                                    <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
+                                                    <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
+                                                </select>
+                                            ) : (
+                                                <div className="font-bold text-blue-600 text-sm bg-blue-50 px-3 py-1.5 rounded-lg inline-block">{((customer.vat_rate || 0.24) * 100).toFixed(0)}% ΦΠΑ</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500" /> Σημειώσεις</h3>
+                                    {isEditing ? (
+                                        <textarea className="w-full p-4 border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none transition-all text-sm font-medium h-32 resize-none" placeholder="Εσωτερικές σημειώσεις για τον πελάτη..." value={editForm.notes || ''} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
+                                    ) : (
+                                        <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium min-h-[100px]">{customer.notes || 'Καμία σημείωση.'}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )
                     )}
 
                     {activeTab === 'insights' && customer.id && (
