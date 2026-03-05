@@ -329,7 +329,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex gap-3 items-center mb-3 pointer-events-none">
+            <div className="flex gap-3 items-center mb-3">
                 <button
                     type="button"
                     className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative pointer-events-auto"
