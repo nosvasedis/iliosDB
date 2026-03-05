@@ -46,18 +46,45 @@ const ORTHODOX_RULES = [
   { id: 'new-years-eve', title: 'Παραμονή Πρωτοχρονιάς', month: 12, day: 31, priority: 80 },
 ];
 
+/**
+ * Orthodox Easter: Julian calendar algorithm then Gregorian correction.
+ * See e.g. https://dateofeaster.org/julian.php — 2026 → April 12.
+ */
 function getOrthodoxEaster(year) {
-  const a = year % 4;
-  const b = year % 7;
-  const c = year % 19;
-  const d = (19 * c + 15) % 30;
-  const e = (2 * a + 4 * b - d + 34) % 7;
-  const month = Math.floor((d + e + 114) / 31);
-  const day = ((d + e + 114) % 31) + 1;
-  const julian = new Date(Date.UTC(year, month - 1, day));
-  julian.setUTCDate(julian.getUTCDate() + 13);
-  julian.setUTCDate(julian.getUTCDate() + 7);
-  return julian;
+  const remainder = (year + Math.floor(year / 4) + 4) % 7;
+  const L = remainder === 0 ? 7 : 7 - remainder;
+  const G = (year % 19) + 1;
+  const E = (11 * G - 11) % 30;
+  const D = E > 16 ? 66 - E : 36 - E;
+  const pfmMarch = D < 32;
+  const pfmDay = pfmMarch ? D : D - 31;
+  const pfmMonth = pfmMarch ? 3 : 4;
+  const dow = ((D + 3 - L) % 7) + 1;
+  const daysToSunday = dow === 1 ? 7 : 8 - dow;
+  const easterJulianDay = pfmDay + daysToSunday;
+  let month, day;
+  if (pfmMarch) {
+    if (easterJulianDay <= 31) {
+      month = 3;
+      day = easterJulianDay;
+    } else {
+      month = 4;
+      day = easterJulianDay - 31;
+    }
+  } else {
+    if (easterJulianDay <= 30) {
+      month = 4;
+      day = easterJulianDay;
+    } else {
+      month = 5;
+      day = easterJulianDay - 30;
+    }
+  }
+  const C = Math.floor(year / 100);
+  const Q = Math.floor(((C - 15) * 3) / 4) + 10;
+  const gregorian = new Date(Date.UTC(year, month - 1, day));
+  gregorian.setUTCDate(gregorian.getUTCDate() + Q);
+  return gregorian;
 }
 
 function localDateKey(d) {
