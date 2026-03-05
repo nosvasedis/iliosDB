@@ -5,6 +5,7 @@ import { getCalendarDayEvents } from '../../utils/namedays';
 interface Props {
   monthDate: Date;
   items: EnrichedDeliveryItem[];
+  majorEvents?: CalendarDayEvent[];
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
 }
@@ -29,7 +30,7 @@ function EventLine({ event, isSelected }: { event: CalendarDayEvent; isSelected:
   );
 }
 
-export default function DeliveryCalendarGrid({ monthDate, items, selectedDate, onSelectDate }: Props) {
+export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [], selectedDate, onSelectDate }: Props) {
   const monthDays = useMemo(() => {
     const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const startCalendar = new Date(start);
@@ -60,10 +61,10 @@ export default function DeliveryCalendarGrid({ monthDate, items, selectedDate, o
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarDayEvent[]>();
     monthDays.forEach((day) => {
-      map.set(dateKey(day), getCalendarDayEvents(day));
+      map.set(dateKey(day), getCalendarDayEvents(day, majorEvents));
     });
     return map;
-  }, [monthDays]);
+  }, [majorEvents, monthDays]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4">

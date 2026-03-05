@@ -21,7 +21,7 @@ export default function DeliveryAgendaList({ items, onSelectItem, dayEvents = []
         <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-amber-800 mb-2">
             <Sparkles size={16} />
-            <div className="text-xs font-black uppercase tracking-wide">Εορτολόγιο ημέρας</div>
+            <div className="text-xs font-black uppercase tracking-wide">Γιορτές ημέρας</div>
           </div>
           <div className="space-y-2">
             {dayEvents.map((event) => (
@@ -60,7 +60,7 @@ export default function DeliveryAgendaList({ items, onSelectItem, dayEvents = []
             </div>
             {item.next_nameday && item.next_nameday.days_until <= 30 && (
               <div className="mt-3 text-xs font-bold text-sky-700 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
-                Εορτολόγιο πελάτη: {item.next_nameday.label} • {formatGreekDate(item.next_nameday.date)}
+                Γιορτή πελάτη: {item.next_nameday.label} • {formatGreekDate(item.next_nameday.date)}
               </div>
             )}
             {item.next_reminder && (

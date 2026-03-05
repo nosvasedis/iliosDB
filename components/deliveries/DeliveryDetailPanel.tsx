@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Phone, PhoneCall } from 'lucide-react';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Phone, PhoneCall, Trash2 } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
 import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getReminderStateLabel } from '../../utils/deliveryLabels';
 
@@ -8,12 +8,13 @@ interface Props {
   onEditPlan: (item: EnrichedDeliveryItem) => void;
   onOpenOrder: (item: EnrichedDeliveryItem) => void;
   onMarkDelivered: (item: EnrichedDeliveryItem) => void;
+  onDeletePlan: (item: EnrichedDeliveryItem) => void;
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
 }
 
-export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
+export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
   if (!item) {
     return (
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm font-medium text-slate-500">
@@ -101,7 +102,7 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
             <p className="mt-2 text-sm text-slate-600 font-medium">{reminder.reason}</p>
             {!reminder.completed_at && (
               <div className="mt-3 flex flex-wrap gap-2">
-                <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναγνώριση</button>
+                <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Το είδα</button>
                 <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή 1 ώρας</button>
                 <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωση</button>
               </div>
@@ -117,6 +118,9 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
         </button>
         <button onClick={() => onOpenOrder(item)} className="px-4 py-3 rounded-2xl bg-white text-slate-700 border border-slate-200 font-bold text-sm flex items-center gap-2">
           <ExternalLink size={16} /> Άνοιγμα παραγγελίας
+        </button>
+        <button onClick={() => onDeletePlan(item)} className="px-4 py-3 rounded-2xl bg-red-50 text-red-700 border border-red-100 font-bold text-sm flex items-center gap-2">
+          <Trash2 size={16} /> Διαγραφή πλάνου
         </button>
       </div>
     </div>

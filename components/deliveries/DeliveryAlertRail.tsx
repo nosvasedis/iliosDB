@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, Clock3, PauseCircle, CheckCircle2 } from 'lucide-react';
+import { BellRing, CheckCircle2, Clock3, PauseCircle } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
 import { DELIVERY_ACTION_LABELS, formatGreekDateTime } from '../../utils/deliveryLabels';
 import { getReminderUrgency } from '../../utils/deliveryScheduling';
@@ -56,7 +56,7 @@ export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeRe
             </button>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
-                <Clock3 size={14} /> Αναγνώριση
+                <Clock3 size={14} /> Το είδα
               </button>
               <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
                 <PauseCircle size={14} /> Αναβολή 1 ώρας

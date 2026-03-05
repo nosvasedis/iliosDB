@@ -9,6 +9,7 @@ interface Props {
   onEditPlan: (item: EnrichedDeliveryItem) => void;
   onOpenOrder: (item: EnrichedDeliveryItem) => void;
   onMarkDelivered: (item: EnrichedDeliveryItem) => void;
+  onDeletePlan: (item: EnrichedDeliveryItem) => void;
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
@@ -30,6 +31,7 @@ export default function MobileDeliveryDetailSheet(props: Props) {
           onEditPlan={props.onEditPlan}
           onOpenOrder={props.onOpenOrder}
           onMarkDelivered={props.onMarkDelivered}
+          onDeletePlan={props.onDeletePlan}
           onAcknowledgeReminder={props.onAcknowledgeReminder}
           onCompleteReminder={props.onCompleteReminder}
           onSnoozeReminder={props.onSnoozeReminder}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bell, Plus, Sparkles } from 'lucide-react';
+import { useOrthodoxCalendarEvents } from '../../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../../hooks/useDeliveryAlerts';
 import { api } from '../../lib/supabase';
@@ -33,8 +34,7 @@ function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, s
     if (filter === 'today') return item.urgency === 'today';
     if (filter === 'week') return new Date(item.target_date || item.window_start || item.plan.created_at).getTime() <= Date.now() + (7 * 24 * 60 * 60 * 1000);
     if (filter === 'month') return new Date(item.target_date || item.window_start || item.plan.created_at).getMonth() === new Date().getMonth();
-    if (filter === 'holiday') return item.plan.planning_mode === 'holiday_anchor';
-    if (filter === 'nameday') return !!item.next_nameday && item.next_nameday.days_until <= 30;
+    if (filter === 'holiday') return item.plan.planning_mode === 'holiday_anchor' || !!item.next_nameday;
     if (filter === 'call_needed') return item.needs_call;
     return true;
   });
@@ -44,6 +44,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const { plansQuery, remindersQuery, ordersQuery, customersQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
+  const orthodoxEventsQuery = useOrthodoxCalendarEvents(new Date().getFullYear());
   const { alerts, notificationPermission, requestBrowserPermission } = useDeliveryAlerts(enrichedItems, showToast);
   const [filter, setFilter] = useState<DeliveryFilterKey>('all');
   const [search, setSearch] = useState('');
@@ -81,12 +82,13 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     if (!plannerPlan) return [];
     return remindersQuery.data?.filter((reminder) => reminder.plan_id === plannerPlan.id) || [];
   }, [plannerPlan, remindersQuery.data]);
-  const todayEortologio = useMemo(() => getTodayEortologioSummary(), []);
+  const todayEortologio = useMemo(() => getTodayEortologioSummary(new Date(), orthodoxEventsQuery.data || []), [orthodoxEventsQuery.data]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
     queryClient.invalidateQueries({ queryKey: ['order_delivery_reminders'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
+    queryClient.invalidateQueries({ queryKey: ['orthodox_calendar_events'] });
   };
 
   const handleSavePlan = async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]) => {
@@ -111,6 +113,13 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     showToast('Η παράδοση σημειώθηκε ως ολοκληρωμένη.', 'success');
     handleRefresh();
     setSelectedItem(null);
+  };
+
+  const handleDeletePlan = async (item: EnrichedDeliveryItem) => {
+    await api.deleteOrderDeliveryPlan(item.plan.id);
+    showToast('Το πλάνο παράδοσης διαγράφηκε.', 'success');
+    setSelectedItem(null);
+    handleRefresh();
   };
 
   if (isLoading) {
@@ -142,7 +151,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         <div className="rounded-3xl border border-sky-100 bg-sky-50 px-4 py-4 shadow-sm">
           <div className="flex items-center gap-2 text-sky-800 mb-2">
             <Sparkles size={16} />
-            <div className="text-xs font-black uppercase tracking-wide">Σήμερα στο Εορτολόγιο</div>
+            <div className="text-xs font-black uppercase tracking-wide">Σήμερα στις Γιορτές</div>
           </div>
           <div className="space-y-2">
             {todayEortologio.map((event) => (
@@ -180,6 +189,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         onEditPlan={(item) => { setPlannerOrder(item.order); setIsPlannerOpen(true); }}
         onOpenOrder={(item) => onOpenOrder?.(item.order)}
         onMarkDelivered={handleMarkDelivered}
+        onDeletePlan={handleDeletePlan}
         onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
         onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
         onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}

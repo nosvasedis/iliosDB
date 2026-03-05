@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Bell, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
 import { api } from '../lib/supabase';
@@ -37,8 +38,7 @@ function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, s
     if (filter === 'today') return item.urgency === 'today';
     if (filter === 'week') return targetTime <= Date.now() + (7 * 24 * 60 * 60 * 1000);
     if (filter === 'month') return new Date(targetTime).getMonth() === new Date().getMonth();
-    if (filter === 'holiday') return item.plan.planning_mode === 'holiday_anchor';
-    if (filter === 'nameday') return !!item.next_nameday && item.next_nameday.days_until <= 30;
+    if (filter === 'holiday') return item.plan.planning_mode === 'holiday_anchor' || !!item.next_nameday;
     if (filter === 'call_needed') return item.needs_call;
     return true;
   });
@@ -48,11 +48,12 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const { plansQuery, remindersQuery, ordersQuery, customersQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
+  const [monthDate, setMonthDate] = useState(new Date());
+  const orthodoxEventsQuery = useOrthodoxCalendarEvents(monthDate.getFullYear());
   const { alerts, notificationPermission, requestBrowserPermission } = useDeliveryAlerts(enrichedItems, showToast);
   const [filter, setFilter] = useState<DeliveryFilterKey>('all');
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [monthDate, setMonthDate] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<EnrichedDeliveryItem | null>(null);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
@@ -79,7 +80,10 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     return exactMatches.length > 0 ? exactMatches : filteredItems;
   }, [filteredItems, selectedDate]);
 
-  const selectedDateEvents = useMemo(() => getCalendarDayEvents(selectedDate), [selectedDate]);
+  const selectedDateEvents = useMemo(
+    () => getCalendarDayEvents(selectedDate, orthodoxEventsQuery.data || []),
+    [orthodoxEventsQuery.data, selectedDate]
+  );
 
   const stats = useMemo(() => ({
     overdue: enrichedItems.filter((item) => item.urgency === 'overdue').length,
@@ -107,6 +111,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
     queryClient.invalidateQueries({ queryKey: ['order_delivery_reminders'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
+    queryClient.invalidateQueries({ queryKey: ['orthodox_calendar_events'] });
   };
 
   const handleSavePlan = async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]) => {
@@ -130,6 +135,13 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const handleMarkDelivered = async (item: EnrichedDeliveryItem) => {
     await api.completeOrderDeliveryPlan(item.plan.id, item.order.id);
     showToast('Η παράδοση σημειώθηκε ως ολοκληρωμένη.', 'success');
+    handleRefresh();
+  };
+
+  const handleDeletePlan = async (item: EnrichedDeliveryItem) => {
+    await api.deleteOrderDeliveryPlan(item.plan.id);
+    showToast('Το πλάνο παράδοσης διαγράφηκε.', 'success');
+    setSelectedItem(null);
     handleRefresh();
   };
 
@@ -174,7 +186,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             </button>
           </div>
 
-          <DeliveryCalendarGrid monthDate={monthDate} items={filteredItems} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <DeliveryCalendarGrid monthDate={monthDate} items={filteredItems} majorEvents={orthodoxEventsQuery.data || []} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           <DeliveryAgendaList items={agendaItems} onSelectItem={setSelectedItem} dayEvents={selectedDateEvents} />
         </div>
 
@@ -191,6 +203,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             onEditPlan={(item) => { setPlannerOrder(item.order); setSelectedItem(item); setIsPlannerOpen(true); }}
             onOpenOrder={(item) => onOpenOrder?.(item.order)}
             onMarkDelivered={handleMarkDelivered}
+            onDeletePlan={handleDeletePlan}
             onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
             onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
             onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}

@@ -1,10 +1,11 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
 import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
+import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -735,6 +736,21 @@ export const api = {
 
     getOrderDeliveryReminders: async (): Promise<OrderDeliveryReminder[]> => {
         return fetchFullTable('order_delivery_reminders', '*', (q) => q.order('trigger_at', { ascending: true }));
+    },
+
+    /** Fetches Orthodox calendar events for a year. Expects worker GET /orthodox-calendar?year=YYYY returning { events: CalendarDayEvent[] } or CalendarDayEvent[]; falls back to local generator on failure. */
+    getOrthodoxCalendarEvents: async (year: number): Promise<CalendarDayEvent[]> => {
+        try {
+            const response = await fetch(`${CLOUDFLARE_WORKER_URL}/orthodox-calendar?year=${year}`);
+            if (!response.ok) throw new Error(`Orthodox calendar fetch failed: ${response.status}`);
+            const data = await response.json();
+            if (Array.isArray(data?.events)) return data.events as CalendarDayEvent[];
+            if (Array.isArray(data)) return data as CalendarDayEvent[];
+            throw new Error('Invalid orthodox calendar response');
+        } catch (error) {
+            console.warn('Orthodox calendar fetch failed, using local fallback:', error);
+            return getOrthodoxCelebrationsForYear(year);
+        }
     },
 
     getProductionBatches: async (): Promise<ProductionBatch[]> => {

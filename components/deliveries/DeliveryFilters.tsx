@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 
-export type DeliveryFilterKey = 'all' | 'overdue' | 'today' | 'week' | 'month' | 'holiday' | 'nameday' | 'call_needed' | 'completed';
+export type DeliveryFilterKey = 'all' | 'overdue' | 'today' | 'week' | 'month' | 'holiday' | 'call_needed' | 'completed';
 
 interface Props {
   filter: DeliveryFilterKey;
@@ -17,7 +17,6 @@ const FILTERS: Array<{ key: DeliveryFilterKey; label: string }> = [
   { key: 'week', label: '7 ημέρες' },
   { key: 'month', label: 'Μήνας' },
   { key: 'holiday', label: 'Γιορτές' },
-  { key: 'nameday', label: 'Εορτολόγιο' },
   { key: 'call_needed', label: 'Κλήση' },
   { key: 'completed', label: 'Ολοκληρωμένα' }
 ];
