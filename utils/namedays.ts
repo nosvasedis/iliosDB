@@ -135,30 +135,38 @@ export function getCalendarDayEvents(date: Date, majorEvents?: CalendarDayEvent[
   const key = localDateKey(date);
   const events: CalendarDayEvent[] = [];
 
-  const dayNamedays = [...FIXED_NAMEDAYS, ...MOVABLE_NAMEDAYS]
-    .filter((rule) => localDateKey(dateFromRule(rule, year)) === key)
-    .map((rule) => rule.canonical);
+  const sourceMajorEvents = majorEvents || getOrthodoxCelebrationsForYear(year);
+  const fromApi = sourceMajorEvents.filter((event) => event.date === key);
+  const hasNamedayFromApi = fromApi.some((e) => e.type === 'nameday');
 
-  if (dayNamedays.length > 0) {
-    const namesStr = dayNamedays.join(', ');
-    events.push({
-      id: `nameday-${key}`,
-      date: key,
-      type: 'nameday',
-      title: namesStr,
-      subtitle: 'Ονομαστικές Εορτές',
-      priority: 60
-    });
+  if (!hasNamedayFromApi) {
+    const dayNamedays = [...FIXED_NAMEDAYS, ...MOVABLE_NAMEDAYS]
+      .filter((rule) => localDateKey(dateFromRule(rule, year)) === key)
+      .map((rule) => rule.canonical);
+
+    if (dayNamedays.length > 0) {
+      const namesStr = dayNamedays.join(', ');
+      events.push({
+        id: `nameday-${key}`,
+        date: key,
+        type: 'nameday',
+        title: namesStr,
+        subtitle: 'Ονομαστικές Εορτές',
+        priority: 60
+      });
+    }
   }
 
-  const sourceMajorEvents = majorEvents || getOrthodoxCelebrationsForYear(year);
-  sourceMajorEvents
-    .filter((event) => event.date === key)
-    .forEach((event) => {
-      events.push(event);
-    });
+  fromApi.forEach((event) => events.push(event));
 
-  return events.sort((a, b) => b.priority - a.priority || a.title.localeCompare(b.title, 'el'));
+  const seenIds = new Set<string>();
+  const deduped = events.filter((e) => {
+    if (seenIds.has(e.id)) return false;
+    seenIds.add(e.id);
+    return true;
+  });
+
+  return deduped.sort((a, b) => b.priority - a.priority || a.title.localeCompare(b.title, 'el'));
 }
 
 export function getTodayEortologioSummary(referenceDate = new Date(), majorEvents?: CalendarDayEvent[]): CalendarDayEvent[] {
