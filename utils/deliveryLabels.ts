@@ -103,6 +103,28 @@ export function getProductionStageLabel(stage: ProductionStage | string): string
   return PRODUCTION_STAGE_LABEL_MAP[stage] || String(stage);
 }
 
+/** Text colors for SKU in one line (Ροή Παραγωγής style). */
+export const DELIVERY_SKU_FINISH_TEXT: Record<string, string> = {
+  'X': 'text-amber-500', 'P': 'text-slate-500', 'D': 'text-orange-500', 'H': 'text-cyan-400', '': 'text-slate-400'
+};
+export const DELIVERY_SKU_STONE_TEXT: Record<string, string> = {
+  'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
+  'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
+  'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
+  'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
+  'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
+  'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
+  'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+  'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
+  'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
+  'AX': 'text-emerald-700'
+};
+
+/** Container bg/border for SKU line (match Ροή Παραγωγής). */
+export const DELIVERY_SKU_CONTAINER: Record<string, string> = {
+  'X': 'bg-amber-50/60 border-amber-100', 'P': 'bg-stone-50 border-stone-100', 'D': 'bg-orange-50/60 border-orange-100', 'H': 'bg-cyan-50/60 border-cyan-100', '': 'bg-slate-50/80 border-slate-100'
+};
+
 /** Metal/finish chip styles for SKU suffix in delivery pane (match Παραγωγή). */
 export const DELIVERY_SKU_FINISH_STYLES: Record<string, string> = {
   'X': 'bg-amber-100 text-amber-900 border-amber-200',

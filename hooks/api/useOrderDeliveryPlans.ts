@@ -9,6 +9,7 @@ export function useOrderDeliveryPlans() {
   const ordersQuery = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const customersQuery = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
   const batchesQuery = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+  const productsQuery = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
 
   const enrichedItems = useMemo(() => {
     if (!plansQuery.data || !remindersQuery.data || !ordersQuery.data || !customersQuery.data || !batchesQuery.data) {
@@ -19,9 +20,10 @@ export function useOrderDeliveryPlans() {
       customersQuery.data,
       batchesQuery.data,
       plansQuery.data,
-      remindersQuery.data
+      remindersQuery.data,
+      productsQuery.data ?? []
     );
-  }, [plansQuery.data, remindersQuery.data, ordersQuery.data, customersQuery.data, batchesQuery.data]);
+  }, [plansQuery.data, remindersQuery.data, ordersQuery.data, customersQuery.data, batchesQuery.data, productsQuery.data]);
 
   return {
     plansQuery,
@@ -29,8 +31,9 @@ export function useOrderDeliveryPlans() {
     ordersQuery,
     customersQuery,
     batchesQuery,
+    productsQuery,
     enrichedItems,
-    isLoading: plansQuery.isLoading || remindersQuery.isLoading || ordersQuery.isLoading || customersQuery.isLoading || batchesQuery.isLoading
+    isLoading: plansQuery.isLoading || remindersQuery.isLoading || ordersQuery.isLoading || customersQuery.isLoading || batchesQuery.isLoading || productsQuery.isLoading
   };
 }
 

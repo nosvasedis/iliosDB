@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CheckCircle2, Clock3, PauseCircle, Phone } from 'lucide-react';
+import { BellRing, CheckCircle2, PauseCircle, Phone } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
 import { DELIVERY_ACTION_LABELS, formatGreekDateTime, getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getReminderUrgency } from '../../utils/deliveryScheduling';
@@ -65,9 +65,6 @@ export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeRe
                   <Phone size={14} /> Κλήση
                 </a>
               )}
-              <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
-                <Clock3 size={14} /> Εντάξει
-              </button>
               <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
                 <PauseCircle size={14} /> Αναβολή
               </button>

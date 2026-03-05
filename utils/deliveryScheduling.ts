@@ -9,7 +9,8 @@ import {
   OrderDeliveryPlan,
   OrderDeliveryReminder,
   ProductionBatch,
-  ProductionStage
+  ProductionStage,
+  Product
 } from '../types';
 import { analyzeDeliveryContext } from './deliveryIntelligence';
 import { getHolidayPeriod } from './orthodoxHoliday';
@@ -152,8 +153,10 @@ export function enrichDeliveryItems(
   customers: Customer[],
   batches: ProductionBatch[],
   plans: OrderDeliveryPlan[],
-  reminders: OrderDeliveryReminder[]
+  reminders: OrderDeliveryReminder[],
+  products: Product[] = []
 ): EnrichedDeliveryItem[] {
+  const productBySku = new Map(products.map((p) => [p.sku, p]));
   return plans.map((plan) => {
     const order = orders.find((candidate) => candidate.id === plan.order_id);
     if (!order) return null;
@@ -171,14 +174,17 @@ export function enrichDeliveryItems(
       || (!ready && getDeliveryUrgency(plan, planReminders) === 'soon');
 
     const orderBatches = getOrderBatches(plan.order_id, batches).filter((b) => b.current_stage !== ProductionStage.Ready);
-    const not_ready_batches = orderBatches.map((b) => ({
-      sku: b.sku,
-      variant_suffix: b.variant_suffix,
-      current_stage: b.current_stage,
-      size_info: b.size_info,
-      product_image: b.product_image ?? b.product_details?.image_url ?? null,
-      gender: b.product_details?.gender
-    }));
+    const not_ready_batches = orderBatches.map((b) => {
+      const product = productBySku.get(b.sku);
+      return {
+        sku: b.sku,
+        variant_suffix: b.variant_suffix,
+        current_stage: b.current_stage,
+        size_info: b.size_info,
+        product_image: b.product_image ?? b.product_details?.image_url ?? product?.image_url ?? null,
+        gender: b.product_details?.gender ?? product?.gender
+      };
+    });
     const readiness_detail = not_ready_batches.length > 0 ? { not_ready_batches } : undefined;
 
     const callReasons = [...intelligence.callReasons];

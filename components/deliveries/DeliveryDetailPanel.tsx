@@ -6,8 +6,9 @@ import {
   DELIVERY_ACTION_LABELS,
   DELIVERY_STATUS_LABELS,
   DELIVERY_URGENCY_LABELS,
-  DELIVERY_SKU_FINISH_STYLES,
-  DELIVERY_SKU_STONE_STYLES,
+  DELIVERY_SKU_FINISH_TEXT,
+  DELIVERY_SKU_STONE_TEXT,
+  DELIVERY_SKU_CONTAINER,
   formatDeliveryWindow,
   formatGreekDate,
   formatGreekDateTime,
@@ -122,8 +123,9 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
             <ul className="space-y-3">
               {item.readiness_detail.not_ready_batches.map((b, idx) => {
                 const { finish, stone } = getVariantComponents(b.variant_suffix ?? '', b.gender);
-                const finishStyle = DELIVERY_SKU_FINISH_STYLES[finish.code] ?? 'bg-slate-100 text-slate-700 border-slate-200';
-                const stoneStyle = stone.code ? (DELIVERY_SKU_STONE_STYLES[stone.code] ?? 'bg-emerald-100 text-emerald-700 border-emerald-200') : '';
+                const containerClass = DELIVERY_SKU_CONTAINER[finish.code] ?? 'bg-slate-50/80 border-slate-100';
+                const finishTextClass = DELIVERY_SKU_FINISH_TEXT[finish.code] ?? 'text-slate-400';
+                const stoneTextClass = stone.code ? (DELIVERY_SKU_STONE_TEXT[stone.code] ?? 'text-emerald-500') : '';
                 const stageColors = PRODUCTION_STAGE_COLORS[b.current_stage] ?? { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
                 const StageIcon = STAGE_ICONS[b.current_stage];
                 return (
@@ -136,12 +138,12 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-slate-800">{b.sku}</span>
-                        {finish.code && <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${finishStyle}`}>{finish.code}</span>}
-                        {stone.code && <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${stoneStyle}`}>{stone.code}</span>}
-                        {b.size_info && <span className="text-xs text-slate-500">({b.size_info})</span>}
+                      <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border ${containerClass}`}>
+                        <span className="font-black text-sm leading-none text-slate-800">{b.sku}</span>
+                        {finish.code && <span className={`font-black text-sm leading-none ${finishTextClass}`}>{finish.code}</span>}
+                        {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}>{stone.code}</span>}
                       </div>
+                      {b.size_info && <span className="text-[10px] font-bold text-slate-500 mt-0.5 block">({b.size_info})</span>}
                       <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>
                         {StageIcon}
                         {getProductionStageLabel(b.current_stage)}
@@ -185,7 +187,6 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                     <Phone size={14} /> Κλήση πελάτη
                   </a>
                 )}
-                <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Εντάξει</button>
                 <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή</button>
                 <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωσα</button>
               </div>
