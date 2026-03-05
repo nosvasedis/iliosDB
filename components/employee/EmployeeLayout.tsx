@@ -102,7 +102,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => onNavigate('dashboard')} />
             <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
             <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
-            <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο Παραδόσεων" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
+            <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
             <NavItem icon={<Package size={22} />} label="Διαχείριση Αποθήκης" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => onNavigate('inventory')} />

@@ -243,7 +243,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
       <div className={panelClasses}>
         <div className="flex items-start justify-between gap-3 mb-6">
           <div>
-            <div className="text-xs font-black uppercase tracking-wider text-slate-400">Ημερολόγιο Παραδόσεων</div>
+            <div className="text-xs font-black uppercase tracking-wider text-slate-400">Ημερολόγιο</div>
             <h2 className="text-2xl font-black text-slate-900 mt-1">Προγραμματισμός παράδοσης</h2>
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">

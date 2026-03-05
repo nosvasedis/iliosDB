@@ -497,7 +497,7 @@ function AppContent() {
             <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} />
             {!isLocalMode && (
               <>
-                <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο Παραδόσεων" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => handleNav('deliveries')} badge={deliveryBadgeCount} />
+                <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => handleNav('deliveries')} badge={deliveryBadgeCount} />
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />

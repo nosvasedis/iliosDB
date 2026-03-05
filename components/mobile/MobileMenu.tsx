@@ -36,7 +36,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
 
   const menuItems = [
     { id: 'ai-studio', label: 'AI Studio', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50' },
-    { id: 'deliveries', label: 'Ημερολόγιο Παραδόσεων', icon: CalendarRange, color: 'text-emerald-600', bg: 'bg-emerald-50', badge: badgeCount },
+    { id: 'deliveries', label: 'Ημερολόγιο', icon: CalendarRange, color: 'text-emerald-600', bg: 'bg-emerald-50', badge: badgeCount },
     { id: 'offers', label: 'Προσφορές', icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'registry', label: 'Μητρώο Κωδικών', icon: Database, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'collections', label: 'Συλλογές', icon: FolderKanban, color: 'text-pink-500', bg: 'bg-pink-50' },

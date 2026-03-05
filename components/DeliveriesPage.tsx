@@ -148,15 +148,15 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   if (isLoading) {
-    return <div className="p-8 text-slate-500 font-medium">Φόρτωση ημερολογίου παραδόσεων...</div>;
+    return <div className="p-8 text-slate-500 font-medium">Φόρτωση ημερολογίου...</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Ημερολόγιο Παραδόσεων</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Παρακολούθηση παραδόσεων, ενεργειών επικοινωνίας πελατών και ειδοποιήσεις σε πραγματικό χρόνο.</p>
+          <h1 className="text-3xl font-black text-slate-900">Ημερολόγιο</h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">Ατζέντα ημέρας, ενέργειες που χρειάζονται τώρα και λεπτομέρειες ανά παράδοση.</p>
         </div>
         <div className="flex gap-3">
           {notificationPermission !== 'granted' && (

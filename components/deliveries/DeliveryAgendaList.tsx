@@ -12,10 +12,11 @@ interface Props {
 export default function DeliveryAgendaList({ items, onSelectItem, dayEvents = [] }: Props) {
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 h-full">
-      <div className="flex items-center gap-2 text-slate-800 mb-4">
+      <div className="flex items-center gap-2 text-slate-800 mb-1">
         <CalendarDays size={18} />
-        <h3 className="font-black text-sm uppercase tracking-wide">Ατζέντα παραδόσεων</h3>
+        <h3 className="font-black text-sm uppercase tracking-wide">Ατζέντα</h3>
       </div>
+      <p className="text-xs text-slate-500 font-medium mb-4">Παραδόσεις για την επιλεγμένη ημέρα</p>
 
       {dayEvents.length > 0 && (
         <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-4">

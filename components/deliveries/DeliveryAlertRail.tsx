@@ -22,14 +22,15 @@ export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeRe
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-slate-800">
+      <div className="flex items-center gap-2 text-slate-800 mb-1">
         <BellRing size={18} />
-        <h3 className="font-black text-sm uppercase tracking-wide">Ζωντανές ειδοποιήσεις</h3>
+        <h3 className="font-black text-sm uppercase tracking-wide">Να κάνετε τώρα</h3>
       </div>
+      <p className="text-xs text-slate-500 font-medium mb-2">Υπενθυμίσεις που λήγουν σήμερα ή χρειάζονται άμεση ενέργεια</p>
 
       {alerts.length === 0 && (
         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-500 font-medium">
-          Δεν υπάρχουν ενεργές ειδοποιήσεις αυτή τη στιγμή.
+          Δεν υπάρχουν ενέργειες που χρειάζονται τώρα.
         </div>
       )}
 

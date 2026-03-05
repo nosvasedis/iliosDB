@@ -166,10 +166,11 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
       )}
 
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-slate-800">
+        <div className="flex items-center gap-2 text-slate-800 mb-1">
           <BellRing size={16} />
-          <div className="font-black text-sm uppercase tracking-wide">Υπενθυμίσεις</div>
+          <div className="font-black text-sm uppercase tracking-wide">Ενέργειες πλάνου</div>
         </div>
+        <p className="text-xs text-slate-500 font-medium mb-3">Οι προγραμματισμένες ενέργειες για αυτή την παράδοση</p>
         {item.reminders.map((reminder) => (
           <div key={reminder.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
