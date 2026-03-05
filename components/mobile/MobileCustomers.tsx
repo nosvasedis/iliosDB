@@ -2,11 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft } from 'lucide-react';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft, Gift } from 'lucide-react';
 import { Customer, Supplier, VatRegime, OrderStatus } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { normalizedIncludes } from '../../utils/greekSearch';
+import { getNextNamedayForName } from '../../utils/namedays';
+import { formatGreekDate } from '../../utils/deliveryLabels';
 import MobileSupplierDetails from './MobileSupplierDetails';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 
@@ -564,6 +566,24 @@ export default function MobileCustomers({ mode }: Props) {
                                 <Edit size={16} />
                             </button>
                         </div>
+
+                        {mode === 'customers' && item.full_name && (() => {
+                            const nextNameday = getNextNamedayForName(item.full_name);
+                            return nextNameday ? (
+                                <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2 my-2">
+                                    <div className="flex items-center gap-2 text-sky-700">
+                                        <Gift size={14} className="shrink-0" />
+                                        <span className="text-xs font-bold">
+                                            {nextNameday.is_today
+                                                ? `Γιορτάζει σήμερα · ${nextNameday.label}`
+                                                : nextNameday.days_until <= 7
+                                                    ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
+                                                    : `Ονομαστική εορτή · ${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : null;
+                        })()}
 
                         <div className="space-y-2 pt-2 border-t border-slate-50">
                             {item.phone && (

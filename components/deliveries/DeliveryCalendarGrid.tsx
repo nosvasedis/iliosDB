@@ -135,12 +135,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
                   <button
                     key={item.plan.id}
                     type="button"
-                    onClick={() => {
-                      const mid = item.window_start ? new Date(item.window_start) : new Date();
-                      if (item.window_start) mid.setDate(15);
-                      onSelectDate(mid);
-                      onSelectItem?.(item);
-                    }}
+                  onClick={() => onSelectItem?.(item)}
                     className={`w-full text-left rounded-lg border px-2 py-1.5 transition-all ${
                       isSelected
                         ? 'bg-[#060b00] text-white border-[#060b00]'
