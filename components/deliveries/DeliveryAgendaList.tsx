@@ -1,7 +1,7 @@
 import React from 'react';
 import { CalendarDays, PhoneCall, Sparkles } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName } from '../../utils/deliveryLabels';
 
 interface Props {
   items: EnrichedDeliveryItem[];
@@ -48,7 +48,7 @@ export default function DeliveryAgendaList({ items, onSelectItem, dayEvents = []
           >
             <div className="flex justify-between gap-3">
               <div>
-                <div className="font-black text-slate-900">{item.order.customer_name}</div>
+                <div className="font-black text-slate-900">{getOrderDisplayName(item.order)}</div>
                 <div className="text-xs font-bold text-slate-500 mt-1">{formatDeliveryWindow(item.plan)}</div>
               </div>
               <div className="text-right">

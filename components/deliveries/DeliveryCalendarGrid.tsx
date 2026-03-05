@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
+import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getCalendarDayEvents } from '../../utils/namedays';
 
 interface Props {
@@ -113,7 +114,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
                 ))}
                 {visibleItems.map((item) => (
                   <div key={item.plan.id} className={`text-[10px] font-bold truncate ${isSelected ? 'text-white/90' : 'text-slate-600'}`}>
-                    {item.order.customer_name}
+                    {getOrderDisplayName(item.order)}
                   </div>
                 ))}
                 {hiddenCount > 0 && (

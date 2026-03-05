@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../types';
-import { DELIVERY_ACTION_LABELS, formatGreekDateTime } from '../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, formatGreekDateTime, getOrderDisplayName } from '../utils/deliveryLabels';
 import { getReminderUrgency } from '../utils/deliveryScheduling';
 
 interface DeliveryAlertEntry {
@@ -31,7 +31,7 @@ export function useDeliveryAlerts(items: EnrichedDeliveryItem[], showToast: (mes
           itemId: item.order.id,
           reminder,
           urgency,
-          title: `${item.order.customer_name} · ${DELIVERY_ACTION_LABELS[reminder.action_type]}`,
+          title: `${getOrderDisplayName(item.order)} · ${DELIVERY_ACTION_LABELS[reminder.action_type]}`,
           body: `${reminder.reason} · ${formatGreekDateTime(reminder.trigger_at)}`
         });
       });

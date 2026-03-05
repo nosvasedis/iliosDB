@@ -7,6 +7,17 @@ import {
   OrderDeliveryPlan,
   OrderDeliveryReminder
 } from '../types';
+import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
+import { extractRetailClientFromNotes } from './retailNotes';
+
+/** For delivery UI: show customer name, or for Λιανική show "Λιανική · {actual client id/label}" from notes. */
+export function getOrderDisplayName(order: { customer_id?: string; customer_name: string; notes?: string }): string {
+  if (order.customer_id === RETAIL_CUSTOMER_ID) {
+    const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
+    return retailClientLabel ? `Λιανική · ${retailClientLabel}` : order.customer_name;
+  }
+  return order.customer_name;
+}
 
 export const DELIVERY_MODE_LABELS: Record<DeliveryPlanningMode, string> = {
   exact: 'Ακριβής ημερομηνία',
@@ -32,6 +43,15 @@ export const DELIVERY_ACTION_LABELS: Record<DeliveryReminderAction, string> = {
   confirm_ready: 'Επιβεβαίωση ετοιμότητας',
   arrange_delivery: 'Οργάνωση παράδοσης',
   internal_followup: 'Εσωτερική υπενθύμιση'
+};
+
+/** Tailwind-friendly classes for reminder type (border + bg tint + text). Use for color-coding. */
+export const DELIVERY_ACTION_COLORS: Record<DeliveryReminderAction, { border: string; bg: string; text: string; badge: string }> = {
+  call_client: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
+  message_client: { border: 'border-l-violet-500', bg: 'bg-violet-50', text: 'text-violet-800', badge: 'bg-violet-100 text-violet-700 border-violet-200' },
+  confirm_ready: { border: 'border-l-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  arrange_delivery: { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
+  internal_followup: { border: 'border-l-slate-400', bg: 'bg-slate-50', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-600 border-slate-200' }
 };
 
 export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {

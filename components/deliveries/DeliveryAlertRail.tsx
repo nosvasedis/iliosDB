@@ -1,7 +1,7 @@
 import React from 'react';
 import { BellRing, CheckCircle2, Clock3, PauseCircle } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
-import { DELIVERY_ACTION_LABELS, formatGreekDateTime } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, formatGreekDateTime, getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getReminderUrgency } from '../../utils/deliveryScheduling';
 
 interface Props {
@@ -43,7 +43,7 @@ export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeRe
             <button onClick={() => onSelectItem(item)} className="w-full text-left">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-black text-slate-800">{item.order.customer_name}</div>
+                  <div className="text-sm font-black text-slate-800">{getOrderDisplayName(item.order)}</div>
                   <div className="text-xs font-bold text-slate-500 mt-1">
                     {DELIVERY_ACTION_LABELS[reminder.action_type]} · {formatGreekDateTime(reminder.trigger_at)}
                   </div>

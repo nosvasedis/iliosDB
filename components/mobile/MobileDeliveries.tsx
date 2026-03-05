@@ -5,7 +5,8 @@ import { useOrthodoxCalendarEvents } from '../../hooks/api/useOrthodoxCalendarEv
 import { useOrderDeliveryPlans } from '../../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../../hooks/useDeliveryAlerts';
 import { api } from '../../lib/supabase';
-import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder } from '../../types';
+import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
+import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getTodayEortologioSummary } from '../../utils/namedays';
 import { useUI } from '../UIProvider';
 import DeliveryFilters, { DeliveryFilterKey } from '../deliveries/DeliveryFilters';
@@ -22,8 +23,9 @@ interface Props {
 
 function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, search: string) {
   return items.filter((item) => {
+    const displayName = getOrderDisplayName(item.order);
     const matchesSearch = search.trim() === ''
-      || item.order.customer_name.toLocaleLowerCase('el-GR').includes(search.toLocaleLowerCase('el-GR'))
+      || displayName.toLocaleLowerCase('el-GR').includes(search.toLocaleLowerCase('el-GR'))
       || item.order.id.toLocaleLowerCase('el-GR').includes(search.toLocaleLowerCase('el-GR'))
       || item.call_reasons.some((reason) => reason.toLocaleLowerCase('el-GR').includes(search.toLocaleLowerCase('el-GR')));
 
@@ -176,7 +178,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         isOpen={isPlannerOpen}
         onClose={() => setIsPlannerOpen(false)}
         onSave={handleSavePlan}
-        orders={ordersQuery.data || []}
+        orders={(ordersQuery.data || []).filter((o) => o.status !== OrderStatus.Delivered)}
         customers={customersQuery.data || []}
         selectedOrder={plannerOrder}
         existingPlan={plannerPlan}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Phone, PhoneCall, Trash2 } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getReminderStateLabel } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName, getReminderStateLabel } from '../../utils/deliveryLabels';
 
 interface Props {
   item?: EnrichedDeliveryItem | null;
@@ -28,7 +28,7 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-black uppercase tracking-wider text-slate-400">Παραγγελία #{item.order.id.slice(-6)}</div>
-          <h3 className="text-2xl font-black text-slate-900 mt-1">{item.order.customer_name}</h3>
+          <h3 className="text-2xl font-black text-slate-900 mt-1">{getOrderDisplayName(item.order)}</h3>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               {DELIVERY_STATUS_LABELS[item.plan.plan_status]}
