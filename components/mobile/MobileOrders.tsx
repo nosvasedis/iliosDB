@@ -221,6 +221,13 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
 
+    const isOrderReady = (order: Order) => {
+        if (!batches) return false;
+        const orderBatches = batches.filter(b => b.order_id === order.id);
+        if (orderBatches.length === 0) return false;
+        return orderBatches.every(b => b.current_stage === ProductionStage.Ready);
+    };
+
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
         return orders.filter(o => {
@@ -248,13 +255,6 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
             return matchesStatus && matchesSearch;
         });
     }, [orders, batches, activeTab, filterStatus, search]);
-
-    const isOrderReady = (order: Order) => {
-        if (!batches) return false;
-        const orderBatches = batches.filter(b => b.order_id === order.id);
-        if (orderBatches.length === 0) return false;
-        return orderBatches.every(b => b.current_stage === ProductionStage.Ready);
-    };
 
     const handleDeleteOrder = async (order: Order) => {
         const yes = await confirm({
@@ -400,8 +400,8 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                             key={tab.id}
                             onClick={() => setFilterStatus(tab.id as any)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${filterStatus === tab.id
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                                    : 'bg-white text-slate-500 border-slate-200'
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                                : 'bg-white text-slate-500 border-slate-200'
                                 }`}
                         >
                             {tab.label}
