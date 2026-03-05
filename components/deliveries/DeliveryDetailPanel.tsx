@@ -1,7 +1,7 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Phone, PhoneCall, Trash2 } from 'lucide-react';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Package, Phone, PhoneCall, Trash2 } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName, getReminderStateLabel } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName, getProductionStageLabel, getReminderStateLabel } from '../../utils/deliveryLabels';
 
 interface Props {
   item?: EnrichedDeliveryItem | null;
@@ -68,13 +68,35 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
         </div>
       )}
 
-      <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-        <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><PhoneCall size={14} /> Γιατί χρειάζεται επικοινωνία</div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {item.call_reasons.length > 0 ? item.call_reasons.map((reason) => (
-            <span key={reason} className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700">{reason}</span>
-          )) : <span className="text-sm text-slate-500 font-medium">Δεν υπάρχουν ειδικοί λόγοι επικοινωνίας.</span>}
+      <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-4">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><PhoneCall size={14} /> Γιατί χρειάζεται επικοινωνία</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.call_reasons.length > 0 ? item.call_reasons.map((reason) => (
+              <span key={reason} className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700">{reason}</span>
+            )) : <span className="text-sm text-slate-500 font-medium">Δεν υπάρχουν ειδικοί λόγοι επικοινωνίας.</span>}
+          </div>
         </div>
+        {item.is_ready && (
+          <div className="pt-3 border-t border-slate-200">
+            <div className="text-xs font-bold text-emerald-700 flex items-center gap-2"><Package size={14} /> Κατάσταση παραγγελίας</div>
+            <p className="mt-1 text-sm font-medium text-slate-700">Η παραγγελία είναι πλήρως έτοιμη· μπορείτε να οργανώσετε την αποστολή/παράδοση.</p>
+          </div>
+        )}
+        {item.readiness_detail && item.readiness_detail.not_ready_batches.length > 0 && (
+          <div className="pt-3 border-t border-slate-200">
+            <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><Package size={14} /> Τι δεν είναι ακόμη έτοιμο</div>
+            <p className="mt-1 text-xs text-slate-600 font-medium mb-2">Τα ακόμη σε εξέλιξη τμήματα παραγωγής της παραγγελίας:</p>
+            <ul className="space-y-2">
+              {item.readiness_detail.not_ready_batches.map((b, idx) => (
+                <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2 text-sm">
+                  <span className="font-bold text-slate-800">{b.sku}{b.variant_suffix ? ` · ${b.variant_suffix}` : ''}{b.size_info ? ` (${b.size_info})` : ''}</span>
+                  <span className="text-xs font-bold text-amber-700 shrink-0">{getProductionStageLabel(b.current_stage)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {(item.order.notes || item.customer?.notes) && (

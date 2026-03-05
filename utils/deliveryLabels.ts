@@ -5,7 +5,8 @@ import {
   DeliveryReminderAction,
   DeliveryUrgency,
   OrderDeliveryPlan,
-  OrderDeliveryReminder
+  OrderDeliveryReminder,
+  ProductionStage
 } from '../types';
 import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { extractRetailClientFromNotes } from './retailNotes';
@@ -62,6 +63,22 @@ export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {
   scheduled: 'Προγραμματισμένο',
   completed: 'Ολοκληρωμένο'
 };
+
+/** Greek labels for production stages (delivery info pane). */
+const PRODUCTION_STAGE_LABEL_MAP: Record<string, string> = {
+  [ProductionStage.AwaitingDelivery]: 'Αναμονή παραλαβής',
+  [ProductionStage.Waxing]: 'Κερί',
+  [ProductionStage.Casting]: 'Χύτευση',
+  [ProductionStage.Setting]: 'Περαίωση',
+  [ProductionStage.Polishing]: 'Γυάλισμα',
+  [ProductionStage.Assembly]: 'Συναρμολόγηση',
+  [ProductionStage.Labeling]: 'Ετικέτα',
+  [ProductionStage.Ready]: 'Έτοιμο'
+};
+
+export function getProductionStageLabel(stage: ProductionStage | string): string {
+  return PRODUCTION_STAGE_LABEL_MAP[stage] || String(stage);
+}
 
 export function formatGreekDate(dateLike?: string | Date | null): string {
   if (!dateLike) return 'Δεν ορίστηκε';

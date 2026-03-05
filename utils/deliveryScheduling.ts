@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { analyzeDeliveryContext } from './deliveryIntelligence';
 import { getHolidayPeriod } from './orthodoxHoliday';
-import { isOrderReady } from './orderReadiness';
+import { getNotReadyBatches, isOrderReady } from './orderReadiness';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -170,12 +170,19 @@ export function enrichDeliveryItems(
       || !!(intelligence.nextNameday && intelligence.nextNameday.days_until <= 7)
       || (!ready && getDeliveryUrgency(plan, planReminders) === 'soon');
 
+    const notReadyBatches = getNotReadyBatches(plan.order_id, batches);
+    const readiness_detail = notReadyBatches.length > 0 ? { not_ready_batches: notReadyBatches } : undefined;
+
     const callReasons = [...intelligence.callReasons];
     if (!ready && (getDeliveryUrgency(plan, planReminders) === 'soon' || getDeliveryUrgency(plan, planReminders) === 'today')) {
-      callReasons.push('Η ημερομηνία πλησιάζει αλλά η παραγγελία δεν είναι ακόμη έτοιμη');
+      if (notReadyBatches.length > 0) {
+        callReasons.push(`Η ημερομηνία παράδοσης πλησιάζει· η παραγγελία δεν είναι ακόμη έτοιμη (${notReadyBatches.length} τμήμα/τα σε εξέλιξη).`);
+      } else {
+        callReasons.push('Η ημερομηνία πλησιάζει αλλά η παραγγελία δεν έχει ακόμη batches παραγωγής.');
+      }
     }
     if (ready && plan.plan_status === 'active') {
-      callReasons.push('Το προϊόν είναι έτοιμο και απαιτείται επικοινωνία');
+      callReasons.push('Η παραγγελία είναι έτοιμη· απαιτείται επικοινωνία για οργάνωση παράδοσης.');
     }
 
     return {
@@ -189,6 +196,7 @@ export function enrichDeliveryItems(
       is_ready: ready,
       needs_call: needsCall,
       call_reasons: Array.from(new Set(callReasons)),
+      readiness_detail,
       urgency: getDeliveryUrgency(plan, planReminders),
       suggestions: intelligence.suggestions,
       matched_keywords: intelligence.matchedKeywords,

@@ -311,6 +311,8 @@ export interface EnrichedDeliveryItem {
   is_ready: boolean;
   needs_call: boolean;
   call_reasons: string[];
+  /** When order is not ready: which batches are still in progress (for info pane). */
+  readiness_detail?: { not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string }> };
   urgency: DeliveryUrgency;
   suggestions: DeliverySuggestion[];
   matched_keywords: string[];

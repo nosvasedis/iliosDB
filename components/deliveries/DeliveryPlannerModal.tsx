@@ -58,6 +58,41 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     return buildDefaultReminderDrafts(mode, referenceDate, computedWindowEnd);
   }, [mode, monthValue, targetAt, windowEnd, windowStart]);
 
+  /** Sensible default trigger for a new reminder: tied to plan target, never in the past. */
+  const defaultReminderTrigger = useMemo(() => {
+    let planTarget = targetAt ? new Date(targetAt) : null;
+    if (mode === 'month' && monthValue) {
+      const [y, m] = monthValue.split('-').map(Number);
+      planTarget = new Date(y, m - 1, 15, 9, 0, 0, 0);
+    } else if (mode === 'custom_period' && windowStart) {
+      planTarget = new Date(windowStart);
+    } else if (mode === 'holiday_anchor') {
+      planTarget = new Date(holidayYear, 11, 25, 18, 0, 0, 0);
+    }
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+    let trigger: Date;
+    if (planTarget && planTarget.getTime() >= todayStart.getTime()) {
+      const dayBefore = new Date(planTarget);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      dayBefore.setHours(13, 0, 0, 0);
+      if (dayBefore.getTime() > now.getTime()) trigger = dayBefore;
+      else {
+        const sameDay = new Date(planTarget);
+        sameDay.setHours(9, 0, 0, 0);
+        trigger = sameDay.getTime() > now.getTime() ? sameDay : new Date(tomorrowStart.getTime() + 9 * 60 * 60 * 1000);
+      }
+    } else {
+      const tomorrow09 = new Date(tomorrowStart.getTime() + 9 * 60 * 60 * 1000);
+      trigger = tomorrow09.getTime() > now.getTime() ? tomorrow09 : new Date(now.getTime() + 60 * 60 * 1000);
+    }
+    if (trigger.getTime() <= now.getTime()) trigger = new Date(now.getTime() + 60 * 60 * 1000);
+    return toLocalInputValue(trigger.toISOString());
+  }, [mode, targetAt, monthValue, windowStart, holidayYear]);
+
   useEffect(() => {
     if (!isOpen) return;
     setOrderId(selectedOrder?.id || existingPlan?.order_id || '');
@@ -110,7 +145,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
       ...prev,
       {
         id: crypto.randomUUID(),
-        trigger_at: toLocalInputValue(new Date().toISOString()),
+        trigger_at: defaultReminderTrigger,
         action_type: 'call_client',
         reason: '',
         source: 'manual',
