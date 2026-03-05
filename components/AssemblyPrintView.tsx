@@ -115,115 +115,115 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                 </div>
             </div>
 
-            <main className="space-y-3">
+            <main className="space-y-2">
                 {customerGroups.map((customerGroup, customerIndex) => (
-                    <div
-                        key={customerGroup.customerName}
-                        className="mb-3"
-                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                    >
-                        {/* Customer header + all orders: keep together */}
-                        <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-                            {/* Customer header */}
-                            <div className="bg-pink-50 border border-pink-200 rounded-lg px-2.5 py-1.5 mb-1.5 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 bg-pink-100 rounded-full flex items-center justify-center shrink-0">
-                                        <User size={13} className="text-pink-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-sm font-black text-slate-900 leading-tight">{customerGroup.customerName}</h2>
-                                        <p className="text-[10px] font-bold text-pink-600 leading-none mt-0.5">
-                                            {customerGroup.orders.length} εντολές
-                                        </p>
-                                    </div>
+                    <div key={customerGroup.customerName} className="mb-2">
+                        {/* Customer header — break-after:avoid keeps it with first product row */}
+                        <div
+                            className="bg-pink-50 border border-pink-200 rounded-lg px-2.5 py-1.5 mb-1.5 flex items-center justify-between"
+                            style={{ breakAfter: 'avoid', pageBreakAfter: 'avoid' }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 bg-pink-100 rounded-full flex items-center justify-center shrink-0">
+                                    <User size={13} className="text-pink-600" />
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-lg font-black text-pink-700">
-                                        {customerGroup.orders.reduce((sum, order) => sum + order.items.reduce((a, item) => a + item.row.quantity, 0), 0)}
-                                    </span>
-                                    <span className="text-[10px] font-bold text-pink-500 ml-0.5">τεμ.</span>
+                                <div>
+                                    <h2 className="text-sm font-black text-slate-900 leading-tight">{customerGroup.customerName}</h2>
+                                    <p className="text-[10px] font-bold text-pink-600 leading-none mt-0.5">
+                                        {customerGroup.orders.length} εντολές
+                                    </p>
                                 </div>
                             </div>
-
-                            <div className="space-y-1.5">
-                                {customerGroup.orders.map((orderGroup) => (
-                                    <section key={`${customerGroup.customerName}_${orderGroup.orderId}`} className="space-y-1.5">
-                                        {/* Order sub-header */}
-                                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-2 py-1">
-                                            <p className="text-[10px] font-black text-slate-600 uppercase tracking-wide">
-                                                Εντολή #{formatOrderId(orderGroup.orderId)}
-                                            </p>
-                                            <p className="text-[10px] font-bold text-slate-400">
-                                                {orderGroup.items.reduce((sum, item) => sum + item.row.quantity, 0)} τεμ.
-                                            </p>
-                                        </div>
-
-                                        {/* Product grid — larger image, prominent SKU */}
-                                        <div className="grid grid-cols-4 gap-1.5">
-                                            {orderGroup.items.map((item) => {
-                                                const { row, product } = item;
-                                                const { finish } = getVariantComponents(row.variant_suffix || '', product?.gender);
-                                                const finishColor = TEXT_FINISH_COLORS[finish.code] || TEXT_FINISH_COLORS[''];
-
-                                                return (
-                                                    <div
-                                                        key={row.id}
-                                                        className="border border-slate-200 rounded-lg overflow-hidden bg-white"
-                                                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                                                    >
-                                                        {/* Image — fills the card width */}
-                                                        <div className="w-full aspect-square bg-slate-100 overflow-hidden">
-                                                            {product?.image_url ? (
-                                                                <img
-                                                                    src={product.image_url}
-                                                                    alt={row.sku}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-slate-300 text-[9px] text-center px-1">
-                                                                    Χωρίς εικόνα
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Info below image */}
-                                                        <div className="px-1 pt-0.5 pb-1">
-                                                            {/* SKU — prominent */}
-                                                            <div className="flex items-baseline gap-0.5 leading-none">
-                                                                <span className="text-[11px] font-black text-slate-900 tracking-tight">
-                                                                    {row.sku}
-                                                                </span>
-                                                                <span className={`text-[11px] font-black ${finishColor}`}>
-                                                                    {finish.code}
-                                                                </span>
-                                                            </div>
-
-                                                            {/* Size + Quantity on same row */}
-                                                            <div className="flex items-center justify-between mt-0.5">
-                                                                {row.size_info ? (
-                                                                    <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5">
-                                                                        <Hash size={7} />
-                                                                        {row.size_info}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span />
-                                                                )}
-                                                                <span className="bg-pink-100 text-pink-800 px-1 rounded text-[9px] font-black border border-pink-200 leading-tight">
-                                                                    x{row.quantity}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </section>
-                                ))}
+                            <div className="text-right">
+                                <span className="text-lg font-black text-pink-700">
+                                    {customerGroup.orders.reduce((sum, order) => sum + order.items.reduce((a, item) => a + item.row.quantity, 0), 0)}
+                                </span>
+                                <span className="text-[10px] font-bold text-pink-500 ml-0.5">τεμ.</span>
                             </div>
                         </div>
 
+                        <div className="space-y-1.5">
+                            {customerGroup.orders.map((orderGroup) => (
+                                <section key={`${customerGroup.customerName}_${orderGroup.orderId}`} className="space-y-1">
+                                    {/* Order sub-header — break-after:avoid to stay with products */}
+                                    <div
+                                        className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-2 py-1"
+                                        style={{ breakAfter: 'avoid', pageBreakAfter: 'avoid' }}
+                                    >
+                                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-wide">
+                                            Εντολή #{formatOrderId(orderGroup.orderId)}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-slate-400">
+                                            {orderGroup.items.reduce((sum, item) => sum + item.row.quantity, 0)} τεμ.
+                                        </p>
+                                    </div>
+
+                                    {/* Product grid — 3 cols, horizontal, 80px image */}
+                                    <div className="grid grid-cols-3 gap-1">
+                                        {orderGroup.items.map((item) => {
+                                            const { row, product } = item;
+                                            const { finish } = getVariantComponents(row.variant_suffix || '', product?.gender);
+                                            const finishColor = TEXT_FINISH_COLORS[finish.code] || TEXT_FINISH_COLORS[''];
+
+                                            return (
+                                                <div
+                                                    key={row.id}
+                                                    className="border border-slate-200 rounded-lg p-1 flex gap-1.5 bg-white"
+                                                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                                >
+                                                    {/* Image — 80×80 */}
+                                                    <div className="w-20 h-20 bg-slate-100 rounded-md overflow-hidden border border-slate-200 shrink-0">
+                                                        {product?.image_url ? (
+                                                            <img
+                                                                src={product.image_url}
+                                                                alt={row.sku}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[8px] text-center px-1">
+                                                                Χωρίς εικόνα
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Info column */}
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                                                        {/* SKU prominent */}
+                                                        <div className="flex items-baseline gap-0.5 flex-wrap">
+                                                            <span className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                                                                {row.sku}
+                                                            </span>
+                                                            <span className={`text-sm font-black leading-tight ${finishColor}`}>
+                                                                {finish.code}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Size */}
+                                                        {row.size_info && (
+                                                            <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
+                                                                <Hash size={8} />
+                                                                {row.size_info}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Quantity */}
+                                                        <div className="flex items-center justify-between mt-auto">
+                                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Ποσ.</span>
+                                                            <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded text-xs font-black border border-pink-200 leading-tight">
+                                                                x{row.quantity}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            ))}
+                        </div>
+
                         {customerIndex < customerGroups.length - 1 && (
-                            <div className="mt-3 border-b-2 border-dashed border-slate-200"></div>
+                            <div className="mt-2 border-b-2 border-dashed border-slate-200"></div>
                         )}
                     </div>
                 ))}
