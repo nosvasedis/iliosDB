@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -43,6 +44,8 @@ const OrderCard: React.FC<{
     onPrint?: (o: Order) => void,
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }> = ({ order, products, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels }) => {
+    const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
+    const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
 
     const handlePrintLabels = () => {
@@ -84,7 +87,17 @@ const OrderCard: React.FC<{
                             <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id.slice(-6)}</span>
                             <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
-                        <h3 className="font-bold text-slate-800 text-base truncate">{order.customer_name}</h3>
+                        <h3 className="font-bold text-slate-800 text-base truncate">
+                            {isRetailOrder ? (
+                                <span className="flex items-center gap-1.5">
+                                    <ShoppingBag size={13} className="text-emerald-600 shrink-0" />
+                                    {order.customer_name}
+                                </span>
+                            ) : order.customer_name}
+                        </h3>
+                        {isRetailOrder && retailClientLabel && (
+                            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-600 mt-0.5">{retailClientLabel}</p>
+                        )}
                         {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</p>}
                         {order.tags && order.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
@@ -219,14 +232,22 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                 if (activeTab === 'archived' && !isArchived) return false;
             }
 
-            const matchesStatus = filterStatus === 'ALL' || String(o.status).trim() === String(filterStatus).trim();
+            // For the "Έτοιμα" filter: also match orders that are production-ready (flashing checkmark)
+            // even if their status is still InProduction
+            let matchesStatus: boolean;
+            if (filterStatus === OrderStatus.Ready) {
+                matchesStatus = String(o.status).trim() === String(OrderStatus.Ready).trim() || isOrderReady(o);
+            } else {
+                matchesStatus = filterStatus === 'ALL' || String(o.status).trim() === String(filterStatus).trim();
+            }
+
             const matchesSearch = search === '' ||
                 o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
                 o.id.includes(search) ||
                 (o.tags && o.tags.some(t => t.toLowerCase().includes(search.toLowerCase())));
             return matchesStatus && matchesSearch;
         });
-    }, [orders, activeTab, filterStatus, search]);
+    }, [orders, batches, activeTab, filterStatus, search]);
 
     const isOrderReady = (order: Order) => {
         if (!batches) return false;
