@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { CalendarRange } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
 import { formatDeliveryWindow, getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getCalendarDayEvents } from '../../utils/namedays';
@@ -30,6 +30,17 @@ function EventLine({ event, isSelected }: { event: CalendarDayEvent; isSelected:
     <div className={`rounded-xl px-2 py-1 text-[10px] font-black truncate ${tone}`}>
       {event.title}
       {event.subtitle ? ` • ${event.subtitle}` : ''}
+    </div>
+  );
+}
+
+function DeliveryPill({ item, isSelected }: { item: EnrichedDeliveryItem; isSelected: boolean }) {
+  const tone = isSelected
+    ? 'bg-white/20 text-white border border-white/40 shadow-sm'
+    : 'bg-emerald-100 text-emerald-800 border border-emerald-200 font-black';
+  return (
+    <div className={`rounded-xl px-2 py-1.5 text-[10px] truncate border ${tone}`} title={getOrderDisplayName(item.order)}>
+      {getOrderDisplayName(item.order)}
     </div>
   );
 }
@@ -93,42 +104,58 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
   }, [majorEvents, monthDays]);
 
   const todayKey = dateKey(new Date());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const hasSpanning = spanningItems.length > 0;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4">
-      {spanningItems.length > 0 && (
-        <div className="w-[11rem] shrink-0 flex flex-col border-r border-slate-100 pr-4">
-          <div className="flex items-center gap-2 text-slate-500 mb-3">
-            <CalendarRange size={16} />
-            <span className="text-[10px] font-black uppercase tracking-wide">Περίοδος / Μήνας</span>
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-2">
+      {hasSpanning && (
+        <div className={`shrink-0 flex flex-col border-r border-slate-100 transition-[width] duration-200 overflow-hidden ${sidebarCollapsed ? 'w-10 pr-0' : 'w-[6.5rem] pr-3'}`}>
+          <div className={`flex items-center gap-1 min-h-[28px] mb-2 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+            {!sidebarCollapsed && (
+              <div className="flex items-center gap-1 text-slate-500 min-w-0">
+                <CalendarRange size={14} className="shrink-0" />
+                <span className="text-[9px] font-black uppercase tracking-wide leading-tight truncate">Περίοδος</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((c) => !c)}
+              className="shrink-0 w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-slate-100"
+              title={sidebarCollapsed ? 'Εμφάνιση λίστας' : 'Σύμπτυξη'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </button>
           </div>
-          <div className="space-y-2">
-            {spanningItems.map((item) => {
-              const isSelected = selectedItem?.plan.id === item.plan.id;
-              return (
-                <button
-                  key={item.plan.id}
-                  type="button"
-                  onClick={() => {
-                    const mid = item.window_start ? new Date(item.window_start) : new Date();
-                    if (item.window_start) mid.setDate(15);
-                    onSelectDate(mid);
-                    onSelectItem?.(item);
-                  }}
-                  className={`w-full text-left rounded-xl border p-2.5 transition-all ${
-                    isSelected
-                      ? 'bg-[#060b00] text-white border-[#060b00]'
-                      : 'bg-slate-50 border-slate-100 hover:bg-slate-100 hover:border-slate-200'
-                  }`}
-                >
-                  <div className="text-xs font-bold truncate">{getOrderDisplayName(item.order)}</div>
-                  <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
-                    {formatDeliveryWindow(item.plan)}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {!sidebarCollapsed && (
+            <div className="space-y-1.5">
+              {spanningItems.map((item) => {
+                const isSelected = selectedItem?.plan.id === item.plan.id;
+                return (
+                  <button
+                    key={item.plan.id}
+                    type="button"
+                    onClick={() => {
+                      const mid = item.window_start ? new Date(item.window_start) : new Date();
+                      if (item.window_start) mid.setDate(15);
+                      onSelectDate(mid);
+                      onSelectItem?.(item);
+                    }}
+                    className={`w-full text-left rounded-lg border px-2 py-1.5 transition-all ${
+                      isSelected
+                        ? 'bg-[#060b00] text-white border-[#060b00]'
+                        : 'bg-slate-50 border-slate-100 hover:bg-slate-100 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold truncate leading-tight">{getOrderDisplayName(item.order)}</div>
+                    <div className={`text-[9px] mt-0.5 truncate ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                      {formatDeliveryWindow(item.plan)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       <div className="min-w-0 flex-1">
@@ -174,12 +201,10 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
                   <EventLine key={event.id} event={event} isSelected={isSelected} />
                 ))}
                 {visibleItems.map((item) => (
-                  <div key={item.plan.id} className={`text-[10px] font-bold truncate ${isSelected ? 'text-white/90' : 'text-slate-600'}`}>
-                    {getOrderDisplayName(item.order)}
-                  </div>
+                  <DeliveryPill key={item.plan.id} item={item} isSelected={isSelected} />
                 ))}
                 {hiddenCount > 0 && (
-                  <div className={`text-[10px] font-black ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                  <div className={`rounded-xl px-2 py-1 text-[10px] font-black ${isSelected ? 'bg-white/15 text-white/90' : 'bg-slate-200/60 text-slate-600'}`}>
                     +{hiddenCount} ακόμη
                   </div>
                 )}
