@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
@@ -117,6 +118,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     const queryClient = useQueryClient();
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
+    const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+    const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
 
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
@@ -263,6 +266,19 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
         return collections.filter(c => orderCollectionIds.has(c.id));
     }, [collections, order.items, products]);
+
+    // Close zoom overlay on Escape
+    useEffect(() => {
+        if (!zoomImageUrl) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setZoomImageUrl(null);
+                setZoomImageAlt('');
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [zoomImageUrl]);
 
     const filteredRows = useMemo(() => {
         return rows.filter(row => {
@@ -654,9 +670,25 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex items-center justify-between gap-4 mb-4">
                                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                                                    {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-300" />}
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (product?.image_url) {
+                                                            setZoomImageUrl(product.image_url);
+                                                            setZoomImageAlt(product.sku);
+                                                        }
+                                                    }}
+                                                >
+                                                    {product?.image_url ? (
+                                                        <img src={product.image_url} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageIcon size={20} className="text-slate-300" />
+                                                        </div>
+                                                    )}
+                                                </button>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-baseline gap-1.5">
                                                         <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
@@ -1078,9 +1110,25 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             <div key={batch.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                                 {/* Card Header */}
                                                 <div className="p-3 flex gap-3 border-b border-slate-50">
-                                                    <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0">
-                                                        {product?.image_url ? <img src={product.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="m-auto text-slate-300 relative top-1/2 -translate-y-1/2" />}
-                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (product?.image_url) {
+                                                                setZoomImageUrl(product.image_url);
+                                                                setZoomImageAlt(batch.sku);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {product?.image_url ? (
+                                                            <img src={product.image_url} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <ImageIcon size={20} className="text-slate-300" />
+                                                            </div>
+                                                        )}
+                                                    </button>
                                                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                         <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{product?.category || 'Προϊόν'}</div>
                                                         <div className="font-black text-slate-900 text-base leading-none truncate">
@@ -1174,6 +1222,29 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Image zoom overlay */}
+            {zoomImageUrl && ReactDOM.createPortal(
+                <div
+                    className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
+                    onClick={() => { setZoomImageUrl(null); setZoomImageAlt(''); }}
+                >
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setZoomImageUrl(null); setZoomImageAlt(''); }}
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                    >
+                        <X size={22} />
+                    </button>
+                    <img
+                        src={zoomImageUrl}
+                        alt={zoomImageAlt || 'Product image'}
+                        className="max-w-[95vw] max-h-[95vh] object-contain rounded-2xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>,
+                document.body
             )}
         </div>
     );
