@@ -34,7 +34,8 @@ import {
   ShieldAlert,
   TrendingUp,
   FileBadge,
-  Globe
+  Globe,
+  CalendarRange
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
@@ -87,13 +88,15 @@ import PriceListPrintView, { PriceListPrintData } from './components/PriceListPr
 import AnalyticsView, { calculateBusinessStats } from './components/AnalyticsView';
 import AnalyticsPrintReport from './components/AnalyticsPrintReport';
 import OffersPage from './components/OffersPage';
+import DeliveriesPage from './components/DeliveriesPage';
 import OfferPrintView from './components/OfferPrintView';
 import OrderFinancialReport from './components/OrderFinancialReport';
 import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 import { PrintProvider, usePrint } from './components/PrintContext';
+import { useDeliveryNavBadge } from './hooks/api/useOrderDeliveryPlans';
 
 
-type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers';
+type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries';
 
 
 
@@ -142,7 +145,7 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, badge?: number }) => (
   <button
     onClick={onClick}
     title={isCollapsed ? label : ''}
@@ -157,6 +160,11 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
       {icon}
     </div>
     {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {!!badge && badge > 0 && (
+      <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
+        {badge > 99 ? '99+' : badge}
+      </span>
+    )}
     {isCollapsed && (
       <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
         {label}
@@ -177,6 +185,7 @@ function AppContent() {
   const queryClient = useQueryClient();
   const { showToast } = useUI();
   const { signOut, profile } = useAuth();
+  const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
 
   const {
     setPrintItems, setOrderToPrint, setOfferToPrint,
@@ -194,6 +203,7 @@ function AppContent() {
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   const [photoCatalogPrintData, setPhotoCatalogPrintData] = useState<Product[] | null>(null);
+  const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
 
   // Sync logic and event listeners
   useEffect(() => {
@@ -487,6 +497,7 @@ function AppContent() {
             <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} />
             {!isLocalMode && (
               <>
+                <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο Παραδόσεων" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => handleNav('deliveries')} badge={deliveryBadgeCount} />
                 <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
                 <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
                 <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
@@ -536,7 +547,10 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onPrintPartialOrder={(order, batches) => {
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
+                setPendingDeliveryOrderId(order.id);
+                handleNav('deliveries');
+              }} onPrintPartialOrder={(order, batches) => {
                 // Create a modified order with only selected items from the batches
                 const partialItems = new Map<string, { item: typeof order.items[0], qty: number }>();
                 batches.forEach(b => {
@@ -576,6 +590,7 @@ function AppContent() {
 
                 setOrderToPrint(modifiedOrder);
               }} />}
+              {activePage === 'deliveries' && <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'suppliers' && <SuppliersPage />}

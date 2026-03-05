@@ -18,6 +18,7 @@ import MobileBatchPrint from './components/mobile/MobileBatchPrint';
 import MobileCollections from './components/mobile/MobileCollections';
 import MobilePriceList from './components/mobile/MobilePriceList';
 import MobileOffers from './components/mobile/MobileOffers';
+import MobileDeliveries from './components/mobile/MobileDeliveries';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 import OrderInvoiceView from './components/OrderInvoiceView';
 import OfferPrintView from './components/OfferPrintView';
@@ -42,6 +43,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [activePage, setActivePage] = useState('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
 
   // Printing State
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
@@ -294,8 +296,9 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   let content;
   switch (activePage) {
     case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
-    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintLabels={setPrintItems} products={products} />; break;
+    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintLabels={setPrintItems} products={products} onOpenDeliveries={(order) => { setPendingDeliveryOrderId(order.id); setActivePage('deliveries'); }} />; break;
     case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
+    case 'deliveries': content = <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />; break;
     case 'production': content = <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;

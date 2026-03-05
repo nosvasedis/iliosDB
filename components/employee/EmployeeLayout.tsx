@@ -12,10 +12,12 @@ import {
   ChevronRight,
   Factory,
   FolderKanban,
-  Package
+  Package,
+  CalendarRange
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
+import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
 
 interface Props {
   children?: React.ReactNode;
@@ -23,7 +25,7 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean }) => (
+const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, badge?: number }) => (
   <button
     onClick={onClick}
     title={isCollapsed ? label : ''}
@@ -38,13 +40,18 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed }: { icon: React.
       {icon}
     </div>
     {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {!!badge && badge > 0 && (
+      <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
+        {badge > 99 ? '99+' : badge}
+      </span>
+    )}
   </button>
 );
 
-const MobileNavItem = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) => (
+const MobileNavItem = ({ icon, label, isActive, onClick, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, badge?: number }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center h-full space-y-1 min-w-[72px] px-1 ${
+    className={`relative flex flex-col items-center justify-center h-full space-y-1 min-w-[72px] px-1 ${
       isActive ? 'text-emerald-600' : 'text-slate-400'
     }`}
   >
@@ -52,12 +59,18 @@ const MobileNavItem = ({ icon, label, isActive, onClick }: { icon: React.ReactNo
       {icon}
     </div>
     <span className="text-[9px] font-bold truncate w-full text-center">{label}</span>
+    {!!badge && badge > 0 && (
+      <span className={`absolute top-1 right-3 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[9px] font-black flex items-center justify-center ${isActive ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
+        {badge > 99 ? '99+' : badge}
+      </span>
+    )}
   </button>
 );
 
 export default function EmployeeLayout({ children, activePage, onNavigate }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { signOut, profile } = useAuth();
+  const { badgeCount } = useDeliveryNavBadge();
 
   const handleLogout = () => { 
       localStorage.removeItem('ILIOS_LOCAL_MODE'); 
@@ -89,6 +102,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
             <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => onNavigate('dashboard')} />
             <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
             <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
+            <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο Παραδόσεων" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
             <div className="my-2 border-t border-white/10 mx-2"></div>
             <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
             <NavItem icon={<Package size={22} />} label="Διαχείριση Αποθήκης" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => onNavigate('inventory')} />
@@ -133,6 +147,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         {/* MOBILE BOTTOM NAV */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] overflow-x-auto scrollbar-hide">
             <div className="flex items-center h-full px-2 w-max mx-auto">
+                <MobileNavItem icon={<CalendarRange size={22} />} label="Παραδόσεις" isActive={activePage === 'deliveries'} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
                 <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
                 <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
                 <MobileNavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} onClick={() => onNavigate('production')} />

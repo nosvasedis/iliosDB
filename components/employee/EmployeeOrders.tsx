@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { ShoppingCart, Plus, Search, Loader2, ChevronRight, Clock, CheckCircle, Package, Truck, XCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Loader2, ChevronRight, Clock, CheckCircle, Package, Truck, XCircle, CalendarRange } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder'; 
@@ -34,7 +34,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
-export default function EmployeeOrders() {
+export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { showToast } = useUI();
@@ -113,6 +113,9 @@ export default function EmployeeOrders() {
                                     <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
                                         <div className="text-xs text-slate-500 font-medium">{order.items.length} είδη</div>
                                         <div className="flex items-center gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }} className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center">
+                                                <CalendarRange size={14}/>
+                                            </button>
                                             <span className="font-black text-slate-900 text-base">{formatCurrency(netValue)}</span>
                                             <ChevronRight size={16} className="text-slate-300"/>
                                         </div>
@@ -131,6 +134,7 @@ export default function EmployeeOrders() {
                                 <th className="p-4">Ημερομηνία</th>
                                 <th className="p-4 text-right">Ποσό</th>
                                 <th className="p-4 text-center">Κατάσταση</th>
+                                <th className="p-4 text-right">Παράδοση</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -150,6 +154,11 @@ export default function EmployeeOrders() {
                                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getStatusColor(order.status)}`}>
                                                 {STATUS_TRANSLATIONS[order.status]}
                                             </span>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <button onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }} className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold inline-flex items-center gap-2">
+                                                <CalendarRange size={14}/> Παράδοση
+                                            </button>
                                         </td>
                                     </tr>
                                 );

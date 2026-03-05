@@ -8,14 +8,19 @@ import EmployeeCustomers from './EmployeeCustomers';
 import EmployeeProduction from './EmployeeProduction';
 import EmployeeCollections from './EmployeeCollections';
 import EmployeeInventory from './EmployeeInventory';
-import { Product, ProductVariant } from '../../types';
+import { Product, ProductVariant, Order } from '../../types';
+import DeliveriesPage from '../DeliveriesPage';
+import MobileDeliveries from '../mobile/MobileDeliveries';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
 export default function EmployeeApp({ setPrintItems }: Props) {
+  const isMobile = useIsMobile();
   const [activePage, setActivePage] = useState('dashboard');
+  const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
 
   let content: React.ReactNode = null;
   switch (activePage) {
@@ -23,7 +28,12 @@ export default function EmployeeApp({ setPrintItems }: Props) {
       content = <EmployeeDashboard onNavigate={setActivePage} />;
       break;
     case 'orders':
-      content = <EmployeeOrders />;
+      content = <EmployeeOrders onOpenDeliveries={(order: Order) => { setPendingDeliveryOrderId(order.id); setActivePage('deliveries'); }} />;
+      break;
+    case 'deliveries':
+      content = isMobile
+        ? <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />
+        : <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />;
       break;
     case 'production':
       content = <EmployeeProduction />;

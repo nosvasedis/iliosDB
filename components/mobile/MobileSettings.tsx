@@ -126,6 +126,8 @@ export default function MobileSettings() {
                 { key: 'product_variants', name: 'Product_Variants' },
                 { key: 'product_stock', name: 'Product_Stock' },
                 { key: 'orders', name: 'Orders' },
+                { key: 'order_delivery_plans', name: 'Order_Delivery_Plans' },
+                { key: 'order_delivery_reminders', name: 'Order_Delivery_Reminders' },
                 { key: 'production_batches', name: 'Production_Batches' },
                 { key: 'offers', name: 'Offers' },
                 { key: 'customers', name: 'Customers' },

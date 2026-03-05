@@ -11,6 +11,7 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
+import { isOrderReady } from '../utils/orderReadiness';
 
 // Group batches by their created_at timestamp to simulate "Shipments" / "Parts"
 const groupBatchesByShipment = (batches: ProductionBatch[]) => {
@@ -35,6 +36,7 @@ interface Props {
     onPrintTechnician: (batches: ProductionBatch[]) => void;
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
+    onOpenDeliveries?: (order: Order) => void;
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
@@ -437,7 +439,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     );
 };
 
-export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -534,16 +536,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         estimateSize: () => 96,
         overscan: 8
     });
-
-    // Derived: Check if order is ready for completion
-    const isOrderReady = (order: Order) => {
-        // Must have batches
-        const orderBatches = enrichedBatches.filter(b => b.order_id === order.id);
-        if (orderBatches.length === 0) return false; // If no batches, maybe manually managed, but for "Complete" button, imply production flow
-
-        // All batches must be Ready
-        return orderBatches.every(b => b.current_stage === ProductionStage.Ready);
-    };
 
     const handleEditOrder = (order: Order) => {
         setEditingOrder(order);
@@ -830,7 +822,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 const order = filteredOrders[virtualRow.index];
                                 const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
                                 const netValue = order.total_price / (1 + activeVat);
-                                const ready = isOrderReady(order);
+                                const ready = isOrderReady(order, enrichedBatches);
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
                                 return (
@@ -983,7 +975,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
                             <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18} /> Επεξεργασία</button>
 
-                            {isOrderReady(managingOrder) && managingOrder.status !== OrderStatus.Delivered && (
+                            <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Calendar size={18} /> Προγραμματισμός παράδοσης</button>
+                            {isOrderReady(managingOrder, enrichedBatches) && managingOrder.status !== OrderStatus.Delivered && (
                                 <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100">
                                     <CheckSquare size={18} /> Ολοκλήρωση & Παράδοση
                                 </button>

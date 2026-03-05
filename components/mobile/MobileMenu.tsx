@@ -13,10 +13,12 @@ import {
   FolderKanban,
   ScrollText,
   FileText,
-  Globe
+  Globe,
+  CalendarRange
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
+import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -25,6 +27,7 @@ interface Props {
 
 export default function MobileMenu({ onNavigate, activePage }: Props) {
   const { signOut, profile } = useAuth();
+  const { badgeCount } = useDeliveryNavBadge();
 
   const handleLogout = () => {
     localStorage.removeItem('ILIOS_LOCAL_MODE');
@@ -33,6 +36,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
 
   const menuItems = [
     { id: 'ai-studio', label: 'AI Studio', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-50' },
+    { id: 'deliveries', label: 'Ημερολόγιο Παραδόσεων', icon: CalendarRange, color: 'text-emerald-600', bg: 'bg-emerald-50', badge: badgeCount },
     { id: 'offers', label: 'Προσφορές', icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'registry', label: 'Μητρώο Κωδικών', icon: Database, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'collections', label: 'Συλλογές', icon: FolderKanban, color: 'text-pink-500', bg: 'bg-pink-50' },
@@ -70,7 +74,14 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
               </div>
               <span className="font-bold text-sm">{item.label}</span>
             </div>
-            <ChevronRight size={18} className={activePage === item.id ? 'text-white/50' : 'text-slate-300'} />
+            <div className="flex items-center gap-2">
+              {'badge' in item && !!item.badge && item.badge > 0 && (
+                <span className={`min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${activePage === item.id ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+              <ChevronRight size={18} className={activePage === item.id ? 'text-white/50' : 'text-slate-300'} />
+            </div>
           </button>
         ))}
       </div>

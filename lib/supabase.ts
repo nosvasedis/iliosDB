@@ -1,9 +1,10 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime } from '../types';
+import { GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
+import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -728,6 +729,14 @@ export const api = {
         return fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
     },
 
+    getOrderDeliveryPlans: async (): Promise<OrderDeliveryPlan[]> => {
+        return fetchFullTable('order_delivery_plans', '*', (q) => q.order('updated_at', { ascending: false }));
+    },
+
+    getOrderDeliveryReminders: async (): Promise<OrderDeliveryReminder[]> => {
+        return fetchFullTable('order_delivery_reminders', '*', (q) => q.order('trigger_at', { ascending: true }));
+    },
+
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
         return fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
     },
@@ -862,6 +871,75 @@ export const api = {
         await safeMutate('orders', 'INSERT', o, { noSelect: true });
     },
 
+    saveOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
+        await safeMutate('order_delivery_plans', 'INSERT', plan, { noSelect: true });
+        await safeMutate('order_delivery_reminders', 'DELETE', null, { match: { plan_id: plan.id } });
+        if (reminders.length > 0) {
+            await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
+        }
+    },
+
+    updateOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
+        await safeMutate('order_delivery_plans', 'UPDATE', plan, { match: { id: plan.id }, noSelect: true });
+        await safeMutate('order_delivery_reminders', 'DELETE', null, { match: { plan_id: plan.id } });
+        if (reminders.length > 0) {
+            await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
+        }
+    },
+
+    deleteOrderDeliveryPlan: async (planId: string): Promise<void> => {
+        await safeMutate('order_delivery_reminders', 'DELETE', null, { match: { plan_id: planId } });
+        await safeMutate('order_delivery_plans', 'DELETE', null, { match: { id: planId } });
+    },
+
+    acknowledgeDeliveryReminder: async (reminderId: string): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('order_delivery_reminders', 'UPDATE', {
+            acknowledged_at: now,
+            updated_at: now
+        }, { match: { id: reminderId }, noSelect: true });
+    },
+
+    completeDeliveryReminder: async (reminderId: string, completionNote?: string, completedBy?: string): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('order_delivery_reminders', 'UPDATE', {
+            completed_at: now,
+            completion_note: completionNote || null,
+            completed_by: completedBy || null,
+            updated_at: now
+        }, { match: { id: reminderId }, noSelect: true });
+    },
+
+    snoozeDeliveryReminder: async (reminderId: string, until: string): Promise<void> => {
+        await safeMutate('order_delivery_reminders', 'UPDATE', {
+            snoozed_until: until,
+            updated_at: new Date().toISOString()
+        }, { match: { id: reminderId }, noSelect: true });
+    },
+
+    completeOrderDeliveryPlan: async (planId: string, orderId: string): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('order_delivery_plans', 'UPDATE', {
+            plan_status: 'completed',
+            completed_at: now,
+            updated_at: now
+        }, { match: { id: planId }, noSelect: true });
+        await safeMutate('order_delivery_reminders', 'UPDATE', {
+            completed_at: now,
+            updated_at: now
+        }, { match: { plan_id: planId }, noSelect: true });
+        await api.updateOrderStatus(orderId, OrderStatus.Delivered);
+    },
+
+    cancelOrderDeliveryPlan: async (planId: string): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('order_delivery_plans', 'UPDATE', {
+            plan_status: 'cancelled',
+            cancelled_at: now,
+            updated_at: now
+        }, { match: { id: planId }, noSelect: true });
+    },
+
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order): Promise<void> => {
         await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
@@ -943,6 +1021,16 @@ export const api = {
 
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {
         await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } });
+        if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {
+            const now = new Date().toISOString();
+            const planUpdate: Record<string, any> = {
+                plan_status: syncPlanStatusWithOrder(status),
+                updated_at: now
+            };
+            if (status === OrderStatus.Delivered) planUpdate.completed_at = now;
+            if (status === OrderStatus.Cancelled) planUpdate.cancelled_at = now;
+            await safeMutate('order_delivery_plans', 'UPDATE', planUpdate, { match: { order_id: id }, noSelect: true });
+        }
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
@@ -1333,7 +1421,7 @@ export const api = {
             'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
             'product_stock', 'stock_movements',
-            'orders', 'production_batches', 'offers', 'supplier_orders',
+            'orders', 'order_delivery_plans', 'order_delivery_reminders', 'production_batches', 'offers', 'supplier_orders',
             'price_snapshots', 'price_snapshot_items'
         ];
         const results: Record<string, any[]> = {};
@@ -1347,7 +1435,7 @@ export const api = {
             'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
             'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
             'product_stock', 'stock_movements',
-            'orders', 'production_batches', 'offers', 'supplier_orders',
+            'orders', 'order_delivery_plans', 'order_delivery_reminders', 'production_batches', 'offers', 'supplier_orders',
             'price_snapshots', 'price_snapshot_items'
         ];
         if (isLocalMode || !SUPABASE_URL) {

@@ -7,6 +7,7 @@ import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCi
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
+import { isOrderReady } from '../../utils/orderReadiness';
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
@@ -207,9 +208,10 @@ interface MobileOrdersProps {
     onPrint?: (order: Order) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     products?: Product[];
+    onOpenDeliveries?: (order: Order) => void;
 }
 
-export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels, products = [] }: MobileOrdersProps) {
+export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels, products = [], onOpenDeliveries }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -220,13 +222,6 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     const [search, setSearch] = useState('');
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
-
-    const isOrderReady = (order: Order) => {
-        if (!batches) return false;
-        const orderBatches = batches.filter(b => b.order_id === order.id);
-        if (orderBatches.length === 0) return false;
-        return orderBatches.every(b => b.current_stage === ProductionStage.Ready);
-    };
 
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
@@ -243,7 +238,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
             // even if their status is still InProduction
             let matchesStatus: boolean;
             if (filterStatus === OrderStatus.Ready) {
-                matchesStatus = String(o.status).trim() === String(OrderStatus.Ready).trim() || isOrderReady(o);
+                matchesStatus = String(o.status).trim() === String(OrderStatus.Ready).trim() || isOrderReady(o, batches);
             } else {
                 matchesStatus = filterStatus === 'ALL' || String(o.status).trim() === String(filterStatus).trim();
             }
@@ -421,7 +416,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                         onDelete={handleDeleteOrder}
                         onCancel={handleCancelOrder}
                         onManage={setManagingOrder}
-                        isReady={isOrderReady(order)}
+                        isReady={isOrderReady(order, batches)}
                         onComplete={handleCompleteOrder}
                         onPrint={onPrint}
                         onPrintLabels={onPrintLabels}
@@ -470,7 +465,11 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                             </div>
 
                             <div className="grid grid-cols-1 gap-2">
-                                {isOrderReady(managingOrder) && managingOrder.status !== OrderStatus.Delivered && (
+                                <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold">
+                                    <Settings size={20} /> Προγραμματισμός παράδοσης
+                                </button>
+
+                                {isOrderReady(managingOrder, batches) && managingOrder.status !== OrderStatus.Delivered && (
                                     <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full flex items-center gap-3 p-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg"><CheckSquare size={20} /> Ολοκλήρωση & Παράδοση</button>
                                 )}
 

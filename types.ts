@@ -223,6 +223,104 @@ export interface Order {
   is_archived?: boolean;
 }
 
+export type DeliveryPlanStatus = 'active' | 'completed' | 'cancelled';
+export type DeliveryPlanningMode = 'exact' | 'month' | 'custom_period' | 'holiday_anchor';
+export type DeliveryHolidayAnchor = 'orthodox_easter' | 'orthodox_christmas';
+export type DeliveryReminderAction = 'call_client' | 'message_client' | 'confirm_ready' | 'arrange_delivery' | 'internal_followup';
+export type DeliveryReminderSource = 'auto' | 'manual';
+export type DeliveryUrgency = 'overdue' | 'today' | 'soon' | 'upcoming' | 'scheduled' | 'completed';
+
+export interface OrderDeliveryPlan {
+  id: string;
+  order_id: string;
+  plan_status: DeliveryPlanStatus;
+  planning_mode: DeliveryPlanningMode;
+  target_at?: string | null;
+  window_start?: string | null;
+  window_end?: string | null;
+  holiday_anchor?: DeliveryHolidayAnchor | null;
+  holiday_year?: number | null;
+  holiday_offset_days?: number | null;
+  contact_phone_override?: string | null;
+  internal_notes?: string | null;
+  snoozed_until?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderDeliveryReminder {
+  id: string;
+  plan_id: string;
+  trigger_at: string;
+  action_type: DeliveryReminderAction;
+  reason: string;
+  sort_order: number;
+  source: DeliveryReminderSource;
+  acknowledged_at?: string | null;
+  completed_at?: string | null;
+  completion_note?: string | null;
+  completed_by?: string | null;
+  snoozed_until?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliverySuggestion {
+  id: string;
+  category: 'date' | 'holiday' | 'reason' | 'warning' | 'nameday';
+  label: string;
+  description?: string;
+  suggested_mode?: DeliveryPlanningMode;
+  suggested_date?: string;
+  suggested_holiday?: DeliveryHolidayAnchor;
+  suggested_reason?: string;
+}
+
+export interface NamedayMatch {
+  id: string;
+  matched_name: string;
+  canonical_name: string;
+  label: string;
+  date: string;
+  days_until: number;
+  is_today: boolean;
+  is_upcoming: boolean;
+}
+
+export interface CalendarDayEvent {
+  id: string;
+  date: string;
+  type: 'nameday' | 'major_event';
+  title: string;
+  subtitle?: string;
+  priority: number;
+}
+
+export interface EnrichedDeliveryItem {
+  order: Order;
+  customer?: Customer;
+  plan: OrderDeliveryPlan;
+  reminders: OrderDeliveryReminder[];
+  next_reminder?: OrderDeliveryReminder;
+  pending_reminders: OrderDeliveryReminder[];
+  phone?: string | null;
+  is_ready: boolean;
+  needs_call: boolean;
+  call_reasons: string[];
+  urgency: DeliveryUrgency;
+  suggestions: DeliverySuggestion[];
+  matched_keywords: string[];
+  nameday_matches: NamedayMatch[];
+  next_nameday?: NamedayMatch | null;
+  target_date?: string | null;
+  window_start?: string | null;
+  window_end?: string | null;
+}
+
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';
 
 export interface Offer {
