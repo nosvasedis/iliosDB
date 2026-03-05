@@ -55,11 +55,18 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
     items.forEach((item) => {
       const windowStart = item.window_start ? new Date(item.window_start).getTime() : null;
       const windowEnd = item.window_end ? new Date(item.window_end).getTime() : null;
-      const hasRange = windowStart != null && windowEnd != null && (item.plan.planning_mode === 'month' || item.plan.planning_mode === 'custom_period' || item.plan.planning_mode === 'holiday_anchor');
+      const isSpanningMode = item.plan.planning_mode === 'month' || item.plan.planning_mode === 'custom_period' || item.plan.planning_mode === 'holiday_anchor';
+      const hasRange = windowStart != null && windowEnd != null && isSpanningMode;
 
       if (hasRange) {
-        const overlaps = windowStart <= viewEnd && windowEnd >= viewStart;
-        if (overlaps) spanning.push(item);
+        let showInSidebar: boolean;
+        if (item.plan.planning_mode === 'holiday_anchor') {
+          const target = item.target_date ? new Date(item.target_date).getTime() : null;
+          showInSidebar = target != null && target >= viewStart && target <= viewEnd;
+        } else {
+          showInSidebar = windowStart <= viewEnd && windowEnd >= viewStart;
+        }
+        if (showInSidebar) spanning.push(item);
       } else {
         single.push(item);
       }
