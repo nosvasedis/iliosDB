@@ -1,7 +1,36 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Gift, Package, Phone, PhoneCall, Trash2 } from 'lucide-react';
-import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_STATUS_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName, getProductionStageLabel, getReminderStateLabel } from '../../utils/deliveryLabels';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, Phone, PhoneCall, Tag, Trash2 } from 'lucide-react';
+import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage } from '../../types';
+import { getVariantComponents } from '../../utils/pricingEngine';
+import {
+  DELIVERY_ACTION_LABELS,
+  DELIVERY_STATUS_LABELS,
+  DELIVERY_URGENCY_LABELS,
+  DELIVERY_SKU_FINISH_STYLES,
+  DELIVERY_SKU_STONE_STYLES,
+  formatDeliveryWindow,
+  formatGreekDate,
+  formatGreekDateTime,
+  getOrderDisplayName,
+  getProductionStageLabel,
+  getReminderStateLabel,
+  ORDER_STATUS_LABELS,
+  PRODUCTION_STAGE_COLORS
+} from '../../utils/deliveryLabels';
+
+const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
+  [ProductionStage.AwaitingDelivery]: <Globe size={14} />,
+  [ProductionStage.Waxing]: <Package size={14} />,
+  [ProductionStage.Casting]: <Flame size={14} />,
+  [ProductionStage.Setting]: <Gem size={14} />,
+  [ProductionStage.Polishing]: <Hammer size={14} />,
+  [ProductionStage.Assembly]: <Layers size={14} />,
+  [ProductionStage.Labeling]: <Tag size={14} />,
+  [ProductionStage.Ready]: <CheckCircle2 size={14} />
+};
+
+const isCallReminder = (action: OrderDeliveryReminder['action_type']) =>
+  action === 'call_client' || action === 'confirm_ready' || action === 'arrange_delivery';
 
 interface Props {
   item?: EnrichedDeliveryItem | null;
@@ -32,6 +61,9 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               {DELIVERY_STATUS_LABELS[item.plan.plan_status]}
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              Κατάσταση: {ORDER_STATUS_LABELS[item.order.status as OrderStatus] ?? item.order.status}
             </span>
             <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
               {DELIVERY_URGENCY_LABELS[item.urgency]}
@@ -87,13 +119,37 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
           <div className="pt-3 border-t border-slate-200">
             <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><Package size={14} /> Τι δεν είναι ακόμη έτοιμο</div>
             <p className="mt-1 text-xs text-slate-600 font-medium mb-2">Τα ακόμη σε εξέλιξη τμήματα παραγωγής της παραγγελίας:</p>
-            <ul className="space-y-2">
-              {item.readiness_detail.not_ready_batches.map((b, idx) => (
-                <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2 text-sm">
-                  <span className="font-bold text-slate-800">{b.sku}{b.variant_suffix ? ` · ${b.variant_suffix}` : ''}{b.size_info ? ` (${b.size_info})` : ''}</span>
-                  <span className="text-xs font-bold text-amber-700 shrink-0">{getProductionStageLabel(b.current_stage)}</span>
-                </li>
-              ))}
+            <ul className="space-y-3">
+              {item.readiness_detail.not_ready_batches.map((b, idx) => {
+                const { finish, stone } = getVariantComponents(b.variant_suffix ?? '', b.gender);
+                const finishStyle = DELIVERY_SKU_FINISH_STYLES[finish.code] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+                const stoneStyle = stone.code ? (DELIVERY_SKU_STONE_STYLES[stone.code] ?? 'bg-emerald-100 text-emerald-700 border-emerald-200') : '';
+                const stageColors = PRODUCTION_STAGE_COLORS[b.current_stage] ?? { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+                const StageIcon = STAGE_ICONS[b.current_stage];
+                return (
+                  <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 p-3">
+                    <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {b.product_image ? (
+                        <img src={b.product_image} alt={b.sku} className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon size={24} className="text-slate-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-slate-800">{b.sku}</span>
+                        {finish.code && <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${finishStyle}`}>{finish.code}</span>}
+                        {stone.code && <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${stoneStyle}`}>{stone.code}</span>}
+                        {b.size_info && <span className="text-xs text-slate-500">({b.size_info})</span>}
+                      </div>
+                      <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>
+                        {StageIcon}
+                        {getProductionStageLabel(b.current_stage)}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -121,12 +177,17 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
               </div>
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{getReminderStateLabel(reminder)}</div>
             </div>
-            <p className="mt-2 text-sm text-slate-600 font-medium">{reminder.reason}</p>
+            <p className="mt-2 text-sm text-slate-600 font-medium">{reminder.reason || (isCallReminder(reminder.action_type) ? 'Καλέστε τον πελάτη για επιβεβαίωση ετοιμότητας και οργάνωση παράδοσης.' : 'Ελέγξτε την πρόοδο της παραγγελίας.')}</p>
             {!reminder.completed_at && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Το είδα</button>
-                <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή 1 ώρας</button>
-                <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωση</button>
+              <div className="mt-3 flex flex-wrap gap-2 items-center">
+                {isCallReminder(reminder.action_type) && item.phone && (
+                  <a href={`tel:${item.phone}`} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
+                    <Phone size={14} /> Κλήση πελάτη
+                  </a>
+                )}
+                <button onClick={() => onAcknowledgeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Εντάξει</button>
+                <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή</button>
+                <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωσα</button>
               </div>
             )}
           </div>

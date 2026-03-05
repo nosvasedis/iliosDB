@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Lightbulb, Plus, Trash2, X } from 'lucide-react';
-import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeliveryPlan, OrderDeliveryReminder } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, getOrderDisplayName } from '../../utils/deliveryLabels';
+import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
+import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, getOrderDisplayName, ORDER_STATUS_LABELS } from '../../utils/deliveryLabels';
 import { buildDefaultReminderDrafts, computeDeliveryPlanWindow } from '../../utils/deliveryScheduling';
 import { analyzeDeliveryContext } from '../../utils/deliveryIntelligence';
 
@@ -372,7 +372,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                             ))}
                           </select>
                         </div>
-                        <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none placeholder:text-slate-400" placeholder="Λόγος (π.χ. Επιβεβαίωση ημερομηνίας)" />
+                        <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none placeholder:text-slate-400" placeholder={reminder.action_type === 'call_client' || reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'Π.χ. Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης' : reminder.action_type === 'internal_followup' ? 'Π.χ. Έλεγχος προόδου παραγγελίας' : 'Λόγος υπενθύμισης'} />
                       </div>
                     );
                   })}
@@ -413,7 +413,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                 <div className="space-y-2 text-sm text-slate-600 font-medium">
                   <div><span className="font-black text-slate-800">Πελάτης:</span> {getOrderDisplayName(order)}</div>
                   <div><span className="font-black text-slate-800">Τηλέφωνο:</span> {customer?.phone || order.customer_phone || 'Δεν υπάρχει'}</div>
-                  <div><span className="font-black text-slate-800">Κατάσταση:</span> {order.status}</div>
+                  <div><span className="font-black text-slate-800">Κατάσταση:</span> {ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status}</div>
                   {order.notes && <div><span className="font-black text-slate-800">Σημειώσεις:</span> {order.notes}</div>}
                 </div>
               ) : (

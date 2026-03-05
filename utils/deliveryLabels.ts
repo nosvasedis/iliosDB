@@ -6,6 +6,7 @@ import {
   DeliveryUrgency,
   OrderDeliveryPlan,
   OrderDeliveryReminder,
+  OrderStatus,
   ProductionStage
 } from '../types';
 import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
@@ -38,21 +39,22 @@ export const DELIVERY_STATUS_LABELS: Record<DeliveryPlanStatus, string> = {
   cancelled: 'Ακυρωμένο'
 };
 
+/** Όλες οι ενέργειες επικοινωνίας εμφανίζονται ως "Κλήση πελάτη" (επιβεβαίωση ετοιμότητας + οργάνωση + κλήση). */
 export const DELIVERY_ACTION_LABELS: Record<DeliveryReminderAction, string> = {
   call_client: 'Κλήση πελάτη',
   message_client: 'Μήνυμα σε πελάτη',
-  confirm_ready: 'Επιβεβαίωση ετοιμότητας',
-  arrange_delivery: 'Οργάνωση παράδοσης',
-  internal_followup: 'Εσωτερική υπενθύμιση'
+  confirm_ready: 'Κλήση πελάτη',
+  arrange_delivery: 'Κλήση πελάτη',
+  internal_followup: 'Έλεγχος Προόδου Παραγγελίας'
 };
 
 /** Tailwind-friendly classes for reminder type (border + bg tint + text). Use for color-coding. */
 export const DELIVERY_ACTION_COLORS: Record<DeliveryReminderAction, { border: string; bg: string; text: string; badge: string }> = {
   call_client: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
   message_client: { border: 'border-l-violet-500', bg: 'bg-violet-50', text: 'text-violet-800', badge: 'bg-violet-100 text-violet-700 border-violet-200' },
-  confirm_ready: { border: 'border-l-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  arrange_delivery: { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
-  internal_followup: { border: 'border-l-slate-400', bg: 'bg-slate-50', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-600 border-slate-200' }
+  confirm_ready: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
+  arrange_delivery: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
+  internal_followup: { border: 'border-l-indigo-500', bg: 'bg-indigo-50', text: 'text-indigo-800', badge: 'bg-indigo-100 text-indigo-700 border-indigo-200' }
 };
 
 export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {
@@ -64,21 +66,65 @@ export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {
   completed: 'Ολοκληρωμένο'
 };
 
-/** Greek labels for production stages (delivery info pane). */
+/** Κατάσταση παραγγελίας στα Ελληνικά (όπως στην Παραγωγή). */
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  [OrderStatus.Pending]: 'Εκκρεμεί',
+  [OrderStatus.InProduction]: 'Σε Παραγωγή',
+  [OrderStatus.Ready]: 'Έτοιμο',
+  [OrderStatus.Delivered]: 'Παραδόθηκε',
+  [OrderStatus.Cancelled]: 'Ακυρώθηκε'
+};
+
+/** Greek labels for production stages — same names as in Παραγωγή. */
 const PRODUCTION_STAGE_LABEL_MAP: Record<string, string> = {
-  [ProductionStage.AwaitingDelivery]: 'Αναμονή παραλαβής',
-  [ProductionStage.Waxing]: 'Κερί',
-  [ProductionStage.Casting]: 'Χύτευση',
-  [ProductionStage.Setting]: 'Περαίωση',
-  [ProductionStage.Polishing]: 'Γυάλισμα',
+  [ProductionStage.AwaitingDelivery]: 'Αναμονή Παραλαβής',
+  [ProductionStage.Waxing]: 'Παρασκευή',
+  [ProductionStage.Casting]: 'Χυτήριο',
+  [ProductionStage.Setting]: 'Καρφωτής',
+  [ProductionStage.Polishing]: 'Τεχνίτης',
   [ProductionStage.Assembly]: 'Συναρμολόγηση',
-  [ProductionStage.Labeling]: 'Ετικέτα',
-  [ProductionStage.Ready]: 'Έτοιμο'
+  [ProductionStage.Labeling]: 'Καρτελάκια - Πακετάρισμα',
+  [ProductionStage.Ready]: 'Έτοιμα'
+};
+
+/** Tailwind classes for stage badges in delivery pane (match Παραγωγή colors). */
+export const PRODUCTION_STAGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  [ProductionStage.AwaitingDelivery]: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+  [ProductionStage.Waxing]: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
+  [ProductionStage.Casting]: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  [ProductionStage.Setting]: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  [ProductionStage.Polishing]: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+  [ProductionStage.Assembly]: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
+  [ProductionStage.Labeling]: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+  [ProductionStage.Ready]: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
 };
 
 export function getProductionStageLabel(stage: ProductionStage | string): string {
   return PRODUCTION_STAGE_LABEL_MAP[stage] || String(stage);
 }
+
+/** Metal/finish chip styles for SKU suffix in delivery pane (match Παραγωγή). */
+export const DELIVERY_SKU_FINISH_STYLES: Record<string, string> = {
+  'X': 'bg-amber-100 text-amber-900 border-amber-200',
+  'P': 'bg-stone-200 text-stone-800 border-stone-300',
+  'D': 'bg-orange-100 text-orange-800 border-orange-200',
+  'H': 'bg-cyan-100 text-cyan-900 border-cyan-200',
+  '': 'bg-slate-100 text-slate-700 border-slate-200'
+};
+
+/** Stone chip styles for SKU suffix in delivery pane (match Παραγωγή). */
+export const DELIVERY_SKU_STONE_STYLES: Record<string, string> = {
+  'KR': 'bg-rose-100 text-rose-800 border-rose-200', 'QN': 'bg-slate-200 text-slate-900 border-slate-300', 'LA': 'bg-blue-100 text-blue-800 border-blue-200', 'TY': 'bg-teal-100 text-teal-800 border-teal-200',
+  'TG': 'bg-orange-100 text-orange-800 border-orange-200', 'IA': 'bg-red-100 text-red-800 border-red-200', 'BSU': 'bg-slate-200 text-slate-800 border-slate-300', 'GSU': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'RSU': 'bg-rose-100 text-rose-800 border-rose-200', 'MA': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'FI': 'bg-slate-100 text-slate-600 border-slate-200', 'OP': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'NF': 'bg-green-100 text-green-800 border-green-200', 'CO': 'bg-cyan-100 text-cyan-800 border-cyan-200', 'TPR': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'TKO': 'bg-red-100 text-rose-700 border-red-200',
+  'TMP': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'PCO': 'bg-teal-100 text-teal-700 border-teal-200', 'MCO': 'bg-purple-100 text-purple-700 border-purple-200', 'PAX': 'bg-green-100 text-green-700 border-green-200',
+  'MAX': 'bg-blue-100 text-blue-800 border-blue-200', 'KAX': 'bg-red-100 text-red-700 border-red-200', 'AI': 'bg-slate-100 text-slate-600 border-slate-200', 'AP': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  'AM': 'bg-teal-100 text-teal-800 border-teal-200', 'LR': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'BST': 'bg-sky-100 text-sky-700 border-sky-200', 'MP': 'bg-blue-100 text-blue-600 border-blue-200',
+  'LE': 'bg-slate-100 text-slate-600 border-slate-200', 'PR': 'bg-green-100 text-green-600 border-green-200', 'KO': 'bg-red-100 text-red-600 border-red-200', 'MV': 'bg-purple-100 text-purple-500 border-purple-200',
+  'RZ': 'bg-pink-100 text-pink-600 border-pink-200', 'AK': 'bg-cyan-100 text-cyan-400 border-cyan-200', 'XAL': 'bg-stone-100 text-stone-600 border-stone-200', 'SD': 'bg-blue-100 text-blue-800 border-blue-200',
+  'AX': 'bg-emerald-100 text-emerald-800 border-emerald-200'
+};
 
 export function formatGreekDate(dateLike?: string | Date | null): string {
   if (!dateLike) return 'Δεν ορίστηκε';

@@ -8,11 +8,12 @@ import {
   Order,
   OrderDeliveryPlan,
   OrderDeliveryReminder,
-  ProductionBatch
+  ProductionBatch,
+  ProductionStage
 } from '../types';
 import { analyzeDeliveryContext } from './deliveryIntelligence';
 import { getHolidayPeriod } from './orthodoxHoliday';
-import { getNotReadyBatches, isOrderReady } from './orderReadiness';
+import { getOrderBatches, isOrderReady } from './orderReadiness';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -72,11 +73,11 @@ export function buildDefaultReminderDrafts(mode: DeliveryPlanningMode, reference
     const middle = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 15, 9, 0, 0, 0);
     const last = windowEnd || new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0, 18, 0, 0, 0);
     drafts.push(
-      { action_type: 'internal_followup', reason: 'Έναρξη μηνιαίας περιόδου παραδόσεων', sort_order: 0, source: 'auto', trigger_at: start.toISOString() },
-      { action_type: 'call_client', reason: 'Επιβεβαίωση προγραμματισμού μέσα στον μήνα', sort_order: 1, source: 'auto', trigger_at: middle.toISOString() },
+      { action_type: 'internal_followup', reason: 'Έλεγχος προόδου παραγγελίας· έναρξη μηνιαίας περιόδου παραδόσεων.', sort_order: 0, source: 'auto', trigger_at: start.toISOString() },
+      { action_type: 'call_client', reason: 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη μέσα στον μήνα.', sort_order: 1, source: 'auto', trigger_at: middle.toISOString() },
     );
-    addDraft(7, 'arrange_delivery', 'Πλησιάζει το τέλος του μήνα', 2, last);
-    addDraft(1, 'call_client', 'Τελική επιβεβαίωση πριν τη λήξη του μήνα', 3, last);
+    addDraft(7, 'internal_followup', 'Έλεγχος προόδου παραγγελίας· πλησιάζει το τέλος του μήνα.', 2, last);
+    addDraft(1, 'call_client', 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη πριν τη λήξη του μήνα.', 3, last);
     return drafts;
   }
 
@@ -84,27 +85,26 @@ export function buildDefaultReminderDrafts(mode: DeliveryPlanningMode, reference
     const middle = new Date((referenceDate.getTime() + (windowEnd?.getTime() || referenceDate.getTime())) / 2);
     middle.setHours(9, 0, 0, 0);
     drafts.push(
-      { action_type: 'internal_followup', reason: 'Έναρξη περιόδου παραδόσεων', sort_order: 0, source: 'auto', trigger_at: referenceDate.toISOString() },
-      { action_type: 'call_client', reason: 'Επιβεβαίωση μέσα στην περίοδο', sort_order: 1, source: 'auto', trigger_at: middle.toISOString() }
+      { action_type: 'internal_followup', reason: 'Έλεγχος προόδου παραγγελίας· έναρξη περιόδου παραδόσεων.', sort_order: 0, source: 'auto', trigger_at: referenceDate.toISOString() },
+      { action_type: 'call_client', reason: 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη μέσα στην περίοδο.', sort_order: 1, source: 'auto', trigger_at: middle.toISOString() }
     );
     if (windowEnd) {
-      addDraft(1, 'arrange_delivery', 'Η περίοδος λήγει σύντομα', 2, windowEnd);
+      addDraft(7, 'internal_followup', 'Έλεγχος προόδου παραγγελίας· η περίοδος λήγει σύντομα.', 2, windowEnd);
+      addDraft(1, 'call_client', 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη πριν το τέλος της περιόδου.', 3, windowEnd);
     }
     return drafts;
   }
 
   if (mode === 'holiday_anchor') {
-    addDraft(14, 'internal_followup', 'Προετοιμασία για γιορτινή περίοδο', 0);
-    addDraft(7, 'call_client', 'Επιβεβαίωση πριν τη γιορτή', 1);
-    addDraft(2, 'arrange_delivery', 'Η γιορτή πλησιάζει', 2);
-    addDraft(0, 'call_client', 'Τελική επιβεβαίωση την ημέρα-στόχο', 3);
+    addDraft(14, 'internal_followup', 'Έλεγχος προόδου παραγγελίας· προετοιμασία για γιορτινή περίοδο.', 0);
+    addDraft(7, 'call_client', 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη πριν τη γιορτή.', 1);
+    addDraft(2, 'internal_followup', 'Έλεγχος προόδου παραγγελίας· η γιορτή πλησιάζει.', 2);
+    addDraft(0, 'call_client', 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη την ημέρα-στόχο.', 3);
     return drafts;
   }
 
-  addDraft(7, 'internal_followup', 'Έλεγχος προόδου παράδοσης', 0);
-  addDraft(2, 'confirm_ready', 'Επιβεβαίωση ετοιμότητας παραγγελίας', 1);
-  addDraft(1, 'arrange_delivery', 'Οργάνωση παράδοσης με τον πελάτη', 2);
-  addDraft(0, 'call_client', 'Τελική κλήση την ημέρα παράδοσης', 3);
+  addDraft(7, 'internal_followup', 'Έλεγχος προόδου παραγγελίας σε έξυπνο διάστημα μέσα στο πλάνο παράδοσης.', 0);
+  addDraft(1, 'call_client', 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη.', 1);
   return drafts;
 }
 
@@ -170,13 +170,21 @@ export function enrichDeliveryItems(
       || !!(intelligence.nextNameday && intelligence.nextNameday.days_until <= 7)
       || (!ready && getDeliveryUrgency(plan, planReminders) === 'soon');
 
-    const notReadyBatches = getNotReadyBatches(plan.order_id, batches);
-    const readiness_detail = notReadyBatches.length > 0 ? { not_ready_batches: notReadyBatches } : undefined;
+    const orderBatches = getOrderBatches(plan.order_id, batches).filter((b) => b.current_stage !== ProductionStage.Ready);
+    const not_ready_batches = orderBatches.map((b) => ({
+      sku: b.sku,
+      variant_suffix: b.variant_suffix,
+      current_stage: b.current_stage,
+      size_info: b.size_info,
+      product_image: b.product_image ?? b.product_details?.image_url ?? null,
+      gender: b.product_details?.gender
+    }));
+    const readiness_detail = not_ready_batches.length > 0 ? { not_ready_batches } : undefined;
 
     const callReasons = [...intelligence.callReasons];
     if (!ready && (getDeliveryUrgency(plan, planReminders) === 'soon' || getDeliveryUrgency(plan, planReminders) === 'today')) {
-      if (notReadyBatches.length > 0) {
-        callReasons.push(`Η ημερομηνία παράδοσης πλησιάζει· η παραγγελία δεν είναι ακόμη έτοιμη (${notReadyBatches.length} τμήμα/τα σε εξέλιξη).`);
+      if (not_ready_batches.length > 0) {
+        callReasons.push(`Η ημερομηνία παράδοσης πλησιάζει· η παραγγελία δεν είναι ακόμη έτοιμη (${not_ready_batches.length} τμήμα/τα σε εξέλιξη).`);
       } else {
         callReasons.push('Η ημερομηνία πλησιάζει αλλά η παραγγελία δεν έχει ακόμη batches παραγωγής.');
       }
