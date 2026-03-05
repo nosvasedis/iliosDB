@@ -130,6 +130,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
+    const [isImageZoomed, setIsImageZoomed] = useState(false);
     
     // Stage selector state
     const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
@@ -240,6 +241,18 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
 
     const timeInfo = getTimeInStage(batch.updated_at);
 
+    // Close zoomed image on Escape
+    useEffect(() => {
+        if (!isImageZoomed) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsImageZoomed(false);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [isImageZoomed]);
+
     return (
         <div
             draggable={!!onDragStart}
@@ -317,7 +330,16 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
 
             {/* Content */}
             <div className="flex gap-3 items-center mb-3 pointer-events-none">
-                <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative">
+                <button
+                    type="button"
+                    className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative pointer-events-auto"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (batch.product_image) {
+                            setIsImageZoomed(true);
+                        }
+                    }}
+                >
                     {batch.product_image ? (
                         <img src={batch.product_image} className="w-full h-full object-cover" alt="prod" />
                     ) : (
@@ -330,7 +352,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             x{batch.quantity}
                         </div>
                     )}
-                </div>
+                </button>
                 <div className="min-w-0 flex-1">
                     {/* SKU line: base + metal suffix (color) + stone suffix (color) */}
                     <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border mb-1 ${skuContainerClass}`}>
@@ -440,6 +462,29 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             );
                         })}
                     </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Image zoom overlay */}
+            {isImageZoomed && batch.product_image && ReactDOM.createPortal(
+                <div
+                    className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
+                    onClick={() => setIsImageZoomed(false)}
+                >
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setIsImageZoomed(false); }}
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                    >
+                        <X size={22} />
+                    </button>
+                    <img
+                        src={batch.product_image}
+                        alt={batch.sku}
+                        className="max-w-[95vw] max-h-[95vh] object-contain rounded-2xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>,
                 document.body
             )}

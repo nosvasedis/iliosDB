@@ -64,6 +64,7 @@ const STONE_CHIP_STYLES: Record<string, string> = {
 export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onViewHistory }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
+    const [isImageZoomed, setIsImageZoomed] = useState(false);
     
     // Stage selector state
     const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
@@ -164,6 +165,18 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
         }
     };
 
+    // Close zoomed image on Escape
+    useEffect(() => {
+        if (!isImageZoomed) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsImageZoomed(false);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [isImageZoomed]);
+
     const buildData = useMemo(() => {
         if (!product) return null;
 
@@ -233,7 +246,13 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-white rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                             {product.image_url ? (
-                                <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
+                                <button
+                                    type="button"
+                                    className="w-full h-full"
+                                    onClick={() => setIsImageZoomed(true)}
+                                >
+                                    <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
+                                </button>
                             ) : (
                                 <ImageIcon size={24} className="text-slate-300" />
                             )}
@@ -570,6 +589,29 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             );
                         })}
                     </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Image zoom overlay */}
+            {isImageZoomed && product.image_url && ReactDOM.createPortal(
+                <div
+                    className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
+                    onClick={() => setIsImageZoomed(false)}
+                >
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setIsImageZoomed(false); }}
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                    >
+                        <X size={22} />
+                    </button>
+                    <img
+                        src={product.image_url}
+                        alt={product.sku}
+                        className="max-w-[95vw] max-h-[95vh] object-contain rounded-2xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>,
                 document.body
             )}
