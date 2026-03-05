@@ -66,6 +66,8 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
     return map;
   }, [majorEvents, monthDays]);
 
+  const todayKey = dateKey(new Date());
+
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4">
       <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-black uppercase tracking-wide text-slate-400 mb-2">
@@ -80,6 +82,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
           const dayEvents = eventsByDate.get(key) || [];
           const isCurrentMonth = day.getMonth() === monthDate.getMonth();
           const isSelected = key === dateKey(selectedDate);
+          const isToday = key === todayKey;
           const visibleEvents = dayEvents.slice(0, 2);
           const visibleItems = dayItems.slice(0, Math.max(0, 2 - visibleEvents.length));
           const hiddenCount = Math.max(0, dayItems.length - visibleItems.length);
@@ -91,18 +94,18 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
               className={`min-h-[124px] rounded-2xl border p-2 text-left transition-all ${
                 isSelected
                   ? 'bg-[#060b00] text-white border-[#060b00] shadow-lg'
-                  : isCurrentMonth
-                    ? 'bg-slate-50 border-slate-100 hover:bg-white hover:border-slate-200'
-                    : 'bg-slate-50/50 border-slate-100 text-slate-300'
+                  : isToday
+                    ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 ring-2 ring-amber-400 ring-inset'
+                    : isCurrentMonth
+                      ? 'bg-slate-50 border-slate-100 hover:bg-white hover:border-slate-200'
+                      : 'bg-slate-50/50 border-slate-100 text-slate-300'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-black">{day.getDate()}</span>
-                {(dayItems.length > 0 || dayEvents.length > 0) && (
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-full ${isSelected ? 'bg-white/15 text-white' : 'bg-white text-slate-600 border border-slate-100'}`}>
-                    {dayItems.length + dayEvents.length}
-                  </span>
-                )}
+                <span className={`text-sm font-black ${isToday && !isSelected ? 'text-amber-700' : ''}`}>
+                  {day.getDate()}
+                  {isToday && isCurrentMonth && !isSelected && <span className="ml-1 text-[9px] font-bold uppercase text-amber-600">Σήμερα</span>}
+                </span>
               </div>
               <div className="mt-3 space-y-1">
                 {visibleEvents.map((event) => (

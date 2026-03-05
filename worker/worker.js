@@ -126,12 +126,13 @@ async function getOrthodoxCalendarEventsForYear(year) {
           const names = fixed[key]?.names;
           if (!Array.isArray(names) || names.length === 0) continue;
           const dateStr = `${year}-${month}-${day}`;
+          const namesStr = names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : '');
           events.push({
             id: `nameday-${dateStr}`,
             date: dateStr,
             type: 'nameday',
-            title: 'Ονομαστικές Εορτές',
-            subtitle: names.slice(0, 12).join(', ') + (names.length > 12 ? '…' : ''),
+            title: namesStr,
+            subtitle: 'Ονομαστικές Εορτές',
             priority: 60,
           });
         }
@@ -152,12 +153,13 @@ async function getOrthodoxCalendarEventsForYear(year) {
           const d = new Date(easter);
           d.setUTCDate(d.getUTCDate() + offset);
           const dateStr = localDateKey(d);
+          const namesStr = names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : '');
           events.push({
             id: `nameday-mov-${dateStr}-${idx}`,
             date: dateStr,
             type: 'nameday',
-            title: 'Ονομαστικές Εορτές',
-            subtitle: names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : ''),
+            title: namesStr,
+            subtitle: 'Ονομαστικές Εορτές',
             priority: 60,
           });
         });

@@ -140,12 +140,13 @@ export function getCalendarDayEvents(date: Date, majorEvents?: CalendarDayEvent[
     .map((rule) => rule.canonical);
 
   if (dayNamedays.length > 0) {
+    const namesStr = dayNamedays.join(', ');
     events.push({
       id: `nameday-${key}`,
       date: key,
       type: 'nameday',
-      title: 'Ονομαστικές Εορτές',
-      subtitle: dayNamedays.join(', '),
+      title: namesStr,
+      subtitle: 'Ονομαστικές Εορτές',
       priority: 60
     });
   }
