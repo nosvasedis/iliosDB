@@ -1,13 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, Clock, Gift } from 'lucide-react';
+import { Users, Plus, Search, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import { normalizedIncludes } from '../utils/greekSearch';
-import { getNextNamedayForName } from '../utils/namedays';
-import { formatGreekDate } from '../utils/deliveryLabels';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -22,7 +20,6 @@ interface CustomerCardProps {
 }
 
 const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOrderDate, isSystem }) => {
-    const nextNameday = useMemo(() => getNextNamedayForName(customer.full_name), [customer.full_name]);
     return (
         <div
             onClick={onClick}
@@ -54,21 +51,6 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
                 )}
             </div>
-
-            {nextNameday && (
-                <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2 mb-3">
-                    <div className="flex items-center gap-2 text-sky-700">
-                        <Gift size={14} className="shrink-0" />
-                        <span className="text-xs font-bold">
-                            {nextNameday.is_today
-                                ? `Γιορτάζει σήμερα · ${nextNameday.label}`
-                                : nextNameday.days_until <= 7
-                                    ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
-                                    : `Ονομαστική εορτή · ${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
-                        </span>
-                    </div>
-                </div>
-            )}
 
             <div className="mt-auto pt-3 border-t border-slate-50 space-y-1.5">
                 {customer.phone ? (

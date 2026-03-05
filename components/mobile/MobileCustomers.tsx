@@ -366,12 +366,27 @@ export default function MobileCustomers({ mode }: Props) {
     if (isEditing) {
         return (
             <div className="flex flex-col h-full bg-slate-50">
-                <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
-                    <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                        <User className={editType === 'customer' ? 'text-emerald-600' : 'text-purple-600'} />
-                        {editData.full_name || editData.name ? 'Επεξεργασία' : 'Νέα Εγγραφή'}
-                    </h2>
-                    <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
+                <div className="p-4 bg-white border-b border-slate-100 sticky top-0 z-10">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                            <User className={editType === 'customer' ? 'text-emerald-600' : 'text-purple-600'} />
+                            {editData.full_name || editData.name ? 'Επεξεργασία' : 'Νέα Εγγραφή'}
+                        </h2>
+                        <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
+                    </div>
+                    {editType === 'customer' && editData.full_name && (() => {
+                        const nextNameday = getNextNamedayForName(editData.full_name);
+                        return nextNameday ? (
+                            <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1 rounded-full w-fit">
+                                <Gift size={12} className="shrink-0" />
+                                {nextNameday.is_today
+                                    ? `Γιορτάζει σήμερα · ${nextNameday.label}`
+                                    : nextNameday.days_until <= 7
+                                        ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
+                                        : `${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
+                            </div>
+                        ) : null;
+                    })()}
                 </div>
 
                 {isRetailSystemCustomer && (
@@ -566,24 +581,6 @@ export default function MobileCustomers({ mode }: Props) {
                                 <Edit size={16} />
                             </button>
                         </div>
-
-                        {mode === 'customers' && item.full_name && (() => {
-                            const nextNameday = getNextNamedayForName(item.full_name);
-                            return nextNameday ? (
-                                <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2 my-2">
-                                    <div className="flex items-center gap-2 text-sky-700">
-                                        <Gift size={14} className="shrink-0" />
-                                        <span className="text-xs font-bold">
-                                            {nextNameday.is_today
-                                                ? `Γιορτάζει σήμερα · ${nextNameday.label}`
-                                                : nextNameday.days_until <= 7
-                                                    ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
-                                                    : `Ονομαστική εορτή · ${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : null;
-                        })()}
 
                         <div className="space-y-2 pt-2 border-t border-slate-50">
                             {item.phone && (

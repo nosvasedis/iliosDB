@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Order, OrderStatus, VatRegime } from '../types';
-import { Phone, Mail, MapPin, FileText, Save, Loader2, X, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Zap, Wallet, Calculator, Package, Users as UsersIcon, ArrowRight, Hash, Clock } from 'lucide-react';
+import { Phone, Mail, MapPin, FileText, Save, Loader2, X, TrendingUp, ShoppingBag, Calendar, PieChart, Briefcase, Trash2, Printer, Trophy, Zap, Wallet, Calculator, Package, Users as UsersIcon, ArrowRight, Hash, Clock, Gift } from 'lucide-react';
 import { api, RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
+import { getNextNamedayForName } from '../utils/namedays';
+import { formatGreekDate } from '../utils/deliveryLabels';
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
@@ -216,6 +218,19 @@ export default function CustomerDetailsModal({
                                             <Trophy size={10} /> VIP
                                         </span>
                                     )}
+                                    {(() => {
+                                        const nextNameday = customer.full_name ? getNextNamedayForName(customer.full_name) : null;
+                                        return nextNameday ? (
+                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1 rounded-full shadow-sm">
+                                                <Gift size={12} className="shrink-0" />
+                                                {nextNameday.is_today
+                                                    ? `Γιορτάζει σήμερα · ${nextNameday.label}`
+                                                    : nextNameday.days_until <= 7
+                                                        ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
+                                                        : `${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
+                                            </span>
+                                        ) : null;
+                                    })()}
                                     {customer.id && (
                                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${stats.statusColor}`}>
                                             {stats.statusMarker}
