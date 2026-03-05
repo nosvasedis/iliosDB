@@ -1,6 +1,7 @@
 /**
  * Ilios Cloudflare Worker: image handler, silver price, VAT lookup, Orthodox calendar.
- * Frontend expects GET /orthodox-calendar?year=YYYY → { events: CalendarDayEvent[] }
+ * GET /orthodox-calendar?year=YYYY → { events: CalendarDayEvent[] }
+ * Events are fetched from online sources (greek-namedays) + computed major holidays; no hardcoded nameday list.
  */
 
 const CORS_HEADERS = {
@@ -10,7 +11,12 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 };
 
-// --- Orthodox calendar (same logic as app utils/orthodoxHoliday.ts) ---
+// External data: Greek Orthodox namedays (fixed + moving) from GitHub. Cache 24h.
+const FIXED_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/fixed_namedays.json';
+const MOVING_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/moving_namedays.json';
+const GITHUB_FETCH_OPTS = { cf: { cacheTtl: 86400 } }; // 24h
+
+// Major Orthodox holidays (computed from Easter / fixed dates; no API for these)
 const ORTHODOX_RULES = [
   { id: 'new-year', title: 'Πρωτοχρονιά', month: 1, day: 1, priority: 100 },
   { id: 'theophany', title: 'Θεοφάνεια', month: 1, day: 6, priority: 90 },
@@ -70,7 +76,7 @@ function getDateFromRule(rule, year) {
   return new Date(Date.UTC(year, (rule.month || 1) - 1, rule.day || 1, 9, 0, 0));
 }
 
-function getOrthodoxCelebrationsForYear(year) {
+function getMajorEventsForYear(year) {
   return ORTHODOX_RULES.map((rule) => {
     const date = getDateFromRule(rule, year);
     return {
@@ -80,7 +86,89 @@ function getOrthodoxCelebrationsForYear(year) {
       title: rule.title,
       priority: rule.priority,
     };
-  }).sort((a, b) => a.date.localeCompare(b.date) || b.priority - a.priority || a.title.localeCompare(b.title, 'el'));
+  });
+}
+
+/** Parse "X ημέρες πριν το Πάσχα" / "X ημέρες μετά το Πάσχα" / "ημέρα του Πάσχα" → offset number or null */
+function parseEasterOffsetFromCelebration(celebration) {
+  if (!celebration || typeof celebration !== 'string') return null;
+  const text = celebration.trim();
+  // "την ημέρα του Πάσχα" → 0
+  if (/ημέρα\s+του\s+Πάσχα/i.test(text) && !/πριν|μετά/.test(text)) return 0;
+  // "43 ημέρες πριν το Πάσχα" or "1 ημέρα πριν"
+  const before = text.match(/(\d+)\s*ημέρες?\s*πριν\s*το\s*Πάσχα/i);
+  if (before) return -parseInt(before[1], 10);
+  // "7 ημέρες μετά το Πάσχα" or "1 ημέρα μετά"
+  const after = text.match(/(\d+)\s*ημέρες?\s*μετά\s*το\s*Πάσχα/i);
+  if (after) return parseInt(after[1], 10);
+  return null;
+}
+
+/** Build full Orthodox calendar for year: major events + fixed namedays + moving namedays from online JSON */
+async function getOrthodoxCalendarEventsForYear(year) {
+  const events = [...getMajorEventsForYear(year)];
+
+  try {
+    const [fixedRes, movingRes] = await Promise.all([
+      fetch(FIXED_NAMEDAYS_URL, GITHUB_FETCH_OPTS),
+      fetch(MOVING_NAMEDAYS_URL, GITHUB_FETCH_OPTS),
+    ]);
+
+    // Fixed namedays: keys "day/month" (e.g. "7/1" = 7 Jan) → { names: string[] }
+    if (fixedRes.ok) {
+      const fixed = await fixedRes.json();
+      if (fixed && typeof fixed === 'object') {
+        for (const key of Object.keys(fixed)) {
+          const match = key.match(/^(\d{1,2})\/(\d{1,2})$/);
+          if (!match) continue;
+          const day = match[1].padStart(2, '0');
+          const month = match[2].padStart(2, '0');
+          const names = fixed[key]?.names;
+          if (!Array.isArray(names) || names.length === 0) continue;
+          const dateStr = `${year}-${month}-${day}`;
+          events.push({
+            id: `nameday-${dateStr}`,
+            date: dateStr,
+            type: 'nameday',
+            title: 'Ονομαστικές Εορτές',
+            subtitle: names.slice(0, 12).join(', ') + (names.length > 12 ? '…' : ''),
+            priority: 60,
+          });
+        }
+      }
+    }
+
+    // Moving namedays: { namedays: [ { names, celebration } ] } → compute date from Easter + parsed offset
+    if (movingRes.ok) {
+      const moving = await movingRes.json();
+      const list = moving?.namedays;
+      if (Array.isArray(list)) {
+        const easter = getOrthodoxEaster(year);
+        list.forEach((item, idx) => {
+          const offset = parseEasterOffsetFromCelebration(item.celebration);
+          if (offset === null) return;
+          const names = item.names;
+          if (!Array.isArray(names) || names.length === 0) return;
+          const d = new Date(easter);
+          d.setUTCDate(d.getUTCDate() + offset);
+          const dateStr = localDateKey(d);
+          events.push({
+            id: `nameday-mov-${dateStr}-${idx}`,
+            date: dateStr,
+            type: 'nameday',
+            title: 'Ονομαστικές Εορτές',
+            subtitle: names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : ''),
+            priority: 60,
+          });
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Orthodox namedays fetch failed, using major events only:', e.message);
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date) || b.priority - a.priority || (a.title || '').localeCompare(b.title || '', 'el'));
+  return events;
 }
 
 export default {
@@ -109,7 +197,7 @@ export default {
       if (url.pathname === '/orthodox-calendar' && request.method === 'GET') {
         const yearParam = url.searchParams.get('year');
         const year = Math.min(2100, Math.max(2000, parseInt(yearParam, 10) || new Date().getFullYear()));
-        const events = getOrthodoxCelebrationsForYear(year);
+        const events = await getOrthodoxCalendarEventsForYear(year);
         return new Response(JSON.stringify({ events }), {
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
           cf: { cacheTtl: 43200 }, // 12h cache
