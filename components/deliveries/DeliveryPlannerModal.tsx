@@ -4,6 +4,7 @@ import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeli
 import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, formatGreekShortDateTime, getOrderDisplayName, ORDER_STATUS_LABELS, REMINDER_ACTION_DROPDOWN_OPTIONS } from '../../utils/deliveryLabels';
 import { buildDefaultReminderDrafts, computeDeliveryPlanWindow } from '../../utils/deliveryScheduling';
 import { analyzeDeliveryContext } from '../../utils/deliveryIntelligence';
+import { getHolidayPeriod } from '../../utils/orthodoxHoliday';
 
 interface Props {
   isOpen: boolean;
@@ -54,20 +55,27 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     } else if (mode === 'custom_period' && windowStart) {
       referenceDate = new Date(windowStart);
       computedWindowEnd = windowEnd ? new Date(windowEnd) : undefined;
+    } else if (mode === 'holiday_anchor' && holidayAnchor && holidayYear != null) {
+      const period = getHolidayPeriod(holidayAnchor, holidayYear, holidayOffsetDays ?? 0);
+      referenceDate = new Date(period.target);
+      referenceDate.setHours(9, 0, 0, 0);
+      computedWindowEnd = new Date(period.end);
     }
     return buildDefaultReminderDrafts(mode, referenceDate, computedWindowEnd);
-  }, [mode, monthValue, targetAt, windowEnd, windowStart]);
+  }, [mode, monthValue, targetAt, windowEnd, windowStart, holidayAnchor, holidayYear, holidayOffsetDays]);
 
   /** Sensible default trigger for a new reminder: tied to plan target, never in the past. */
   const defaultReminderTrigger = useMemo(() => {
-    let planTarget = targetAt ? new Date(targetAt) : null;
+    let planTarget: Date | null = targetAt ? new Date(targetAt) : null;
     if (mode === 'month' && monthValue) {
       const [y, m] = monthValue.split('-').map(Number);
       planTarget = new Date(y, m - 1, 15, 9, 0, 0, 0);
     } else if (mode === 'custom_period' && windowStart) {
       planTarget = new Date(windowStart);
-    } else if (mode === 'holiday_anchor') {
-      planTarget = new Date(holidayYear, 11, 25, 18, 0, 0, 0);
+    } else if (mode === 'holiday_anchor' && holidayAnchor && holidayYear != null) {
+      const period = getHolidayPeriod(holidayAnchor, holidayYear, holidayOffsetDays ?? 0);
+      planTarget = new Date(period.target);
+      planTarget.setHours(9, 0, 0, 0);
     }
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -91,7 +99,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     }
     if (trigger.getTime() <= now.getTime()) trigger = new Date(now.getTime() + 60 * 60 * 1000);
     return toLocalInputValue(trigger.toISOString());
-  }, [mode, targetAt, monthValue, windowStart, holidayYear]);
+  }, [mode, targetAt, monthValue, windowStart, holidayAnchor, holidayYear, holidayOffsetDays]);
 
   useEffect(() => {
     if (!isOpen) return;
