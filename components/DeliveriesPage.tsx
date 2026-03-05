@@ -188,7 +188,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             </button>
           </div>
 
-          <DeliveryCalendarGrid monthDate={monthDate} items={filteredItems} majorEvents={orthodoxEventsQuery.data || []} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <DeliveryCalendarGrid monthDate={monthDate} items={filteredItems} majorEvents={orthodoxEventsQuery.data || []} selectedDate={selectedDate} selectedItem={selectedItem} onSelectDate={setSelectedDate} onSelectItem={setSelectedItem} />
           <DeliveryAgendaList items={agendaItems} onSelectItem={setSelectedItem} dayEvents={selectedDateEvents} />
         </div>
 

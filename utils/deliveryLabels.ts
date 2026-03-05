@@ -48,13 +48,20 @@ export const DELIVERY_ACTION_LABELS: Record<DeliveryReminderAction, string> = {
   internal_followup: 'Έλεγχος Προόδου Παραγγελίας'
 };
 
+/** Dropdown options for reminder type: one entry per label (no duplicate "Κλήση πελάτη"). */
+export const REMINDER_ACTION_DROPDOWN_OPTIONS: { value: DeliveryReminderAction; label: string }[] = [
+  { value: 'call_client', label: 'Κλήση πελάτη' },
+  { value: 'internal_followup', label: 'Έλεγχος Προόδου Παραγγελίας' },
+  { value: 'message_client', label: 'Μήνυμα σε πελάτη' }
+];
+
 /** Tailwind-friendly classes for reminder type (border + bg tint + text). Use for color-coding. */
 export const DELIVERY_ACTION_COLORS: Record<DeliveryReminderAction, { border: string; bg: string; text: string; badge: string }> = {
   call_client: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
   message_client: { border: 'border-l-violet-500', bg: 'bg-violet-50', text: 'text-violet-800', badge: 'bg-violet-100 text-violet-700 border-violet-200' },
   confirm_ready: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
   arrange_delivery: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
-  internal_followup: { border: 'border-l-indigo-500', bg: 'bg-indigo-50', text: 'text-indigo-800', badge: 'bg-indigo-100 text-indigo-700 border-indigo-200' }
+  internal_followup: { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-700 border-amber-200' }
 };
 
 export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {
@@ -168,6 +175,16 @@ export function formatGreekDateTime(dateLike?: string | Date | null): string {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+/** Short format for reminder suggestions: "1 Μαΐ, 09:00" */
+export function formatGreekShortDateTime(dateLike?: string | Date | null): string {
+  if (!dateLike) return '';
+  const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  const day = date.getDate();
+  const month = date.toLocaleDateString('el-GR', { month: 'short' });
+  const time = date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
+  return `${day} ${month}, ${time}`;
 }
 
 export function formatGreekMonth(dateLike?: string | Date | null): string {

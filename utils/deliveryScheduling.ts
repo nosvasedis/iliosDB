@@ -199,6 +199,7 @@ export function enrichDeliveryItems(
       callReasons.push('Η παραγγελία είναι έτοιμη· απαιτείται επικοινωνία για οργάνωση παράδοσης.');
     }
 
+    const computed = computeDeliveryPlanWindow(plan);
     return {
       order,
       customer,
@@ -216,9 +217,9 @@ export function enrichDeliveryItems(
       matched_keywords: intelligence.matchedKeywords,
       nameday_matches: intelligence.namedayMatches,
       next_nameday: intelligence.nextNameday,
-      target_date: plan.target_at || null,
-      window_start: plan.window_start || null,
-      window_end: plan.window_end || null
+      target_date: computed.targetAt || plan.target_at || null,
+      window_start: computed.windowStart || plan.window_start || null,
+      window_end: computed.windowEnd || plan.window_end || null
     };
   }).filter(Boolean) as EnrichedDeliveryItem[];
 }

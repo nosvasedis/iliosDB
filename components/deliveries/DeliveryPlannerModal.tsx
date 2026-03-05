@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Lightbulb, Plus, Trash2, X } from 'lucide-react';
 import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
-import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, getOrderDisplayName, ORDER_STATUS_LABELS } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, formatGreekShortDateTime, getOrderDisplayName, ORDER_STATUS_LABELS, REMINDER_ACTION_DROPDOWN_OPTIONS } from '../../utils/deliveryLabels';
 import { buildDefaultReminderDrafts, computeDeliveryPlanWindow } from '../../utils/deliveryScheduling';
 import { analyzeDeliveryContext } from '../../utils/deliveryIntelligence';
 
@@ -325,26 +325,48 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                 </div>
               </div>
 
-              {showSuggestions && suggestedDrafts.length > 0 && (
-                <div className="mb-4 p-3 rounded-2xl bg-amber-50/80 border border-amber-100">
-                  <div className="text-xs font-black uppercase tracking-wide text-amber-800 mb-2">Έξυπνες προτάσεις (προσθήκη με ένα κλικ)</div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {suggestedDrafts.map((draft, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleAddSuggested(draft)}
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold ${DELIVERY_ACTION_COLORS[draft.action_type].badge} hover:opacity-90`}
-                      >
-                        {DELIVERY_ACTION_LABELS[draft.action_type]} · {draft.reason.slice(0, 24)}{draft.reason.length > 24 ? '…' : ''}
-                      </button>
-                    ))}
+              {showSuggestions && suggestedDrafts.length > 0 && (() => {
+                const byType = suggestedDrafts.reduce<Record<string, typeof suggestedDrafts>>((acc, draft) => {
+                  const k = draft.action_type;
+                  if (!acc[k]) acc[k] = [];
+                  acc[k].push(draft);
+                  return acc;
+                }, {});
+                const order: (keyof typeof byType)[] = ['internal_followup', 'call_client', 'message_client', 'confirm_ready', 'arrange_delivery'];
+                return (
+                  <div className="mb-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                    <div className="text-xs font-black uppercase tracking-wide text-slate-600">Έξυπνες προτάσεις</div>
+                    {order.filter((k) => byType[k]?.length).map((actionType) => {
+                      const drafts = byType[actionType];
+                      const colors = DELIVERY_ACTION_COLORS[actionType];
+                      const label = DELIVERY_ACTION_LABELS[actionType];
+                      return (
+                        <div key={actionType} className="space-y-2">
+                          <div className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border w-fit ${colors.badge}`}>
+                            {label}
+                          </div>
+                          <ul className="space-y-1.5">
+                            {drafts!.map((draft, idx) => (
+                              <li key={idx} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-100 px-3 py-2">
+                                <div className="min-w-0">
+                                  <span className="text-sm font-bold text-slate-800">{formatGreekShortDateTime(draft.trigger_at)}</span>
+                                  <span className="text-xs text-slate-500 font-medium ml-1.5">— {draft.reason.slice(0, 42)}{draft.reason.length > 42 ? '…' : ''}</span>
+                                </div>
+                                <button type="button" onClick={() => handleAddSuggested(draft)} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#060b00] text-white text-xs font-bold hover:opacity-90">
+                                  Προσθήκη
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                    <button type="button" onClick={handleAddAllSuggested} className="text-xs font-bold text-slate-600 underline hover:text-slate-800">
+                      Προσθήκη όλων
+                    </button>
                   </div>
-                  <button type="button" onClick={handleAddAllSuggested} className="text-xs font-bold text-amber-700 underline">
-                    Προσθήκη όλων
-                  </button>
-                </div>
-              )}
+                );
+              })()}
 
               {reminders.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-6 text-center">
@@ -366,9 +388,9 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-3">
                           <input type="datetime-local" value={reminder.trigger_at} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, trigger_at: e.target.value } : item))} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" />
-                          <select value={reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className={`rounded-xl border bg-white px-3 py-2.5 text-sm font-bold outline-none ${colors.text}`}>
-                            {(Object.keys(DELIVERY_ACTION_LABELS) as OrderDeliveryReminder['action_type'][]).map((value) => (
-                              <option key={value} value={value}>{DELIVERY_ACTION_LABELS[value]}</option>
+                          <select value={reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'call_client' : reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className={`rounded-xl border bg-white px-3 py-2.5 text-sm font-bold outline-none ${colors.text}`}>
+                            {REMINDER_ACTION_DROPDOWN_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
                         </div>

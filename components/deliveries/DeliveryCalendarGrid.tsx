@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
+import { CalendarRange } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
-import { getOrderDisplayName } from '../../utils/deliveryLabels';
+import { formatDeliveryWindow, getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getCalendarDayEvents } from '../../utils/namedays';
 
 interface Props {
@@ -8,7 +9,9 @@ interface Props {
   items: EnrichedDeliveryItem[];
   majorEvents?: CalendarDayEvent[];
   selectedDate: Date;
+  selectedItem?: EnrichedDeliveryItem | null;
   onSelectDate: (date: Date) => void;
+  onSelectItem?: (item: EnrichedDeliveryItem) => void;
 }
 
 function dateKey(date: Date): string {
@@ -31,7 +34,29 @@ function EventLine({ event, isSelected }: { event: CalendarDayEvent; isSelected:
   );
 }
 
-export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [], selectedDate, onSelectDate }: Props) {
+export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [], selectedDate, selectedItem = null, onSelectDate, onSelectItem }: Props) {
+  const { spanningItems, singleDayItems } = useMemo(() => {
+    const viewStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).getTime();
+    const viewEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59).getTime();
+    const spanning: EnrichedDeliveryItem[] = [];
+    const single: EnrichedDeliveryItem[] = [];
+
+    items.forEach((item) => {
+      const windowStart = item.window_start ? new Date(item.window_start).getTime() : null;
+      const windowEnd = item.window_end ? new Date(item.window_end).getTime() : null;
+      const hasRange = windowStart != null && windowEnd != null && (item.plan.planning_mode === 'month' || item.plan.planning_mode === 'custom_period' || item.plan.planning_mode === 'holiday_anchor');
+
+      if (hasRange) {
+        const overlaps = windowStart <= viewEnd && windowEnd >= viewStart;
+        if (overlaps) spanning.push(item);
+      } else {
+        single.push(item);
+      }
+    });
+
+    return { spanningItems: spanning, singleDayItems: single };
+  }, [items, monthDate]);
+
   const monthDays = useMemo(() => {
     const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const startCalendar = new Date(start);
@@ -49,7 +74,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
 
   const itemsByDate = useMemo(() => {
     const map = new Map<string, EnrichedDeliveryItem[]>();
-    items.forEach((item) => {
+    singleDayItems.forEach((item) => {
       const source = item.target_date || item.window_start || item.plan.created_at;
       const key = dateKey(new Date(source));
       const current = map.get(key) || [];
@@ -57,7 +82,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
       map.set(key, current);
     });
     return map;
-  }, [items]);
+  }, [singleDayItems]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarDayEvent[]>();
@@ -70,13 +95,49 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
   const todayKey = dateKey(new Date());
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4">
-      <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-black uppercase tracking-wide text-slate-400 mb-2">
-        {['Δευ', 'Τρι', 'Τετ', 'Πεμ', 'Παρ', 'Σαβ', 'Κυρ'].map((label) => (
-          <div key={label} className="py-2">{label}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-2">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4">
+      {spanningItems.length > 0 && (
+        <div className="w-[11rem] shrink-0 flex flex-col border-r border-slate-100 pr-4">
+          <div className="flex items-center gap-2 text-slate-500 mb-3">
+            <CalendarRange size={16} />
+            <span className="text-[10px] font-black uppercase tracking-wide">Περίοδος / Μήνας</span>
+          </div>
+          <div className="space-y-2">
+            {spanningItems.map((item) => {
+              const isSelected = selectedItem?.plan.id === item.plan.id;
+              return (
+                <button
+                  key={item.plan.id}
+                  type="button"
+                  onClick={() => {
+                    const mid = item.window_start ? new Date(item.window_start) : new Date();
+                    if (item.window_start) mid.setDate(15);
+                    onSelectDate(mid);
+                    onSelectItem?.(item);
+                  }}
+                  className={`w-full text-left rounded-xl border p-2.5 transition-all ${
+                    isSelected
+                      ? 'bg-[#060b00] text-white border-[#060b00]'
+                      : 'bg-slate-50 border-slate-100 hover:bg-slate-100 hover:border-slate-200'
+                  }`}
+                >
+                  <div className="text-xs font-bold truncate">{getOrderDisplayName(item.order)}</div>
+                  <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                    {formatDeliveryWindow(item.plan)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-black uppercase tracking-wide text-slate-400 mb-2">
+          {['Δευ', 'Τρι', 'Τετ', 'Πεμ', 'Παρ', 'Σαβ', 'Κυρ'].map((label) => (
+            <div key={label} className="py-2">{label}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
         {monthDays.map((day) => {
           const key = dateKey(day);
           const dayItems = itemsByDate.get(key) || [];
@@ -126,6 +187,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );
