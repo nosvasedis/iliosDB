@@ -9,9 +9,11 @@ import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/use
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
     onOpenScanner: () => void;
+    isExpanded?: boolean;
+    onToggleExpanded?: () => void;
 }
 
-export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) => {
+export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, isExpanded, onToggleExpanded }) => {
     const { state, setters, actions } = orderState;
     const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
     const [editFinish, setEditFinish] = useState('');
@@ -99,11 +101,19 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
 
     return (
         <>
-            <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative">
+            <div className={`${isExpanded ? 'lg:col-span-9' : 'lg:col-span-4'} flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative transition-all`}>
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.14em] leading-none">Περιεχόμενα ({state.selectedItems.length})</label>
                 <div className="flex items-center gap-1.5">
+                    {onToggleExpanded && (
+                        <button
+                            onClick={onToggleExpanded}
+                            className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition-colors"
+                        >
+                            {isExpanded ? 'Εστίαση σε Έξυπνη Προσθήκη' : 'Εστίαση στη Λίστα'}
+                        </button>
+                    )}
                     <button
                         onClick={actions.handleRecalculatePrices}
                         className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-3 rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors"

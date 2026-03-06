@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Product, Customer, Order } from '../types';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { useOrderState } from '../hooks/useOrderState';
@@ -17,6 +17,7 @@ interface Props {
 export default function DesktopOrderBuilder({ onBack, initialOrder, products, customers }: Props) {
     const orderState = useOrderState({ initialOrder, products, customers, onBack });
     const { state, actions } = orderState;
+    const [isItemsExpanded, setIsItemsExpanded] = useState(false);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -44,11 +45,16 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                 </button>
             </div>
 
-            {/* 3-column layout */}
+            {/* 3-column layout with expandable items panel */}
             <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6">
                 <CustomerPanel orderState={orderState} />
-                <SmartEntryPanel orderState={orderState} />
-                <OrderItemsPanel orderState={orderState} onOpenScanner={() => orderState.setters.setShowScanner(true)} />
+                <SmartEntryPanel orderState={orderState} isItemsExpanded={isItemsExpanded} />
+                <OrderItemsPanel
+                    orderState={orderState}
+                    onOpenScanner={() => orderState.setters.setShowScanner(true)}
+                    isExpanded={isItemsExpanded}
+                    onToggleExpanded={() => setIsItemsExpanded(prev => !prev)}
+                />
             </div>
 
             {/* Barcode Scanner Modal */}

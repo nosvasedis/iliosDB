@@ -5,9 +5,10 @@ import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/use
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
+    isItemsExpanded?: boolean;
 }
 
-export const SmartEntryPanel: React.FC<Props> = ({ orderState }) => {
+export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }) => {
     const { state, setters, actions, refs } = orderState;
 
     // SKU Visualizer: renders the SKU text overlay with colour-coded suffix
@@ -35,7 +36,11 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState }) => {
     };
 
     return (
-        <div className="lg:col-span-5 flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar">
+        <div
+            className={`flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar transition-all ${
+                isItemsExpanded ? 'hidden lg:col-span-0' : 'lg:col-span-5'
+            }`}
+        >
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
                     <ScanBarcode size={22} className="animate-pulse" />
