@@ -166,8 +166,13 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         if (itemSearchTerm.trim()) {
             const term = itemSearchTerm.toLowerCase().trim();
             items = items.filter(item => {
-                return item.sku.toLowerCase().includes(term) ||
-                    (item.variant_suffix || '').toLowerCase().includes(term) ||
+                const sku = item.sku.toLowerCase();
+                const suffix = (item.variant_suffix || '').toLowerCase();
+                const fullSku = (item.sku + (item.variant_suffix || '')).toLowerCase();
+
+                return fullSku.includes(term) ||
+                    sku.includes(term) ||
+                    suffix.includes(term) ||
                     item.product_details?.category?.toLowerCase().includes(term) ||
                     (item.notes || '').toLowerCase().includes(term);
             });

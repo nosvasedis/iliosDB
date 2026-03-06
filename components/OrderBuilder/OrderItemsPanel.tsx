@@ -4,7 +4,7 @@ import { FINISH_CODES } from '../../constants';
 import { OrderItem } from '../../types';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
-import { useOrderState } from '../../hooks/useOrderState';
+import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -145,20 +145,31 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner }) 
             </div>
 
             {/* Items List */}
-            <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto space-y-3 p-4 custom-scrollbar bg-slate-50/50">
                 {state.displayItems.map((item, index) => (
                     <div
                         key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${index}`}
-                        className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
+                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
+                                <div className="w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                     {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover" />}
                                 </div>
                                 <div className="min-w-0">
                                     <div className="font-black text-slate-800 text-sm leading-none truncate">
-                                        {item.sku}<span className="text-emerald-600">{item.variant_suffix}</span>
+                                        {(() => {
+                                            const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
+                                            const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
+                                            const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+                                            return (
+                                                <span>
+                                                    <span className="text-slate-800">{item.sku}</span>
+                                                    <span className={finishClass}>{finish.code}</span>
+                                                    <span className={stoneClass}>{stone.code}</span>
+                                                </span>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">
                                         {formatCurrency(item.price_at_order)}
