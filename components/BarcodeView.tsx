@@ -188,7 +188,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                             ILIOS
                         </div>
                         {size && (
-                            <div className="mt-[0.5mm] bg-black text-white px-1 rounded-[1px] text-[1.8mm] font-bold leading-none">
+                            <div className="mt-[0.5mm] px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black">
                                 {size}
                             </div>
                         )}
@@ -225,7 +225,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
             {/* Size prominently displayed under the line for rings and bracelets */}
             {isSizedItem && size && (
                 <div className="w-full text-center mt-0.5">
-                    <span className="font-black text-black bg-black text-white px-1.5 rounded-[1px]" style={{ fontSize: `${detailsFontSize * 1.1}mm`, lineHeight: '1.1' }}>
+                    <span
+                        className="font-black text-black px-1.5 rounded-[1px] border border-black"
+                        style={{ fontSize: `${detailsFontSize * 1.1}mm`, lineHeight: '1.1' }}
+                    >
                         {size}
                     </span>
                 </div>
