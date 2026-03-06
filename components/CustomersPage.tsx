@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
