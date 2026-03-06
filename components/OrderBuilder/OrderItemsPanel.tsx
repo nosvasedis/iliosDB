@@ -10,10 +10,9 @@ interface Props {
     orderState: ReturnType<typeof useOrderState>;
     onOpenScanner: () => void;
     isExpanded?: boolean;
-    onToggleExpanded?: () => void;
 }
 
-export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, isExpanded, onToggleExpanded }) => {
+export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, isExpanded }) => {
     const { state, setters, actions } = orderState;
     const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
     const [editFinish, setEditFinish] = useState('');
@@ -106,14 +105,6 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.14em] leading-none">Περιεχόμενα ({state.selectedItems.length})</label>
                 <div className="flex items-center gap-1.5">
-                    {onToggleExpanded && (
-                        <button
-                            onClick={onToggleExpanded}
-                            className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-3 rounded-xl border border-slate-200 hover:bg-slate-200 transition-colors"
-                        >
-                            {isExpanded ? 'Εστίαση σε Έξυπνη Προσθήκη' : 'Εστίαση στη Λίστα'}
-                        </button>
-                    )}
                     <button
                         onClick={actions.handleRecalculatePrices}
                         className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-3 rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors"
@@ -277,7 +268,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     </div>
                 </div>
                 <button onClick={actions.handleSaveOrder} disabled={state.isSaving} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all mt-3 disabled:opacity-60">
-                    {state.isSaving ? <><Loader2 size={18} className="animate-spin" /> Αποθήκευση...</> : <><Save size={18} /> Αποθήκευση Εντολής</>}
+                    {state.isSaving ? <><Loader2 size={18} className="animate-spin" /> Αποθήκευση...</> : <><Save size={18} /> Αποθήκευση Παραγγελίας</>}
                 </button>
             </div>
             </div>

@@ -36,13 +36,22 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         </h2>
                     </div>
                 </div>
-                <button
-                    onClick={actions.handleSaveOrder}
-                    disabled={state.isSaving}
-                    className="bg-[#060b00] text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50"
-                >
-                    <Save size={18} /> Αποθήκευση
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setIsItemsExpanded(prev => !prev)}
+                        className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                        {isItemsExpanded ? 'Εστίαση σε Έξυπνη Προσθήκη' : 'Εστίαση στη Λίστα'}
+                    </button>
+                    <button
+                        onClick={actions.handleSaveOrder}
+                        disabled={state.isSaving}
+                        className="bg-[#060b00] text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Save size={18} /> Αποθήκευση
+                    </button>
+                </div>
             </div>
 
             {/* 3-column layout with expandable items panel */}
@@ -53,7 +62,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     orderState={orderState}
                     onOpenScanner={() => orderState.setters.setShowScanner(true)}
                     isExpanded={isItemsExpanded}
-                    onToggleExpanded={() => setIsItemsExpanded(prev => !prev)}
                 />
             </div>
 
