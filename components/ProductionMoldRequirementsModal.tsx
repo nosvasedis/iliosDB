@@ -109,7 +109,6 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><Grid size={24} /></div>
                             Ανάλυση Λάστιχων & Κεριών
                         </h2>
-                        <p className="text-slate-500 font-medium ml-12">Βήμα 1: Επιλέξτε πελάτες/εντολές. Βήμα 2: Δείτε τα συνολικά απαιτούμενα λάστιχα.</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
                         <X size={24} />

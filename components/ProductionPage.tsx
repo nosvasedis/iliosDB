@@ -1805,7 +1805,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 <div className="flex-1 min-w-[260px] max-w-2xl w-full mx-4 flex gap-2">
                     <button
                         onClick={() => setIsMoldModalOpen(true)}
-                        className="hidden lg:flex p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-200 transition-colors shadow-sm"
+                        className="hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
                         title="Υπολογισμός Λάστιχων"
                     >
                         <Grid size={20} />
@@ -1840,8 +1840,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
                         {/* RESULTS DROPDOWN */}
                         {finderTerm.length >= 2 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-96 overflow-y-auto custom-scrollbar p-2 space-y-2">
-                                {foundBatches.map(b => {
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
+                                {foundBatches.map((b, index) => {
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
                                     const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
@@ -1850,9 +1850,17 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     const finderMetalClass = FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
 
                                     return (
-                                        <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass}`}>
+                                        <div
+                                            key={b.id}
+                                            onClick={() => setViewBuildBatch(b)}
+                                            className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass} ${index > 0 ? 'border-t border-t-slate-100 mt-1 pt-3' : ''}`}
+                                        >
                                             <div className="flex justify-between items-start">
-                                                <div className="flex items-start gap-3">
+                                                <div className={`flex items-start gap-3 border-l-4 pl-2 ${
+                                                    stageConf?.color
+                                                        ? STAGE_COLORS[stageConf.color as keyof typeof STAGE_COLORS].border
+                                                        : 'border-slate-200'
+                                                }`}>
                                                     {/* Image */}
                                                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
                                                         {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
