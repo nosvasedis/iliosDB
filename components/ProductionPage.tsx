@@ -1840,7 +1840,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
                         {/* RESULTS DROPDOWN */}
                         {finderTerm.length >= 2 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2 w-[900px] max-w-[calc(100vw-3rem)]">
                                 {foundBatches.map((b, index) => {
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
