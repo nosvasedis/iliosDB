@@ -1802,7 +1802,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 </div>
 
                 {/* ORDER FINDER (DESKTOP) */}
-                <div className="flex-1 min-w-[260px] max-w-2xl w-full mx-4 flex gap-2">
+                <div className="flex-1 min-w-[260px] w-full mx-4 flex gap-2">
                     <button
                         onClick={() => setIsMoldModalOpen(true)}
                         className="hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
