@@ -14,7 +14,7 @@ import {
 } from '../types';
 import { analyzeDeliveryContext } from './deliveryIntelligence';
 import { getHolidayPeriod } from './orthodoxHoliday';
-import { getOrderBatches, isOrderReady } from './orderReadiness';
+import { getOrderBatches, getShipmentReadiness, isOrderReady } from './orderReadiness';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -187,6 +187,23 @@ export function enrichDeliveryItems(
     });
     const readiness_detail = not_ready_batches.length > 0 ? { not_ready_batches } : undefined;
 
+    // Compute per-shipment readiness and enrich with product data
+    const rawShipmentReadiness = getShipmentReadiness(plan.order_id, batches);
+    const shipment_readiness = {
+      ...rawShipmentReadiness,
+      shipments: rawShipmentReadiness.shipments.map((s) => ({
+        ...s,
+        not_ready_batches: s.not_ready_batches.map((b) => {
+          const product = productBySku.get(b.sku);
+          return {
+            ...b,
+            product_image: b.product_image ?? product?.image_url ?? null,
+            gender: b.gender ?? product?.gender
+          };
+        })
+      }))
+    };
+
     const callReasons = [...intelligence.callReasons];
     if (!ready && (getDeliveryUrgency(plan, planReminders) === 'soon' || getDeliveryUrgency(plan, planReminders) === 'today')) {
       if (not_ready_batches.length > 0) {
@@ -194,6 +211,9 @@ export function enrichDeliveryItems(
       } else {
         callReasons.push('Η ημερομηνία πλησιάζει αλλά η παραγγελία δεν έχει ακόμη batches παραγωγής.');
       }
+    }
+    if (shipment_readiness.is_partially_ready && plan.plan_status === 'active') {
+      callReasons.push(`Μέρος της παραγγελίας είναι έτοιμο (${shipment_readiness.ready_batches}/${shipment_readiness.total_batches} τμήματα). Ενημερώστε τον πελάτη για μερική παράδοση.`);
     }
     if (ready && plan.plan_status === 'active') {
       callReasons.push('Η παραγγελία είναι έτοιμη· απαιτείται επικοινωνία για οργάνωση παράδοσης.');
@@ -212,6 +232,7 @@ export function enrichDeliveryItems(
       needs_call: needsCall,
       call_reasons: Array.from(new Set(callReasons)),
       readiness_detail,
+      shipment_readiness,
       urgency: getDeliveryUrgency(plan, planReminders),
       suggestions: intelligence.suggestions,
       matched_keywords: intelligence.matchedKeywords,

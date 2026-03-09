@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarRange, Gift, PhoneCall } from 'lucide-react';
+import { CalendarRange, CheckCircle2, Gift, PhoneCall } from 'lucide-react';
 import { EnrichedDeliveryItem } from '../../../types';
 import { DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName } from '../../../utils/deliveryLabels';
 
@@ -20,6 +20,19 @@ export default function MobileDeliveryCard({ item, onClick }: Props) {
         </div>
         <div className="text-right">
           <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{DELIVERY_URGENCY_LABELS[item.urgency]}</div>
+          {item.shipment_readiness && item.shipment_readiness.total_batches > 0 && (
+            <div className="mt-1 inline-flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                item.shipment_readiness.is_fully_ready ? 'bg-emerald-500' : item.shipment_readiness.is_partially_ready ? 'bg-amber-500' : 'bg-red-400'
+              }`} />
+              <span className="text-[10px] font-black text-slate-500">
+                {item.shipment_readiness.is_fully_ready
+                  ? <CheckCircle2 size={12} className="text-emerald-600 inline" />
+                  : `${item.shipment_readiness.ready_batches}/${item.shipment_readiness.total_batches}`
+                }
+              </span>
+            </div>
+          )}
           {item.next_reminder && <div className="text-[11px] font-bold text-slate-500 mt-1">{formatGreekDateTime(item.next_reminder.trigger_at)}</div>}
         </div>
       </div>

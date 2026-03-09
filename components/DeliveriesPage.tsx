@@ -48,7 +48,7 @@ function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, s
 
 export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId, onOpenOrder }: Props) {
   const queryClient = useQueryClient();
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
   const { plansQuery, remindersQuery, ordersQuery, customersQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
   const [monthDate, setMonthDate] = useState(new Date());
   const orthodoxEventsQuery = useOrthodoxCalendarEvents(monthDate.getFullYear());
@@ -135,6 +135,18 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   const handleMarkDelivered = async (item: EnrichedDeliveryItem) => {
+    const sr = item.shipment_readiness;
+    if (sr && sr.total_batches > 0 && !sr.is_fully_ready) {
+      const confirmed = await confirm({
+        title: sr.ready_batches === 0 ? 'Δεν υπάρχει ετοιμότητα' : 'Μερική Ετοιμότητα',
+        message: sr.ready_batches === 0
+          ? `Κανένα τμήμα παραγωγής δεν είναι έτοιμο (0/${sr.total_batches}). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
+          : `Η παραγγελία δεν είναι πλήρως έτοιμη (${sr.ready_batches}/${sr.total_batches} τμήματα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
+        confirmText: 'Ναι, σήμανση ως παραδομένη',
+        isDestructive: sr.ready_batches === 0
+      });
+      if (!confirmed) return;
+    }
     await api.completeOrderDeliveryPlan(item.plan.id, item.order.id);
     showToast('Η παράδοση σημειώθηκε ως ολοκληρωμένη.', 'success');
     handleRefresh();

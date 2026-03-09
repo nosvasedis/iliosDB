@@ -35,9 +35,20 @@ function EventLine({ event, isSelected }: { event: CalendarDayEvent; isSelected:
 }
 
 function DeliveryPill({ item, isSelected }: { item: EnrichedDeliveryItem; isSelected: boolean }) {
+  const sr = item.shipment_readiness;
+
+  let readinessTone: string;
+  if (!sr || sr.total_batches === 0 || sr.is_fully_ready) {
+    readinessTone = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  } else if (sr.is_partially_ready) {
+    readinessTone = 'bg-amber-100 text-amber-800 border-amber-200';
+  } else {
+    readinessTone = 'bg-red-50 text-red-700 border-red-200';
+  }
+
   const tone = isSelected
     ? 'bg-white/20 text-white border border-white/40 shadow-sm'
-    : 'bg-emerald-100 text-emerald-800 border border-emerald-200 font-black';
+    : `${readinessTone} font-black`;
   return (
     <div className={`rounded-xl px-2 py-1.5 text-[10px] truncate border ${tone}`} title={getOrderDisplayName(item.order)}>
       {getOrderDisplayName(item.order)}

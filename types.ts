@@ -300,6 +300,24 @@ export interface CalendarDayEvent {
   priority: number;
 }
 
+export interface ShipmentGroup {
+  time_key: string;
+  shipment_index: number;
+  total: number;
+  ready: number;
+  is_ready: boolean;
+  not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; product_image?: string | null; gender?: Gender }>;
+}
+
+export interface ShipmentReadinessSummary {
+  total_batches: number;
+  ready_batches: number;
+  ready_fraction: number;
+  is_fully_ready: boolean;
+  is_partially_ready: boolean;
+  shipments: ShipmentGroup[];
+}
+
 export interface EnrichedDeliveryItem {
   order: Order;
   customer?: Customer;
@@ -318,6 +336,7 @@ export interface EnrichedDeliveryItem {
   matched_keywords: string[];
   nameday_matches: NamedayMatch[];
   next_nameday?: NamedayMatch | null;
+  shipment_readiness?: ShipmentReadinessSummary;
   target_date?: string | null;
   window_start?: string | null;
   window_end?: string | null;

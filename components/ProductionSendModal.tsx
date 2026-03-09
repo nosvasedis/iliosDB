@@ -8,6 +8,7 @@ import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 import { useQueryClient } from '@tanstack/react-query';
+import { groupBatchesByShipment } from '../utils/orderReadiness';
 
 interface Props {
     order: Order;
@@ -88,19 +89,6 @@ interface RowItem extends OrderItem {
     price: number;
     originalIndex: number;
 }
-
-// Group batches by their created_at timestamp to simulate "Shipments"
-const groupBatchesByShipment = (batches: ProductionBatch[]) => {
-    const groups: Record<string, ProductionBatch[]> = {};
-    batches.forEach(b => {
-        // Group by minute to catch batches created in the same "Send" action
-        const timeKey = new Date(b.created_at).toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
-        if (!groups[timeKey]) groups[timeKey] = [];
-        groups[timeKey].push(b);
-    });
-    // Sort keys descending (newest first)
-    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-};
 
 const VIBRANT_STAGES: Record<string, string> = {
     [ProductionStage.AwaitingDelivery]: 'bg-indigo-500',

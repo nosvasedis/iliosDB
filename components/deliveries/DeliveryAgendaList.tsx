@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, PhoneCall, Sparkles } from 'lucide-react';
+import { CalendarDays, CheckCircle2, PhoneCall, Sparkles } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
 import { DELIVERY_ACTION_LABELS, DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName } from '../../utils/deliveryLabels';
 
@@ -54,6 +54,19 @@ export default function DeliveryAgendaList({ items, onSelectItem, dayEvents = []
               </div>
               <div className="text-right">
                 <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{DELIVERY_URGENCY_LABELS[item.urgency]}</div>
+                {item.shipment_readiness && item.shipment_readiness.total_batches > 0 && (
+                  <div className="mt-1 inline-flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                      item.shipment_readiness.is_fully_ready ? 'bg-emerald-500' : item.shipment_readiness.is_partially_ready ? 'bg-amber-500' : 'bg-red-400'
+                    }`} />
+                    <span className="text-[10px] font-black text-slate-500">
+                      {item.shipment_readiness.is_fully_ready
+                        ? <CheckCircle2 size={12} className="text-emerald-600 inline" />
+                        : `${item.shipment_readiness.ready_batches}/${item.shipment_readiness.total_batches}`
+                      }
+                    </span>
+                  </div>
+                )}
                 {item.next_reminder && (
                   <div className="text-[11px] font-bold text-slate-500 mt-1">{formatGreekDateTime(item.next_reminder.trigger_at)}</div>
                 )}

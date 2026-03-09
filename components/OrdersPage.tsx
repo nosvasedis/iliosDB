@@ -11,20 +11,7 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { isOrderReady } from '../utils/orderReadiness';
-
-// Group batches by their created_at timestamp to simulate "Shipments" / "Parts"
-const groupBatchesByShipment = (batches: ProductionBatch[]) => {
-    const groups: Record<string, ProductionBatch[]> = {};
-    batches.forEach(b => {
-        // Group by minute to catch batches created in the same "Send" action
-        const timeKey = new Date(b.created_at).toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
-        if (!groups[timeKey]) groups[timeKey] = [];
-        groups[timeKey].push(b);
-    });
-    // Sort keys descending (newest first)
-    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-};
+import { isOrderReady, groupBatchesByShipment } from '../utils/orderReadiness';
 
 interface Props {
     products: Product[];

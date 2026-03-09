@@ -1,6 +1,6 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, Phone, PhoneCall, Tag, Trash2 } from 'lucide-react';
-import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage } from '../../types';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, Phone, PhoneCall, Send, Tag, Trash2 } from 'lucide-react';
+import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import {
   DELIVERY_ACTION_LABELS,
@@ -32,6 +32,38 @@ const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
 
 const isCallReminder = (action: OrderDeliveryReminder['action_type']) =>
   action === 'call_client' || action === 'confirm_ready' || action === 'arrange_delivery';
+
+function BatchCard({ b, idx }: { b: ShipmentGroup['not_ready_batches'][number]; idx: number }) {
+  const { finish, stone } = getVariantComponents(b.variant_suffix ?? '', b.gender);
+  const containerClass = DELIVERY_SKU_CONTAINER[finish.code] ?? 'bg-slate-50/80 border-slate-100';
+  const finishTextClass = DELIVERY_SKU_FINISH_TEXT[finish.code] ?? 'text-slate-400';
+  const stoneTextClass = stone.code ? (DELIVERY_SKU_STONE_TEXT[stone.code] ?? 'text-emerald-500') : '';
+  const stageColors = PRODUCTION_STAGE_COLORS[b.current_stage] ?? { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+  const StageIcon = STAGE_ICONS[b.current_stage];
+  return (
+    <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 p-3">
+      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+        {b.product_image ? (
+          <img src={b.product_image} alt={b.sku} className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon size={24} className="text-slate-400" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border ${containerClass}`}>
+          <span className="font-black text-sm leading-none text-slate-800">{b.sku}</span>
+          {finish.code && <span className={`font-black text-sm leading-none ${finishTextClass}`}>{finish.code}</span>}
+          {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}>{stone.code}</span>}
+        </div>
+        {b.size_info && <span className="text-[10px] font-bold text-slate-500 mt-0.5 block">({b.size_info})</span>}
+        <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>
+          {StageIcon}
+          {getProductionStageLabel(b.current_stage)}
+        </div>
+      </div>
+    </li>
+  );
+}
 
 interface Props {
   item?: EnrichedDeliveryItem | null;
@@ -116,43 +148,66 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
             <p className="mt-1 text-sm font-medium text-slate-700">Η παραγγελία είναι πλήρως έτοιμη· μπορείτε να οργανώσετε την αποστολή/παράδοση.</p>
           </div>
         )}
-        {item.readiness_detail && item.readiness_detail.not_ready_batches.length > 0 && (
-          <div className="pt-3 border-t border-slate-200">
-            <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><Package size={14} /> Τι δεν είναι ακόμη έτοιμο</div>
-            <p className="mt-1 text-xs text-slate-600 font-medium mb-2">Τα ακόμη σε εξέλιξη τμήματα παραγωγής της παραγγελίας:</p>
-            <ul className="space-y-3">
-              {item.readiness_detail.not_ready_batches.map((b, idx) => {
-                const { finish, stone } = getVariantComponents(b.variant_suffix ?? '', b.gender);
-                const containerClass = DELIVERY_SKU_CONTAINER[finish.code] ?? 'bg-slate-50/80 border-slate-100';
-                const finishTextClass = DELIVERY_SKU_FINISH_TEXT[finish.code] ?? 'text-slate-400';
-                const stoneTextClass = stone.code ? (DELIVERY_SKU_STONE_TEXT[stone.code] ?? 'text-emerald-500') : '';
-                const stageColors = PRODUCTION_STAGE_COLORS[b.current_stage] ?? { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
-                const StageIcon = STAGE_ICONS[b.current_stage];
-                return (
-                  <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 p-3">
-                    <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                      {b.product_image ? (
-                        <img src={b.product_image} alt={b.sku} className="w-full h-full object-cover" />
-                      ) : (
-                        <ImageIcon size={24} className="text-slate-400" />
-                      )}
+        {item.shipment_readiness && item.shipment_readiness.total_batches > 0 && !item.shipment_readiness.is_fully_ready && (
+          <div className="pt-3 border-t border-slate-200 space-y-4">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-wide text-slate-500 flex items-center gap-2"><Package size={14} /> Πρόοδος Παραγωγής</div>
+              <div className="mt-2 flex items-center gap-3">
+                <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      item.shipment_readiness.is_fully_ready ? 'bg-emerald-500' : item.shipment_readiness.is_partially_ready ? 'bg-amber-500' : 'bg-red-400'
+                    }`}
+                    style={{ width: `${Math.round(item.shipment_readiness.ready_fraction * 100)}%` }}
+                  />
+                </div>
+                <span className="text-sm font-black text-slate-700 whitespace-nowrap">
+                  {item.shipment_readiness.ready_batches}/{item.shipment_readiness.total_batches} έτοιμα
+                </span>
+              </div>
+            </div>
+            {item.shipment_readiness.shipments.length > 1 ? (
+              item.shipment_readiness.shipments.map((shipment) => (
+                <div key={shipment.time_key} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Send size={14} className="text-slate-400 shrink-0" />
+                      <span className="text-xs font-black text-slate-700">Αποστολή {shipment.shipment_index}</span>
+                      <span className="text-[10px] font-medium text-slate-500 truncate">{formatGreekDateTime(shipment.time_key)}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border ${containerClass}`}>
-                        <span className="font-black text-sm leading-none text-slate-800">{b.sku}</span>
-                        {finish.code && <span className={`font-black text-sm leading-none ${finishTextClass}`}>{finish.code}</span>}
-                        {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}>{stone.code}</span>}
+                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border shrink-0 ${
+                      shipment.is_ready
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {shipment.ready}/{shipment.total} έτοιμα
+                    </span>
+                  </div>
+                  <div className="p-3">
+                    {shipment.is_ready ? (
+                      <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
+                        <CheckCircle2 size={14} /> Όλα τα τμήματα αυτής της αποστολής είναι έτοιμα
                       </div>
-                      {b.size_info && <span className="text-[10px] font-bold text-slate-500 mt-0.5 block">({b.size_info})</span>}
-                      <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>
-                        {StageIcon}
-                        {getProductionStageLabel(b.current_stage)}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                    ) : (
+                      <ul className="space-y-2">
+                        {shipment.not_ready_batches.map((b, idx) => (
+                          <BatchCard key={`${shipment.time_key}-${b.sku}-${b.variant_suffix ?? ''}-${idx}`} b={b} idx={idx} />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2 mb-2"><Package size={14} /> Τι δεν είναι ακόμη έτοιμο</div>
+                <ul className="space-y-3">
+                  {item.shipment_readiness.shipments[0]?.not_ready_batches?.map((b, idx) => (
+                    <BatchCard key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} b={b} idx={idx} />
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
