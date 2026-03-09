@@ -1683,6 +1683,29 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         });
     };
 
+    const handleCompleteAllLabeling = async () => {
+        const labelingBatches = enhancedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
+        if (labelingBatches.length === 0) {
+            showToast("Δεν υπάρχουν παρτίδες για ολοκλήρωση.", "info");
+            return;
+        }
+        setIsProcessingSplit(true);
+        try {
+            await Promise.all(labelingBatches.map(async (batch) => {
+                await api.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
+                await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
+            }));
+            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            showToast(`${labelingBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
+        } catch (e: any) {
+            console.error("Complete all failure:", e);
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
+        }
+    };
+
     const handlePrintStageLabels = (stageId: string) => {
         const stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
 
@@ -1980,13 +2003,23 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {stage.id === ProductionStage.Labeling && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}
-                                                className="p-1.5 bg-white rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-sm"
-                                                title="Εκτύπωση Ετικετών Σταδίου"
-                                            >
-                                                <Tag size={14} />
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleCompleteAllLabeling(); }}
+                                                    className="p-1.5 bg-white rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-emerald-700 transition-colors shadow-sm"
+                                                    title="Ολοκλήρωση Όλων"
+                                                    disabled={isProcessingSplit}
+                                                >
+                                                    {isProcessingSplit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}
+                                                    className="p-1.5 bg-white rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-sm"
+                                                    title="Εκτύπωση Ετικετών Σταδίου"
+                                                >
+                                                    <Tag size={14} />
+                                                </button>
+                                            </>
                                         )}
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
                                         <div className="lg:hidden text-slate-400">
