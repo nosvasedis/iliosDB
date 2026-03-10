@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, RefreshCcw, FileText, AlertCircle, Save } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
@@ -19,6 +19,7 @@ interface Props {
     onClose: () => void;
     onSuccess: () => void;
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
+    onBack?: () => void; // Optional: navigate back to quick picker
 }
 
 const STAGES = [
@@ -101,7 +102,7 @@ const VIBRANT_STAGES: Record<string, string> = {
     [ProductionStage.Ready]: 'bg-emerald-500'
 };
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const [isSending, setIsSending] = useState(false);
@@ -525,7 +526,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     };
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-[230] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
 
                 {isWorking && (
@@ -578,6 +579,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <AlertCircle size={16} className="shrink-0" />
                                 <span className="text-xs font-bold break-words whitespace-normal leading-snug">{order.notes}</span>
                             </div>
+                        )}
+                        {onBack && (
+                            <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors" title="Πίσω στη λίστα">
+                                <ArrowLeft size={24} />
+                            </button>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24} /></button>
                     </div>

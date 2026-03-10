@@ -150,6 +150,7 @@ type ProductionQuickPickEntry = {
     readyQty: number;
     inProgressQty: number;
     latestUpdate: number;
+    stageBreakdown: Record<string, number>; // stage -> quantity
 };
 
 type AssemblyOrderCandidate = {
@@ -374,17 +375,40 @@ const QuickProductionPickerModal = ({
         );
     }, [entries, searchTerm]);
 
+    // Stage display config with colors and short labels
+    const STAGE_DISPLAY: Record<string, { label: string; shortLabel: string; color: string; bgColor: string; borderColor: string }> = {
+        [ProductionStage.AwaitingDelivery]: { label: 'Αναμονή', shortLabel: 'ΑΝ', color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
+        [ProductionStage.Waxing]: { label: 'Παρασκευή', shortLabel: 'ΠΑ', color: 'text-slate-700', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
+        [ProductionStage.Casting]: { label: 'Χυτήριο', shortLabel: 'ΧΥ', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+        [ProductionStage.Setting]: { label: 'Καρφωτής', shortLabel: 'ΚΑ', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
+        [ProductionStage.Polishing]: { label: 'Τεχνίτης', shortLabel: 'ΤΕ', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+        [ProductionStage.Assembly]: { label: 'Συναρμολόγηση', shortLabel: 'ΣΥ', color: 'text-pink-700', bgColor: 'bg-pink-50', borderColor: 'border-pink-200' },
+        [ProductionStage.Labeling]: { label: 'Συσκευασία', shortLabel: 'ΣΚ', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' },
+        [ProductionStage.Ready]: { label: 'Έτοιμα', shortLabel: 'ΕΤ', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
+    };
+
+    const STAGE_ORDER = [
+        ProductionStage.AwaitingDelivery,
+        ProductionStage.Waxing,
+        ProductionStage.Casting,
+        ProductionStage.Setting,
+        ProductionStage.Polishing,
+        ProductionStage.Assembly,
+        ProductionStage.Labeling,
+        ProductionStage.Ready
+    ];
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white w-full max-w-2xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
+            <div className="bg-white w-full max-w-3xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
                     <div>
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                             <Factory size={18} className="text-emerald-600" /> Γρήγορη Διαχείριση Παραγωγής
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Επίλεξε πελάτη/εντολή που έχει ενεργές παρτίδες.</p>
+                        <p className="text-xs text-slate-500 mt-1">Επίλεξε εντολή για να δεις τις παρτίδες ανά στάδιο.</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
                         <X size={20} />
@@ -404,33 +428,70 @@ const QuickProductionPickerModal = ({
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2 bg-slate-50/30">
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 bg-slate-50/30">
                     {filteredEntries.length > 0 ? (
-                        filteredEntries.map(entry => (
-                            <button
-                                key={entry.order.id}
-                                onClick={() => {
-                                    onSelect(entry.order);
-                                    onClose();
-                                }}
-                                className="w-full text-left p-4 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 rounded-2xl transition-all"
-                            >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <div className="text-sm font-black text-slate-900 break-words">{entry.order.customer_name}</div>
-                                        <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(entry.order.id)}</div>
+                        filteredEntries.map(entry => {
+                            // Get stages that have items
+                            const activeStages = STAGE_ORDER.filter(stage => entry.stageBreakdown[stage] > 0);
+                            
+                            return (
+                                <button
+                                    key={entry.order.id}
+                                    onClick={() => {
+                                        onSelect(entry.order);
+                                    }}
+                                    className="w-full text-left p-4 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 rounded-2xl transition-all"
+                                >
+                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-black text-slate-900 break-words">{entry.order.customer_name}</div>
+                                            <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(entry.order.id)}</div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                                {entry.batchesCount} παρτίδες
+                                            </span>
+                                        </div>
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200 shrink-0">
-                                        {entry.batchesCount} παρτίδες
-                                    </span>
-                                </div>
-                                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase">
-                                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">Σύνολο: {entry.totalQty}</div>
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-blue-700">Σε Ροή: {entry.inProgressQty}</div>
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 text-emerald-700">Έτοιμα: {entry.readyQty}</div>
-                                </div>
-                            </button>
-                        ))
+                                    
+                                    {/* Stage breakdown visual */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                            {activeStages.map(stage => {
+                                                const config = STAGE_DISPLAY[stage];
+                                                const qty = entry.stageBreakdown[stage];
+                                                const isReady = stage === ProductionStage.Ready;
+                                                
+                                                return (
+                                                    <div
+                                                        key={stage}
+                                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold ${config.bgColor} ${config.color} ${config.borderColor} ${isReady ? 'ring-2 ring-emerald-300/50' : ''}`}
+                                                        title={config.label}
+                                                    >
+                                                        <span className="opacity-70">{config.shortLabel}</span>
+                                                        <span>{qty}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        
+                                        {/* Summary bar */}
+                                        <div className="flex items-center gap-2 text-[10px]">
+                                            <span className="text-slate-500 font-medium">Σύνολο:</span>
+                                            <span className="font-bold text-slate-700">{entry.totalQty} τμχ</span>
+                                            <span className="text-slate-300">|</span>
+                                            <span className="text-blue-600 font-bold">{entry.inProgressQty} σε ροή</span>
+                                            {entry.readyQty > 0 && (
+                                                <>
+                                                    <span className="text-slate-300">|</span>
+                                                    <span className="text-emerald-600 font-bold">{entry.readyQty} έτοιμα ✓</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })
                     ) : (
                         <div className="text-center py-12 text-slate-400 italic text-sm">
                             Δεν βρέθηκαν πελάτες σε παραγωγή.
@@ -1283,13 +1344,20 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     return Number.isFinite(updateTs) ? Math.max(max, updateTs) : max;
                 }, 0);
 
+                // Calculate stage breakdown
+                const stageBreakdown: Record<string, number> = {};
+                orderBatches.forEach(batch => {
+                    stageBreakdown[batch.current_stage] = (stageBreakdown[batch.current_stage] || 0) + batch.quantity;
+                });
+
                 return {
                     order,
                     batchesCount: orderBatches.length,
                     totalQty,
                     readyQty,
                     inProgressQty: Math.max(0, totalQty - readyQty),
-                    latestUpdate
+                    latestUpdate,
+                    stageBreakdown
                 } as ProductionQuickPickEntry;
             })
             .filter((entry): entry is ProductionQuickPickEntry => entry !== null)
@@ -2152,6 +2220,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     }}
                     collections={collections}
                     onPrintAggregated={onPrintAggregated}
+                    onBack={() => setQuickManageOrder(null)}
                 />
             )}
 
