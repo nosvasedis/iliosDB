@@ -5,10 +5,12 @@ import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key,
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import AuditLogsModal from './AuditLogsModal';
+import BackupProgressModal from './BackupProgressModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUI } from './UIProvider';
 import { formatDecimal } from '../utils/pricingEngine';
-import { convertToCSV, downloadFile, flattenForCSV } from '../utils/exportUtils';
+import { convertToCSV, downloadFile, downloadBlob, flattenForCSV } from '../utils/exportUtils';
+import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../lib/backupConfig';
 
 export default function SettingsPage() {
     const queryClient = useQueryClient();
@@ -24,6 +26,14 @@ export default function SettingsPage() {
     const [isExporting, setIsExporting] = useState(false);
     const [isMaintenanceAction, setIsMaintenanceAction] = useState(false);
     const [isAuditLogsOpen, setIsAuditLogsOpen] = useState(false);
+
+    // Backup progress modal state
+    const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(null);
+    const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+    const [backupModalTitle, setBackupModalTitle] = useState('');
+    const [backupComplete, setBackupComplete] = useState(false);
+    const [backupSummary, setBackupSummary] = useState('');
+    const [backupErrors, setBackupErrors] = useState<Array<{ table: string; message: string }>>([]);
 
     if (!settings) {
         return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
@@ -80,13 +90,29 @@ export default function SettingsPage() {
 
     const handleJsonBackup = async () => {
         setIsExporting(true);
+        setBackupProgress(null);
+        setBackupComplete(false);
+        setBackupSummary('');
+        setBackupErrors([]);
+        setBackupModalTitle('Δημιουργία Backup');
+        setIsBackupModalOpen(true);
         try {
-            const data = await api.getFullSystemExport();
+            const data = await api.getFullSystemExport((p) => setBackupProgress(p));
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            downloadFile(JSON.stringify(data, null, 2), `ilios_erp_full_backup_${timestamp}.json`, 'application/json');
-            showToast("Το πλήρες αντίγραφο JSON λήφθηκε.", "success");
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            downloadBlob(blob, `ilios_erp_full_backup_${timestamp}.json`);
+
+            const meta = data._meta;
+            const summary = `${meta.total_tables} πίνακες, ${Object.values(meta.table_counts).reduce((a, b) => a + b, 0)} εγγραφές, ${meta.image_count} εικόνες`;
+            setBackupSummary(meta.failed_images.length > 0
+                ? `${summary} (${meta.failed_images.length} εικόνες απέτυχαν)`
+                : summary
+            );
+            setBackupComplete(true);
         } catch (err) {
-            showToast("Σφάλμα κατά τη εξαγωγή.", "error");
+            setBackupSummary('Σφάλμα κατά τη δημιουργία backup.');
+            setBackupComplete(true);
         } finally {
             setIsExporting(false);
         }
@@ -94,40 +120,33 @@ export default function SettingsPage() {
 
     const handleCsvExport = async () => {
         setIsExporting(true);
+        setBackupProgress(null);
+        setBackupComplete(false);
+        setBackupSummary('');
+        setBackupErrors([]);
+        setBackupModalTitle('Εξαγωγή CSV');
+        setIsBackupModalOpen(true);
         try {
-            const data = await api.getFullSystemExport();
+            const data = await api.getFullSystemExport((p) => setBackupProgress(p));
             const timestamp = new Date().toISOString().split('T')[0];
 
-            const tablesToExport = [
-                { key: 'products', name: 'Products' },
-                { key: 'product_variants', name: 'Product_Variants' },
-                { key: 'product_stock', name: 'Product_Stock' },
-                { key: 'orders', name: 'Orders' },
-                { key: 'order_delivery_plans', name: 'Order_Delivery_Plans' },
-                { key: 'order_delivery_reminders', name: 'Order_Delivery_Reminders' },
-                { key: 'production_batches', name: 'Production_Batches' },
-                { key: 'offers', name: 'Offers' },
-                { key: 'customers', name: 'Customers' },
-                { key: 'suppliers', name: 'Suppliers' },
-                { key: 'supplier_orders', name: 'Supplier_Orders' },
-                { key: 'materials', name: 'Materials' },
-                { key: 'molds', name: 'Molds' },
-                { key: 'collections', name: 'Collections' },
-                { key: 'stock_movements', name: 'Stock_Movements' }
-            ];
-
-            for (const table of tablesToExport) {
-                const tableData = data[table.key] || [];
+            const csvTables = BACKUP_TABLE_REGISTRY.filter(t => t.includeInCsv);
+            let exported = 0;
+            for (const entry of csvTables) {
+                const tableData = data.tables[entry.table] || [];
                 if (tableData.length > 0) {
                     const flattened = flattenForCSV(tableData);
                     const csv = convertToCSV(flattened);
-                    downloadFile(csv, `ilios_${table.name.toLowerCase()}_${timestamp}.csv`, 'text/csv');
+                    downloadFile(csv, `ilios_${entry.displayName.toLowerCase()}_${timestamp}.csv`, 'text/csv');
+                    exported++;
                     await new Promise(r => setTimeout(r, 200));
                 }
             }
-            showToast("Όλα τα αρχεία CSV λήφθηκαν.", "success");
+            setBackupSummary(`${exported} αρχεία CSV λήφθηκαν.`);
+            setBackupComplete(true);
         } catch (err) {
-            showToast("Σφάλμα κατά την εξαγωγή CSV.", "error");
+            setBackupSummary('Σφάλμα κατά την εξαγωγή CSV.');
+            setBackupComplete(true);
         } finally {
             setIsExporting(false);
         }
@@ -141,20 +160,50 @@ export default function SettingsPage() {
         reader.onload = async (event) => {
             try {
                 const backupData = JSON.parse(event.target?.result as string);
+                const validation = validateBackup(backupData);
+
+                if (!validation.valid) {
+                    showToast(validation.errors.join(' '), 'error');
+                    return;
+                }
+
+                const dateStr = validation.createdAt
+                    ? new Date(validation.createdAt).toLocaleString('el-GR')
+                    : 'Άγνωστη ημερομηνία';
+
+                const configNote = validation.hasConfig
+                    ? '\n\nΤο backup περιέχει ρυθμίσεις σύνδεσης που θα αντικατασταθούν.'
+                    : '';
 
                 const confirmed = await confirm({
                     title: 'ΠΡΟΣΟΧΗ: ΠΛΗΡΗΣ ΕΠΑΝΑΦΟΡΑ',
-                    message: 'Αυτή η ενέργεια θα ΔΙΑΓΡΑΨΕΙ ΟΛΑ τα τρέχοντα δεδομένα της βάσης και θα τα αντικαταστήσει με αυτά του αρχείου. Είστε σίγουροι ότι θέλετε να προχωρήσετε;',
+                    message: `Backup: ${dateStr}\nΠεριεχόμενα: ${validation.summary}\n\nΑυτή η ενέργεια θα ΔΙΑΓΡΑΨΕΙ ΟΛΑ τα τρέχοντα δεδομένα και θα τα αντικαταστήσει.${configNote}\n\nΕίστε σίγουροι;`,
                     isDestructive: true,
                     confirmText: 'ΝΑΙ, ΕΠΑΝΑΦΟΡΑ'
                 });
 
                 if (confirmed) {
+                    setBackupProgress(null);
+                    setBackupComplete(false);
+                    setBackupSummary('');
+                    setBackupErrors([]);
+                    setBackupModalTitle('Επαναφορά Backup');
+                    setIsBackupModalOpen(true);
                     setIsMaintenanceAction(true);
-                    showToast("Γίνεται επαναφορά... Παρακαλώ μην κλείσετε τον browser.", "info");
-                    await api.restoreFullSystem(backupData);
-                    showToast("Η επαναφορά ολοκληρώθηκε! Το ERP θα ανανεωθεί.", "success");
-                    setTimeout(() => window.location.reload(), 2000);
+
+                    const result = await api.restoreFullSystem(backupData, {
+                        restoreConfig: validation.hasConfig,
+                        onProgress: (p) => setBackupProgress(p),
+                    });
+
+                    if (result.errors.length > 0) {
+                        setBackupErrors(result.errors);
+                        setBackupSummary(`Η επαναφορά ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις.`);
+                    } else {
+                        setBackupSummary('Η επαναφορά ολοκληρώθηκε επιτυχώς! Το ERP θα ανανεωθεί.');
+                        setTimeout(() => window.location.reload(), 3000);
+                    }
+                    setBackupComplete(true);
                 }
             } catch (err) {
                 showToast("Το αρχείο δεν είναι έγκυρο αντίγραφο Ilios ERP.", "error");
@@ -390,6 +439,16 @@ export default function SettingsPage() {
             </div>
 
             {isAuditLogsOpen && <AuditLogsModal onClose={() => setIsAuditLogsOpen(false)} />}
+
+            <BackupProgressModal
+                isOpen={isBackupModalOpen}
+                title={backupModalTitle}
+                progress={backupProgress}
+                isComplete={backupComplete}
+                summary={backupSummary}
+                errors={backupErrors}
+                onClose={() => setIsBackupModalOpen(false)}
+            />
         </div>
     );
 }

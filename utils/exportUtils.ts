@@ -55,6 +55,14 @@ export const convertToCSV = (data: any[]): string => {
  */
 export const downloadFile = (content: string, fileName: string, contentType: string) => {
     const blob = new Blob([content], { type: contentType });
+    downloadBlob(blob, fileName);
+};
+
+/**
+ * Triggers a browser download from a Blob directly.
+ * Use for large payloads to avoid holding the full string + blob in memory simultaneously.
+ */
+export const downloadBlob = (blob: Blob, fileName: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

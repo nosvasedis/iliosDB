@@ -4,6 +4,7 @@ import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVaria
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
+import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEYS, BackupEnvelope, BackupMeta, ProgressCallback, RestoreOptions, RestoreResult } from './backupConfig';
 import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 
@@ -103,6 +104,18 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
         setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
     );
     return Promise.race([query, timeoutPromise]);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (typeof reader.result === 'string') resolve(reader.result);
+            else reject(new Error('Failed to convert blob'));
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
 async function safeMutate(
@@ -1431,45 +1444,252 @@ export const api = {
         return successCount;
     },
 
-    getFullSystemExport: async (): Promise<Record<string, any[]>> => {
-        const tables = [
-            'global_settings',
-            'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
-            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
-            'product_stock', 'stock_movements',
-            'orders', 'order_delivery_plans', 'order_delivery_reminders', 'production_batches', 'offers', 'supplier_orders',
-            'price_snapshots', 'price_snapshot_items'
-        ];
-        const results: Record<string, any[]> = {};
-        for (const table of tables) results[table] = await fetchFullTable(table);
-        return results;
-    },
+    getFullSystemExport: async (onProgress?: ProgressCallback): Promise<BackupEnvelope> => {
+        const tableData: Record<string, any[]> = {};
+        const totalTables = BACKUP_TABLE_REGISTRY.length;
 
-    restoreFullSystem: async (backupData: Record<string, any[]>): Promise<void> => {
-        const order = [
-            'global_settings',
-            'warehouses', 'suppliers', 'customers', 'molds', 'materials', 'collections',
-            'products', 'product_variants', 'recipes', 'product_molds', 'product_collections',
-            'product_stock', 'stock_movements',
-            'orders', 'order_delivery_plans', 'order_delivery_reminders', 'production_batches', 'offers', 'supplier_orders',
-            'price_snapshots', 'price_snapshot_items'
-        ];
-        if (isLocalMode || !SUPABASE_URL) {
-            for (const table of order) if (backupData[table]) await offlineDb.saveTable(table, backupData[table]);
-            localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
-            return;
-        }
-        for (const table of [...order].reverse()) {
-            await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000').is('id', 'not.null');
-            if (table === 'products') await supabase.from(table).delete().neq('sku', 'WIPE_ALL');
-        }
-        for (const table of order) {
-            const data = backupData[table];
-            if (data?.length) {
-                const chunkSize = 200;
-                for (let i = 0; i < data.length; i += chunkSize) await supabase.from(table).insert(data.slice(i, i + chunkSize));
+        // Phase 1: Fetch all tables
+        for (let i = 0; i < totalTables; i++) {
+            const entry = BACKUP_TABLE_REGISTRY[i];
+            onProgress?.({ phase: 'tables', current: i + 1, total: totalTables, tableName: entry.table, message: `Εξαγωγή ${entry.displayName} (${i + 1}/${totalTables})...` });
+            try {
+                tableData[entry.table] = await fetchFullTable(entry.table);
+            } catch {
+                tableData[entry.table] = [];
             }
         }
+
+        // Phase 2: Download product images
+        const images: Record<string, string> = {};
+        const failedImages: string[] = [];
+        const products = tableData['products'] || [];
+        const uniqueUrls = new Map<string, string>(); // filename -> full URL
+
+        for (const p of products) {
+            const url = p.image_url;
+            if (!url || typeof url !== 'string') continue;
+            if (url.startsWith('data:')) continue;
+            if (url.includes('picsum.photos')) continue;
+            try {
+                const parts = url.split('/');
+                const filename = decodeURIComponent(parts[parts.length - 1]);
+                if (filename && filename.trim() !== '') {
+                    uniqueUrls.set(filename, `${R2_PUBLIC_URL}/${encodeURIComponent(filename)}`);
+                }
+            } catch { /* skip malformed URLs */ }
+        }
+
+        const imageEntries = Array.from(uniqueUrls.entries());
+        const totalImages = imageEntries.length;
+        const CONCURRENCY = 10;
+
+        for (let i = 0; i < totalImages; i += CONCURRENCY) {
+            const batch = imageEntries.slice(i, i + CONCURRENCY);
+            const results = await Promise.allSettled(
+                batch.map(async ([filename, url]) => {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 8000);
+                    try {
+                        const resp = await fetch(url, { signal: controller.signal });
+                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                        const blob = await resp.blob();
+                        return { filename, dataUrl: await blobToDataUrl(blob) };
+                    } finally {
+                        clearTimeout(timeout);
+                    }
+                })
+            );
+            for (const r of results) {
+                if (r.status === 'fulfilled') {
+                    images[r.value.filename] = r.value.dataUrl;
+                } else {
+                    const failedFile = batch[results.indexOf(r)]?.[0] || 'unknown';
+                    failedImages.push(failedFile);
+                }
+            }
+            onProgress?.({ phase: 'images', current: Math.min(i + CONCURRENCY, totalImages), total: totalImages, message: `Λήψη εικόνων (${Math.min(i + CONCURRENCY, totalImages)}/${totalImages})...` });
+        }
+
+        // Phase 3: Config
+        onProgress?.({ phase: 'config', current: 1, total: 1, message: 'Αποθήκευση ρυθμίσεων σύνδεσης...' });
+        const config: Record<string, string> = {};
+        for (const key of CONFIG_KEYS) {
+            const val = localStorage.getItem(key);
+            if (val !== null) config[key] = val;
+        }
+
+        // Phase 4: Sync queue
+        onProgress?.({ phase: 'sync_queue', current: 1, total: 1, message: 'Αποθήκευση ουράς συγχρονισμού...' });
+        const syncQueue = await offlineDb.getQueue();
+
+        // Build envelope
+        const tableCounts: Record<string, number> = {};
+        for (const [key, arr] of Object.entries(tableData)) {
+            tableCounts[key] = arr.length;
+        }
+
+        const meta: BackupMeta = {
+            version: BACKUP_VERSION,
+            format: BACKUP_FORMAT_MARKER,
+            created_at: new Date().toISOString(),
+            table_counts: tableCounts,
+            image_count: Object.keys(images).length,
+            failed_images: failedImages,
+            total_tables: totalTables,
+            is_local_mode: isLocalMode,
+        };
+
+        return { _meta: meta, _config: config, _images: images, _sync_queue: syncQueue, tables: tableData };
+    },
+
+    restoreFullSystem: async (backupData: BackupEnvelope | Record<string, any[]>, options?: RestoreOptions): Promise<RestoreResult> => {
+        const onProgress = options?.onProgress;
+        const errors: Array<{ table: string; message: string }> = [];
+
+        // Format detection: v2 (envelope) vs v1 (flat table map)
+        const isV2 = !!(backupData as any)._meta;
+        const tables: Record<string, any[]> = isV2 ? (backupData as BackupEnvelope).tables : (backupData as Record<string, any[]>);
+        const envelope = isV2 ? (backupData as BackupEnvelope) : null;
+
+        const registryOrder = BACKUP_TABLE_REGISTRY;
+        const totalTables = registryOrder.length;
+
+        // ── LOCAL MODE ──
+        if (isLocalMode || !SUPABASE_URL) {
+            for (let i = 0; i < totalTables; i++) {
+                const entry = registryOrder[i];
+                const data = tables[entry.table];
+                if (data) {
+                    await offlineDb.saveTable(entry.table, data);
+                }
+                onProgress?.({ phase: 'tables', current: i + 1, total: totalTables, tableName: entry.table, message: `Επαναφορά ${entry.displayName} (${i + 1}/${totalTables})...` });
+            }
+
+            // Restore images into product data as data URLs
+            if (envelope?._images && Object.keys(envelope._images).length > 0) {
+                const products = (await offlineDb.getTable('products')) || [];
+                const imageMap = envelope._images;
+                let updated = false;
+                for (const p of products) {
+                    if (p.image_url && typeof p.image_url === 'string' && !p.image_url.startsWith('data:')) {
+                        try {
+                            const parts = p.image_url.split('/');
+                            const filename = decodeURIComponent(parts[parts.length - 1]);
+                            if (imageMap[filename]) {
+                                p.image_url = imageMap[filename];
+                                updated = true;
+                            }
+                        } catch { /* skip */ }
+                    }
+                }
+                if (updated) await offlineDb.saveTable('products', products);
+            }
+
+            // Restore config
+            if (options?.restoreConfig && envelope?._config) {
+                for (const [key, val] of Object.entries(envelope._config)) {
+                    localStorage.setItem(key, val);
+                }
+            }
+
+            // Restore sync queue
+            if (envelope?._sync_queue?.length) {
+                for (const item of envelope._sync_queue) {
+                    const { id, ...rest } = item;
+                    await offlineDb.enqueue(rest);
+                }
+            }
+
+            localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
+            return { errors };
+        }
+
+        // ── CLOUD MODE ──
+
+        // Phase: Cleanup -- delete in reverse order
+        const reverseOrder = [...registryOrder].reverse();
+        for (let i = 0; i < reverseOrder.length; i++) {
+            const entry = reverseOrder[i];
+            onProgress?.({ phase: 'cleanup', current: i + 1, total: reverseOrder.length, tableName: entry.table, message: `Εκκαθάριση ${entry.displayName} (${i + 1}/${reverseOrder.length})...` });
+            try {
+                const pk = entry.primaryKey;
+                const pkType = entry.primaryKeyType;
+                if (pkType === 'uuid') {
+                    await supabase.from(entry.table).delete().gte(pk, '00000000-0000-0000-0000-000000000000');
+                } else if (pkType === 'integer') {
+                    await supabase.from(entry.table).delete().gte(pk, 0);
+                } else {
+                    // string-keyed (sku, code, product_sku, etc.)
+                    await supabase.from(entry.table).delete().neq(pk, '');
+                }
+            } catch (err: any) {
+                errors.push({ table: entry.table, message: `Εκκαθάριση: ${err.message || err}` });
+            }
+        }
+
+        // Phase: Insert tables in forward order
+        const chunkSize = 200;
+        for (let i = 0; i < totalTables; i++) {
+            const entry = registryOrder[i];
+            const data = tables[entry.table];
+            onProgress?.({ phase: 'tables', current: i + 1, total: totalTables, tableName: entry.table, message: `Επαναφορά ${entry.displayName} (${i + 1}/${totalTables})...` });
+            if (data?.length) {
+                try {
+                    for (let j = 0; j < data.length; j += chunkSize) {
+                        const { error } = await supabase.from(entry.table).insert(data.slice(j, j + chunkSize));
+                        if (error) throw error;
+                    }
+                } catch (err: any) {
+                    errors.push({ table: entry.table, message: `Εισαγωγή: ${err.message || err}` });
+                }
+            }
+        }
+
+        // Phase: Restore images (cloud mode -- re-upload to R2)
+        if (envelope?._images && Object.keys(envelope._images).length > 0) {
+            const imageEntries = Object.entries(envelope._images);
+            const totalImages = imageEntries.length;
+            for (let i = 0; i < totalImages; i++) {
+                const [filename, dataUrl] = imageEntries[i];
+                onProgress?.({ phase: 'images', current: i + 1, total: totalImages, message: `Ανέβασμα εικόνων (${i + 1}/${totalImages})...` });
+                try {
+                    const resp = await fetch(dataUrl);
+                    const blob = await resp.blob();
+                    const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(filename)}`;
+                    await fetch(uploadUrl, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+                        body: blob,
+                    });
+                } catch {
+                    // Non-critical: image restore failure doesn't block table restore
+                }
+            }
+        }
+
+        // Phase: Restore config
+        if (options?.restoreConfig && envelope?._config) {
+            onProgress?.({ phase: 'config', current: 1, total: 1, message: 'Επαναφορά ρυθμίσεων σύνδεσης...' });
+            for (const [key, val] of Object.entries(envelope._config)) {
+                localStorage.setItem(key, val);
+            }
+        }
+
+        // Phase: Restore sync queue (only if same environment)
+        if (envelope?._sync_queue?.length) {
+            const currentUrl = localStorage.getItem('VITE_SUPABASE_URL') || '';
+            const backupUrl = envelope._config?.VITE_SUPABASE_URL || '';
+            if (currentUrl === backupUrl || !currentUrl) {
+                onProgress?.({ phase: 'sync_queue', current: 1, total: 1, message: 'Επαναφορά ουράς συγχρονισμού...' });
+                for (const item of envelope._sync_queue) {
+                    const { id, ...rest } = item;
+                    await offlineDb.enqueue(rest);
+                }
+            }
+        }
+
+        return { errors };
     },
 
     getOffers: async (): Promise<Offer[]> => { return fetchFullTable('offers', '*', (q) => q.order('created_at', { ascending: false })); },
