@@ -465,6 +465,7 @@ export interface AssemblyPrintRow {
   variant_suffix?: string;
   size_info?: string;
   quantity: number;
+  notes?: string; // SKU notes from order item
 }
 
 export interface AssemblyPrintData {

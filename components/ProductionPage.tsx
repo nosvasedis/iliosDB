@@ -1408,7 +1408,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         sku: item.sku,
                         variant_suffix: item.variant_suffix,
                         size_info: item.size_info,
-                        quantity: item.quantity
+                        quantity: item.quantity,
+                        notes: item.notes
                     });
                 });
 

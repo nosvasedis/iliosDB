@@ -206,6 +206,13 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                                             </span>
                                                         )}
 
+                                                        {/* Notes */}
+                                                        {row.notes && (
+                                                            <span className="text-[8px] font-medium text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 line-clamp-2 leading-tight">
+                                                                {row.notes}
+                                                            </span>
+                                                        )}
+
                                                         {/* Quantity */}
                                                         <div className="flex items-center justify-between mt-auto">
                                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Ποσ.</span>
