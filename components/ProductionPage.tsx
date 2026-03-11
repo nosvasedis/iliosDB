@@ -1238,9 +1238,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             // Check if assembly stage is required based on SKU
             const requires_assembly = requiresAssemblyStage(b.sku);
 
-            // Inject Customer Name
+            // Inject Customer Name (with retail client extraction)
             const order = orders?.find(o => o.id === b.order_id);
-            const customerName = order?.customer_name || '';
+            const isRetailOrder = order?.customer_id === RETAIL_CUSTOMER_ID || order?.customer_name === RETAIL_CUSTOMER_NAME;
+            const { retailClientLabel } = extractRetailClientFromNotes(order?.notes);
+            const customerName = isRetailOrder && retailClientLabel
+                ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
+                : (order?.customer_name || '');
 
             return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, requires_assembly, customer_name: customerName };
         }) || [];
