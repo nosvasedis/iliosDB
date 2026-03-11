@@ -11,9 +11,7 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { groupBatchesByShipment } from '../utils/orderReadiness';
-import { summarizeOrderFulfillment } from '../utils/orderFulfillment';
-import OrderShipmentModal from './OrderShipmentModal';
+import { isOrderReady, groupBatchesByShipment } from '../utils/orderReadiness';
 
 interface Props {
     products: Product[];
@@ -29,21 +27,17 @@ interface Props {
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Pending',
-    [OrderStatus.InProduction]: 'In Production',
-    [OrderStatus.PartiallyReady]: 'Partially Ready',
-    [OrderStatus.PartiallyShipped]: 'Partially Shipped',
-    [OrderStatus.Ready]: 'Ready',
-    [OrderStatus.Delivered]: 'Delivered',
-    [OrderStatus.Cancelled]: 'Cancelled',
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
 const getStatusColor = (status: OrderStatus) => {
     switch (status) {
         case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
         case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-        case OrderStatus.PartiallyReady: return 'bg-amber-50 text-amber-700 border-amber-200';
-        case OrderStatus.PartiallyShipped: return 'bg-cyan-50 text-cyan-700 border-cyan-200';
         case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
         case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
         case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
@@ -186,7 +180,7 @@ const OrderPartSelectorModal = ({
                                     <div className="flex items-start gap-3">
                                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
                                             }`}>
-                                            {isSelected ? <PackageCheck size={14} /> : <Package size={14} />}
+                                            {isSelected ? <CheckCircle size={14} /> : <Package size={14} />}
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-800 text-sm">{prettyDate}</div>
@@ -440,8 +434,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
     const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
-    const { data: shipments = [] } = useQuery({ queryKey: ['order_shipments'], queryFn: api.getOrderShipments });
-    const { data: shipmentItems = [] } = useQuery({ queryKey: ['order_shipment_items'], queryFn: api.getOrderShipmentItems });
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -454,7 +446,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
-    const [shipmentModalOrder, setShipmentModalOrder] = useState<Order | null>(null);
     const [showPartSelector, setShowPartSelector] = useState(false);
 
     // Group Management in Modal
@@ -479,19 +470,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             return { ...b, product_details: prod, requires_setting: hasZircons }
         }) || [];
     }, [batches, products, materials]);
-
-    const fulfillmentByOrder = useMemo(() => {
-        const entries = (orders || []).map((order) => [
-            order.id,
-            summarizeOrderFulfillment(
-                order,
-                enrichedBatches.filter((batch) => batch.order_id === order.id),
-                shipments.filter((shipment) => shipment.order_id === order.id),
-                shipmentItems.filter((item) => item.order_id === order.id)
-            )
-        ] as const);
-        return new Map(entries);
-    }, [orders, enrichedBatches, shipments, shipmentItems]);
 
     // Derived: All unique tags across all orders (for filter bar + autocomplete)
     const allTags = useMemo(() => {
@@ -631,14 +609,26 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             }
         }
     };
+
     // --- NEW ACTIONS ---
-    const handleCreateShipment = async (order: Order) => {
-        const fulfillment = fulfillmentByOrder.get(order.id);
-        if (!fulfillment || fulfillment.total_ready_qty <= 0) {
-            showToast('No ready items are available for shipment.', 'info');
-            return;
+    const handleCompleteOrder = async (order: Order) => {
+        const yes = await confirm({
+            title: 'Ολοκλήρωση Παραγγελίας',
+            message: 'Η παραγγελία θα σημειωθεί ως "Παραδόθηκε" (Delivered) και τα τεμάχια θα αφαιρεθούν από τη Ροή Παραγωγής. Συνέχεια;',
+            confirmText: 'Ολοκλήρωση & Παράδοση'
+        });
+        if (yes) {
+            try {
+                await api.updateOrderStatus(order.id, OrderStatus.Delivered);
+                await api.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                if (managingOrder?.id === order.id) setManagingOrder(null);
+                showToast("Η παραγγελία ολοκληρώθηκε επιτυχώς!", "success");
+            } catch (e) {
+                showToast("Σφάλμα ολοκλήρωσης.", "error");
+            }
         }
-        setShipmentModalOrder(order);
     };
 
     const handleArchiveOrder = async (order: Order, archive: boolean) => {
@@ -819,9 +809,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 const order = filteredOrders[virtualRow.index];
                                 const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
                                 const netValue = order.total_price / (1 + activeVat);
-                                const fulfillment = fulfillmentByOrder.get(order.id);
-                                const ready = !!fulfillment && (fulfillment.total_remaining_to_ship_qty === 0 || (fulfillment.total_ready_qty > 0 && fulfillment.total_ready_qty >= fulfillment.total_remaining_to_ship_qty));
-                                const readyToShip = (fulfillment?.total_ready_qty || 0) > 0 && (fulfillment?.total_remaining_to_ship_qty || 0) > 0;
+                                const ready = isOrderReady(order, enrichedBatches);
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
                                 return (
@@ -868,11 +856,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span>
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handleCreateShipment(order); }}
+                                                        onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
                                                         className="bg-emerald-500 text-white p-1 rounded-full hover:bg-emerald-600 transition-colors shadow-sm animate-pulse"
                                                         title="Έτοιμη για Ολοκλήρωση"
                                                     >
-                                                        <PackageCheck size={14} />
+                                                        <CheckCircle size={14} />
                                                     </button>
                                                 )}
                                             </div>
@@ -975,19 +963,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18} /> Επεξεργασία</button>
 
                             <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Calendar size={18} /> Προγραμματισμός παράδοσης</button>
-                            {(fulfillmentByOrder.get(managingOrder.id)?.total_ready_qty || 0) > 0 && managingOrder.status !== OrderStatus.Delivered && (
-                                <button onClick={() => handleCreateShipment(managingOrder)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100">
-                                    <PackageCheck size={18} /> Create Shipment
+                            {isOrderReady(managingOrder, enrichedBatches) && managingOrder.status !== OrderStatus.Delivered && (
+                                <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100">
+                                    <CheckSquare size={18} /> Ολοκλήρωση & Παράδοση
                                 </button>
                             )}
 
-                            {([OrderStatus.Pending, OrderStatus.InProduction, OrderStatus.PartiallyReady, OrderStatus.PartiallyShipped].includes(managingOrder.status)) && (
+                            {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction) && (
                                 <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
                                     <Factory size={18} /> Αποστολή στην Παραγωγή
                                 </button>
                             )}
 
-                            {(managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.PartiallyReady) && (
+                            {managingOrder.status === OrderStatus.InProduction && (
                                 <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-all">
                                     <RotateCcw size={18} /> Επαναφορά από Παραγωγή
                                 </button>
@@ -1085,21 +1073,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                         onPrintOrder?.(printModalOrder);
                         setPrintModalOrder(null);
                         setShowPartSelector(false);
-                    }}
-                />
-            )}
-
-            {shipmentModalOrder && fulfillmentByOrder.get(shipmentModalOrder.id) && (
-                <OrderShipmentModal
-                    order={shipmentModalOrder}
-                    fulfillment={fulfillmentByOrder.get(shipmentModalOrder.id)!}
-                    onClose={() => setShipmentModalOrder(null)}
-                    onSuccess={() => {
-                        setShipmentModalOrder(null);
-                        queryClient.invalidateQueries({ queryKey: ['orders'] });
-                        queryClient.invalidateQueries({ queryKey: ['batches'] });
-                        queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
-                        queryClient.invalidateQueries({ queryKey: ['order_shipment_items'] });
                     }}
                 />
             )}

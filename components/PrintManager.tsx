@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, AssemblyPrintRow, OrderFulfillmentSummary, OrderShipment, OrderShipmentItem } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, AssemblyPrintRow } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
 import OfferPrintView from './OfferPrintView';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
@@ -11,17 +11,9 @@ import AssemblyPrintView from './AssemblyPrintView';
 import PriceListPrintView, { PriceListPrintData } from './PriceListPrintView';
 import AnalyticsPrintReport from './AnalyticsPrintReport';
 import OrderFinancialReport from './OrderFinancialReport';
-import ShipmentDocumentView from './ShipmentDocumentView';
 import BarcodeView from './BarcodeView';
 import PhotoCatalogPrintView from './PhotoCatalogPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
-
-type ShipmentPrintData = {
-    order: Order;
-    shipment: OrderShipment;
-    shipmentItems: OrderShipmentItem[];
-    fulfillment?: OrderFulfillmentSummary | null;
-};
 
 interface PrintManagerProps {
     settings: GlobalSettings | undefined;
@@ -31,7 +23,6 @@ interface PrintManagerProps {
     printItems: { product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[];
     orderToPrint: Order | null;
     offerToPrint: Offer | null;
-    shipmentDocumentData: ShipmentPrintData | null;
     supplierOrderToPrint: SupplierOrder | null;
     batchToPrint: ProductionBatch | null;
     aggregatedPrintData: AggregatedData | null;
@@ -45,7 +36,6 @@ interface PrintManagerProps {
     setPrintItems: (items: []) => void;
     setOrderToPrint: (order: Order | null) => void;
     setOfferToPrint: (offer: Offer | null) => void;
-    setShipmentDocumentData: (data: ShipmentPrintData | null) => void;
     setSupplierOrderToPrint: (order: SupplierOrder | null) => void;
     setBatchToPrint: (batch: ProductionBatch | null) => void;
     setAggregatedPrintData: (data: AggregatedData | null) => void;
@@ -60,11 +50,11 @@ interface PrintManagerProps {
 
 export const PrintManager: React.FC<PrintManagerProps> = ({
     settings, products, materials, molds,
-    printItems, orderToPrint, offerToPrint, shipmentDocumentData, supplierOrderToPrint,
+    printItems, orderToPrint, offerToPrint, supplierOrderToPrint,
     batchToPrint, aggregatedPrintData, preparationPrintData,
     technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData,
     orderAnalyticsData, photoCatalogPrintData,
-    setPrintItems, setOrderToPrint, setOfferToPrint, setShipmentDocumentData, setSupplierOrderToPrint,
+    setPrintItems, setOrderToPrint, setOfferToPrint, setSupplierOrderToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setPhotoCatalogPrintData
@@ -98,7 +88,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     };
 
     useEffect(() => {
-        const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || shipmentDocumentData || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0);
+        const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0);
         if (shouldPrint && settings && products && materials) {
             const timer = setTimeout(() => {
                 const printContent = printContainerRef.current;
@@ -135,9 +125,6 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 } else if (offerToPrint) {
                     const safeName = getSafeClientName(offerToPrint.customer_name);
                     docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
-                } else if (shipmentDocumentData) {
-                    const safeName = getSafeClientName(shipmentDocumentData.order.customer_name);
-                    docTitle = `Shipment_${shipmentDocumentData.shipment.shipment_no}_${safeName || 'Client'}_${shipmentDocumentData.order.id}`;
                 } else if (supplierOrderToPrint) {
                     docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
                 } else if (batchToPrint) {
@@ -196,7 +183,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 document.title = docTitle;
 
                 const cleanup = () => {
-                    setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null); setShipmentDocumentData(null);
+                    setPrintItems([]); setOrderToPrint(null); setBatchToPrint(null); setOfferToPrint(null);
                     setAggregatedPrintData(null); setPreparationPrintData(null);
                     setTechnicianPrintData(null); setAssemblyPrintData(null); setPriceListPrintData(null);
                     setAnalyticsPrintData(null); setOrderAnalyticsData(null);
@@ -262,7 +249,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
             return () => clearTimeout(timer);
         }
-    }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, offerToPrint, shipmentDocumentData, orderAnalyticsData, supplierOrderToPrint, photoCatalogPrintData, settings, products, materials]);
+    }, [printItems, orderToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint, photoCatalogPrintData, settings, products, materials]);
 
     if (!settings || !products || !materials || !molds) return null;
 
@@ -271,7 +258,6 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
             <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
                 {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
                 {offerToPrint && <OfferPrintView offer={offerToPrint} />}
-                {shipmentDocumentData && <ShipmentDocumentView order={shipmentDocumentData.order} shipment={shipmentDocumentData.shipment} shipmentItems={shipmentDocumentData.shipmentItems} fulfillment={shipmentDocumentData.fulfillment} />}
                 {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
                 {batchToPrint && <ProductionWorkerView batch={batchToPrint} allMolds={molds} allProducts={products} allMaterials={materials} />}
                 {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}

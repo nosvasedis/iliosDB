@@ -11,13 +11,11 @@ interface Props {
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: '????????',
-    [OrderStatus.InProduction]: '?? ????????',
-    [OrderStatus.PartiallyReady]: '??????? ??????',
-    [OrderStatus.PartiallyShipped]: '??????? ???????????',
-    [OrderStatus.Ready]: '??????',
-    [OrderStatus.Delivered]: '??????????',
-    [OrderStatus.Cancelled]: '?????????',
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
 const StatCard = ({ title, value, icon, color }: { title: string, value: string, icon: React.ReactNode, color: string }) => (

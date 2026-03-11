@@ -5,7 +5,7 @@ import { useOrthodoxCalendarEvents } from '../../hooks/api/useOrthodoxCalendarEv
 import { useOrderDeliveryPlans } from '../../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../../hooks/useDeliveryAlerts';
 import { api } from '../../lib/supabase';
-import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, OrderStatus } from '../../types';
+import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
 import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getTodayEortologioSummary } from '../../utils/namedays';
 import { useUI } from '../UIProvider';
@@ -19,7 +19,6 @@ interface Props {
   pendingOrderId?: string | null;
   onConsumePendingOrderId?: () => void;
   onOpenOrder?: (order: Order) => void;
-  onPrintShipmentDocument?: (order: Order, shipment: OrderShipment, shipmentItems: OrderShipmentItem[], fulfillment?: any) => void;
 }
 
 function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, search: string) {
@@ -43,7 +42,7 @@ function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, s
   });
 }
 
-export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrderId, onOpenOrder, onPrintShipmentDocument }: Props) {
+export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrderId, onOpenOrder }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { plansQuery, remindersQuery, ordersQuery, customersQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
@@ -85,16 +84,12 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     if (!plannerPlan) return [];
     return remindersQuery.data?.filter((reminder) => reminder.plan_id === plannerPlan.id) || [];
   }, [plannerPlan, remindersQuery.data]);
-
-  const todayNamedays = useMemo(() => getTodayEortologioSummary(new Date(), orthodoxEventsQuery.data || []), [orthodoxEventsQuery.data]);
+  const todayEortologio = useMemo(() => getTodayEortologioSummary(new Date(), orthodoxEventsQuery.data || []), [orthodoxEventsQuery.data]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
     queryClient.invalidateQueries({ queryKey: ['order_delivery_reminders'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
-    queryClient.invalidateQueries({ queryKey: ['batches'] });
-    queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
-    queryClient.invalidateQueries({ queryKey: ['order_shipment_items'] });
     queryClient.invalidateQueries({ queryKey: ['orthodox_calendar_events'] });
   };
 
@@ -104,7 +99,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     } else {
       await api.saveOrderDeliveryPlan(plan, reminders);
     }
-    showToast('Delivery plan saved.', 'success');
+    showToast('Το πλάνο παράδοσης αποθηκεύτηκε.', 'success');
     handleRefresh();
   };
 
@@ -115,59 +110,42 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     handleRefresh();
   };
 
-  const handleCreateShipment = async (item: EnrichedDeliveryItem) => {
-    const fulfillment = item.fulfillment;
-    if (!fulfillment || fulfillment.total_ready_qty <= 0) {
-      showToast('No ready items are available for shipment.', 'info');
-      return;
+  const handleMarkDelivered = async (item: EnrichedDeliveryItem) => {
+    const sr = item.shipment_readiness;
+    if (sr && sr.total_batches > 0 && !sr.is_fully_ready) {
+      const confirmed = await confirm({
+        title: sr.ready_batches === 0 ? 'Δεν υπάρχει ετοιμότητα' : 'Μερική Ετοιμότητα',
+        message: sr.ready_batches === 0
+          ? `Κανένα τμήμα παραγωγής δεν είναι έτοιμο (0/${sr.total_batches}). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
+          : `Η παραγγελία δεν είναι πλήρως έτοιμη (${sr.ready_batches}/${sr.total_batches} τμήματα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
+        confirmText: 'Ναι, σήμανση ως παραδομένη',
+        isDestructive: sr.ready_batches === 0
+      });
+      if (!confirmed) return;
     }
-
-    const selections = fulfillment.lines
-      .filter((line) => line.qty_ready > 0)
-      .map((line) => ({ order_item_key: line.order_item_key, quantity: line.qty_ready }));
-
-    await api.createOrderShipmentFromReadySelection(item.order.id, selections);
-    showToast('Shipment created from ready items.', 'success');
+    await api.completeOrderDeliveryPlan(item.plan.id, item.order.id);
+    showToast('Η παράδοση σημειώθηκε ως ολοκληρωμένη.', 'success');
     handleRefresh();
-  };
-
-  const handleMarkShipmentDelivered = async (item: EnrichedDeliveryItem, shipmentId: string) => {
-    await api.deliverOrderShipment(shipmentId);
-    const updatedFulfillment = await api.getOrderFulfillmentSummary(item.order.id);
-    if (updatedFulfillment && updatedFulfillment.total_remaining_to_ship_qty === 0) {
-      await api.completeOrderDeliveryPlan(item.plan.id, item.order.id);
-    }
-    showToast('Shipment marked as delivered.', 'success');
-    handleRefresh();
-  };
-
-  const handlePrintShipmentDocument = (item: EnrichedDeliveryItem, shipmentId: string) => {
-    const shipment = item.shipments?.find((candidate) => candidate.id === shipmentId);
-    if (!shipment) {
-      showToast('Shipment not found.', 'error');
-      return;
-    }
-    const items = (item.shipment_items || []).filter((shipmentItem) => shipmentItem.shipment_id === shipmentId);
-    onPrintShipmentDocument?.(item.order, shipment, items, item.fulfillment);
+    setSelectedItem(null);
   };
 
   const handleDeletePlan = async (item: EnrichedDeliveryItem) => {
     await api.deleteOrderDeliveryPlan(item.plan.id);
-    showToast('Delivery plan deleted.', 'success');
+    showToast('Το πλάνο παράδοσης διαγράφηκε.', 'success');
     setSelectedItem(null);
     handleRefresh();
   };
 
   if (isLoading) {
-    return <div className="p-4 text-sm font-medium text-slate-500">Loading deliveries...</div>;
+    return <div className="p-4 text-sm font-medium text-slate-500">Φόρτωση ημερολογίου παραδόσεων...</div>;
   }
 
   return (
     <div className="p-4 pb-28 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Deliveries</h1>
-          <p className="text-xs font-medium text-slate-500 mt-1">Mobile hub for delivery reminders, calls, and shipment follow-up.</p>
+          <h1 className="text-2xl font-black text-slate-900">Παραδόσεις</h1>
+          <p className="text-xs font-medium text-slate-500 mt-1">Κέντρο υπενθυμίσεων και επικοινωνίας πελατών για κινητό.</p>
         </div>
         <button onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="w-12 h-12 rounded-2xl bg-[#060b00] text-white flex items-center justify-center shadow-lg">
           <Plus size={18} />
@@ -176,21 +154,21 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
 
       {notificationPermission !== 'granted' && (
         <button onClick={requestBrowserPermission} className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-4 text-sm font-bold text-slate-700 flex items-center justify-center gap-2 shadow-sm">
-          <Bell size={16} /> Enable notifications while the app is open
+          <Bell size={16} /> Ενεργοποίηση ειδοποιήσεων όσο είναι ανοιχτή η εφαρμογή
         </button>
       )}
 
       <DeliverySummaryCards stats={stats} />
       <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />
 
-      {todayNamedays.length > 0 && (
+      {todayEortologio.length > 0 && (
         <div className="rounded-3xl border border-sky-100 bg-sky-50 px-4 py-4 shadow-sm">
           <div className="flex items-center gap-2 text-sky-800 mb-2">
             <Sparkles size={16} />
-            <div className="text-xs font-black uppercase tracking-wide">Today's namedays</div>
+            <div className="text-xs font-black uppercase tracking-wide">Σήμερα στις Γιορτές</div>
           </div>
           <div className="space-y-2">
-            {todayNamedays.map((event) => (
+            {todayEortologio.map((event) => (
               <div key={event.id} className="rounded-2xl bg-white/80 border border-white px-3 py-2">
                 <div className="text-sm font-black text-slate-800">{event.title}</div>
                 {event.subtitle && <div className="text-xs font-medium text-slate-600 mt-1">{event.subtitle}</div>}
@@ -202,7 +180,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
 
       {alerts.length > 0 && (
         <div className="rounded-3xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-          There are {alerts.length} active alerts that need attention.
+          Υπάρχουν {alerts.length} ενεργές ειδοποιήσεις που χρειάζονται έλεγχο.
         </div>
       )}
 
@@ -224,9 +202,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         onClose={() => setSelectedItem(null)}
         onEditPlan={(item) => { setPlannerOrder(item.order); setIsPlannerOpen(true); }}
         onOpenOrder={(item) => onOpenOrder?.(item.order)}
-        onCreateShipment={handleCreateShipment}
-        onMarkShipmentDelivered={handleMarkShipmentDelivered}
-        onPrintShipmentDocument={handlePrintShipmentDocument}
+        onMarkDelivered={handleMarkDelivered}
         onDeletePlan={handleDeletePlan}
         onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
         onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}

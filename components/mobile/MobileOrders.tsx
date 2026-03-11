@@ -46,20 +46,16 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
 };
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: '????????',
-    [OrderStatus.InProduction]: '????????',
-    [OrderStatus.PartiallyReady]: '??????? ??????',
-    [OrderStatus.PartiallyShipped]: '??????? ???????????',
-    [OrderStatus.Ready]: '??????',
-    [OrderStatus.Delivered]: '??????????',
-    [OrderStatus.Cancelled]: '?????????',
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
 const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={14} />,
     [OrderStatus.InProduction]: <Package size={14} />,
-    [OrderStatus.PartiallyReady]: <CheckCircle size={14} />,
-    [OrderStatus.PartiallyShipped]: <Truck size={14} />,
     [OrderStatus.Ready]: <CheckCircle size={14} />,
     [OrderStatus.Delivered]: <Truck size={14} />,
     [OrderStatus.Cancelled]: <XCircle size={14} />,
@@ -68,8 +64,6 @@ const STATUS_ICONS = {
 const STATUS_COLORS = {
     [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-600 border-blue-200',
-    [OrderStatus.PartiallyReady]: 'bg-amber-50 text-amber-700 border-amber-200',
-    [OrderStatus.PartiallyShipped]: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-600 border-emerald-200',
     [OrderStatus.Delivered]: 'bg-slate-900 text-white border-slate-900',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',

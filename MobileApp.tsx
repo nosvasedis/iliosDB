@@ -25,13 +25,12 @@ import OfferPrintView from './components/OfferPrintView';
 import AggregatedProductionView from './components/AggregatedProductionView';
 import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
-import ShipmentDocumentView from './components/ShipmentDocumentView';
 import BarcodeView from './components/BarcodeView';
 import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder, OrderShipment, OrderShipmentItem, OrderFulfillmentSummary } from './types';
+import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder } from './types';
 import { calculateProductCost, transliterateForBarcode } from './utils/pricingEngine';
 
 interface MobileAppProps {
@@ -50,7 +49,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
   const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
-  const [shipmentDocumentData, setShipmentDocumentData] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[]; fulfillment?: OrderFulfillmentSummary | null } | null>(null);
   const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -137,10 +135,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     });
   };
 
-  const handlePrintShipmentDocument = (order: Order, shipment: OrderShipment, shipmentItems: OrderShipmentItem[], fulfillment?: OrderFulfillmentSummary | null) => {
-    setShipmentDocumentData({ order, shipment, shipmentItems, fulfillment: fulfillment || null });
-  };
-
   const handlePrintPreparation = (batches: ProductionBatch[]) => {
     setPreparationPrintData({ batches });
   };
@@ -151,7 +145,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   // PRINTING EFFECT
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || shipmentDocumentData || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
+    const shouldPrint = printItems.length > 0 || orderToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
 
     if (shouldPrint) {
       const timer = setTimeout(() => {
@@ -181,9 +175,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         } else if (offerToPrint) {
           const safeName = getSafeClientName(offerToPrint.customer_name);
           docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
-        } else if (shipmentDocumentData) {
-          const safeName = getSafeClientName(shipmentDocumentData.order.customer_name);
-          docTitle = `Shipment_${shipmentDocumentData.shipment.shipment_no}_${safeName || 'Client'}_${shipmentDocumentData.order.id}`;
         } else if (supplierOrderToPrint) {
           docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
         } else if (aggregatedPrintData) {
@@ -265,7 +256,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
           setPriceListPrintData(null);
           setOrderToPrint(null);
           setOfferToPrint(null);
-          setShipmentDocumentData(null);
           setBatchToPrint(null);
           setAggregatedPrintData(null);
           setPreparationPrintData(null);
@@ -283,7 +273,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, offerToPrint, shipmentDocumentData, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
+  }, [printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
 
   if (!settings || !products || !warehouses || !materials || !molds) {
     return (
@@ -308,7 +298,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
     case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintLabels={setPrintItems} products={products} onOpenDeliveries={(order) => { setPendingDeliveryOrderId(order.id); setActivePage('deliveries'); }} />; break;
     case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
-    case 'deliveries': content = <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} onPrintShipmentDocument={handlePrintShipmentDocument} />; break;
+    case 'deliveries': content = <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />; break;
     case 'production': content = <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
     case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
     case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
@@ -336,7 +326,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
         {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
         {offerToPrint && <OfferPrintView offer={offerToPrint} />}
-        {shipmentDocumentData && <ShipmentDocumentView order={shipmentDocumentData.order} shipment={shipmentDocumentData.shipment} shipmentItems={shipmentDocumentData.shipmentItems} fulfillment={shipmentDocumentData.fulfillment} />}
         {supplierOrderToPrint && <SupplierOrderPrintView order={supplierOrderToPrint} products={products} />}
         {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
         {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}

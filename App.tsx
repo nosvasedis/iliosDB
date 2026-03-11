@@ -41,7 +41,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData, OrderShipment, OrderShipmentItem, OrderFulfillmentSummary } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
@@ -188,11 +188,11 @@ function AppContent() {
   const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
 
   const {
-    setPrintItems, setOrderToPrint, setOfferToPrint, setShipmentDocumentData,
+    setPrintItems, setOrderToPrint, setOfferToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint,
-    printItems, orderToPrint, offerToPrint, shipmentDocumentData, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
+    printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   // Local state for app connectivity context
@@ -286,7 +286,6 @@ function AppContent() {
           printItems={printItems}
           orderToPrint={orderToPrint}
           offerToPrint={offerToPrint}
-          shipmentDocumentData={shipmentDocumentData}
           supplierOrderToPrint={supplierOrderToPrint}
           batchToPrint={batchToPrint}
           aggregatedPrintData={aggregatedPrintData}
@@ -300,7 +299,6 @@ function AppContent() {
           setPrintItems={setPrintItems}
           setOrderToPrint={setOrderToPrint}
           setOfferToPrint={setOfferToPrint}
-          setShipmentDocumentData={setShipmentDocumentData}
           setSupplierOrderToPrint={setSupplierOrderToPrint}
           setBatchToPrint={setBatchToPrint}
           setAggregatedPrintData={setAggregatedPrintData}
@@ -426,10 +424,6 @@ function AppContent() {
     setAssemblyPrintData(data);
   };
 
-  const handlePrintShipmentDocument = (order: Order, shipment: OrderShipment, shipmentItems: OrderShipmentItem[], fulfillment?: OrderFulfillmentSummary | null) => {
-    setShipmentDocumentData?.({ order, shipment, shipmentItems, fulfillment: fulfillment || null });
-  };
-
   const handlePrintOrderAnalytics = (order: Order) => {
     if (!products || !materials || !settings) return;
 
@@ -460,7 +454,6 @@ function AppContent() {
         printItems={printItems}
         orderToPrint={orderToPrint}
         offerToPrint={offerToPrint}
-        shipmentDocumentData={shipmentDocumentData}
         supplierOrderToPrint={supplierOrderToPrint}
         batchToPrint={batchToPrint}
         aggregatedPrintData={aggregatedPrintData}
@@ -474,7 +467,6 @@ function AppContent() {
         setPrintItems={setPrintItems}
         setOrderToPrint={setOrderToPrint}
         setOfferToPrint={setOfferToPrint}
-        setShipmentDocumentData={setShipmentDocumentData}
         setSupplierOrderToPrint={setSupplierOrderToPrint}
         setBatchToPrint={setBatchToPrint}
         setAggregatedPrintData={setAggregatedPrintData}
@@ -598,7 +590,7 @@ function AppContent() {
 
                 setOrderToPrint(modifiedOrder);
               }} />}
-              {activePage === 'deliveries' && <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} onPrintShipmentDocument={handlePrintShipmentDocument} />}
+              {activePage === 'deliveries' && <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />}
               {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'suppliers' && <SuppliersPage />}

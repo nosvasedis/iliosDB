@@ -1,13 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, OrderFulfillmentSummary, OrderShipment, OrderShipmentItem } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
-
-interface ShipmentPrintData {
-    order: Order;
-    shipment: OrderShipment;
-    shipmentItems: OrderShipmentItem[];
-    fulfillment?: OrderFulfillmentSummary | null;
-}
 
 interface PrintItem {
     product: Product;
@@ -24,8 +17,6 @@ interface PrintContextType {
     setOrderToPrint: (order: Order | null) => void;
     offerToPrint: Offer | null;
     setOfferToPrint: (offer: Offer | null) => void;
-    shipmentDocumentData: ShipmentPrintData | null;
-    setShipmentDocumentData: (data: ShipmentPrintData | null) => void;
     supplierOrderToPrint: SupplierOrder | null;
     setSupplierOrderToPrint: (order: SupplierOrder | null) => void;
     batchToPrint: ProductionBatch | null;
@@ -60,7 +51,6 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [printItems, setPrintItems] = useState<PrintItem[]>([]);
     const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
     const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
-    const [shipmentDocumentData, setShipmentDocumentData] = useState<ShipmentPrintData | null>(null);
     const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
     const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
     const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
@@ -77,7 +67,6 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 printItems, setPrintItems,
                 orderToPrint, setOrderToPrint,
                 offerToPrint, setOfferToPrint,
-                shipmentDocumentData, setShipmentDocumentData,
                 supplierOrderToPrint, setSupplierOrderToPrint,
                 batchToPrint, setBatchToPrint,
                 aggregatedPrintData, setAggregatedPrintData,

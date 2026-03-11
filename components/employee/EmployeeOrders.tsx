@@ -12,8 +12,6 @@ const getStatusColor = (status: OrderStatus) => {
     switch(status) {
         case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
         case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-        case OrderStatus.PartiallyReady: return 'bg-amber-50 text-amber-700 border-amber-200';
-        case OrderStatus.PartiallyShipped: return 'bg-cyan-50 text-cyan-700 border-cyan-200';
         case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
         case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
         case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
@@ -23,21 +21,17 @@ const getStatusColor = (status: OrderStatus) => {
 const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={12} />,
     [OrderStatus.InProduction]: <Package size={12} />,
-    [OrderStatus.PartiallyReady]: <CheckCircle size={12} />,
-    [OrderStatus.PartiallyShipped]: <Truck size={12} />,
     [OrderStatus.Ready]: <CheckCircle size={12} />,
     [OrderStatus.Delivered]: <Truck size={12} />,
     [OrderStatus.Cancelled]: <XCircle size={12} />,
 };
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: '????????',
-    [OrderStatus.InProduction]: '?? ????????',
-    [OrderStatus.PartiallyReady]: '??????? ??????',
-    [OrderStatus.PartiallyShipped]: '??????? ???????????',
-    [OrderStatus.Ready]: '??????',
-    [OrderStatus.Delivered]: '??????????',
-    [OrderStatus.Cancelled]: '?????????',
+    [OrderStatus.Pending]: 'Εκκρεμεί',
+    [OrderStatus.InProduction]: 'Σε Παραγωγή',
+    [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.Delivered]: 'Παραδόθηκε',
+    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
 
 export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
