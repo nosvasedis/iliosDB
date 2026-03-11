@@ -75,11 +75,13 @@ export const DELIVERY_URGENCY_LABELS: Record<DeliveryUrgency, string> = {
 
 /** Κατάσταση παραγγελίας στα Ελληνικά (όπως στην Παραγωγή). */
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  [OrderStatus.Pending]: 'Εκκρεμεί',
-  [OrderStatus.InProduction]: 'Σε Παραγωγή',
-  [OrderStatus.Ready]: 'Έτοιμο',
-  [OrderStatus.Delivered]: 'Παραδόθηκε',
-  [OrderStatus.Cancelled]: 'Ακυρώθηκε'
+  [OrderStatus.Pending]: '????????',
+  [OrderStatus.InProduction]: '?? ????????',
+  [OrderStatus.PartiallyReady]: '??????? ??????',
+  [OrderStatus.PartiallyShipped]: '??????? ???????????',
+  [OrderStatus.Ready]: '??????',
+  [OrderStatus.Delivered]: '??????????',
+  [OrderStatus.Cancelled]: '?????????'
 };
 
 /** Greek labels for production stages — same names as in Παραγωγή. */

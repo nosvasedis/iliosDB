@@ -1,8 +1,9 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderFulfillmentSummary, OrderShipment, OrderShipmentItem } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
-import { getVariantComponents } from '../utils/pricingEngine';
+import { calculateProductCost, estimateVariantCost, getVariantComponents } from '../utils/pricingEngine';
+import { buildOrderItemKey, deriveOrderStatus, normalizeOrder, summarizeOrderFulfillment } from '../utils/orderFulfillment';
 import { offlineDb } from './offlineDb';
 import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEYS, BackupEnvelope, BackupMeta, ProgressCallback, RestoreOptions, RestoreResult } from './backupConfig';
 import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
@@ -387,6 +388,86 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
     await safeMutate('stock_movements', 'INSERT', data);
 };
 
+const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+
+async function getFulfillmentSnapshot(orderId: string): Promise<{ order: Order | null; batches: ProductionBatch[]; shipments: OrderShipment[]; shipmentItems: OrderShipmentItem[]; fulfillment: OrderFulfillmentSummary | null; }> {
+    const orders = await fetchFullTable('orders', '*', (q) => q.eq('id', orderId));
+    const order = orders?.[0] ? normalizeOrder(orders[0] as Order) : null;
+    const batches = (await fetchFullTable('production_batches', '*', (q) => q.eq('order_id', orderId))) as ProductionBatch[];
+    const shipments = (await fetchFullTable('order_shipments', '*', (q) => q.eq('order_id', orderId).order('shipment_no', { ascending: true }))) as OrderShipment[];
+    const shipmentItems = (await fetchFullTable('order_shipment_items', '*', (q) => q.eq('order_id', orderId))) as OrderShipmentItem[];
+    return {
+        order,
+        batches,
+        shipments,
+        shipmentItems,
+        fulfillment: order ? summarizeOrderFulfillment(order, batches, shipments, shipmentItems) : null
+    };
+}
+
+async function refreshStoredOrderStatus(orderId: string): Promise<OrderFulfillmentSummary | null> {
+    const snapshot = await getFulfillmentSnapshot(orderId);
+    if (!snapshot.order || !snapshot.fulfillment) return null;
+    const nextStatus = deriveOrderStatus(snapshot.order, snapshot.fulfillment);
+    if (snapshot.order.status !== nextStatus) {
+        await safeMutate('orders', 'UPDATE', { status: nextStatus }, { match: { id: orderId }, noSelect: true });
+    }
+
+    const now = new Date().toISOString();
+    const planUpdate: Record<string, any> = {
+        plan_status: syncPlanStatusWithOrder(nextStatus),
+        updated_at: now
+    };
+    if (nextStatus === OrderStatus.Delivered) planUpdate.completed_at = now;
+    if (nextStatus === OrderStatus.Cancelled) planUpdate.cancelled_at = now;
+    if (nextStatus !== OrderStatus.Delivered && nextStatus !== OrderStatus.Cancelled) {
+        planUpdate.completed_at = null;
+        planUpdate.cancelled_at = null;
+    }
+    await safeMutate('order_delivery_plans', 'UPDATE', planUpdate, { match: { order_id: orderId }, noSelect: true });
+    return snapshot.fulfillment;
+}
+
+async function consumeReadyBatchQuantities(orderId: string, requested: Map<string, number>): Promise<void> {
+    const batches = (await fetchFullTable('production_batches', '*', (q) => q.eq('order_id', orderId).order('created_at', { ascending: true }))) as ProductionBatch[];
+    for (const [key, quantity] of requested.entries()) {
+        let remaining = quantity;
+        const matching = batches.filter((batch) => batch.current_stage === ProductionStage.Ready && buildOrderItemKey(batch as any) === key);
+        const available = matching.reduce((sum, batch) => sum + batch.quantity, 0);
+        if (available < quantity) {
+            throw new Error(`Insufficient ready quantity for ${key}. Requested ${quantity}, available ${available}.`);
+        }
+        for (const batch of matching) {
+            if (remaining <= 0) break;
+            if (batch.quantity <= remaining) {
+                await safeMutate('production_batches', 'DELETE', null, { match: { id: batch.id } });
+                remaining -= batch.quantity;
+            } else {
+                await safeMutate('production_batches', 'UPDATE', { quantity: batch.quantity - remaining, updated_at: new Date().toISOString() }, { match: { id: batch.id } });
+                remaining = 0;
+            }
+        }
+    }
+}
+
+async function applyShipmentInventoryEffects(order: Order, shipment: OrderShipment, shipmentItems: OrderShipmentItem[]): Promise<void> {
+    const products = await api.getProducts();
+    for (const item of shipmentItems) {
+        const product = products.find((candidate) => candidate.sku === item.sku);
+        const reason = `Order Shipment #${shipment.shipment_no} (${order.id})`;
+        await recordStockMovement(item.sku, -item.quantity, reason, item.variant_suffix || undefined);
+        if (!product) continue;
+        await safeMutate('products', 'UPDATE', { stock_qty: Number(product.stock_qty || 0) - item.quantity }, { match: { sku: item.sku } });
+        if (item.variant_suffix) {
+            const variant = product.variants?.find((candidate) => candidate.suffix === item.variant_suffix);
+            if (variant) {
+                await safeMutate('product_variants', 'UPDATE', { stock_qty: Number(variant.stock_qty || 0) - item.quantity }, { match: { product_sku: item.sku, suffix: item.variant_suffix } });
+            }
+        }
+    }
+}
+
+
 export const api = {
     lookupAfm: async (afm: string): Promise<{ name: string; address: string | null; phone: string | null; email: string | null } | null> => {
         // Strip any country prefix and whitespace/dashes the user may have typed
@@ -740,9 +821,17 @@ export const api = {
     },
 
     getOrders: async (): Promise<Order[]> => {
-        return fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
+        const orders = await fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
+        return (orders as Order[]).map(normalizeOrder);
     },
 
+    getOrderShipments: async (): Promise<OrderShipment[]> => {
+        return fetchFullTable('order_shipments', '*', (q) => q.order('created_at', { ascending: false }));
+    },
+
+    getOrderShipmentItems: async (): Promise<OrderShipmentItem[]> => {
+        return fetchFullTable('order_shipment_items', '*', (q) => q.order('created_at', { ascending: false }));
+    },
     getOrderDeliveryPlans: async (): Promise<OrderDeliveryPlan[]> => {
         return fetchFullTable('order_delivery_plans', '*', (q) => q.order('updated_at', { ascending: false }));
     },
@@ -896,8 +985,10 @@ export const api = {
         await safeMutate('customers', 'DELETE', null, { match: { id } });
     },
     saveOrder: async (o: Order): Promise<void> => {
-        // noSelect: orders RLS allows INSERT but blocks read-back → causes PGRST204 with .select()
-        await safeMutate('orders', 'INSERT', o, { noSelect: true });
+        const normalized = normalizeOrder(o);
+        // noSelect: orders RLS allows INSERT but blocks read-back ? causes PGRST204 with .select()
+        await safeMutate('orders', 'INSERT', normalized, { noSelect: true });
+        await refreshStoredOrderStatus(normalized.id);
     },
 
     saveOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
@@ -957,7 +1048,7 @@ export const api = {
             completed_at: now,
             updated_at: now
         }, { match: { plan_id: planId }, noSelect: true });
-        await api.updateOrderStatus(orderId, OrderStatus.Delivered);
+        await refreshStoredOrderStatus(orderId);
     },
 
     cancelOrderDeliveryPlan: async (planId: string): Promise<void> => {
@@ -971,11 +1062,125 @@ export const api = {
 
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order): Promise<void> => {
-        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
+        const normalized = normalizeOrder(o);
+        const shipmentItems = await api.getOrderShipmentItems();
+        const shippedByKey = new Map<string, number>();
+        shipmentItems.filter((item) => item.order_id === normalized.id).forEach((item) => {
+            shippedByKey.set(item.order_item_key, (shippedByKey.get(item.order_item_key) || 0) + item.quantity);
+        });
+        const protectedItems = normalized.items.map((item) => {
+            const shippedQty = shippedByKey.get(buildOrderItemKey(item)) || 0;
+            return shippedQty > item.quantity ? { ...item, quantity: shippedQty } : item;
+        });
+        await safeMutate('orders', 'UPDATE', { ...normalized, items: protectedItems }, { match: { id: normalized.id }, noSelect: true });
+        await api.reconcileOrderBatches({ ...normalized, items: protectedItems });
+        await refreshStoredOrderStatus(normalized.id);
+    },
 
-        // Smart Reconciliation: If order is in production, sync items to batches
-        // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
-        await api.reconcileOrderBatches(o);
+    getOrderFulfillmentSummary: async (orderId: string): Promise<OrderFulfillmentSummary | null> => {
+        const snapshot = await getFulfillmentSnapshot(orderId);
+        return snapshot.fulfillment;
+    },
+
+    createOrderShipmentFromReadySelection: async (orderId: string, selections: Array<{ order_item_key: string; quantity: number }>): Promise<OrderShipment | null> => {
+        const snapshot = await getFulfillmentSnapshot(orderId);
+        if (!snapshot.order || !snapshot.fulfillment) throw new Error('Order not found.');
+        const order = snapshot.order;
+        const validSelections = selections.filter((selection) => selection.quantity > 0);
+        if (validSelections.length === 0) return null;
+        const products = await api.getProducts();
+        const materials = await api.getMaterials();
+        const settings = await api.getSettings();
+        const nextShipmentNo = snapshot.shipments.reduce((max, shipment) => Math.max(max, shipment.shipment_no), 0) + 1;
+        const now = new Date().toISOString();
+        const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+        const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+        const requestedMap = new Map<string, number>();
+        const shipmentItems: OrderShipmentItem[] = [];
+        let netAmount = 0;
+        let vatAmount = 0;
+        let grossAmount = 0;
+        let discountAllocatedAmount = 0;
+        for (const selection of validSelections) {
+            const line = snapshot.fulfillment.lines.find((candidate) => candidate.order_item_key === selection.order_item_key);
+            const orderItem = order.items.find((candidate) => buildOrderItemKey(candidate) === selection.order_item_key);
+            if (!line || !orderItem) throw new Error('Order line not found for shipment selection.');
+            if (selection.quantity > line.qty_ready) throw new Error(`Cannot ship ${selection.quantity} units for ${selection.order_item_key}. Only ${line.qty_ready} are ready.`);
+            requestedMap.set(selection.order_item_key, (requestedMap.get(selection.order_item_key) || 0) + selection.quantity);
+            const product = products.find((candidate) => candidate.sku === orderItem.sku);
+            const realizedUnitCost = product ? (orderItem.variant_suffix ? estimateVariantCost(product, orderItem.variant_suffix, settings, materials, products).total : calculateProductCost(product, settings, materials, products).total) : 0;
+            const grossBeforeDiscount = roundMoney(orderItem.price_at_order * selection.quantity);
+            const netLine = roundMoney(grossBeforeDiscount * discountFactor);
+            const discountLine = roundMoney(grossBeforeDiscount - netLine);
+            const vatLine = roundMoney(netLine * vatRate);
+            const grossLine = roundMoney(netLine + vatLine);
+            netAmount += netLine;
+            vatAmount += vatLine;
+            grossAmount += grossLine;
+            discountAllocatedAmount += discountLine;
+            shipmentItems.push({
+                id: crypto.randomUUID(),
+                shipment_id: '',
+                order_id: order.id,
+                order_item_key: selection.order_item_key,
+                sku: orderItem.sku,
+                variant_suffix: orderItem.variant_suffix || null,
+                size_info: orderItem.size_info || null,
+                quantity: selection.quantity,
+                unit_price_at_order: orderItem.price_at_order,
+                net_amount: netLine,
+                vat_amount: vatLine,
+                gross_amount: grossLine,
+                realized_unit_cost: realizedUnitCost,
+                realized_total_cost: roundMoney(realizedUnitCost * selection.quantity)
+            });
+        }
+        const shipmentId = crypto.randomUUID();
+        const shipment: OrderShipment = {
+            id: shipmentId,
+            order_id: order.id,
+            shipment_no: nextShipmentNo,
+            status: 'dispatched',
+            created_at: now,
+            dispatched_at: now,
+            delivered_at: null,
+            notes: null,
+            customer_snapshot: order.customer_name,
+            seller_snapshot: order.seller_name || null,
+            net_amount: roundMoney(netAmount),
+            vat_amount: roundMoney(vatAmount),
+            gross_amount: roundMoney(grossAmount),
+            discount_allocated_amount: roundMoney(discountAllocatedAmount)
+        };
+        shipmentItems.forEach((item) => { item.shipment_id = shipmentId; });
+        await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
+        await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
+        await consumeReadyBatchQuantities(order.id, requestedMap);
+        await applyShipmentInventoryEffects(order, shipment, shipmentItems);
+        await refreshStoredOrderStatus(order.id);
+        return shipment;
+    },
+
+    dispatchOrderShipment: async (shipmentId: string): Promise<void> => {
+        const shipments = await api.getOrderShipments();
+        const shipment = shipments.find((candidate) => candidate.id === shipmentId);
+        if (!shipment) throw new Error('Shipment not found.');
+        if (shipment.status !== 'draft') return;
+        await safeMutate('order_shipments', 'UPDATE', { status: 'dispatched', dispatched_at: new Date().toISOString() }, { match: { id: shipmentId }, noSelect: true });
+        await refreshStoredOrderStatus(shipment.order_id);
+    },
+
+    deliverOrderShipment: async (shipmentId: string): Promise<void> => {
+        const shipments = await api.getOrderShipments();
+        const shipment = shipments.find((candidate) => candidate.id === shipmentId);
+        if (!shipment) throw new Error('Shipment not found.');
+        await safeMutate('order_shipments', 'UPDATE', { status: 'delivered', delivered_at: new Date().toISOString() }, { match: { id: shipmentId }, noSelect: true });
+        await refreshStoredOrderStatus(shipment.order_id);
+    },
+
+    cancelOrderRemainder: async (orderId: string): Promise<void> => {
+        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: orderId } });
+        await refreshStoredOrderStatus(orderId);
     },
 
     deleteOrder: async (id: string): Promise<void> => {
@@ -1049,7 +1254,7 @@ export const api = {
     },
 
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {
-        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } });
+        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id }, noSelect: true });
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {
             const now = new Date().toISOString();
             const planUpdate: Record<string, any> = {
@@ -1060,8 +1265,11 @@ export const api = {
             if (status === OrderStatus.Cancelled) planUpdate.cancelled_at = now;
             await safeMutate('order_delivery_plans', 'UPDATE', planUpdate, { match: { order_id: id }, noSelect: true });
         }
-        if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
+        if (status === OrderStatus.Cancelled) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
+        }
+        if (status !== OrderStatus.Cancelled) {
+            await refreshStoredOrderStatus(id);
         }
     },
 
@@ -1352,10 +1560,12 @@ export const api = {
 
     // NEW: REVERT FROM PRODUCTION
     revertOrderFromProduction: async (orderId: string): Promise<void> => {
-        // 1. Delete all batches
+        const shipments = await api.getOrderShipments();
+        if (shipments.some((shipment) => shipment.order_id === orderId)) {
+            throw new Error('Cannot revert an order that already has shipments.');
+        }
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: orderId } });
-        // 2. Set order status back to Pending
-        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId } });
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId }, noSelect: true });
     },
 
     splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any, userName?: string): Promise<void> => {

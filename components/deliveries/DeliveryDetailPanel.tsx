@@ -1,14 +1,14 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, Phone, PhoneCall, Send, Tag, Trash2 } from 'lucide-react';
-import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, PackageCheck, Phone, PhoneCall, Send, Tag, Trash2, Truck } from 'lucide-react';
+import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderShipment, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import {
   DELIVERY_ACTION_LABELS,
   DELIVERY_STATUS_LABELS,
   DELIVERY_URGENCY_LABELS,
+  DELIVERY_SKU_CONTAINER,
   DELIVERY_SKU_FINISH_TEXT,
   DELIVERY_SKU_STONE_TEXT,
-  DELIVERY_SKU_CONTAINER,
   formatDeliveryWindow,
   formatGreekDate,
   formatGreekDateTime,
@@ -30,6 +30,20 @@ const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
   [ProductionStage.Ready]: <CheckCircle2 size={14} />
 };
 
+const SHIPMENT_STATUS_LABELS: Record<OrderShipment['status'], string> = {
+  draft: 'Draft',
+  dispatched: 'Dispatched',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled'
+};
+
+const SHIPMENT_STATUS_CLASSES: Record<OrderShipment['status'], string> = {
+  draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  dispatched: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  cancelled: 'bg-red-50 text-red-700 border-red-200'
+};
+
 const isCallReminder = (action: OrderDeliveryReminder['action_type']) =>
   action === 'call_client' || action === 'confirm_ready' || action === 'arrange_delivery';
 
@@ -40,14 +54,11 @@ function BatchCard({ b, idx }: { b: ShipmentGroup['not_ready_batches'][number]; 
   const stoneTextClass = stone.code ? (DELIVERY_SKU_STONE_TEXT[stone.code] ?? 'text-emerald-500') : '';
   const stageColors = PRODUCTION_STAGE_COLORS[b.current_stage] ?? { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
   const StageIcon = STAGE_ICONS[b.current_stage];
+
   return (
     <li key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 p-3">
       <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-        {b.product_image ? (
-          <img src={b.product_image} alt={b.sku} className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon size={24} className="text-slate-400" />
-        )}
+        {b.product_image ? <img src={b.product_image} alt={b.sku} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="text-slate-400" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border ${containerClass}`}>
@@ -69,163 +80,134 @@ interface Props {
   item?: EnrichedDeliveryItem | null;
   onEditPlan: (item: EnrichedDeliveryItem) => void;
   onOpenOrder: (item: EnrichedDeliveryItem) => void;
-  onMarkDelivered: (item: EnrichedDeliveryItem) => void;
+  onCreateShipment: (item: EnrichedDeliveryItem) => void;
+  onMarkShipmentDelivered: (item: EnrichedDeliveryItem, shipmentId: string) => void;
+  onPrintShipmentDocument: (item: EnrichedDeliveryItem, shipmentId: string) => void;
   onDeletePlan: (item: EnrichedDeliveryItem) => void;
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
 }
 
-export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
+export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onCreateShipment, onMarkShipmentDelivered, onPrintShipmentDocument, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
   if (!item) {
-    return (
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm font-medium text-slate-500">
-        Επιλέξτε μια καταχώρηση για να δείτε λεπτομέρειες παράδοσης, ειδοποιήσεις, ονομαστικές εορτές και ενέργειες επικοινωνίας.
-      </div>
-    );
+    return <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm font-medium text-slate-500">Select a delivery entry to review shipment details and next actions.</div>;
   }
+
+  const openShipments = (item.shipments || []).filter((shipment) => shipment.status === 'dispatched');
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-black uppercase tracking-wider text-slate-400">Παραγγελία #{item.order.id.slice(-6)}</div>
+          <div className="text-xs font-black uppercase tracking-wider text-slate-400">Order #{item.order.id.slice(-6)}</div>
           <h3 className="text-2xl font-black text-slate-900 mt-1">{getOrderDisplayName(item.order)}</h3>
           <div className="mt-2 flex flex-wrap gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-              {DELIVERY_STATUS_LABELS[item.plan.plan_status]}
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-              Κατάσταση: {ORDER_STATUS_LABELS[item.order.status as OrderStatus] ?? item.order.status}
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
-              {DELIVERY_URGENCY_LABELS[item.urgency]}
-            </span>
+            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">{DELIVERY_STATUS_LABELS[item.plan.plan_status]}</span>
+            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">Status: {ORDER_STATUS_LABELS[item.order.status as OrderStatus] ?? item.order.status}</span>
+            <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{DELIVERY_URGENCY_LABELS[item.urgency]}</span>
           </div>
         </div>
-        {item.phone && (
-          <a href={`tel:${item.phone}`} className="shrink-0 inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-sm">
-            <Phone size={16} /> Κλήση
-          </a>
-        )}
+        {item.phone && <a href={`tel:${item.phone}`} className="shrink-0 inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-sm"><Phone size={16} /> Call</a>}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><CalendarRange size={14} /> Στόχος</div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><CalendarRange size={14} /> Target</div>
           <div className="mt-2 font-bold text-slate-800">{formatDeliveryWindow(item.plan)}</div>
         </div>
         <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><Phone size={14} /> Επικοινωνία</div>
-          <div className="mt-2 font-bold text-slate-800">{item.phone || 'Δεν υπάρχει διαθέσιμο τηλέφωνο'}</div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><Phone size={14} /> Contact</div>
+          <div className="mt-2 font-bold text-slate-800">{item.phone || 'No phone available'}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">Ready / Remaining</div>
+          <div className="mt-2 font-black text-slate-900 text-xl">{item.fulfillment?.total_ready_qty || 0} / {item.fulfillment?.total_remaining_to_ship_qty || 0}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">Shipments</div>
+          <div className="mt-2 font-black text-slate-900 text-xl">{item.fulfillment?.shipment_count || 0}</div>
         </div>
       </div>
 
       {item.next_nameday && (
         <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4">
-          <div className="text-[11px] font-black uppercase tracking-wide text-sky-700 flex items-center gap-2"><Gift size={14} /> Ονομαστική Εορτή</div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-sky-700 flex items-center gap-2"><Gift size={14} /> Nameday</div>
           <div className="mt-2 font-bold text-slate-800">{item.next_nameday.label}</div>
-          <div className="mt-1 text-sm font-medium text-slate-600">
-            {item.next_nameday.is_today
-              ? 'Γιορτάζει σήμερα'
-              : `Επόμενη εορτή: ${formatGreekDate(item.next_nameday.date)} (${item.next_nameday.days_until} ημέρες)`}
-          </div>
+          <div className="mt-1 text-sm font-medium text-slate-600">{item.next_nameday.is_today ? 'Celebrates today' : `Next nameday: ${formatGreekDate(item.next_nameday.date)} (${item.next_nameday.days_until} days)`}</div>
         </div>
       )}
 
       <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-4">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><PhoneCall size={14} /> Γιατί χρειάζεται επικοινωνία</div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-400 flex items-center gap-2"><PhoneCall size={14} /> Why outreach is needed</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {item.call_reasons.length > 0 ? item.call_reasons.map((reason) => (
-              <span key={reason} className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700">{reason}</span>
-            )) : <span className="text-sm text-slate-500 font-medium">Δεν υπάρχουν ειδικοί λόγοι επικοινωνίας.</span>}
+            {item.call_reasons.length > 0 ? item.call_reasons.map((reason) => <span key={reason} className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700">{reason}</span>) : <span className="text-sm text-slate-500 font-medium">No special outreach reasons.</span>}
           </div>
         </div>
-        {item.is_ready && (
-          <div className="pt-3 border-t border-slate-200">
-            <div className="text-xs font-bold text-emerald-700 flex items-center gap-2"><Package size={14} /> Κατάσταση παραγγελίας</div>
-            <p className="mt-1 text-sm font-medium text-slate-700">Η παραγγελία είναι πλήρως έτοιμη· μπορείτε να οργανώσετε την αποστολή/παράδοση.</p>
+
+        {item.shipments && item.shipments.length > 0 && (
+          <div className="pt-3 border-t border-slate-200 space-y-3">
+            <div className="text-[11px] font-black uppercase tracking-wide text-slate-500 flex items-center gap-2"><Truck size={14} /> Shipment History</div>
+            {item.shipments.map((shipment) => (
+              <div key={shipment.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-black text-slate-900">Shipment #{shipment.shipment_no}</div>
+                  <div className="text-sm text-slate-500 font-medium mt-1">Created {formatGreekDateTime(shipment.created_at)}{shipment.dispatched_at ? ` | Dispatched ${formatGreekDateTime(shipment.dispatched_at)}` : ''}</div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full border ${SHIPMENT_STATUS_CLASSES[shipment.status]}`}>{SHIPMENT_STATUS_LABELS[shipment.status]}</span>
+                  <button onClick={() => onPrintShipmentDocument(item, shipment.id)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black">Print</button>
+                  {shipment.status === 'dispatched' && (
+                    <button onClick={() => onMarkShipmentDelivered(item, shipment.id)} className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black">Delivered</button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
+
         {item.shipment_readiness && item.shipment_readiness.total_batches > 0 && !item.shipment_readiness.is_fully_ready && (
           <div className="pt-3 border-t border-slate-200 space-y-4">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-wide text-slate-500 flex items-center gap-2"><Package size={14} /> Πρόοδος Παραγωγής</div>
+              <div className="text-[11px] font-black uppercase tracking-wide text-slate-500 flex items-center gap-2"><Package size={14} /> Production Progress</div>
               <div className="mt-2 flex items-center gap-3">
                 <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      item.shipment_readiness.is_fully_ready ? 'bg-emerald-500' : item.shipment_readiness.is_partially_ready ? 'bg-amber-500' : 'bg-red-400'
-                    }`}
-                    style={{ width: `${Math.round(item.shipment_readiness.ready_fraction * 100)}%` }}
-                  />
+                  <div className={`h-full rounded-full transition-all ${item.shipment_readiness.is_fully_ready ? 'bg-emerald-500' : item.shipment_readiness.is_partially_ready ? 'bg-amber-500' : 'bg-red-400'}`} style={{ width: `${Math.round(item.shipment_readiness.ready_fraction * 100)}%` }} />
                 </div>
-                <span className="text-sm font-black text-slate-700 whitespace-nowrap">
-                  {item.shipment_readiness.ready_batches}/{item.shipment_readiness.total_batches} έτοιμα
-                </span>
+                <span className="text-sm font-black text-slate-700 whitespace-nowrap">{item.shipment_readiness.ready_batches}/{item.shipment_readiness.total_batches} ready</span>
               </div>
             </div>
-            {item.shipment_readiness.shipments.length > 1 ? (
-              item.shipment_readiness.shipments.map((shipment) => (
-                <div key={shipment.time_key} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Send size={14} className="text-slate-400 shrink-0" />
-                      <span className="text-xs font-black text-slate-700">Αποστολή {shipment.shipment_index}</span>
-                      <span className="text-[10px] font-medium text-slate-500 truncate">{formatGreekDateTime(shipment.time_key)}</span>
-                    </div>
-                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border shrink-0 ${
-                      shipment.is_ready
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
-                      {shipment.ready}/{shipment.total} έτοιμα
-                    </span>
+            {(item.shipment_readiness.shipments || []).map((shipment) => (
+              <div key={`${shipment.actual_shipment_id || shipment.time_key}-${shipment.shipment_index}`} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Send size={14} className="text-slate-400 shrink-0" />
+                    <span className="text-xs font-black text-slate-700">{shipment.actual_shipment_no ? `Shipment #${shipment.actual_shipment_no}` : `Part ${shipment.shipment_index}`}</span>
+                    <span className="text-[10px] font-medium text-slate-500 truncate">{formatGreekDateTime(shipment.time_key)}</span>
                   </div>
-                  <div className="p-3">
-                    {shipment.is_ready ? (
-                      <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
-                        <CheckCircle2 size={14} /> Όλα τα τμήματα αυτής της αποστολής είναι έτοιμα
-                      </div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {shipment.not_ready_batches.map((b, idx) => (
-                          <BatchCard key={`${shipment.time_key}-${b.sku}-${b.variant_suffix ?? ''}-${idx}`} b={b} idx={idx} />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border shrink-0 ${shipment.is_ready ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{shipment.ready}/{shipment.total} ready</span>
                 </div>
-              ))
-            ) : (
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2 mb-2"><Package size={14} /> Τι δεν είναι ακόμη έτοιμο</div>
-                <ul className="space-y-3">
-                  {item.shipment_readiness.shipments[0]?.not_ready_batches?.map((b, idx) => (
-                    <BatchCard key={`${b.sku}-${b.variant_suffix ?? ''}-${idx}`} b={b} idx={idx} />
-                  ))}
-                </ul>
+                <div className="p-3">
+                  {shipment.not_ready_batches.length === 0 ? <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium"><CheckCircle2 size={14} /> No open production work in this part.</div> : <ul className="space-y-2">{shipment.not_ready_batches.map((b, idx) => <BatchCard key={`${shipment.time_key}-${b.sku}-${idx}`} b={b} idx={idx} />)}</ul>}
+                </div>
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
 
       {(item.order.notes || item.customer?.notes) && (
         <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 space-y-2">
-          <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><ClipboardList size={14} /> Σημειώσεις</div>
+          <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><ClipboardList size={14} /> Notes</div>
           {item.order.notes && <p className="text-sm font-medium text-slate-700">{item.order.notes}</p>}
           {item.customer?.notes && <p className="text-sm font-medium text-slate-700">{item.customer.notes}</p>}
         </div>
       )}
 
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-slate-800 mb-1">
-          <BellRing size={16} />
-          <div className="font-black text-sm uppercase tracking-wide">Ενέργειες πλάνου</div>
-        </div>
-        <p className="text-xs text-slate-500 font-medium mb-3">Οι προγραμματισμένες ενέργειες για αυτή την παράδοση</p>
+        <div className="flex items-center gap-2 text-slate-800 mb-1"><BellRing size={16} /><div className="font-black text-sm uppercase tracking-wide">Plan Actions</div></div>
+        <p className="text-xs text-slate-500 font-medium mb-3">Scheduled actions for this delivery plan</p>
         {item.reminders.map((reminder) => (
           <div key={reminder.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
@@ -235,16 +217,12 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
               </div>
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{getReminderStateLabel(reminder)}</div>
             </div>
-            <p className="mt-2 text-sm text-slate-600 font-medium">{reminder.reason || (isCallReminder(reminder.action_type) ? 'Καλέστε τον πελάτη για επιβεβαίωση ετοιμότητας και οργάνωση παράδοσης.' : 'Ελέγξτε την πρόοδο της παραγγελίας.')}</p>
+            <p className="mt-2 text-sm text-slate-600 font-medium">{reminder.reason || (isCallReminder(reminder.action_type) ? 'Call the customer to confirm readiness and arrange delivery.' : 'Check the order progress.')}</p>
             {!reminder.completed_at && (
               <div className="mt-3 flex flex-wrap gap-2 items-center">
-                {isCallReminder(reminder.action_type) && item.phone && (
-                  <a href={`tel:${item.phone}`} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700">
-                    <Phone size={14} /> Κλήση πελάτη
-                  </a>
-                )}
-                <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή</button>
-                <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωσα</button>
+                {isCallReminder(reminder.action_type) && item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700"><Phone size={14} /> Call customer</a>}
+                <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Snooze</button>
+                <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Done</button>
               </div>
             )}
           </div>
@@ -252,16 +230,18 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button onClick={() => onEditPlan(item)} className="px-4 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm">Επεξεργασία πλάνου</button>
-        <button onClick={() => onMarkDelivered(item)} className="px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-sm flex items-center gap-2">
-          <CheckCircle2 size={16} /> Σήμανση ως παραδομένη
-        </button>
-        <button onClick={() => onOpenOrder(item)} className="px-4 py-3 rounded-2xl bg-white text-slate-700 border border-slate-200 font-bold text-sm flex items-center gap-2">
-          <ExternalLink size={16} /> Άνοιγμα παραγγελίας
-        </button>
-        <button onClick={() => onDeletePlan(item)} className="px-4 py-3 rounded-2xl bg-red-50 text-red-700 border border-red-100 font-bold text-sm flex items-center gap-2">
-          <Trash2 size={16} /> Διαγραφή πλάνου
-        </button>
+        <button onClick={() => onEditPlan(item)} className="px-4 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm">Edit Plan</button>
+        {(item.fulfillment?.total_ready_qty || 0) > 0 && item.plan.plan_status === 'active' && (
+          <button onClick={() => onCreateShipment(item)} className="px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-sm flex items-center gap-2"><PackageCheck size={16} /> Create Shipment</button>
+        )}
+        {(item.shipments || []).map((shipment) => (
+          <button key={`print-${shipment.id}`} onClick={() => onPrintShipmentDocument(item, shipment.id)} className="px-4 py-3 rounded-2xl bg-white text-slate-700 border border-slate-200 font-bold text-sm flex items-center gap-2"><Package size={16} /> Print Shipment #{shipment.shipment_no}</button>
+        ))}
+        {openShipments.map((shipment) => (
+          <button key={shipment.id} onClick={() => onMarkShipmentDelivered(item, shipment.id)} className="px-4 py-3 rounded-2xl bg-cyan-50 text-cyan-700 border border-cyan-100 font-bold text-sm flex items-center gap-2"><Truck size={16} /> Deliver Shipment #{shipment.shipment_no}</button>
+        ))}
+        <button onClick={() => onOpenOrder(item)} className="px-4 py-3 rounded-2xl bg-white text-slate-700 border border-slate-200 font-bold text-sm flex items-center gap-2"><ExternalLink size={16} /> Open Order</button>
+        <button onClick={() => onDeletePlan(item)} className="px-4 py-3 rounded-2xl bg-red-50 text-red-700 border border-red-100 font-bold text-sm flex items-center gap-2"><Trash2 size={16} /> Delete Plan</button>
       </div>
     </div>
   );

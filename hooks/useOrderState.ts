@@ -9,6 +9,7 @@ import { getSizingInfo } from '../utils/sizing';
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
+import { createOrderItemId, normalizeOrder } from '../utils/orderFulfillment';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -57,7 +58,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
-        const items = initialOrder?.items || [];
+        const items = initialOrder ? normalizeOrder(initialOrder).items : [];
         return items.map(item => {
             const product = products.find(p => p.sku === item.sku);
             return {
@@ -389,6 +390,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const _addItemToOrder = (master: Product, variant: ProductVariant | null, qty: number, size: string, notes: string) => {
         const unitPrice = variant?.selling_price || master.selling_price || 0;
         const newItem: OrderItem = {
+            id: createOrderItemId(initialOrder?.id || 'draft', selectedItems.length, { sku: master.sku, variant_suffix: variant?.suffix, size_info: size || undefined }),
             sku: master.sku,
             variant_suffix: variant?.suffix,
             quantity: qty,
@@ -554,6 +556,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 }
                 const unitPrice = variant?.selling_price || product.selling_price || 0;
                 const newItem: OrderItem = {
+                    id: createOrderItemId(initialOrder?.id || 'scan', selectedItems.length, { sku: product.sku, variant_suffix: variant?.suffix, size_info: undefined }),
                     sku: product.sku,
                     variant_suffix: variant?.suffix,
                     quantity: 1,

@@ -7,8 +7,9 @@ import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft,
 import { api, supabase } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { groupBatchesByShipment } from '../utils/orderReadiness';
+import { buildOrderItemKey } from '../utils/orderFulfillment';
 
 interface Props {
     order: Order;
@@ -82,6 +83,7 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
 interface RowItem extends OrderItem {
     readyQty: number;
     inProgressQty: number;
+    shippedQty: number;
     remainingQty: number;
     toSendQty: number;
     batchDetails: ProductionBatch[];
@@ -109,6 +111,16 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
     const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
     const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
+
+    const { data: shipments = [] } = useQuery({ queryKey: ['order_shipments'], queryFn: api.getOrderShipments });
+    const { data: shipmentItems = [] } = useQuery({ queryKey: ['order_shipment_items'], queryFn: api.getOrderShipmentItems });
+
+    const activeShipmentIds = useMemo(() => new Set(
+        shipments
+            .filter(shipment => shipment.order_id === order.id && (shipment.status === 'dispatched' || shipment.status === 'delivered'))
+            .map(shipment => shipment.id)
+    ), [shipments, order.id]);
+
 
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
@@ -217,13 +229,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                 .filter(b => b.current_stage !== ProductionStage.Ready)
                 .reduce((s, b) => s + b.quantity, 0);
 
-            const sentTotal = readyQty + inProgressQty;
+            const shippedQty = shipmentItems
+                .filter(shipmentItem => activeShipmentIds.has(shipmentItem.shipment_id) && shipmentItem.order_id === order.id && shipmentItem.order_item_key === buildOrderItemKey(item))
+                .reduce((sum, shipmentItem) => sum + shipmentItem.quantity, 0);
+
+            const sentTotal = readyQty + inProgressQty + shippedQty;
             const remainingQty = Math.max(0, item.quantity - sentTotal);
 
             return {
                 ...item,
                 readyQty,
                 inProgressQty,
+                shippedQty,
                 remainingQty,
                 toSendQty: remainingQty,
                 batchDetails: relevantBatches,
@@ -240,7 +257,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });
         });
-    }, [order.items, existingBatches, products]);
+    }, [order.items, existingBatches, products, shipmentItems, activeShipmentIds, order.id]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
 

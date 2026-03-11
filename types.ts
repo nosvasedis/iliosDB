@@ -140,6 +140,7 @@ export interface Product {
 
   // Organization
   collections?: number[];
+  created_at?: string;
 }
 
 export interface GlobalSettings {
@@ -187,18 +188,21 @@ export interface WarehouseStock {
 export enum OrderStatus {
   Pending = 'Pending',
   InProduction = 'In Production',
+  PartiallyReady = 'Partially Ready',
+  PartiallyShipped = 'Partially Shipped',
   Ready = 'Ready',
   Delivered = 'Delivered',
   Cancelled = 'Cancelled'
 }
 
 export interface OrderItem {
+  id?: string;
   sku: string;
   variant_suffix?: string;
   quantity: number;
   price_at_order: number;
   product_details?: Product;
-  size_info?: string; // e.g., "58" or "19cm"
+  size_info?: string; // e.g. "58" or "19cm"
   notes?: string;
 }
 
@@ -221,6 +225,69 @@ export interface Order {
   // NEW FEATURES
   tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
   is_archived?: boolean;
+}
+
+export type OrderShipmentStatus = 'draft' | 'dispatched' | 'delivered' | 'cancelled';
+
+export interface OrderShipment {
+  id: string;
+  order_id: string;
+  shipment_no: number;
+  status: OrderShipmentStatus;
+  created_at: string;
+  dispatched_at?: string | null;
+  delivered_at?: string | null;
+  notes?: string | null;
+  customer_snapshot?: string | null;
+  seller_snapshot?: string | null;
+  net_amount: number;
+  vat_amount: number;
+  gross_amount: number;
+  discount_allocated_amount: number;
+}
+
+export interface OrderShipmentItem {
+  id: string;
+  shipment_id: string;
+  order_id: string;
+  order_item_key: string;
+  sku: string;
+  variant_suffix?: string | null;
+  size_info?: string | null;
+  quantity: number;
+  unit_price_at_order: number;
+  net_amount: number;
+  vat_amount: number;
+  gross_amount: number;
+  realized_unit_cost: number;
+  realized_total_cost: number;
+}
+
+export interface OrderFulfillmentLineSummary {
+  order_item_key: string;
+  sku: string;
+  variant_suffix?: string;
+  size_info?: string;
+  qty_ordered: number;
+  qty_in_batches: number;
+  qty_ready: number;
+  qty_shipped: number;
+  qty_remaining_to_ship: number;
+  qty_remaining_to_produce: number;
+}
+
+export interface OrderFulfillmentSummary {
+  order_id: string;
+  total_ordered_qty: number;
+  total_in_batches_qty: number;
+  total_ready_qty: number;
+  total_shipped_qty: number;
+  total_remaining_to_ship_qty: number;
+  total_remaining_to_produce_qty: number;
+  lines: OrderFulfillmentLineSummary[];
+  shipment_count: number;
+  delivered_shipment_count: number;
+  open_shipment_count: number;
 }
 
 export type DeliveryPlanStatus = 'active' | 'completed' | 'cancelled';
@@ -306,6 +373,9 @@ export interface ShipmentGroup {
   total: number;
   ready: number;
   is_ready: boolean;
+  actual_shipment_id?: string;
+  actual_shipment_no?: number;
+  actual_shipment_status?: OrderShipmentStatus;
   not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; product_image?: string | null; gender?: Gender }>;
 }
 
@@ -321,6 +391,9 @@ export interface ShipmentReadinessSummary {
 export interface EnrichedDeliveryItem {
   order: Order;
   customer?: Customer;
+  fulfillment?: OrderFulfillmentSummary;
+  shipments?: OrderShipment[];
+  shipment_items?: OrderShipmentItem[];
   plan: OrderDeliveryPlan;
   reminders: OrderDeliveryReminder[];
   next_reminder?: OrderDeliveryReminder;
@@ -520,3 +593,4 @@ declare global {
     aistudio?: AIStudio;
   }
 }
+

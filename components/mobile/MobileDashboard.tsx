@@ -14,16 +14,20 @@ interface Props {
 }
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+    [OrderStatus.Pending]: '????????',
+    [OrderStatus.InProduction]: '????????',
+    [OrderStatus.PartiallyReady]: '??????? ??????',
+    [OrderStatus.PartiallyShipped]: '??????? ???????????',
+    [OrderStatus.Ready]: '??????',
+    [OrderStatus.Delivered]: '??????????',
+    [OrderStatus.Cancelled]: '?????????',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-700 border-blue-100 ring-1 ring-blue-50',
+    [OrderStatus.PartiallyReady]: 'bg-amber-50 text-amber-700 border-amber-100 ring-1 ring-amber-50',
+    [OrderStatus.PartiallyShipped]: 'bg-cyan-50 text-cyan-700 border-cyan-100 ring-1 ring-cyan-50',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-1 ring-emerald-50',
     [OrderStatus.Delivered]: 'bg-slate-100 text-slate-400',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-400',
@@ -32,6 +36,8 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
 const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={14} />,
     [OrderStatus.InProduction]: <Package size={14} />,
+    [OrderStatus.PartiallyReady]: <CheckCircle size={14} />,
+    [OrderStatus.PartiallyShipped]: <Truck size={14} />,
     [OrderStatus.Ready]: <CheckCircle size={14} />,
     [OrderStatus.Delivered]: <Truck size={14} />,
     [OrderStatus.Cancelled]: <XCircle size={14} />,

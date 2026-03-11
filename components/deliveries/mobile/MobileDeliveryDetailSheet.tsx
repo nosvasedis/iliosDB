@@ -8,7 +8,9 @@ interface Props {
   onClose: () => void;
   onEditPlan: (item: EnrichedDeliveryItem) => void;
   onOpenOrder: (item: EnrichedDeliveryItem) => void;
-  onMarkDelivered: (item: EnrichedDeliveryItem) => void;
+  onCreateShipment: (item: EnrichedDeliveryItem) => void;
+  onMarkShipmentDelivered: (item: EnrichedDeliveryItem, shipmentId: string) => void;
+  onPrintShipmentDocument: (item: EnrichedDeliveryItem, shipmentId: string) => void;
   onDeletePlan: (item: EnrichedDeliveryItem) => void;
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
@@ -30,7 +32,9 @@ export default function MobileDeliveryDetailSheet(props: Props) {
           item={props.item}
           onEditPlan={props.onEditPlan}
           onOpenOrder={props.onOpenOrder}
-          onMarkDelivered={props.onMarkDelivered}
+          onCreateShipment={props.onCreateShipment}
+          onMarkShipmentDelivered={props.onMarkShipmentDelivered}
+          onPrintShipmentDocument={props.onPrintShipmentDocument}
           onDeletePlan={props.onDeletePlan}
           onAcknowledgeReminder={props.onAcknowledgeReminder}
           onCompleteReminder={props.onCompleteReminder}

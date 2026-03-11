@@ -8,12 +8,15 @@ import {
   Order,
   OrderDeliveryPlan,
   OrderDeliveryReminder,
+  OrderShipment,
+  OrderShipmentItem,
   ProductionBatch,
   ProductionStage,
   Product
 } from '../types';
 import { analyzeDeliveryContext } from './deliveryIntelligence';
 import { getHolidayPeriod } from './orthodoxHoliday';
+import { summarizeOrderFulfillment } from './orderFulfillment';
 import { getOrderBatches, getShipmentReadiness, isOrderReady } from './orderReadiness';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -154,7 +157,9 @@ export function enrichDeliveryItems(
   batches: ProductionBatch[],
   plans: OrderDeliveryPlan[],
   reminders: OrderDeliveryReminder[],
-  products: Product[] = []
+  products: Product[] = [],
+  shipments: OrderShipment[] = [],
+  shipmentItems: OrderShipmentItem[] = []
 ): EnrichedDeliveryItem[] {
   const productBySku = new Map(products.map((p) => [p.sku, p]));
   return plans.map((plan) => {
@@ -167,7 +172,10 @@ export function enrichDeliveryItems(
     const pendingReminders = planReminders.filter((reminder) => isReminderPending(reminder));
     const nextReminder = pendingReminders[0];
     const intelligence = analyzeDeliveryContext(order, customer);
-    const ready = isOrderReady(order, batches);
+    const orderShipments = shipments.filter((shipment) => shipment.order_id === order.id);
+    const orderShipmentItems = shipmentItems.filter((shipmentItem) => shipmentItem.order_id === order.id);
+    const fulfillment = summarizeOrderFulfillment(order, batches, orderShipments, orderShipmentItems);
+    const ready = isOrderReady(order, batches, orderShipments, orderShipmentItems);
     const needsCall = pendingReminders.some((reminder) => reminder.action_type === 'call_client' || reminder.action_type === 'arrange_delivery')
       || intelligence.callReasons.length > 0
       || !!(intelligence.nextNameday && intelligence.nextNameday.days_until <= 7)
@@ -188,7 +196,7 @@ export function enrichDeliveryItems(
     const readiness_detail = not_ready_batches.length > 0 ? { not_ready_batches } : undefined;
 
     // Compute per-shipment readiness and enrich with product data
-    const rawShipmentReadiness = getShipmentReadiness(plan.order_id, batches);
+    const rawShipmentReadiness = getShipmentReadiness(plan.order_id, batches, orderShipments, orderShipmentItems, order);
     const shipment_readiness = {
       ...rawShipmentReadiness,
       shipments: rawShipmentReadiness.shipments.map((s) => ({
@@ -223,6 +231,9 @@ export function enrichDeliveryItems(
     return {
       order,
       customer,
+      fulfillment,
+      shipments: orderShipments,
+      shipment_items: orderShipmentItems,
       plan,
       reminders: planReminders,
       next_reminder: nextReminder,

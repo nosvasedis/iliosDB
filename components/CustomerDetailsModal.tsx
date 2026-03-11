@@ -9,11 +9,13 @@ import { getNextNamedayForName } from '../utils/namedays';
 import { formatGreekDate } from '../utils/deliveryLabels';
 
 const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
+    [OrderStatus.Pending]: '????????',
+    [OrderStatus.InProduction]: '?? ????????',
+    [OrderStatus.PartiallyReady]: '??????? ??????',
+    [OrderStatus.PartiallyShipped]: '??????? ???????????',
+    [OrderStatus.Ready]: '??????',
+    [OrderStatus.Delivered]: '??????????',
+    [OrderStatus.Cancelled]: '?????????',
 };
 
 const getStatusColor = (status: OrderStatus) => {
