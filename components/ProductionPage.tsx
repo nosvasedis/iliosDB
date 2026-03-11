@@ -2214,7 +2214,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     products={products}
                     materials={materials}
                     existingBatches={enhancedBatches.filter(b => b.order_id === quickManageOrder.id)}
-                    onClose={() => setQuickManageOrder(null)}
+                    onClose={() => { setQuickManageOrder(null); setQuickPickerOpen(false); }}
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ['orders'] });
                         queryClient.invalidateQueries({ queryKey: ['batches'] });
