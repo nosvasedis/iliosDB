@@ -1201,8 +1201,9 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         targetStage: ProductionStage;
     } | null>(null);
 
-    // NEW: Sorting State
-    const [sortMode, setSortMode] = useState<'default' | 'customer' | 'newest' | 'oldest'>('default');
+    // NEW: Sorting State - split into grouping and ordering
+    const [groupMode, setGroupMode] = useState<'gender' | 'customer'>('gender');
+    const [sortOrder, setSortOrder] = useState<'alpha' | 'newest' | 'oldest'>('alpha');
     const [quickPickerOpen, setQuickPickerOpen] = useState(false);
     const [quickManageOrder, setQuickManageOrder] = useState<Order | null>(null);
 
@@ -1305,7 +1306,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }, [enhancedBatches, deferredFinderTerm]);
 
     const sortedClients = useMemo(() => {
-        if (sortMode !== 'customer') return [];
+        if (groupMode !== 'customer') return [];
 
         const clientLatestActionMap: Record<string, number> = {};
 
@@ -1320,7 +1321,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         return Object.entries(clientLatestActionMap)
             .sort((a, b) => b[1] - a[1]) // Newest First
             .map(entry => entry[0]);
-    }, [enhancedBatches, sortMode]);
+    }, [enhancedBatches, groupMode]);
 
     const quickPickEntries = useMemo(() => {
         if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
@@ -1703,7 +1704,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         batches.forEach(b => {
             // Determine Level 1 Key
             let level1Key = '';
-            if (sortMode === 'customer') {
+            if (groupMode === 'customer') {
                 level1Key = b.customer_name || 'Χωρίς Πελάτη';
             } else {
                 level1Key = b.product_details?.gender || 'Unknown';
@@ -1726,11 +1727,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         Object.keys(groups).forEach(l1Key => {
             Object.keys(groups[l1Key]).forEach(collKey => {
                 groups[l1Key][collKey].sort((a, b) => {
-                    // Chronological sorting takes precedence if selected
-                    if (sortMode === 'newest' || sortMode === 'oldest') {
+                    // Chronological sorting if selected
+                    if (sortOrder === 'newest' || sortOrder === 'oldest') {
                         const timeA = new Date(a.updated_at).getTime();
                         const timeB = new Date(b.updated_at).getTime();
-                        if (sortMode === 'newest') {
+                        if (sortOrder === 'newest') {
                             return timeB - timeA; // Newest first
                         } else {
                             return timeA - timeB; // Oldest first
@@ -1925,36 +1926,36 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     >
                         <ClipboardList size={20} />
                     </button>
-                    {/* Sorting Dropdown */}
-                    <div className="hidden lg:flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                    {/* Compact Sorting Controls */}
+                    <div className="hidden lg:flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
                         <button
-                            onClick={() => setSortMode('default')}
-                            className={`p-2 rounded-lg transition-all ${sortMode === 'default' ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
-                            title="Προεπιλογή (Κατά Φύλο)"
+                            onClick={() => setGroupMode('gender')}
+                            className={`p-1.5 rounded-md transition-all ${groupMode === 'gender' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="Κατά Φύλο"
                         >
-                            <Palette size={14} />
+                            <Palette size={12} />
                         </button>
                         <button
-                            onClick={() => setSortMode('customer')}
-                            className={`p-2 rounded-lg transition-all ${sortMode === 'customer' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
-                            title="Ταξινόμηση ανά Πελάτη"
+                            onClick={() => setGroupMode('customer')}
+                            className={`p-1.5 rounded-md transition-all ${groupMode === 'customer' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="Ανά Πελάτη"
                         >
-                            <Users size={14} />
+                            <Users size={12} />
                         </button>
-                        <div className="w-px h-4 bg-slate-200" />
+                        <div className="w-px h-3 bg-slate-300 mx-0.5" />
                         <button
-                            onClick={() => setSortMode('newest')}
-                            className={`p-2 rounded-lg transition-all ${sortMode === 'newest' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            onClick={() => setSortOrder(sortOrder === 'newest' ? 'alpha' : 'newest')}
+                            className={`p-1.5 rounded-md transition-all ${sortOrder === 'newest' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Νεότερα Πρώτα"
                         >
-                            <ArrowDown size={14} />
+                            <ArrowDown size={12} />
                         </button>
                         <button
-                            onClick={() => setSortMode('oldest')}
-                            className={`p-2 rounded-lg transition-all ${sortMode === 'oldest' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            onClick={() => setSortOrder(sortOrder === 'oldest' ? 'alpha' : 'oldest')}
+                            className={`p-1.5 rounded-md transition-all ${sortOrder === 'oldest' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Παλαιότερα Πρώτα"
                         >
-                            <ArrowUp size={14} />
+                            <ArrowUp size={12} />
                         </button>
                     </div>
                     <div className="relative group flex-1 min-w-0">
@@ -2148,16 +2149,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                         </div>
                                     )}
 
-                                    {(sortMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
+                                    {(groupMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
                                         const l1Batches = groupedData[level1Key];
                                         if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
 
-                                        const gConfig = sortMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
+                                        const gConfig = groupMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
                                         const collectionKeys = Object.keys(l1Batches).sort();
 
                                         return (
                                             <div key={level1Key} className="space-y-3">
-                                                {sortMode === 'customer' ? (
+                                                {groupMode === 'customer' ? (
                                                     <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
                                                         <span>{level1Key}</span>
                                                         <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
