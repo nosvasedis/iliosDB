@@ -14,6 +14,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
     [OrderStatus.InProduction]: 'Σε Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };

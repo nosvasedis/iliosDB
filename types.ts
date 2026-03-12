@@ -188,6 +188,7 @@ export enum OrderStatus {
   Pending = 'Pending',
   InProduction = 'In Production',
   Ready = 'Ready',
+  PartiallyDelivered = 'Partially Delivered',
   Delivered = 'Delivered',
   Cancelled = 'Cancelled'
 }
@@ -340,6 +341,30 @@ export interface EnrichedDeliveryItem {
   target_date?: string | null;
   window_start?: string | null;
   window_end?: string | null;
+  shipment_history?: OrderShipment[];
+}
+
+// ─── Shipment Tracking ─────────────────────────────────────────────────────
+
+export interface OrderShipment {
+  id: string;
+  order_id: string;
+  shipment_number: number;
+  shipped_at: string;
+  shipped_by: string;
+  delivery_plan_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface OrderShipmentItem {
+  id: string;
+  shipment_id: string;
+  sku: string;
+  variant_suffix?: string | null;
+  size_info?: string | null;
+  quantity: number;
+  price_at_order: number;
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';
@@ -382,7 +407,7 @@ export enum ProductionStage {
   Ready = 'Ready'
 }
 
-export type BatchType = 'Νέα' | 'Φρεσκάρισμα';
+export type BatchType = 'Νέα' | 'Φρεσκάρισμα' | 'Από Stock';
 
 export interface ProductionBatch {
   id: string;

@@ -7,7 +7,7 @@ import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
 import {
     Search, Plus, Loader2, Clock, Package, CheckCircle, Truck, XCircle,
-    ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2
+    ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2, PackageCheck
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 
@@ -21,6 +21,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμής',
     [OrderStatus.InProduction]: 'Σε Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμη',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
@@ -29,6 +30,7 @@ const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
     [OrderStatus.Pending]: <Clock size={12} />,
     [OrderStatus.InProduction]: <Package size={12} />,
     [OrderStatus.Ready]: <CheckCircle size={12} />,
+    [OrderStatus.PartiallyDelivered]: <PackageCheck size={12} />,
     [OrderStatus.Delivered]: <Truck size={12} />,
     [OrderStatus.Cancelled]: <XCircle size={12} />,
 };
@@ -37,6 +39,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'bg-amber-50 text-amber-700 border-amber-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-700 border-blue-200',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
     [OrderStatus.Delivered]: 'bg-slate-800 text-white border-slate-800',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };

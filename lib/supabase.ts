@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -386,6 +386,79 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
     const data = { product_sku: sku, variant_suffix: variantSuffix || null, change_amount: change, reason: reason, created_at: new Date().toISOString() };
     await safeMutate('stock_movements', 'INSERT', data);
 };
+
+/** Check stock availability for order items (pure function, no DB call — reads from in-memory products). */
+export function checkStockForOrderItems(
+    itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string }[],
+    allProducts: Product[]
+): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; requested_qty: number; available_in_stock: number }> {
+    return itemsToSend.map(item => {
+        const product = allProducts.find(p => p.sku === item.sku);
+        if (!product) return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, requested_qty: item.qty, available_in_stock: 0 };
+
+        let available = 0;
+        const variant = item.variant ? product.variants?.find(v => v.suffix === item.variant) : null;
+
+        if (item.size_info) {
+            // Sized item: check stock_by_size
+            const stockBySize = variant?.stock_by_size || (product as any).stock_by_size;
+            if (stockBySize && typeof stockBySize === 'object') {
+                available = stockBySize[item.size_info] || 0;
+            }
+        } else {
+            // Non-sized item: check stock_qty
+            available = variant ? (variant.stock_qty || 0) : (product.stock_qty || 0);
+        }
+
+        return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, requested_qty: item.qty, available_in_stock: Math.max(0, available) };
+    });
+}
+
+/** Deduct stock for items fulfilled from inventory when sending an order to production. */
+export async function deductStockForOrder(
+    orderId: string,
+    items: { sku: string; variant_suffix: string | null; qty: number; size_info?: string | null }[],
+    allProducts: Product[]
+): Promise<void> {
+    for (const item of items) {
+        if (item.qty <= 0) continue;
+        const product = allProducts.find(p => p.sku === item.sku);
+        if (!product) continue;
+
+        const variant = item.variant_suffix ? product.variants?.find(v => v.suffix === item.variant_suffix) : null;
+
+        if (variant) {
+            // Deduct from variant stock
+            const newStockQty = Math.max(0, (variant.stock_qty || 0) - item.qty);
+            const updateData: any = { stock_qty: newStockQty };
+
+            if (item.size_info && variant.stock_by_size && typeof variant.stock_by_size === 'object') {
+                const newBySize = { ...variant.stock_by_size };
+                newBySize[item.size_info] = Math.max(0, (newBySize[item.size_info] || 0) - item.qty);
+                updateData.stock_by_size = newBySize;
+            }
+
+            await safeMutate('product_variants', 'UPDATE', updateData, {
+                match: { product_sku: item.sku, suffix: item.variant_suffix }
+            });
+        } else {
+            // Deduct from master product stock
+            const newStockQty = Math.max(0, (product.stock_qty || 0) - item.qty);
+            const updateData: any = { stock_qty: newStockQty };
+
+            if (item.size_info && (product as any).stock_by_size && typeof (product as any).stock_by_size === 'object') {
+                const newBySize = { ...(product as any).stock_by_size };
+                newBySize[item.size_info] = Math.max(0, (newBySize[item.size_info] || 0) - item.qty);
+                updateData.stock_by_size = newBySize;
+            }
+
+            await safeMutate('products', 'UPDATE', updateData, { match: { sku: item.sku } });
+        }
+
+        // Record movement
+        await recordStockMovement(item.sku, -item.qty, `Εκτέλεση από Stock — Παραγγελία #${orderId.slice(0, 12)}`, item.variant_suffix || undefined);
+    }
+}
 
 export const api = {
     lookupAfm: async (afm: string): Promise<{ name: string; address: string | null; phone: string | null; email: string | null } | null> => {
@@ -969,6 +1042,204 @@ export const api = {
         }, { match: { id: planId }, noSelect: true });
     },
 
+    // ─── Shipment Tracking ─────────────────────────────────────────────────────
+
+    getOrderShipments: async (): Promise<OrderShipment[]> => {
+        return fetchFullTable('order_shipments', '*', (q) => q.order('created_at', { ascending: false }));
+    },
+
+    getOrderShipmentItems: async (shipmentId: string): Promise<OrderShipmentItem[]> => {
+        if (isLocalMode) return [];
+        const { data, error } = await supabase.from('order_shipment_items').select('*').eq('shipment_id', shipmentId);
+        if (error) throw error;
+        return (data || []) as OrderShipmentItem[];
+    },
+
+    getShipmentsForOrder: async (orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> => {
+        if (isLocalMode) return { shipments: [], items: [] };
+        const { data: shipments, error: sErr } = await supabase.from('order_shipments').select('*').eq('order_id', orderId).order('shipment_number', { ascending: true });
+        if (sErr) throw sErr;
+        const shipmentIds = (shipments || []).map((s: any) => s.id);
+        if (shipmentIds.length === 0) return { shipments: (shipments || []) as OrderShipment[], items: [] };
+        const { data: items, error: iErr } = await supabase.from('order_shipment_items').select('*').in('shipment_id', shipmentIds);
+        if (iErr) throw iErr;
+        return { shipments: (shipments || []) as OrderShipment[], items: (items || []) as OrderShipmentItem[] };
+    },
+
+    createPartialShipment: async (params: {
+        orderId: string;
+        orderItems: Array<{ sku: string; variant_suffix?: string; quantity: number; price_at_order: number; size_info?: string }>;
+        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>;
+        shippedBy: string;
+        deliveryPlanId?: string | null;
+        notes?: string | null;
+        allBatches: ProductionBatch[];
+    }): Promise<OrderShipment> => {
+        const now = new Date().toISOString();
+
+        // 1. Compute shipment number
+        const { data: existingShipments } = await supabase.from('order_shipments').select('shipment_number').eq('order_id', params.orderId).order('shipment_number', { ascending: false }).limit(1);
+        const shipmentNumber = (existingShipments && existingShipments.length > 0) ? (existingShipments[0].shipment_number + 1) : 1;
+
+        // 2. Create shipment record
+        const shipmentId = crypto.randomUUID();
+        const shipment: OrderShipment = {
+            id: shipmentId,
+            order_id: params.orderId,
+            shipment_number: shipmentNumber,
+            shipped_at: now,
+            shipped_by: params.shippedBy,
+            delivery_plan_id: params.deliveryPlanId || null,
+            notes: params.notes || null,
+            created_at: now
+        };
+        await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
+
+        // 3. Create shipment item records
+        const shipmentItems: OrderShipmentItem[] = params.items.map(item => ({
+            id: crypto.randomUUID(),
+            shipment_id: shipmentId,
+            sku: item.sku,
+            variant_suffix: item.variant_suffix || null,
+            size_info: item.size_info || null,
+            quantity: item.quantity,
+            price_at_order: item.price_at_order
+        }));
+        if (shipmentItems.length > 0) {
+            await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
+        }
+
+        // 4. Delete or reduce Ready batches that are being shipped
+        const orderBatches = params.allBatches.filter(b => b.order_id === params.orderId);
+        for (const item of params.items) {
+            let remainingToShip = item.quantity;
+            const matchingReadyBatches = orderBatches
+                .filter(b =>
+                    b.sku === item.sku &&
+                    (b.variant_suffix || null) === (item.variant_suffix || null) &&
+                    (b.size_info || null) === (item.size_info || null) &&
+                    b.current_stage === ProductionStage.Ready
+                )
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); // FIFO
+
+            for (const batch of matchingReadyBatches) {
+                if (remainingToShip <= 0) break;
+                if (batch.quantity <= remainingToShip) {
+                    // Delete entire batch
+                    await safeMutate('production_batches', 'DELETE', null, { match: { id: batch.id } });
+                    remainingToShip -= batch.quantity;
+                } else {
+                    // Reduce batch quantity
+                    await safeMutate('production_batches', 'UPDATE', {
+                        quantity: batch.quantity - remainingToShip,
+                        updated_at: now
+                    }, { match: { id: batch.id } });
+                    remainingToShip = 0;
+                }
+            }
+        }
+
+        // 5. Compute remaining: fetch ALL shipments for this order (including the one we just created)
+        const { data: allShipmentsData } = await supabase.from('order_shipment_items')
+            .select('sku, variant_suffix, size_info, quantity, order_shipments!inner(order_id)')
+            .eq('order_shipments.order_id', params.orderId);
+
+        // Build shipped totals map
+        const shippedMap = new Map<string, number>();
+        (allShipmentsData || []).forEach((row: any) => {
+            const key = `${row.sku}::${row.variant_suffix || ''}::${row.size_info || ''}`;
+            shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
+        });
+
+        // Check if all order items are fully shipped
+        let hasRemaining = false;
+        for (const orderItem of params.orderItems) {
+            const key = `${orderItem.sku}::${orderItem.variant_suffix || ''}::${orderItem.size_info || ''}`;
+            const shipped = shippedMap.get(key) || 0;
+            if (shipped < orderItem.quantity) {
+                hasRemaining = true;
+                break;
+            }
+        }
+
+        // 6. Transition order status
+        const newStatus = hasRemaining ? OrderStatus.PartiallyDelivered : OrderStatus.Delivered;
+        await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
+
+        // 7. Handle delivery plan
+        if (params.deliveryPlanId) {
+            await safeMutate('order_delivery_plans', 'UPDATE', {
+                plan_status: 'completed',
+                completed_at: now,
+                updated_at: now
+            }, { match: { id: params.deliveryPlanId }, noSelect: true });
+            // Complete all reminders for this plan
+            await safeMutate('order_delivery_reminders', 'UPDATE', {
+                completed_at: now,
+                updated_at: now
+            }, { match: { plan_id: params.deliveryPlanId }, noSelect: true });
+        }
+
+        // If remaining items exist, auto-create a new delivery plan
+        if (hasRemaining) {
+            const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+            targetDate.setHours(10, 0, 0, 0);
+            const newPlanId = crypto.randomUUID();
+            const newPlan: OrderDeliveryPlan = {
+                id: newPlanId,
+                order_id: params.orderId,
+                plan_status: 'active',
+                planning_mode: 'exact',
+                target_at: targetDate.toISOString(),
+                window_start: null,
+                window_end: null,
+                holiday_anchor: null,
+                holiday_year: null,
+                holiday_offset_days: null,
+                contact_phone_override: null,
+                internal_notes: `Αυτόματο πλάνο για υπόλοιπο παραγγελίας μετά από αποστολή #${shipmentNumber}.`,
+                snoozed_until: null,
+                completed_at: null,
+                cancelled_at: null,
+                created_by: params.shippedBy,
+                updated_by: null,
+                created_at: now,
+                updated_at: now
+            };
+            await safeMutate('order_delivery_plans', 'INSERT', newPlan, { noSelect: true });
+
+            // Create default reminders for the new plan
+            const { buildDefaultReminderDrafts } = await import('../utils/deliveryScheduling');
+            const reminderDrafts = buildDefaultReminderDrafts('exact', targetDate);
+            const reminders: OrderDeliveryReminder[] = reminderDrafts.map((draft, idx) => ({
+                id: crypto.randomUUID(),
+                plan_id: newPlanId,
+                trigger_at: draft.trigger_at,
+                action_type: draft.action_type,
+                reason: draft.reason,
+                sort_order: draft.sort_order,
+                source: draft.source as 'auto' | 'manual',
+                acknowledged_at: null,
+                completed_at: null,
+                completion_note: null,
+                completed_by: null,
+                snoozed_until: null,
+                created_at: now,
+                updated_at: now
+            }));
+            if (reminders.length > 0) {
+                await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
+            }
+        }
+
+        // If fully delivered, also clean up any remaining batches (safety net)
+        if (!hasRemaining) {
+            await safeMutate('production_batches', 'DELETE', null, { match: { order_id: params.orderId } });
+        }
+
+        return shipment;
+    },
+
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order): Promise<void> => {
         await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
@@ -1060,6 +1331,7 @@ export const api = {
             if (status === OrderStatus.Cancelled) planUpdate.cancelled_at = now;
             await safeMutate('order_delivery_plans', 'UPDATE', planUpdate, { match: { order_id: id }, noSelect: true });
         }
+        // PartiallyDelivered must NOT delete batches — remaining items are still in production
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled || status === OrderStatus.Pending) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
         }
@@ -1296,12 +1568,21 @@ export const api = {
     },
 
     // NEW: PARTIAL SEND TO PRODUCTION
-    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[]): Promise<void> => {
+    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[], stockFulfilledItems?: { sku: string, variant: string | null, qty: number, size_info?: string }[]): Promise<void> => {
         if (itemsToSend.length === 0) return;
 
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const batches: any[] = [];
+
+        // Build stock-fulfilled lookup
+        const stockMap = new Map<string, number>();
+        if (stockFulfilledItems) {
+            for (const sf of stockFulfilledItems) {
+                const key = `${sf.sku}::${sf.variant || ''}::${sf.size_info || ''}`;
+                stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
+            }
+        }
 
         for (const item of itemsToSend) {
             if (item.qty <= 0) continue;
@@ -1319,27 +1600,55 @@ export const api = {
             });
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
-            const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-
-            // Check if assembly stage is required based on SKU
+            const normalStage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
             const requires_assembly = requiresAssemblyStage(item.sku);
 
-            batches.push({
-                id: crypto.randomUUID(),
-                order_id: orderId,
-                sku: item.sku,
-                variant_suffix: item.variant || null,
-                quantity: item.qty,
-                current_stage: stage,
-                size_info: item.size_info || null,
-                notes: item.notes || null,
-                priority: 'Normal',
-                type: 'Νέα',
-                requires_setting: hasZircons,
-                requires_assembly,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            });
+            // Check if any of this item's quantity should come from stock
+            const stockKey = `${item.sku}::${item.variant || ''}::${item.size_info || ''}`;
+            const fromStock = stockMap.get(stockKey) || 0;
+            const toProduce = item.qty - fromStock;
+
+            const now = new Date().toISOString();
+
+            // Create Ready batch for stock-fulfilled quantity
+            if (fromStock > 0) {
+                batches.push({
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    sku: item.sku,
+                    variant_suffix: item.variant || null,
+                    quantity: fromStock,
+                    current_stage: ProductionStage.Ready,
+                    size_info: item.size_info || null,
+                    notes: item.notes || null,
+                    priority: 'Normal',
+                    type: 'Από Stock' as BatchType,
+                    requires_setting: hasZircons,
+                    requires_assembly,
+                    created_at: now,
+                    updated_at: now
+                });
+            }
+
+            // Create normal production batch for remaining quantity
+            if (toProduce > 0) {
+                batches.push({
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    sku: item.sku,
+                    variant_suffix: item.variant || null,
+                    quantity: toProduce,
+                    current_stage: normalStage,
+                    size_info: item.size_info || null,
+                    notes: item.notes || null,
+                    priority: 'Normal',
+                    type: 'Νέα',
+                    requires_setting: hasZircons,
+                    requires_assembly,
+                    created_at: now,
+                    updated_at: now
+                });
+            }
         }
 
         if (batches.length > 0) {

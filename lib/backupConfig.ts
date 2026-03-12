@@ -40,6 +40,8 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'orders',                   displayName: 'Orders',                  primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'order_delivery_plans',     displayName: 'Order_Delivery_Plans',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'order_delivery_reminders', displayName: 'Order_Delivery_Reminders',primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
+    { table: 'order_shipments',          displayName: 'Order_Shipments',         primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
+    { table: 'order_shipment_items',     displayName: 'Order_Shipment_Items',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'production_batches',       displayName: 'Production_Batches',      primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'batch_stage_history',      displayName: 'Batch_Stage_History',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false },
 

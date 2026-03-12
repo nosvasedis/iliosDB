@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck } from 'lucide-react';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
@@ -49,6 +49,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
     [OrderStatus.InProduction]: 'Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
@@ -57,6 +58,7 @@ const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={14} />,
     [OrderStatus.InProduction]: <Package size={14} />,
     [OrderStatus.Ready]: <CheckCircle size={14} />,
+    [OrderStatus.PartiallyDelivered]: <PackageCheck size={14} />,
     [OrderStatus.Delivered]: <Truck size={14} />,
     [OrderStatus.Cancelled]: <XCircle size={14} />,
 };
@@ -65,6 +67,7 @@ const STATUS_COLORS = {
     [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-600 border-blue-200',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
     [OrderStatus.Delivered]: 'bg-slate-900 text-white border-slate-900',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
 };

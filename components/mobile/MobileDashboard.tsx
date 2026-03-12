@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Product, GlobalSettings, OrderStatus, Order } from '../../types';
-import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle } from 'lucide-react';
+import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -17,6 +17,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
     [OrderStatus.InProduction]: 'Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
@@ -25,6 +26,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
     [OrderStatus.InProduction]: 'bg-blue-50 text-blue-700 border-blue-100 ring-1 ring-blue-50',
     [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-1 ring-emerald-50',
+    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
     [OrderStatus.Delivered]: 'bg-slate-100 text-slate-400',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-400',
 };
@@ -33,6 +35,7 @@ const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={14} />,
     [OrderStatus.InProduction]: <Package size={14} />,
     [OrderStatus.Ready]: <CheckCircle size={14} />,
+    [OrderStatus.PartiallyDelivered]: <PackageCheck size={14} />,
     [OrderStatus.Delivered]: <Truck size={14} />,
     [OrderStatus.Cancelled]: <XCircle size={14} />,
 };

@@ -101,7 +101,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     const potentialMargin = totalPotentialRevenue - totalCostValue;
     const marginPercent = totalPotentialRevenue > 0 ? (potentialMargin / totalPotentialRevenue) * 100 : 0;
 
-    const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready) || [];
+    const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready || o.status === OrderStatus.PartiallyDelivered) || [];
     const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
     

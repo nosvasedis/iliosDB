@@ -8,12 +8,14 @@ import { api } from '../../lib/supabase';
 import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
 import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getTodayEortologioSummary } from '../../utils/namedays';
+import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
 import DeliveryFilters, { DeliveryFilterKey } from '../deliveries/DeliveryFilters';
 import DeliverySummaryCards from '../deliveries/DeliverySummaryCards';
 import MobilePlannerSheet from '../deliveries/mobile/MobilePlannerSheet';
 import MobileDeliveryDayList from '../deliveries/mobile/MobileDeliveryDayList';
 import MobileDeliveryDetailSheet from '../deliveries/mobile/MobileDeliveryDetailSheet';
+import ShipmentCreationModal from '../deliveries/ShipmentCreationModal';
 
 interface Props {
   pendingOrderId?: string | null;
@@ -45,7 +47,8 @@ function filterItems(items: EnrichedDeliveryItem[], filter: DeliveryFilterKey, s
 export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrderId, onOpenOrder }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
-  const { plansQuery, remindersQuery, ordersQuery, customersQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
+  const { profile } = useAuth();
+  const { plansQuery, remindersQuery, ordersQuery, customersQuery, batchesQuery, productsQuery, enrichedItems, isLoading } = useOrderDeliveryPlans();
   const orthodoxEventsQuery = useOrthodoxCalendarEvents(new Date().getFullYear());
   const { alerts, notificationPermission, requestBrowserPermission } = useDeliveryAlerts(enrichedItems, showToast);
   const [filter, setFilter] = useState<DeliveryFilterKey>('all');
@@ -53,6 +56,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
   const [selectedItem, setSelectedItem] = useState<EnrichedDeliveryItem | null>(null);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
+  const [shipmentItem, setShipmentItem] = useState<EnrichedDeliveryItem | null>(null);
 
   useEffect(() => {
     if (!pendingOrderId || !ordersQuery.data) return;
@@ -90,6 +94,8 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
     queryClient.invalidateQueries({ queryKey: ['order_delivery_reminders'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
+    queryClient.invalidateQueries({ queryKey: ['batches'] });
+    queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
     queryClient.invalidateQueries({ queryKey: ['orthodox_calendar_events'] });
   };
 
@@ -132,6 +138,31 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
   const handleDeletePlan = async (item: EnrichedDeliveryItem) => {
     await api.deleteOrderDeliveryPlan(item.plan.id);
     showToast('Το πλάνο παράδοσης διαγράφηκε.', 'success');
+    setSelectedItem(null);
+    handleRefresh();
+  };
+
+  const handleShipReady = (item: EnrichedDeliveryItem) => {
+    setShipmentItem(item);
+  };
+
+  const handleConfirmShipment = async (
+    items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>,
+    notes: string | null
+  ) => {
+    if (!shipmentItem) return;
+    const order = shipmentItem.order;
+    await api.createPartialShipment({
+      orderId: order.id,
+      orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info })),
+      items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, quantity: i.quantity, price_at_order: i.price_at_order })),
+      shippedBy: profile?.full_name || 'Σύστημα',
+      deliveryPlanId: shipmentItem.plan.id,
+      notes,
+      allBatches: batchesQuery.data || []
+    });
+    showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
+    setShipmentItem(null);
     setSelectedItem(null);
     handleRefresh();
   };
@@ -207,7 +238,20 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
         onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
         onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
+        onShipReady={handleShipReady}
       />
+
+      {shipmentItem && (
+        <ShipmentCreationModal
+          order={shipmentItem.order}
+          batches={batchesQuery.data || []}
+          products={productsQuery.data || []}
+          deliveryPlanId={shipmentItem.plan.id}
+          userName={profile?.full_name || 'Σύστημα'}
+          onConfirm={handleConfirmShipment}
+          onClose={() => setShipmentItem(null)}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
+import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 import { useQueryClient } from '@tanstack/react-query';
@@ -114,6 +115,12 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
     const [searchTerm, setSearchTerm] = useState('');
     const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
+
+    // Stock Decision State
+    const [stockDecision, setStockDecision] = useState<{
+        items: Array<{ sku: string; variant_suffix: string | null; size_info: string | null; requested_qty: number; available_in_stock: number; fromStock: number }>;
+        originalItemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; notes?: string }>;
+    } | null>(null);
 
     // Split Modal State
     const [splitTarget, setSplitTarget] = useState<{ batch: ProductionBatch, maxQty: number } | null>(null);
@@ -361,18 +368,71 @@ export default function ProductionSendModal({ order, products, materials, existi
             return;
         }
 
+        // Check stock availability before sending
+        const stockCheck = checkStockForOrderItems(itemsToSend, products);
+        const hasStock = stockCheck.some(s => s.available_in_stock > 0);
+
+        if (hasStock) {
+            // Show stock decision overlay
+            setStockDecision({
+                items: stockCheck.map(s => ({
+                    ...s,
+                    fromStock: Math.min(s.available_in_stock, s.requested_qty)
+                })),
+                originalItemsToSend: itemsToSend
+            });
+            return;
+        }
+
+        // No stock available — send everything to production directly
+        await executeSend(itemsToSend);
+    };
+
+    const executeSend = async (
+        itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; notes?: string }>,
+        stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null }>
+    ) => {
         setIsSending(true);
         try {
-            await api.sendPartialOrderToProduction(order.id, itemsToSend, products, materials);
+            // Deduct stock first if any items taken from stock
+            if (stockFulfilledItems && stockFulfilledItems.length > 0) {
+                await deductStockForOrder(order.id, stockFulfilledItems, products);
+            }
+
+            await api.sendPartialOrderToProduction(order.id, itemsToSend, products, materials, stockFulfilledItems);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
             await queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await queryClient.invalidateQueries({ queryKey: ['products'] });
             showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών.`, "success");
-            setToSendQuantities({}); // Reset inputs but keep modal open
+            setToSendQuantities({});
+            setStockDecision(null);
         } catch (e) {
             showToast("Σφάλμα κατά την αποστολή.", "error");
         } finally {
             setIsSending(false);
         }
+    };
+
+    const handleConfirmStockDecision = async () => {
+        if (!stockDecision) return;
+
+        const stockFulfilled = stockDecision.items
+            .filter(i => i.fromStock > 0)
+            .map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, qty: i.fromStock, size_info: i.size_info }));
+
+        // Build the production items: reduce qty by fromStock for items partially in stock, remove items fully in stock
+        const productionItems = stockDecision.originalItemsToSend.map(orig => {
+            const match = stockDecision.items.find(s => s.sku === orig.sku && (s.variant_suffix || null) === (orig.variant || null) && (s.size_info || '') === (orig.size_info || ''));
+            if (!match) return orig;
+            const prodQty = orig.qty - match.fromStock;
+            return { ...orig, qty: prodQty };
+        }).filter(i => i.qty > 0);
+
+        // If all items from stock, still pass the original items for status tracking, but with 0 production
+        await executeSend(
+            productionItems.length > 0 ? productionItems : stockDecision.originalItemsToSend.map(i => ({ ...i, qty: 0 })),
+            stockFulfilled
+        );
     };
 
     // --- BATCH MANAGEMENT ACTIONS ---
@@ -1213,6 +1273,97 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <p className="font-bold text-lg">Κανένα είδος σε αυτό το στάδιο.</p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stock Decision Overlay */}
+            {stockDecision && (
+                <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setStockDecision(null)}>
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-5 border-b border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Διαθέσιμο Stock</h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Ορισμένα είδη υπάρχουν ήδη στο απόθεμα. Επιλέξτε πόσα θα ληφθούν από Stock (έτοιμα αμέσως).</p>
+                                </div>
+                                <button onClick={() => setStockDecision(null)} className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 space-y-3 overflow-y-auto max-h-[50vh]">
+                            {stockDecision.items.map((item, idx) => {
+                                const product = products.find(p => p.sku === item.sku);
+                                const hasStock = item.available_in_stock > 0;
+                                return (
+                                    <div key={idx} className={`rounded-2xl border p-4 ${hasStock ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                                        <div className="flex items-center gap-3">
+                                            {product?.image_url ? (
+                                                <img src={product.image_url} alt={item.sku} className="w-10 h-10 rounded-lg object-cover" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center"><Package size={16} className="text-slate-400" /></div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <SkuColored sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} />
+                                                    {item.size_info && <span className="text-xs text-slate-500 font-bold">#{item.size_info}</span>}
+                                                </div>
+                                                <div className="text-xs text-slate-500 font-medium mt-0.5">
+                                                    Ζητούνται: <span className="font-bold text-slate-700">{item.requested_qty}</span> · Stock: <span className={`font-bold ${hasStock ? 'text-emerald-600' : 'text-slate-400'}`}>{item.available_in_stock}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {hasStock && (
+                                            <div className="mt-3 flex items-center gap-3">
+                                                <span className="text-xs font-bold text-emerald-700">Από Stock:</span>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => {
+                                                            const updated = [...stockDecision.items];
+                                                            updated[idx] = { ...updated[idx], fromStock: Math.max(0, updated[idx].fromStock - 1) };
+                                                            setStockDecision({ ...stockDecision, items: updated });
+                                                        }}
+                                                        className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50"
+                                                    >
+                                                        <Minus size={12} />
+                                                    </button>
+                                                    <span className="w-8 text-center text-sm font-black text-slate-800">{item.fromStock}</span>
+                                                    <button
+                                                        onClick={() => {
+                                                            const updated = [...stockDecision.items];
+                                                            const max = Math.min(updated[idx].available_in_stock, updated[idx].requested_qty);
+                                                            updated[idx] = { ...updated[idx], fromStock: Math.min(max, updated[idx].fromStock + 1) };
+                                                            setStockDecision({ ...stockDecision, items: updated });
+                                                        }}
+                                                        className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50"
+                                                    >
+                                                        <Plus size={12} />
+                                                    </button>
+                                                </div>
+                                                <span className="text-xs text-slate-400 font-medium">
+                                                    → {item.requested_qty - item.fromStock} στην Παραγωγή
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-3">
+                            <button onClick={() => {
+                                // Send all to production (ignore stock)
+                                const noStock = stockDecision.originalItemsToSend;
+                                setStockDecision(null);
+                                executeSend(noStock);
+                            }} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                Όλα στην Παραγωγή
+                            </button>
+                            <button onClick={handleConfirmStockDecision} disabled={isSending} className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                Επιβεβαίωση
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, Phone, PhoneCall, Send, Tag, Trash2 } from 'lucide-react';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, PackageCheck, Phone, PhoneCall, Send, Tag, Trash2, Truck, History } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import {
@@ -74,9 +74,10 @@ interface Props {
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
+  onShipReady?: (item: EnrichedDeliveryItem) => void;
 }
 
-export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
+export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder, onShipReady }: Props) {
   if (!item) {
     return (
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm font-medium text-slate-500">
@@ -212,6 +213,25 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
         )}
       </div>
 
+      {item.shipment_history && item.shipment_history.length > 0 && (
+        <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-4 space-y-3">
+          <div className="text-[11px] font-black uppercase tracking-wide text-indigo-700 flex items-center gap-2"><History size={14} /> Ιστορικό Αποστολών</div>
+          {item.shipment_history.map((shipment) => (
+            <div key={shipment.id} className="rounded-xl bg-white border border-indigo-100 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Truck size={14} className="text-indigo-500 shrink-0" />
+                  <span className="text-sm font-black text-slate-800">Αποστολή #{shipment.shipment_number}</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-500">{formatGreekDateTime(shipment.shipped_at)}</span>
+              </div>
+              {shipment.notes && <p className="mt-1.5 text-xs text-slate-500 font-medium">{shipment.notes}</p>}
+              <div className="mt-1.5 text-[10px] text-slate-400 font-medium">Από: {shipment.shipped_by}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {(item.order.notes || item.customer?.notes) && (
         <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 space-y-2">
           <div className="text-[11px] font-black uppercase tracking-wide text-amber-700 flex items-center gap-2"><ClipboardList size={14} /> Σημειώσεις</div>
@@ -253,6 +273,11 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
 
       <div className="flex flex-wrap gap-3">
         <button onClick={() => onEditPlan(item)} className="px-4 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm">Επεξεργασία πλάνου</button>
+        {onShipReady && item.shipment_readiness && (item.shipment_readiness.is_partially_ready || item.shipment_readiness.is_fully_ready) && (
+          <button onClick={() => onShipReady(item)} className="px-4 py-3 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 font-bold text-sm flex items-center gap-2">
+            <Truck size={16} /> Αποστολή Ετοίμων
+          </button>
+        )}
         <button onClick={() => onMarkDelivered(item)} className="px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-sm flex items-center gap-2">
           <CheckCircle2 size={16} /> Σήμανση ως παραδομένη
         </button>

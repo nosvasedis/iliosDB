@@ -185,7 +185,7 @@ const InventoryDetailsModal = ({
         if (orders) {
             orders.forEach(o => {
                 // Only count active orders (Pending/InProduction)
-                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
+                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.PartiallyDelivered) {
                     o.items.forEach(item => {
                         if (item.sku === product.sku) {
                             const key = item.variant_suffix || '';
@@ -393,7 +393,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
         const demandMap: Record<string, number> = {};
         if (orders) {
             orders.forEach(o => {
-                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction) {
+                if (o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.PartiallyDelivered) {
                     o.items.forEach(item => {
                         demandMap[item.sku] = (demandMap[item.sku] || 0) + item.quantity;
                     });

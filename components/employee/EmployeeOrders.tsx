@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { ShoppingCart, Plus, Search, Loader2, ChevronRight, Clock, CheckCircle, Package, Truck, XCircle, CalendarRange } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Loader2, ChevronRight, Clock, CheckCircle, Package, Truck, XCircle, CalendarRange, PackageCheck } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder'; 
@@ -22,6 +22,7 @@ const STATUS_ICONS = {
     [OrderStatus.Pending]: <Clock size={12} />,
     [OrderStatus.InProduction]: <Package size={12} />,
     [OrderStatus.Ready]: <CheckCircle size={12} />,
+    [OrderStatus.PartiallyDelivered]: <PackageCheck size={12} />,
     [OrderStatus.Delivered]: <Truck size={12} />,
     [OrderStatus.Cancelled]: <XCircle size={12} />,
 };
@@ -30,6 +31,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
     [OrderStatus.InProduction]: 'Σε Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };

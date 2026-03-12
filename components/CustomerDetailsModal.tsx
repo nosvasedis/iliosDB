@@ -12,6 +12,7 @@ const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
     [OrderStatus.Pending]: 'Εκκρεμεί',
     [OrderStatus.InProduction]: 'Σε Παραγωγή',
     [OrderStatus.Ready]: 'Έτοιμο',
+    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
     [OrderStatus.Delivered]: 'Παραδόθηκε',
     [OrderStatus.Cancelled]: 'Ακυρώθηκε',
 };
@@ -21,6 +22,7 @@ const getStatusColor = (status: OrderStatus) => {
         case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
         case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
         case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+        case OrderStatus.PartiallyDelivered: return 'bg-amber-50 text-amber-700 border-amber-200';
         case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
         case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
     }
