@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import BatchBuildModal from './BatchBuildModal';
@@ -1202,7 +1202,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     } | null>(null);
 
     // NEW: Sorting State
-    const [isClientCentric, setIsClientCentric] = useState(false);
+    const [sortMode, setSortMode] = useState<'default' | 'customer' | 'newest' | 'oldest'>('default');
     const [quickPickerOpen, setQuickPickerOpen] = useState(false);
     const [quickManageOrder, setQuickManageOrder] = useState<Order | null>(null);
 
@@ -1305,7 +1305,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     }, [enhancedBatches, deferredFinderTerm]);
 
     const sortedClients = useMemo(() => {
-        if (!isClientCentric) return [];
+        if (sortMode !== 'customer') return [];
 
         const clientLatestActionMap: Record<string, number> = {};
 
@@ -1320,7 +1320,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         return Object.entries(clientLatestActionMap)
             .sort((a, b) => b[1] - a[1]) // Newest First
             .map(entry => entry[0]);
-    }, [enhancedBatches, isClientCentric]);
+    }, [enhancedBatches, sortMode]);
 
     const quickPickEntries = useMemo(() => {
         if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
@@ -1703,7 +1703,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         batches.forEach(b => {
             // Determine Level 1 Key
             let level1Key = '';
-            if (isClientCentric) {
+            if (sortMode === 'customer') {
                 level1Key = b.customer_name || 'Χωρίς Πελάτη';
             } else {
                 level1Key = b.product_details?.gender || 'Unknown';
@@ -1722,10 +1722,21 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             groups[level1Key][collName].push(b);
         });
 
-        // Sort batches within groups alphabetically by SKU
+        // Sort batches within groups
         Object.keys(groups).forEach(l1Key => {
             Object.keys(groups[l1Key]).forEach(collKey => {
                 groups[l1Key][collKey].sort((a, b) => {
+                    // Chronological sorting takes precedence if selected
+                    if (sortMode === 'newest' || sortMode === 'oldest') {
+                        const timeA = new Date(a.updated_at).getTime();
+                        const timeB = new Date(b.updated_at).getTime();
+                        if (sortMode === 'newest') {
+                            return timeB - timeA; // Newest first
+                        } else {
+                            return timeA - timeB; // Oldest first
+                        }
+                    }
+                    // Default: sort alphabetically by SKU
                     const fullA = a.sku + (a.variant_suffix || '');
                     const fullB = b.sku + (b.variant_suffix || '');
                     return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
@@ -1914,13 +1925,38 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     >
                         <ClipboardList size={20} />
                     </button>
-                    <button
-                        onClick={() => setIsClientCentric(!isClientCentric)}
-                        className={`hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm ${isClientCentric ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700'}`}
-                        title={isClientCentric ? "Επαναφορά Ταξινόμησης" : "Ταξινόμηση ανά Πελάτη"}
-                    >
-                        <Users size={20} />
-                    </button>
+                    {/* Sorting Dropdown */}
+                    <div className="hidden lg:flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                        <button
+                            onClick={() => setSortMode('default')}
+                            className={`p-2 rounded-lg transition-all ${sortMode === 'default' ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            title="Προεπιλογή (Κατά Φύλο)"
+                        >
+                            <Palette size={14} />
+                        </button>
+                        <button
+                            onClick={() => setSortMode('customer')}
+                            className={`p-2 rounded-lg transition-all ${sortMode === 'customer' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            title="Ταξινόμηση ανά Πελάτη"
+                        >
+                            <Users size={14} />
+                        </button>
+                        <div className="w-px h-4 bg-slate-200" />
+                        <button
+                            onClick={() => setSortMode('newest')}
+                            className={`p-2 rounded-lg transition-all ${sortMode === 'newest' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            title="Νεότερα Πρώτα"
+                        >
+                            <ArrowDown size={14} />
+                        </button>
+                        <button
+                            onClick={() => setSortMode('oldest')}
+                            className={`p-2 rounded-lg transition-all ${sortMode === 'oldest' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                            title="Παλαιότερα Πρώτα"
+                        >
+                            <ArrowUp size={14} />
+                        </button>
+                    </div>
                     <div className="relative group flex-1 min-w-0">
                         <input
                             type="text"
@@ -2112,16 +2148,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                         </div>
                                     )}
 
-                                    {(isClientCentric ? sortedClients : SORTED_GENDERS).map(level1Key => {
+                                    {(sortMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
                                         const l1Batches = groupedData[level1Key];
                                         if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
 
-                                        const gConfig = isClientCentric ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
+                                        const gConfig = sortMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
                                         const collectionKeys = Object.keys(l1Batches).sort();
 
                                         return (
                                             <div key={level1Key} className="space-y-3">
-                                                {isClientCentric ? (
+                                                {sortMode === 'customer' ? (
                                                     <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
                                                         <span>{level1Key}</span>
                                                         <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
