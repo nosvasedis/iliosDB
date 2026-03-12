@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Product, Warehouse, Gender, Material, MaterialType, PlatingType, ProductVariant } from '../../types';
-import { Search, Filter, ImageIcon, Tag, Layers, ChevronLeft, ChevronRight, User, Users, Palette, Gem, Weight, BookOpen, TrendingUp, Coins } from 'lucide-react';
+import { Search, Filter, ImageIcon, Tag, Layers, ChevronLeft, ChevronRight, User, Users, Palette, Gem, Weight, BookOpen, TrendingUp, Coins, Camera } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { formatCurrency, getVariantComponents, calculateProductCost, estimateVariantCost } from '../../utils/pricingEngine';
+import { formatCurrency, getVariantComponents, calculateProductCost, estimateVariantCost, findProductByScannedCode } from '../../utils/pricingEngine';
 import EmployeeProductDetails from './EmployeeProductDetails';
 import { useUI } from '../UIProvider';
+import BarcodeScanner from '../BarcodeScanner';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -143,6 +144,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
     const { data: products, isLoading } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: warehouses } = useQuery<Warehouse[]>({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
     const { data: materials } = useQuery<Material[]>({ queryKey: ['materials'], queryFn: api.getMaterials });
+    const { showToast } = useUI();
     
     const [search, setSearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -152,6 +154,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
         plating: 'all',
     });
     const [showFilters, setShowFilters] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     // Extract categories dynamically
     const categories = useMemo<string[]>(() => {
@@ -216,6 +219,17 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
         return result.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [products, search, selectedCategory, filterGender, subFilters, materials]);
 
+    const handleScan = (code: string) => {
+        if (!products) return;
+        const match = findProductByScannedCode(code, products);
+        if (match) {
+            setSelectedProduct(match.product);
+            setShowScanner(false);
+        } else {
+            showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
+        }
+    };
+
     if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση προϊόντων...</div>;
 
     return (
@@ -233,9 +247,21 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
                             className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
                         />
                     </div>
-                    <button onClick={() => setShowFilters(!showFilters)} className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
-                        <Filter size={20}/>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`p-3 rounded-xl border transition-colors ${showFilters ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            <Filter size={20}/>
+                        </button>
+                        <button
+                            onClick={() => setShowScanner(true)}
+                            className="p-3 rounded-xl border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 transition-colors"
+                            title="Σάρωση κωδικού"
+                        >
+                            <Camera size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -282,7 +308,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 overflow-y-auto pb-20 custom-scrollbar pr-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 overflow-y-auto pb-20 custom-scrollbar pr-2">
                 {filteredProducts.map(p => (
                     <ProductCard key={p.sku} product={p} onClick={() => setSelectedProduct(p)} />
                 ))}
@@ -290,6 +316,13 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
                     <div className="col-span-full text-center py-20 text-slate-400">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
+
+            {showScanner && (
+                <BarcodeScanner
+                    onScan={handleScan}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
 
             {selectedProduct && warehouses && (
                 <EmployeeProductDetails 
