@@ -1,24 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import MobileLayout from './components/mobile/MobileLayout';
-import MobileDashboard from './components/mobile/MobileDashboard';
-import MobileMenu from './components/mobile/MobileMenu';
-import MobileOrders from './components/mobile/MobileOrders';
-import MobileOrderBuilder from './components/mobile/MobileOrderBuilder';
-import MobileProduction from './components/mobile/MobileProduction';
-import MobileInventory from './components/mobile/MobileInventory';
-import MobileProductDetails from './components/mobile/MobileProductDetails';
-import MobileResources from './components/mobile/MobileResources';
-import MobileCustomers from './components/mobile/MobileCustomers';
-import MobileRegistry from './components/mobile/MobileRegistry';
-import MobileAiStudio from './components/mobile/MobileAiStudio';
-import MobileSettings from './components/mobile/MobileSettings';
-import MobilePricing from './components/mobile/MobilePricing';
-import MobileBatchPrint from './components/mobile/MobileBatchPrint';
-import MobileCollections from './components/mobile/MobileCollections';
-import MobilePriceList from './components/mobile/MobilePriceList';
-import MobileOffers from './components/mobile/MobileOffers';
-import MobileDeliveries from './components/mobile/MobileDeliveries';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 import OrderInvoiceView from './components/OrderInvoiceView';
 import OfferPrintView from './components/OfferPrintView';
@@ -33,11 +15,36 @@ import { Loader2 } from 'lucide-react';
 import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder } from './types';
 import { calculateProductCost, transliterateForBarcode } from './utils/pricingEngine';
 
+const MobileDashboard = lazy(() => import('./components/mobile/MobileDashboard'));
+const MobileMenu = lazy(() => import('./components/mobile/MobileMenu'));
+const MobileOrders = lazy(() => import('./components/mobile/MobileOrders'));
+const MobileOrderBuilder = lazy(() => import('./components/mobile/MobileOrderBuilder'));
+const MobileProduction = lazy(() => import('./components/mobile/MobileProduction'));
+const MobileInventory = lazy(() => import('./components/mobile/MobileInventory'));
+const MobileProductDetails = lazy(() => import('./components/mobile/MobileProductDetails'));
+const MobileResources = lazy(() => import('./components/mobile/MobileResources'));
+const MobileCustomers = lazy(() => import('./components/mobile/MobileCustomers'));
+const MobileRegistry = lazy(() => import('./components/mobile/MobileRegistry'));
+const MobileAiStudio = lazy(() => import('./components/mobile/MobileAiStudio'));
+const MobileSettings = lazy(() => import('./components/mobile/MobileSettings'));
+const MobilePricing = lazy(() => import('./components/mobile/MobilePricing'));
+const MobileBatchPrint = lazy(() => import('./components/mobile/MobileBatchPrint'));
+const MobileCollections = lazy(() => import('./components/mobile/MobileCollections'));
+const MobilePriceList = lazy(() => import('./components/mobile/MobilePriceList'));
+const MobileOffers = lazy(() => import('./components/mobile/MobileOffers'));
+const MobileDeliveries = lazy(() => import('./components/mobile/MobileDeliveries'));
+
 interface MobileAppProps {
   isOnline?: boolean;
   isSyncing?: boolean;
   pendingItemsCount?: number;
 }
+
+const MobileContentLoader = () => (
+  <div className="min-h-[240px] w-full flex items-center justify-center bg-slate-50">
+    <Loader2 size={28} className="animate-spin text-emerald-600" />
+  </div>
+);
 
 export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
   const [activePage, setActivePage] = useState('dashboard');
@@ -360,17 +367,21 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         isSyncing={isSyncing}
         pendingCount={pendingItemsCount}
       >
-        {content}
+        <Suspense fallback={<MobileContentLoader />}>
+          {content}
+        </Suspense>
       </MobileLayout>
 
       {/* Overlay for Product Details */}
       {selectedProduct && (
-        <MobileProductDetails
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          warehouses={warehouses}
-          setPrintItems={setPrintItems}
-        />
+        <Suspense fallback={<MobileContentLoader />}>
+          <MobileProductDetails
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            warehouses={warehouses}
+            setPrintItems={setPrintItems}
+          />
+        </Suspense>
       )}
     </>
   );

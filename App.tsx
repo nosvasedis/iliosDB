@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Warehouse,
@@ -54,51 +53,49 @@ import { useCollections } from './hooks/api/useCollections';
 
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateProductCost, estimateVariantCost, transliterateForBarcode } from './utils/pricingEngine';
+import { calculateBusinessStats } from './utils/businessAnalytics';
 import { useIsMobile } from './hooks/useIsMobile';
-import MobileApp from './MobileApp';
-import EmployeeApp from './components/employee/EmployeeApp';
-import SellerApp from './components/seller/SellerApp';
 import { PrintManager } from './components/PrintManager';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 
-// Pages
-import Dashboard from './components/Dashboard';
-import Inventory from './components/Inventory';
-import ProductRegistry from './components/ProductRegistry';
-import PricingManager from './components/PricingManager';
-import SettingsPage from './components/SettingsPage';
-import MaterialsPage from './components/MaterialsPage';
-import MoldsPage from './components/MoldsPage';
-import CollectionsPage from './components/CollectionsPage';
-import BarcodeView from './components/BarcodeView';
-import BatchPrintPage from './components/BatchPrintPage';
-import OrdersPage from './components/OrdersPage';
-import ProductionPage from './components/ProductionPage';
-import CustomersPage from './components/CustomersPage';
-import SuppliersPage from './components/SuppliersPage';
-import AiStudio from './components/AiStudio';
-import OrderInvoiceView from './components/OrderInvoiceView';
-import ProductionWorkerView from './components/ProductionWorkerView';
-import AggregatedProductionView from './components/AggregatedProductionView';
-import PreparationView from './components/PreparationView';
-import TechnicianView from './components/TechnicianView';
 import SetupScreen from './components/SetupScreen';
-import PriceListPage from './components/PriceListPage';
-import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
-import AnalyticsView, { calculateBusinessStats } from './components/AnalyticsView';
 import AnalyticsPrintReport from './components/AnalyticsPrintReport';
-import OffersPage from './components/OffersPage';
-import DeliveriesPage from './components/DeliveriesPage';
-import OfferPrintView from './components/OfferPrintView';
 import OrderFinancialReport from './components/OrderFinancialReport';
-import SupplierOrderPrintView from './components/SupplierOrderPrintView';
 import { PrintProvider, usePrint } from './components/PrintContext';
 import { useDeliveryNavBadge } from './hooks/api/useOrderDeliveryPlans';
+import type { PriceListPrintData } from './components/PriceListPrintView';
+
+const MobileApp = lazy(() => import('./MobileApp'));
+const EmployeeApp = lazy(() => import('./components/employee/EmployeeApp'));
+const SellerApp = lazy(() => import('./components/seller/SellerApp'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Inventory = lazy(() => import('./components/Inventory'));
+const ProductRegistry = lazy(() => import('./components/ProductRegistry'));
+const PricingManager = lazy(() => import('./components/PricingManager'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const MaterialsPage = lazy(() => import('./components/MaterialsPage'));
+const MoldsPage = lazy(() => import('./components/MoldsPage'));
+const CollectionsPage = lazy(() => import('./components/CollectionsPage'));
+const BatchPrintPage = lazy(() => import('./components/BatchPrintPage'));
+const OrdersPage = lazy(() => import('./components/OrdersPage'));
+const ProductionPage = lazy(() => import('./components/ProductionPage'));
+const CustomersPage = lazy(() => import('./components/CustomersPage'));
+const SuppliersPage = lazy(() => import('./components/SuppliersPage'));
+const AiStudio = lazy(() => import('./components/AiStudio'));
+const PriceListPage = lazy(() => import('./components/PriceListPage'));
+const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
+const OffersPage = lazy(() => import('./components/OffersPage'));
+const DeliveriesPage = lazy(() => import('./components/DeliveriesPage'));
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries';
 
-
+const ContentLoader = () => (
+  <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
+    <Loader2 size={36} className="animate-spin mb-3 text-amber-500" />
+    <p className="font-medium">Φόρτωση ενότητας...</p>
+  </div>
+);
 
 function AuthGuard({ children }: { children?: React.ReactNode }) {
   const { session, loading, profile, signOut, refreshProfile } = useAuth();
@@ -283,58 +280,66 @@ function AppContent() {
   // 1. Store Clerk ('user') -> Employee App
   if (profile?.role === 'user') {
     return (
-      <>
-        <PrintManager
-          settings={settings}
-          products={products}
-          materials={materials}
-          molds={molds}
-          printItems={printItems}
-          orderToPrint={orderToPrint}
-          offerToPrint={offerToPrint}
-          supplierOrderToPrint={supplierOrderToPrint}
-          batchToPrint={batchToPrint}
-          aggregatedPrintData={aggregatedPrintData}
-          preparationPrintData={preparationPrintData}
-          technicianPrintData={technicianPrintData}
-          assemblyPrintData={assemblyPrintData}
-          priceListPrintData={priceListPrintData}
-          analyticsPrintData={analyticsPrintData}
-          orderAnalyticsData={orderAnalyticsData}
-          photoCatalogPrintData={photoCatalogPrintData}
-          setPrintItems={setPrintItems}
-          setOrderToPrint={setOrderToPrint}
-          setOfferToPrint={setOfferToPrint}
-          setSupplierOrderToPrint={setSupplierOrderToPrint}
-          setBatchToPrint={setBatchToPrint}
-          setAggregatedPrintData={setAggregatedPrintData}
-          setPreparationPrintData={setPreparationPrintData}
-          setTechnicianPrintData={setTechnicianPrintData}
-          setAssemblyPrintData={setAssemblyPrintData}
-          setPriceListPrintData={setPriceListPrintData}
-          setAnalyticsPrintData={setAnalyticsPrintData}
-          setOrderAnalyticsData={setOrderAnalyticsData}
-          setPhotoCatalogPrintData={setPhotoCatalogPrintData}
-        />
-        <EmployeeApp setPrintItems={setPrintItems} />
-      </>
+      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+        <>
+          <PrintManager
+            settings={settings}
+            products={products}
+            materials={materials}
+            molds={molds}
+            printItems={printItems}
+            orderToPrint={orderToPrint}
+            offerToPrint={offerToPrint}
+            supplierOrderToPrint={supplierOrderToPrint}
+            batchToPrint={batchToPrint}
+            aggregatedPrintData={aggregatedPrintData}
+            preparationPrintData={preparationPrintData}
+            technicianPrintData={technicianPrintData}
+            assemblyPrintData={assemblyPrintData}
+            priceListPrintData={priceListPrintData}
+            analyticsPrintData={analyticsPrintData}
+            orderAnalyticsData={orderAnalyticsData}
+            photoCatalogPrintData={photoCatalogPrintData}
+            setPrintItems={setPrintItems}
+            setOrderToPrint={setOrderToPrint}
+            setOfferToPrint={setOfferToPrint}
+            setSupplierOrderToPrint={setSupplierOrderToPrint}
+            setBatchToPrint={setBatchToPrint}
+            setAggregatedPrintData={setAggregatedPrintData}
+            setPreparationPrintData={setPreparationPrintData}
+            setTechnicianPrintData={setTechnicianPrintData}
+            setAssemblyPrintData={setAssemblyPrintData}
+            setPriceListPrintData={setPriceListPrintData}
+            setAnalyticsPrintData={setAnalyticsPrintData}
+            setOrderAnalyticsData={setOrderAnalyticsData}
+            setPhotoCatalogPrintData={setPhotoCatalogPrintData}
+          />
+          <EmployeeApp setPrintItems={setPrintItems} />
+        </>
+      </Suspense>
     );
   }
 
   // 2. Seller ('seller') -> Seller App (NEW)
   if (profile?.role === 'seller') {
-    return <SellerApp />;
+    return (
+      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+        <SellerApp />
+      </Suspense>
+    );
   }
 
   // 3. Admin Logic
   if (profile?.role === 'admin') {
     if (isMobile) {
       return (
-        <MobileApp
-          isOnline={isOnline}
-          isSyncing={isSyncing}
-          pendingItemsCount={pendingItems.length}
-        />
+        <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+          <MobileApp
+            isOnline={isOnline}
+            isSyncing={isSyncing}
+            pendingItemsCount={pendingItems.length}
+          />
+        </Suspense>
       );
     }
 
@@ -550,6 +555,7 @@ function AppContent() {
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <Suspense fallback={<ContentLoader />}>
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
@@ -618,6 +624,7 @@ function AppContent() {
               {activePage === 'ai-studio' && <AiStudio />}
               {activePage === 'pricelist' && <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />}
               {activePage === 'offers' && <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />}
+              </Suspense>
             </div>
           </div>
         </main>

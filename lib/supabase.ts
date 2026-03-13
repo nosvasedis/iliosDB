@@ -5,7 +5,7 @@ import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../cons
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
 import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEYS, BackupEnvelope, BackupMeta, ProgressCallback, RestoreOptions, RestoreResult } from './backupConfig';
-import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
+import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -1200,7 +1200,6 @@ export const api = {
                 created_at: now,
                 updated_at: now
             };
-            const { buildDefaultReminderDrafts } = await import('../utils/deliveryScheduling');
             const reminderDrafts = buildDefaultReminderDrafts('exact', targetDate);
             nextPlanReminders = reminderDrafts.map((draft) => ({
                 id: crypto.randomUUID(),

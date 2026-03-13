@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { api, deleteProduct } from '../../lib/supabase';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { Product } from '../../types';
 
@@ -36,7 +36,7 @@ export const useDeleteProduct = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: ({ sku, imageUrl }: { sku: string, imageUrl?: string | null }) =>
-            import('../../lib/supabase').then(m => m.deleteProduct(sku, imageUrl)),
+            deleteProduct(sku, imageUrl),
         onSuccess: () => {
             invalidateProductsAndCatalog(queryClient);
         }

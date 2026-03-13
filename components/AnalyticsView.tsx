@@ -1,8 +1,8 @@
 
 import React, { useMemo } from 'react';
-import { Order, Product, OrderStatus, Gender, MaterialType, GlobalSettings } from '../types';
+import { Order, Product, OrderStatus, Gender, GlobalSettings } from '../types';
 import { useQuery } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { api } from '../lib/supabase';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area, ComposedChart, Line
@@ -14,7 +14,8 @@ import {
     HelpCircle, BarChart3, FileText, ChevronRight, Calculator, Hash, Coins,
     Target
 } from 'lucide-react';
-import { formatCurrency, formatDecimal, calculateProductCost } from '../utils/pricingEngine';
+import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { calculateBusinessStats } from '../utils/businessAnalytics';
 import { APP_LOGO } from '../constants';
 
 interface Props {
@@ -24,177 +25,6 @@ interface Props {
 }
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
-
-export const calculateBusinessStats = (orders: Order[], products: Product[], materials: any[], globalSettings: GlobalSettings) => {
-    if (!orders || !products || !materials || !globalSettings) return null;
-
-    const validOrders = orders.filter(o => o.status !== OrderStatus.Cancelled);
-    const isSingleOrder = validOrders.length === 1;
-
-    let totalRevenue = 0;
-    let totalProfit = 0;
-    let totalCost = 0;
-    let silverSoldWeight = 0;
-    let stonesSold = 0;
-
-    // Performance Optimization: O(1) Lookups
-    const productsMap = new Map(products.map(p => [p.sku, p]));
-    const materialsMap = new Map(materials.map(m => [m.id, m]));
-
-    // Breakdown
-    let silverCostSum = 0;
-    let laborCostSum = 0;
-    let materialCostSum = 0;
-    let totalItemsSold = 0;
-
-    const categoryStats: Record<string, { name: string, revenue: number, profit: number, cost: number }> = {};
-    const salesOverTime: Record<string, { revenue: number, profit: number }> = {};
-    const customerRanking: Record<string, { name: string, revenue: number, orders: number }> = {};
-    const skuRanking: Record<string, { sku: string, qty: number, revenue: number, img: string | null }> = {};
-
-    // Detailed Item Breakdown (For Single Order Print)
-    const itemsBreakdown: any[] = [];
-
-    validOrders.forEach(order => {
-        // DETERMINE EFFECTIVE SETTINGS FOR COSTING
-        // If order has a custom rate (locked from Offer), use it. Otherwise use current global.
-        const orderSilverPrice = order.custom_silver_rate || globalSettings.silver_price_gram;
-        const effectiveSettings = { ...globalSettings, silver_price_gram: orderSilverPrice };
-
-        const shouldRankCustomer = !(order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME);
-        const cKey = order.customer_id || order.customer_name;
-        if (shouldRankCustomer) {
-            if (!customerRanking[cKey]) customerRanking[cKey] = { name: order.customer_name, revenue: 0, orders: 0 };
-            customerRanking[cKey].orders += 1;
-        }
-
-        // Time Grouping (Monthly)
-        const date = new Date(order.created_at);
-        const monthKey = date.toLocaleDateString('el-GR', { month: 'short', year: '2-digit' }); // e.g. "Ιαν 25"
-        if (!salesOverTime[monthKey]) salesOverTime[monthKey] = { revenue: 0, profit: 0 };
-
-        // Discount Factor
-        const discountFactor = 1 - ((order.discount_percent || 0) / 100);
-
-        // Is this an active/pending order? If so, we use Live Prices to match Dashboard Overview
-        const isActiveOrder = order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled;
-
-        order.items.forEach(item => {
-            totalItemsSold += item.quantity;
-            const product = products.find(p => p.sku === item.sku);
-
-            // --- REVENUE CALCULATION LOGIC ---
-            // If active order: Use Current Registry Price (Simulate current value)
-            // If delivered: Use Frozen Order Price (Historical accuracy)
-            let unitPrice = item.price_at_order;
-
-            if (isActiveOrder && product) {
-                if (item.variant_suffix) {
-                    const v = product.variants?.find(v => v.suffix === item.variant_suffix);
-                    if (v && (v.selling_price || 0) > 0) unitPrice = v.selling_price!;
-                } else {
-                    if (product.selling_price > 0) unitPrice = product.selling_price;
-                }
-            }
-
-            // Revenue = (Unit Price * Qty) * Discount
-            const revenue = (unitPrice * item.quantity) * discountFactor;
-            totalRevenue += revenue;
-
-            // ACCURATE COST CALCULATION (Using Effective Silver Price)
-            // Note: Cost is calculated live based on current materials/silver for analysis purposes
-            const costResult = product ? calculateProductCost(product, effectiveSettings, materials, products, 0, new Set(), undefined, productsMap, materialsMap) : { total: 0, breakdown: { silver: 0, labor: 0, materials: 0 } };
-            const unitCost = costResult.total;
-
-            const lineCost = unitCost * item.quantity;
-            const profit = revenue - lineCost;
-            const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-
-            totalProfit += profit;
-            totalCost += lineCost;
-
-            // Collect detailed breakdown for single order analysis
-            if (isSingleOrder) {
-                itemsBreakdown.push({
-                    sku: item.sku,
-                    variant: item.variant_suffix,
-                    quantity: item.quantity,
-                    revenue,
-                    cost: lineCost,
-                    profit,
-                    margin
-                });
-            }
-
-            // Add profit/revenue to time grouping
-            salesOverTime[monthKey].profit += profit;
-            salesOverTime[monthKey].revenue += revenue;
-
-            // Add to customer ranking
-            if (shouldRankCustomer) {
-                customerRanking[cKey].revenue += revenue;
-            }
-
-            // Breakdown sums using the detailed cost result from pricing engine
-            silverCostSum += (costResult.breakdown.silver * item.quantity);
-            materialCostSum += (costResult.breakdown.materials * item.quantity);
-            laborCostSum += (costResult.breakdown.labor * item.quantity);
-
-            if (product) {
-                const w = product.weight_g + (product.secondary_weight_g || 0);
-                silverSoldWeight += (w * item.quantity);
-
-                product.recipe.forEach(ri => {
-                    if (ri.type === 'raw') {
-                        const mat = materials.find(m => m.id === ri.id);
-                        if (mat?.type === MaterialType.Stone) stonesSold += (ri.quantity * item.quantity);
-                    }
-                });
-
-                const mainCat = product.category.split(' ')[0];
-                if (!categoryStats[mainCat]) categoryStats[mainCat] = { name: mainCat, revenue: 0, profit: 0, cost: 0 };
-                categoryStats[mainCat].revenue += revenue;
-                categoryStats[mainCat].profit += profit;
-                categoryStats[mainCat].cost += lineCost;
-
-                const sKey = item.sku + (item.variant_suffix || '');
-                if (!skuRanking[sKey]) skuRanking[sKey] = { sku: sKey, qty: 0, revenue: 0, img: product.image_url };
-                skuRanking[sKey].qty += item.quantity;
-                skuRanking[sKey].revenue += revenue;
-            }
-        });
-    });
-
-    const categoryChartData = Object.values(categoryStats).sort((a, b) => b.revenue - a.revenue);
-    const timeChartData = Object.entries(salesOverTime).map(([name, val]) => ({ name, revenue: val.revenue, profit: val.profit }));
-    const topCustomers = Object.values(customerRanking).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-    const topSkus = Object.values(skuRanking).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-
-    return {
-        isSingleOrder,
-        totalRevenue,
-        totalProfit,
-        totalCost,
-        totalItems: totalItemsSold,
-        avgOrderValue: validOrders.length > 0 ? totalRevenue / validOrders.length : 0,
-        avgBasketSize: validOrders.length > 0 ? totalItemsSold / validOrders.length : 0,
-        cogsPercent: totalRevenue > 0 ? (totalCost / totalRevenue) * 100 : 0,
-        orderCount: validOrders.length,
-        avgMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
-        silverSoldKg: silverSoldWeight / 1000,
-        stonesSold,
-        costBreakdown: {
-            silver: silverCostSum,
-            labor: laborCostSum,
-            materials: materialCostSum
-        },
-        categoryChartData,
-        timeChartData,
-        topCustomers,
-        topSkus,
-        itemsBreakdown: isSingleOrder ? itemsBreakdown : undefined
-    };
-};
 
 export default function AnalyticsView({ products, onBack, onPrint }: Props) {
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
