@@ -1514,7 +1514,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         try {
             await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
             await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
-            await invalidateOrdersAndBatches(queryClient);
+            void invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
         } catch (e: any) {
             console.error("Move failure:", e);
@@ -1544,7 +1544,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             try {
                 await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 showToast('Η παρτίδα μετακινήθηκε.', 'success');
             } catch (e: any) {
                 showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -1597,7 +1597,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 await api.logAction(profile?.full_name || 'System', 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
-            await invalidateOrdersAndBatches(queryClient);
+            void invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
             setSplitModalState(null);
 
@@ -1621,7 +1621,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             try {
                 await api.deleteProductionBatch(batch.id);
                 await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παρτίδας', { sku: batch.sku, quantity: batch.quantity });
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 showToast("Η παρτίδα διαγράφηκε.", "success");
             } catch (e) {
                 showToast("Σφάλμα κατά τη διαγραφή.", "error");
@@ -1832,7 +1832,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 await api.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
             }));
-            await invalidateOrdersAndBatches(queryClient);
+            void invalidateOrdersAndBatches(queryClient);
             showToast(`${labelingBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
         } catch (e: any) {
             console.error("Complete all failure:", e);

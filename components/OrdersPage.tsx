@@ -610,7 +610,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         if (yes) {
             try {
                 await api.revertOrderFromProduction(orderId);
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
             } catch (err: any) {
@@ -631,7 +631,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.updateOrderStatus(orderId, OrderStatus.Cancelled);
                 await api.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία ακυρώθηκε.', 'info');
             } catch (err: any) {
@@ -652,7 +652,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.deleteOrder(orderId);
                 await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία διαγράφηκε οριστικά.', 'success');
             } catch (err: any) {
@@ -672,7 +672,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.updateOrderStatus(order.id, OrderStatus.Delivered);
                 await api.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
-                await invalidateOrdersAndBatches(queryClient);
+                void invalidateOrdersAndBatches(queryClient);
                 if (managingOrder?.id === order.id) setManagingOrder(null);
                 showToast("Η παραγγελία ολοκληρώθηκε επιτυχώς!", "success");
             } catch (e) {
@@ -697,7 +697,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 notes,
                 allBatches: batches || []
             });
-            await invalidateOrdersAndBatches(queryClient);
+            void invalidateOrdersAndBatches(queryClient);
             showToast(`Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`, 'success');
             setShipmentModalOrder(null);
         } catch (e) {
