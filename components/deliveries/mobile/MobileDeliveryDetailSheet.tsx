@@ -14,6 +14,7 @@ interface Props {
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
   onShipReady?: (item: EnrichedDeliveryItem) => void;
+  loadingReminders: Set<string>;
 }
 
 export default function MobileDeliveryDetailSheet(props: Props) {
@@ -37,6 +38,7 @@ export default function MobileDeliveryDetailSheet(props: Props) {
           onCompleteReminder={props.onCompleteReminder}
           onSnoozeReminder={props.onSnoozeReminder}
           onShipReady={props.onShipReady}
+          loadingReminders={props.loadingReminders}
         />
       </div>
     </div>

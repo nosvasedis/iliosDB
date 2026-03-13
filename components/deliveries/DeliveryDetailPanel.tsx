@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Package, PackageCheck, Phone, PhoneCall, Send, Tag, Trash2, Truck, History } from 'lucide-react';
+import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Loader2, Package, PackageCheck, Phone, PhoneCall, Send, Tag, Trash2, Truck, History } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import {
@@ -75,9 +75,10 @@ interface Props {
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
   onShipReady?: (item: EnrichedDeliveryItem) => void;
+  loadingReminders: Set<string>;
 }
 
-export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder, onShipReady }: Props) {
+export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onMarkDelivered, onDeletePlan, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder, onShipReady, loadingReminders }: Props) {
   if (!item) {
     return (
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 text-sm font-medium text-slate-500">
@@ -263,8 +264,10 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                     <Phone size={14} /> Κλήση πελάτη
                   </a>
                 )}
-                <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">Αναβολή</button>
-                <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white">Ολοκλήρωσα</button>
+                <button onClick={() => onSnoozeReminder(reminder)} disabled={loadingReminders.has(reminder.id)} className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 disabled:opacity-50">Αναβολή</button>
+                <button onClick={() => onCompleteReminder(reminder)} disabled={loadingReminders.has(reminder.id)} className="px-3 py-2 rounded-xl text-xs font-bold bg-[#060b00] text-white disabled:opacity-50 flex items-center gap-1.5">
+                  {loadingReminders.has(reminder.id) ? <Loader2 size={14} className="animate-spin" /> : null} Ολοκλήρωσα
+                </button>
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CheckCircle2, PauseCircle, Phone } from 'lucide-react';
+import { BellRing, CheckCircle2, Loader2, PauseCircle, Phone } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
 import { DELIVERY_ACTION_LABELS, formatGreekDateTime, getOrderDisplayName } from '../../utils/deliveryLabels';
 import { getReminderUrgency } from '../../utils/deliveryScheduling';
@@ -13,9 +13,10 @@ interface Props {
   onAcknowledgeReminder: (reminder: OrderDeliveryReminder) => void;
   onCompleteReminder: (reminder: OrderDeliveryReminder) => void;
   onSnoozeReminder: (reminder: OrderDeliveryReminder) => void;
+  loadingReminders: Set<string>;
 }
 
-export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder }: Props) {
+export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeReminder, onCompleteReminder, onSnoozeReminder, loadingReminders }: Props) {
   const alerts = items.flatMap((item) => item.pending_reminders.map((reminder) => ({ item, reminder })))
     .filter(({ reminder }) => ['overdue', 'today', 'soon'].includes(getReminderUrgency(reminder)))
     .sort((a, b) => new Date(a.reminder.trigger_at).getTime() - new Date(b.reminder.trigger_at).getTime());
@@ -66,11 +67,11 @@ export default function DeliveryAlertRail({ items, onSelectItem, onAcknowledgeRe
                   <Phone size={14} /> Κλήση
                 </a>
               )}
-              <button onClick={() => onSnoozeReminder(reminder)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
+              <button onClick={() => onSnoozeReminder(reminder)} disabled={loadingReminders.has(reminder.id)} className="px-3 py-2 rounded-xl bg-white text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5 disabled:opacity-50">
                 <PauseCircle size={14} /> Αναβολή
               </button>
-              <button onClick={() => onCompleteReminder(reminder)} className="px-3 py-2 rounded-xl bg-[#060b00] text-white text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 size={14} /> Ολοκλήρωσα
+              <button onClick={() => onCompleteReminder(reminder)} disabled={loadingReminders.has(reminder.id)} className="px-3 py-2 rounded-xl bg-[#060b00] text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50">
+                {loadingReminders.has(reminder.id) ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Ολοκλήρωσα
               </button>
             </div>
           </div>

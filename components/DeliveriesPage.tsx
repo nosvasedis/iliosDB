@@ -63,6 +63,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
   const [shipmentItem, setShipmentItem] = useState<EnrichedDeliveryItem | null>(null);
+  const [loadingReminders, setLoadingReminders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!pendingOrderId || !ordersQuery.data) return;
@@ -134,10 +135,19 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   const handleReminderAction = async (reminder: OrderDeliveryReminder, action: 'ack' | 'complete' | 'snooze') => {
-    if (action === 'ack') await api.acknowledgeDeliveryReminder(reminder.id);
-    if (action === 'complete') await api.completeDeliveryReminder(reminder.id);
-    if (action === 'snooze') await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + (60 * 60 * 1000)).toISOString());
-    handleRefresh();
+    setLoadingReminders(prev => new Set(prev).add(reminder.id));
+    try {
+      if (action === 'ack') await api.acknowledgeDeliveryReminder(reminder.id);
+      if (action === 'complete') await api.completeDeliveryReminder(reminder.id);
+      if (action === 'snooze') await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + (60 * 60 * 1000)).toISOString());
+      handleRefresh();
+    } finally {
+      setLoadingReminders(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reminder.id);
+        return newSet;
+      });
+    }
   };
 
   const handleMarkDelivered = async (item: EnrichedDeliveryItem) => {
@@ -242,6 +252,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
             onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
             onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
+            loadingReminders={loadingReminders}
           />
           <DeliveryDetailPanel
             item={selectedItem}
@@ -253,6 +264,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
             onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
             onShipReady={handleShipReady}
+            loadingReminders={loadingReminders}
           />
         </div>
       </div>
