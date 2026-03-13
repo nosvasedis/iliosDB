@@ -222,9 +222,15 @@ function AppContent() {
       if (count === 0) return;
       setIsSyncing(true);
       try {
-        const synced = await api.syncOfflineData();
-        if (synced > 0) {
-          showToast(`Συγχρονίστηκαν ${synced} αλλαγές!`, "success");
+        const result = await api.syncOfflineData();
+        if (result.syncedCount > 0 && result.remainingCount === 0) {
+          showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές!`, "success");
+          queryClient.invalidateQueries();
+        } else if (result.syncedCount > 0 && result.remainingCount > 0) {
+          showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, "info");
+          queryClient.invalidateQueries();
+        } else if (!result.wasQueueEmpty && result.remainingCount > 0) {
+          showToast(`Ο συγχρονισμός ολοκληρώθηκε με εκκρεμότητες. Απομένουν ${result.remainingCount} αλλαγές στην ουρά.`, "info");
           queryClient.invalidateQueries();
         }
         await checkQueue();

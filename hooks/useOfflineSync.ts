@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '../lib/supabase';
+import { api, isLocalMode } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 
 export type SyncStatus = 'online' | 'offline' | 'syncing' | 'pending' | 'error';
@@ -15,12 +15,17 @@ interface OfflineSyncState {
 export function useOfflineSync(): OfflineSyncState {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingCount, setPendingCount] = useState(0);
-    const [syncStatus, setSyncStatus] = useState<SyncStatus>(navigator.onLine ? 'online' : 'offline');
+    const [syncStatus, setSyncStatus] = useState<SyncStatus>(isLocalMode ? 'online' : (navigator.onLine ? 'online' : 'offline'));
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const isSyncing = useRef(false);
 
     // Poll pending queue count every 5s
     const refreshPendingCount = useCallback(async () => {
+        if (isLocalMode) {
+            setPendingCount(0);
+            setSyncStatus('online');
+            return;
+        }
         try {
             const count = await offlineDb.getQueueCount();
             setPendingCount(count);
@@ -33,13 +38,14 @@ export function useOfflineSync(): OfflineSyncState {
     }, []);
 
     const triggerSync = useCallback(async () => {
-        if (isSyncing.current || !navigator.onLine) return;
+        if (isLocalMode || isSyncing.current || !navigator.onLine) return;
         isSyncing.current = true;
         setSyncStatus('syncing');
         try {
-            const synced = await api.syncOfflineData();
+            const result = await api.syncOfflineData();
             await refreshPendingCount();
-            if (synced > 0) setLastSyncedAt(new Date());
+            if (result.syncedCount > 0) setLastSyncedAt(new Date());
+            if (result.remainingCount > 0) setSyncStatus(result.syncedCount > 0 ? 'pending' : 'error');
         } catch {
             setSyncStatus('error');
         } finally {
@@ -51,6 +57,10 @@ export function useOfflineSync(): OfflineSyncState {
     useEffect(() => {
         const handleOnline = () => {
             setIsOnline(true);
+            if (isLocalMode) {
+                setSyncStatus('online');
+                return;
+            }
             setSyncStatus('syncing');
             // Small delay so the network is truly ready
             setTimeout(() => triggerSync(), 1500);
@@ -70,6 +80,7 @@ export function useOfflineSync(): OfflineSyncState {
 
     // Listen for sync-error events dispatched by syncOfflineData
     useEffect(() => {
+        if (isLocalMode) return;
         const handleSyncError = () => setSyncStatus('error');
         window.addEventListener('ilios-sync-error', handleSyncError);
         return () => window.removeEventListener('ilios-sync-error', handleSyncError);
@@ -84,6 +95,7 @@ export function useOfflineSync(): OfflineSyncState {
 
     // On mount: if online and queue has items, sync immediately
     useEffect(() => {
+        if (isLocalMode) return;
         if (navigator.onLine) {
             offlineDb.getQueueCount().then(count => {
                 if (count > 0) triggerSync();

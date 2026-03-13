@@ -152,8 +152,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                   <div className="font-black text-slate-900 text-sm">{item.sku}{item.variant_suffix ? <span className="text-slate-400 font-bold ml-1">{item.variant_suffix}</span> : null}</div>
                   <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
                     {item.size_info && <span className="font-bold">#{item.size_info}</span>}
-                    {finish.label && <span>{finish.label}</span>}
-                    {stone.label && <span>{stone.label}</span>}
+                    {finish.name && <span>{finish.name}</span>}
+                    {stone.name && <span>{stone.name}</span>}
                   </div>
                   <div className="text-xs text-emerald-600 font-bold mt-1 flex items-center gap-1">
                     <CheckCircle2 size={12} /> Έτοιμα: {item.quantity} τεμ. — {formatCurrency(price)}/τεμ.

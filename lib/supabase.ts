@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -287,6 +287,37 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     });
 
     return mergedData;
+}
+
+const buildShipmentItemKey = (sku: string, variantSuffix?: string | null, sizeInfo?: string | null) =>
+    `${sku}::${variantSuffix || ''}::${sizeInfo || ''}`;
+
+async function getOrderShipmentsSnapshot(orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> {
+    const [shipments, items] = await Promise.all([
+        fetchFullTable('order_shipments'),
+        fetchFullTable('order_shipment_items')
+    ]);
+
+    const filteredShipments = (shipments as OrderShipment[])
+        .filter((shipment) => shipment.order_id === orderId)
+        .sort((a, b) => a.shipment_number - b.shipment_number);
+    const shipmentIds = new Set(filteredShipments.map((shipment) => shipment.id));
+    const filteredItems = (items as OrderShipmentItem[])
+        .filter((item) => shipmentIds.has(item.shipment_id));
+
+    return { shipments: filteredShipments, items: filteredItems };
+}
+
+async function getBatchSnapshot(batchId: string): Promise<ProductionBatch | null> {
+    const batches = await fetchFullTable('production_batches');
+    return ((batches as ProductionBatch[]).find((batch) => batch.id === batchId) || null);
+}
+
+async function insertBatchStageHistory(entry: BatchStageHistoryEntry): Promise<void> {
+    await safeMutate('batch_stage_history', 'INSERT', {
+        ...entry,
+        notes: entry.notes ?? null
+    }, { noSelect: true });
 }
 
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
@@ -1049,21 +1080,12 @@ export const api = {
     },
 
     getOrderShipmentItems: async (shipmentId: string): Promise<OrderShipmentItem[]> => {
-        if (isLocalMode) return [];
-        const { data, error } = await supabase.from('order_shipment_items').select('*').eq('shipment_id', shipmentId);
-        if (error) throw error;
-        return (data || []) as OrderShipmentItem[];
+        const items = await fetchFullTable('order_shipment_items');
+        return (items as OrderShipmentItem[]).filter((item) => item.shipment_id === shipmentId);
     },
 
     getShipmentsForOrder: async (orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> => {
-        if (isLocalMode) return { shipments: [], items: [] };
-        const { data: shipments, error: sErr } = await supabase.from('order_shipments').select('*').eq('order_id', orderId).order('shipment_number', { ascending: true });
-        if (sErr) throw sErr;
-        const shipmentIds = (shipments || []).map((s: any) => s.id);
-        if (shipmentIds.length === 0) return { shipments: (shipments || []) as OrderShipment[], items: [] };
-        const { data: items, error: iErr } = await supabase.from('order_shipment_items').select('*').in('shipment_id', shipmentIds);
-        if (iErr) throw iErr;
-        return { shipments: (shipments || []) as OrderShipment[], items: (items || []) as OrderShipmentItem[] };
+        return getOrderShipmentsSnapshot(orderId);
     },
 
     createPartialShipment: async (params: {
@@ -1076,12 +1098,11 @@ export const api = {
         allBatches: ProductionBatch[];
     }): Promise<OrderShipment> => {
         const now = new Date().toISOString();
-
-        // 1. Compute shipment number
-        const { data: existingShipments } = await supabase.from('order_shipments').select('shipment_number').eq('order_id', params.orderId).order('shipment_number', { ascending: false }).limit(1);
-        const shipmentNumber = (existingShipments && existingShipments.length > 0) ? (existingShipments[0].shipment_number + 1) : 1;
-
-        // 2. Create shipment record
+        const existingShipmentSnapshot = await getOrderShipmentsSnapshot(params.orderId);
+        const shipmentNumber = existingShipmentSnapshot.shipments.reduce(
+            (maxNumber, shipment) => Math.max(maxNumber, shipment.shipment_number || 0),
+            0
+        ) + 1;
         const shipmentId = crypto.randomUUID();
         const shipment: OrderShipment = {
             id: shipmentId,
@@ -1093,9 +1114,6 @@ export const api = {
             notes: params.notes || null,
             created_at: now
         };
-        await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
-
-        // 3. Create shipment item records
         const shipmentItems: OrderShipmentItem[] = params.items.map(item => ({
             id: crypto.randomUUID(),
             shipment_id: shipmentId,
@@ -1105,12 +1123,9 @@ export const api = {
             quantity: item.quantity,
             price_at_order: item.price_at_order
         }));
-        if (shipmentItems.length > 0) {
-            await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
-        }
 
-        // 4. Delete or reduce Ready batches that are being shipped
         const orderBatches = params.allBatches.filter(b => b.order_id === params.orderId);
+        const batchMutations: Array<{ method: 'UPDATE' | 'DELETE'; data: any; match: Record<string, any> }> = [];
         for (const item of params.items) {
             let remainingToShip = item.quantity;
             const matchingReadyBatches = orderBatches
@@ -1125,36 +1140,31 @@ export const api = {
             for (const batch of matchingReadyBatches) {
                 if (remainingToShip <= 0) break;
                 if (batch.quantity <= remainingToShip) {
-                    // Delete entire batch
-                    await safeMutate('production_batches', 'DELETE', null, { match: { id: batch.id } });
+                    batchMutations.push({ method: 'DELETE', data: null, match: { id: batch.id } });
                     remainingToShip -= batch.quantity;
                 } else {
-                    // Reduce batch quantity
-                    await safeMutate('production_batches', 'UPDATE', {
+                    batchMutations.push({ method: 'UPDATE', data: {
                         quantity: batch.quantity - remainingToShip,
                         updated_at: now
-                    }, { match: { id: batch.id } });
+                    }, match: { id: batch.id } });
                     remainingToShip = 0;
                 }
             }
         }
 
-        // 5. Compute remaining: fetch ALL shipments for this order (including the one we just created)
-        const { data: allShipmentsData } = await supabase.from('order_shipment_items')
-            .select('sku, variant_suffix, size_info, quantity, order_shipments!inner(order_id)')
-            .eq('order_shipments.order_id', params.orderId);
-
-        // Build shipped totals map
         const shippedMap = new Map<string, number>();
-        (allShipmentsData || []).forEach((row: any) => {
-            const key = `${row.sku}::${row.variant_suffix || ''}::${row.size_info || ''}`;
+        existingShipmentSnapshot.items.forEach((row) => {
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info);
+            shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
+        });
+        shipmentItems.forEach((row) => {
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
 
-        // Check if all order items are fully shipped
         let hasRemaining = false;
         for (const orderItem of params.orderItems) {
-            const key = `${orderItem.sku}::${orderItem.variant_suffix || ''}::${orderItem.size_info || ''}`;
+            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info);
             const shipped = shippedMap.get(key) || 0;
             if (shipped < orderItem.quantity) {
                 hasRemaining = true;
@@ -1162,30 +1172,14 @@ export const api = {
             }
         }
 
-        // 6. Transition order status
         const newStatus = hasRemaining ? OrderStatus.PartiallyDelivered : OrderStatus.Delivered;
-        await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
-
-        // 7. Handle delivery plan
-        if (params.deliveryPlanId) {
-            await safeMutate('order_delivery_plans', 'UPDATE', {
-                plan_status: 'completed',
-                completed_at: now,
-                updated_at: now
-            }, { match: { id: params.deliveryPlanId }, noSelect: true });
-            // Complete all reminders for this plan
-            await safeMutate('order_delivery_reminders', 'UPDATE', {
-                completed_at: now,
-                updated_at: now
-            }, { match: { plan_id: params.deliveryPlanId }, noSelect: true });
-        }
-
-        // If remaining items exist, auto-create a new delivery plan
+        let nextPlan: OrderDeliveryPlan | null = null;
+        let nextPlanReminders: OrderDeliveryReminder[] = [];
         if (hasRemaining) {
             const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
             targetDate.setHours(10, 0, 0, 0);
             const newPlanId = crypto.randomUUID();
-            const newPlan: OrderDeliveryPlan = {
+            nextPlan = {
                 id: newPlanId,
                 order_id: params.orderId,
                 plan_status: 'active',
@@ -1206,12 +1200,9 @@ export const api = {
                 created_at: now,
                 updated_at: now
             };
-            await safeMutate('order_delivery_plans', 'INSERT', newPlan, { noSelect: true });
-
-            // Create default reminders for the new plan
             const { buildDefaultReminderDrafts } = await import('../utils/deliveryScheduling');
             const reminderDrafts = buildDefaultReminderDrafts('exact', targetDate);
-            const reminders: OrderDeliveryReminder[] = reminderDrafts.map((draft, idx) => ({
+            nextPlanReminders = reminderDrafts.map((draft) => ({
                 id: crypto.randomUUID(),
                 plan_id: newPlanId,
                 trigger_at: draft.trigger_at,
@@ -1227,12 +1218,36 @@ export const api = {
                 created_at: now,
                 updated_at: now
             }));
-            if (reminders.length > 0) {
-                await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
-            }
         }
 
-        // If fully delivered, also clean up any remaining batches (safety net)
+        await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
+        if (shipmentItems.length > 0) {
+            await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
+        }
+        for (const mutation of batchMutations) {
+            await safeMutate('production_batches', mutation.method, mutation.data, { match: mutation.match });
+        }
+        await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
+
+        if (params.deliveryPlanId) {
+            await safeMutate('order_delivery_plans', 'UPDATE', {
+                plan_status: 'completed',
+                completed_at: now,
+                updated_at: now
+            }, { match: { id: params.deliveryPlanId }, noSelect: true });
+            await safeMutate('order_delivery_reminders', 'UPDATE', {
+                completed_at: now,
+                updated_at: now
+            }, { match: { plan_id: params.deliveryPlanId }, noSelect: true });
+        }
+
+        if (nextPlan) {
+            await safeMutate('order_delivery_plans', 'INSERT', nextPlan, { noSelect: true });
+        }
+        if (nextPlanReminders.length > 0) {
+            await safeMutate('order_delivery_reminders', 'INSERT', nextPlanReminders, { noSelect: true });
+        }
+
         if (!hasRemaining) {
             await safeMutate('production_batches', 'DELETE', null, { match: { order_id: params.orderId } });
         }
@@ -1255,59 +1270,39 @@ export const api = {
     },
 
     updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => {
-        // First get current batch to log the transition
-        const { data: currentBatch } = await supabase.from('production_batches').select('current_stage').eq('id', id).single();
+        const now = new Date().toISOString();
+        const currentBatch = await getBatchSnapshot(id);
 
-        await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: new Date().toISOString() }, { match: { id } });
-
-        // Log the stage transition in history
-        try {
-            await supabase.from('batch_stage_history').insert({
-                id: crypto.randomUUID(),
-                batch_id: id,
-                from_stage: currentBatch?.current_stage || null,
-                to_stage: stage,
-                moved_by: userName || 'System',
-                moved_at: new Date().toISOString()
-            });
-        } catch (e) {
-            console.warn('Failed to log batch history:', e);
-        }
+        await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: now }, { match: { id } });
+        await insertBatchStageHistory({
+            id: crypto.randomUUID(),
+            batch_id: id,
+            from_stage: currentBatch?.current_stage || null,
+            to_stage: stage,
+            moved_by: userName || 'System',
+            moved_at: now
+        });
     },
     deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
 
     // Batch History
-    getBatchHistory: async (batchId: string): Promise<any[]> => {
-        if (isLocalMode) return [];
-        try {
-            const { data, error } = await supabase
-                .from('batch_stage_history')
-                .select('*')
-                .eq('batch_id', batchId)
-                .order('moved_at', { ascending: true });
-            if (error) throw error;
-            return data || [];
-        } catch (e) {
-            console.warn('Failed to fetch batch history:', e);
-            return [];
-        }
+    getBatchHistory: async (batchId: string): Promise<BatchStageHistoryEntry[]> => {
+        const history = await fetchFullTable('batch_stage_history');
+        return (history as BatchStageHistoryEntry[])
+            .filter((entry) => entry.batch_id === batchId)
+            .sort((a, b) => new Date(a.moved_at).getTime() - new Date(b.moved_at).getTime());
     },
 
     logBatchHistory: async (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string): Promise<void> => {
-        if (isLocalMode) return;
-        try {
-            await supabase.from('batch_stage_history').insert({
-                id: crypto.randomUUID(),
-                batch_id: batchId,
-                from_stage: fromStage,
-                to_stage: toStage,
-                moved_by: userName,
-                moved_at: new Date().toISOString(),
-                notes
-            });
-        } catch (e) {
-            console.warn('Failed to log batch history:', e);
-        }
+        await insertBatchStageHistory({
+            id: crypto.randomUUID(),
+            batch_id: batchId,
+            from_stage: fromStage,
+            to_stage: toStage,
+            moved_by: userName,
+            moved_at: new Date().toISOString(),
+            notes: notes ?? null
+        });
     },
 
     // NEW: Toggle Hold Status
@@ -1568,7 +1563,7 @@ export const api = {
     },
 
     // NEW: PARTIAL SEND TO PRODUCTION
-    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[], stockFulfilledItems?: { sku: string, variant: string | null, qty: number, size_info?: string }[]): Promise<void> => {
+    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[], stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null }[]): Promise<void> => {
         if (itemsToSend.length === 0) return;
 
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -1579,7 +1574,7 @@ export const api = {
         const stockMap = new Map<string, number>();
         if (stockFulfilledItems) {
             for (const sf of stockFulfilledItems) {
-                const key = `${sf.sku}::${sf.variant || ''}::${sf.size_info || ''}`;
+                const key = `${sf.sku}::${sf.variant_suffix || ''}::${sf.size_info || ''}`;
                 stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
             }
         }
@@ -1668,25 +1663,19 @@ export const api = {
     },
 
     splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any, userName?: string): Promise<void> => {
-        // Sanitize the split data to avoid blockages
         const sanitizedNew = sanitizeBatchData(newBatchData);
-        await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: new Date().toISOString() }, { match: { id: originalBatchId } });
+        const now = new Date().toISOString();
+        await safeMutate('production_batches', 'UPDATE', { quantity: originalNewQty, updated_at: now }, { match: { id: originalBatchId } });
         await safeMutate('production_batches', 'INSERT', sanitizedNew);
-
-        // Log history for the new batch (creation at target stage)
-        try {
-            await supabase.from('batch_stage_history').insert({
-                id: crypto.randomUUID(),
-                batch_id: sanitizedNew.id,
-                from_stage: null,
-                to_stage: sanitizedNew.current_stage,
-                moved_by: userName || 'System',
-                moved_at: new Date().toISOString(),
-                notes: `Διαχωρισμός από παρτίδα ${originalBatchId} (ποσότητα: ${sanitizedNew.quantity})`
-            });
-        } catch (e) {
-            console.warn('Failed to log batch split history:', e);
-        }
+        await insertBatchStageHistory({
+            id: crypto.randomUUID(),
+            batch_id: sanitizedNew.id,
+            from_stage: null,
+            to_stage: sanitizedNew.current_stage,
+            moved_by: userName || 'System',
+            moved_at: now,
+            notes: `Διαχωρισμός από παρτίδα ${originalBatchId} (ποσότητα: ${sanitizedNew.quantity})`
+        });
     },
 
     mergeBatches: async (targetBatchId: string, sourceBatchIds: string[], totalQty: number): Promise<void> => {
@@ -1698,26 +1687,53 @@ export const api = {
         }
     },
 
-    syncOfflineData: async (): Promise<number> => {
-        if (isLocalMode) return 0;
+    syncOfflineData: async (): Promise<SyncOfflineResult> => {
+        if (isLocalMode) {
+            const remainingCount = await offlineDb.getQueueCount();
+            return {
+                syncedCount: 0,
+                failedCount: 0,
+                remainingCount,
+                wasQueueEmpty: remainingCount === 0
+            };
+        }
+
         const queue = await offlineDb.getQueue();
-        if (queue.length === 0) return 0;
-        let successCount = 0;
+        if (queue.length === 0) {
+            return {
+                syncedCount: 0,
+                failedCount: 0,
+                remainingCount: 0,
+                wasQueueEmpty: true
+            };
+        }
+        if (!navigator.onLine) {
+            return {
+                syncedCount: 0,
+                failedCount: 0,
+                remainingCount: queue.length,
+                wasQueueEmpty: false
+            };
+        }
+
+        let syncedCount = 0;
+        let failedCount = 0;
         for (const item of queue) {
             try {
                 let query;
-                const cleanData = item.table === 'products' ? sanitizeProductData(item.data) : (item.table === 'production_batches' ? sanitizeBatchData(item.data) : item.data);
+                const rawData = item.data;
+                const cleanData = item.table === 'products' && rawData
+                    ? sanitizeProductData(rawData)
+                    : (item.table === 'production_batches' && rawData ? sanitizeBatchData(rawData) : rawData);
+                const matchTarget = item.match || { id: rawData?.id || rawData?.sku };
 
-                // FEATURE 3A: Conflict Resolution Check
-                // Attempt to fetch current state from server to compare timestamps
-                if (['UPDATE', 'UPSERT', 'DELETE'].includes(item.method) && cleanData.id && cleanData.updated_at) {
+                if (['UPDATE', 'UPSERT', 'DELETE'].includes(item.method) && cleanData && cleanData.id && cleanData.updated_at) {
                     try {
                         const { data: serverData, error: fetchErr } = await supabase.from(item.table).select('updated_at').match(item.match || { id: cleanData.id }).single();
                         if (!fetchErr && serverData && serverData.updated_at) {
                             const localTime = new Date(cleanData.updated_at).getTime();
                             const serverTime = new Date(serverData.updated_at).getTime();
 
-                            // If Server is newer (by more than 1 second to account for minor drift/processing time), reject
                             if (serverTime > localTime + 1000) {
                                 await offlineDb.dequeue(item.id);
                                 window.dispatchEvent(new CustomEvent('ilios-sync-error', {
@@ -1725,32 +1741,46 @@ export const api = {
                                         message: `Διαφωνία δεδομένων στον πίνακα ${item.table}. Η αλλαγή σας απορρίφθηκε επειδή τα δεδομένα τροποποιήθηκαν από άλλον χρήστη.`
                                     }
                                 }));
-                                continue; // Skip mapping this item
+                                failedCount++;
+                                continue;
                             }
                         }
                     } catch (e) {
-                        // Missing or fetching error, proceed with sync safely
-                        console.warn("Conflict check skipped:", e);
+                        console.warn("Ο έλεγχος σύγκρουσης παραλείφθηκε:", e);
                     }
                 }
 
                 if (item.method === 'INSERT') query = supabase.from(item.table).insert(cleanData);
-                else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(item.match || { id: item.data.id || item.data.sku });
-                else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(item.match || { id: item.data.id || item.data.sku });
+                else if (item.method === 'UPDATE') query = supabase.from(item.table).update(cleanData).match(matchTarget);
+                else if (item.method === 'DELETE') query = supabase.from(item.table).delete().match(matchTarget);
                 else if (item.method === 'UPSERT') query = supabase.from(item.table).upsert(cleanData, { onConflict: item.onConflict, ignoreDuplicates: item.ignoreDuplicates });
 
                 const { error } = await query!;
-                if (!error) { await offlineDb.dequeue(item.id); successCount++; }
-                else {
+                if (!error) {
+                    await offlineDb.dequeue(item.id);
+                    syncedCount++;
+                } else {
+                    failedCount++;
                     const errCode = error.code || '';
                     if (errCode === '42501' || errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
                         await offlineDb.dequeue(item.id);
                         window.dispatchEvent(new CustomEvent('ilios-sync-error', { detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}).` } }));
                     }
                 }
-            } catch (err) { console.error("Sync error:", err); }
+            } catch (err) {
+                failedCount++;
+                console.error("Σφάλμα συγχρονισμού:", err);
+                window.dispatchEvent(new CustomEvent('ilios-sync-error', {
+                    detail: { message: `Αποτυχία συγχρονισμού για ${item.table}. Η αλλαγή παραμένει στην ουρά.` }
+                }));
+            }
         }
-        return successCount;
+        return {
+            syncedCount,
+            failedCount,
+            remainingCount: await offlineDb.getQueueCount(),
+            wasQueueEmpty: false
+        };
     },
 
     getFullSystemExport: async (onProgress?: ProgressCallback): Promise<BackupEnvelope> => {

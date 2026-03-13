@@ -105,6 +105,7 @@ export interface Product {
   prefix: string;
   category: string;
   description?: string; // New field for STX description
+  created_at?: string;
   gender: Gender;
   image_url: string | null;
   weight_g: number;
@@ -365,6 +366,23 @@ export interface OrderShipmentItem {
   size_info?: string | null;
   quantity: number;
   price_at_order: number;
+}
+
+export interface BatchStageHistoryEntry {
+  id: string;
+  batch_id: string;
+  from_stage?: ProductionStage | null;
+  to_stage: ProductionStage;
+  moved_by: string;
+  moved_at: string;
+  notes?: string | null;
+}
+
+export interface SyncOfflineResult {
+  syncedCount: number;
+  failedCount: number;
+  remainingCount: number;
+  wasQueueEmpty: boolean;
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';

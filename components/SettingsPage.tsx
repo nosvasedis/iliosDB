@@ -218,12 +218,20 @@ export default function SettingsPage() {
     const handleForceSync = async () => {
         setIsMaintenanceAction(true);
         try {
-            const count = await api.syncOfflineData();
-            if (count > 0) {
-                showToast(`Συγχρονίστηκαν ${count} εκκρεμείς αλλαγές!`, "success");
-                queryClient.invalidateQueries();
-            } else {
+            const result = await api.syncOfflineData();
+            if (result.wasQueueEmpty) {
                 showToast("Δεν υπάρχουν εκκρεμείς αλλαγές προς συγχρονισμό.", "info");
+            } else if (result.syncedCount > 0 && result.remainingCount === 0) {
+                showToast(`Συγχρονίστηκαν ${result.syncedCount} εκκρεμείς αλλαγές!`, "success");
+                queryClient.invalidateQueries();
+            } else if (result.syncedCount > 0 && result.remainingCount > 0) {
+                showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, "info");
+                queryClient.invalidateQueries();
+            } else if (result.remainingCount > 0) {
+                showToast(`Ο συγχρονισμός δεν ολοκληρώθηκε. Παραμένουν ${result.remainingCount} εκκρεμείς αλλαγές.`, "error");
+            } else if (result.failedCount > 0) {
+                showToast("Ο συγχρονισμός ολοκληρώθηκε με απορρίψεις αλλαγών. Ελέγξτε τα μηνύματα σφάλματος.", "error");
+                queryClient.invalidateQueries();
             }
         } catch (err) {
             showToast("Σφάλμα συγχρονισμού.", "error");
