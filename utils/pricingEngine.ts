@@ -584,12 +584,14 @@ export const getIliosSuggestedPriceForProduct = (
     variantSuffix: string | null,
     settings: GlobalSettings,
     allMaterials: Material[],
-    allProducts: Product[]
+    allProducts: Product[],
+    productsMap?: Map<string, Product>,
+    materialsMap?: Map<string, Material>
 ): number => {
     const isVariantRow = variantSuffix !== null;
     const costCalc = isVariantRow
-        ? estimateVariantCost(product, variantSuffix, settings, allMaterials, allProducts)
-        : calculateProductCost(product, settings, allMaterials, allProducts);
+        ? estimateVariantCost(product, variantSuffix, settings, allMaterials, allProducts, undefined, productsMap, materialsMap)
+        : calculateProductCost(product, settings, allMaterials, allProducts, 0, new Set(), undefined, productsMap, materialsMap);
     const weight = costCalc.breakdown.details?.total_weight ?? (product.weight_g + (product.secondary_weight_g || 0));
     return calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
 };

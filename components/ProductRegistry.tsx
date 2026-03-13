@@ -151,7 +151,16 @@ const getPaginationRange = (current: number, total: number) => {
 // ==========================================
 // GRID VIEW PRODUCT CARD - MEMOIZED
 // ==========================================
-const ProductCard: React.FC<{ product: Product; settings: GlobalSettings; materials: Material[]; allProducts: Product[]; productsMap?: Map<string, Product>; onClick: () => void; isSelected: boolean }> = React.memo(({ product, settings, materials, allProducts, productsMap, onClick, isSelected }) => {
+const ProductCard: React.FC<{
+    product: Product;
+    settings: GlobalSettings;
+    materials: Material[];
+    allProducts: Product[];
+    productsMap?: Map<string, Product>;
+    materialsMap?: Map<string, Material>;
+    onSelectProduct: React.Dispatch<React.SetStateAction<Product | null>>;
+    isSelected: boolean;
+}> = React.memo(({ product, settings, materials, allProducts, productsMap, materialsMap, onSelectProduct, isSelected }) => {
     const [viewIndex, setViewIndex] = useState(0);
 
     const variants = product.variants || [];
@@ -179,7 +188,10 @@ const ProductCard: React.FC<{ product: Product; settings: GlobalSettings; materi
         currentVariant = sortedVariants[viewIndex % variantCount];
     }
 
-    const masterCostCalc = calculateProductCost(product, settings, materials, allProducts);
+    const masterCostCalc = useMemo(
+        () => calculateProductCost(product, settings, materials, allProducts, 0, new Set(), undefined, productsMap, materialsMap),
+        [product, settings, materials, allProducts, productsMap, materialsMap]
+    );
     const masterCost = masterCostCalc.total;
 
     let displayPrice = product.selling_price;
@@ -195,7 +207,7 @@ const ProductCard: React.FC<{ product: Product; settings: GlobalSettings; materi
         // DYNAMIC COST CALCULATION FIX:
         // Instead of using stored `currentVariant.active_price` (which might be stale),
         // we calculate it on the fly using the current global settings (silver price).
-        const variantEst = estimateVariantCost(product, currentVariant.suffix, settings, materials, allProducts);
+        const variantEst = estimateVariantCost(product, currentVariant.suffix, settings, materials, allProducts, undefined, productsMap, materialsMap);
         displayCost = variantEst.total;
     }
 
@@ -233,7 +245,7 @@ const ProductCard: React.FC<{ product: Product; settings: GlobalSettings; materi
 
     return (
         <div
-            onClick={onClick}
+            onClick={() => onSelectProduct(product)}
             className={`group bg-white rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative h-full ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'}`}
         >
             {hasVariants && (
@@ -358,13 +370,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
     const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
-    const [searchTermInput, setSearchTermInput] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-
-    useEffect(() => {
-        const timer = setTimeout(() => setSearchTerm(searchTermInput), 300);
-        return () => clearTimeout(timer);
-    }, [searchTermInput]);
 
     const [filterCategory, setFilterCategory] = useState<string>('All');
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
@@ -416,10 +422,58 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         return map;
     }, [products]);
 
+    const materialsMap = useMemo(() => {
+        const map = new Map<string, Material>();
+        if (materials) {
+            materials.forEach(material => map.set(material.id, material));
+        }
+        return map;
+    }, [materials]);
+
     const baseProducts = useMemo(() => {
         if (!products) return [];
         return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
     }, [products, showStxOnly]);
+
+    const stoneMaterialIds = useMemo(() => {
+        if (!materials) return new Set<string>();
+        return new Set(materials.filter(m => m.type === MaterialType.Stone).map(m => m.id));
+    }, [materials]);
+
+    const searchableProducts = useMemo(() => {
+        return baseProducts.map(product => {
+            const platingTypes = new Set<string>();
+            const { finish: masterFinish } = getVariantComponents(product.sku, product.gender);
+
+            if (product.plating_type === PlatingType.GoldPlated) platingTypes.add('X');
+            if (product.plating_type === PlatingType.Platinum) platingTypes.add('H');
+            if (product.plating_type === PlatingType.None) platingTypes.add(masterFinish.code || '');
+
+            const variantStoneCodes: Array<{ code: string; name: string }> = [];
+            (product.variants || []).forEach(variant => {
+                const { finish, stone } = getVariantComponents(variant.suffix, product.gender);
+                platingTypes.add(finish.code);
+                if (stone.code && stone.name) {
+                    variantStoneCodes.push({ code: stone.code, name: stone.name });
+                }
+            });
+
+            return {
+                product,
+                skuUpper: product.sku.toUpperCase(),
+                categoryLower: product.category.toLowerCase(),
+                platingTypes,
+                variantStoneCodes,
+                variantStoneCodeSet: new Set(variantStoneCodes.map(({ code }) => code)),
+                collectionIds: new Set(product.collections || []),
+                hasStoneInRecipe: product.recipe.some(item => item.type === 'raw' && stoneMaterialIds.has(item.id)),
+            };
+        });
+    }, [baseProducts, stoneMaterialIds]);
+
+    const deferredSearchTerm = React.useDeferredValue(searchTerm);
+    const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase();
+    const normalizedSearchSku = deferredSearchTerm.trim().toUpperCase();
 
     const groupedCategories = useMemo(() => {
         if (!baseProducts) return { parents: [], children: new Map() };
@@ -444,97 +498,59 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     // Compute distinct stone codes (from variant suffixes) present in gender-filtered base products
     const availableStones = useMemo(() => {
-        if (!baseProducts) return [];
         const stoneMap = new Map<string, { id: string; name: string; count: number }>();
-        const genderFiltered = filterGender === 'All' ? baseProducts : baseProducts.filter(p => p.gender === filterGender);
-        genderFiltered.forEach(p => {
-            (p.variants || []).forEach(v => {
-                if (!v.suffix) return;
-                const { stone } = getVariantComponents(v.suffix, p.gender);
-                if (stone.code && stone.name) {
-                    const key = stone.code;
-                    if (stoneMap.has(key)) stoneMap.get(key)!.count++;
-                    else stoneMap.set(key, { id: key, name: stone.name, count: 1 });
-                }
+        searchableProducts.forEach(({ product, variantStoneCodes }) => {
+            if (filterGender !== 'All' && product.gender !== filterGender) return;
+            variantStoneCodes.forEach(({ code, name }) => {
+                if (stoneMap.has(code)) stoneMap.get(code)!.count++;
+                else stoneMap.set(code, { id: code, name, count: 1 });
             });
         });
         return Array.from(stoneMap.values()).sort((a, b) => b.count - a.count);
-    }, [baseProducts, filterGender]);
+    }, [searchableProducts, filterGender]);
 
     const filteredProducts = useMemo(() => {
-        if (!baseProducts || !materials) return [];
-
-        const getProductPlatingTypes = (p: Product): Set<string> => {
-            const types = new Set<string>();
-            const { finish: masterFinish } = getVariantComponents(p.sku, p.gender);
-            if (p.plating_type === PlatingType.GoldPlated) types.add('X');
-            if (p.plating_type === PlatingType.Platinum) types.add('H');
-            if (p.plating_type === PlatingType.None) types.add(masterFinish.code || '');
-            (p.variants || []).forEach(v => {
-                const { finish } = getVariantComponents(v.suffix, p.gender);
-                types.add(finish.code);
-            });
-            return types;
-        };
-
-        const stoneIds = new Set(materials.filter(m => m.type === MaterialType.Stone).map(m => m.id));
-
-        const filtered = baseProducts.filter(p => {
-            const matchesGender = filterGender === 'All' || p.gender === filterGender;
-            const matchesSearch = p.sku.toUpperCase().includes(searchTerm.toUpperCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = filterCategory === 'All' || p.category === filterCategory || p.category.startsWith(filterCategory);
+        const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, collectionIds, hasStoneInRecipe }) => {
+            const matchesGender = filterGender === 'All' || product.gender === filterGender;
+            const matchesSearch = !normalizedSearchTerm || skuUpper.includes(normalizedSearchSku) || categoryLower.includes(normalizedSearchTerm);
+            const matchesCategory = filterCategory === 'All' || product.category === filterCategory || product.category.startsWith(filterCategory);
             if (!matchesGender || !matchesSearch || !matchesCategory) return false;
 
-            // Stone filter: 'all' | 'with' | 'without' | specific stone code (e.g. 'KR', 'QN')
             if (subFilters.stone === 'with') {
-                if (!p.recipe.some(i => i.type === 'raw' && stoneIds.has(i.id))) return false;
+                if (!hasStoneInRecipe) return false;
             } else if (subFilters.stone === 'without') {
-                if (p.recipe.some(i => i.type === 'raw' && stoneIds.has(i.id))) return false;
-            } else if (subFilters.stone !== 'all') {
-                // specific stone code from variant suffix
-                const hasStoneCode = (p.variants || []).some(v => {
-                    const { stone } = getVariantComponents(v.suffix, p.gender);
-                    return stone.code === subFilters.stone;
-                });
-                if (!hasStoneCode) return false;
+                if (hasStoneInRecipe) return false;
+            } else if (subFilters.stone !== 'all' && !variantStoneCodeSet.has(subFilters.stone)) {
+                return false;
             }
 
-            // Plating filter
             if (subFilters.plating !== 'all') {
-                const platingTypes = getProductPlatingTypes(p);
-                // 'lustre' = has no-suffix AND has NO other finish variants (P/D/X/H)
-                if (subFilters.plating === 'lustre' && (!platingTypes.has('') || ['P', 'D', 'X', 'H'].some(c => platingTypes.has(c)))) return false;
-                // 'patina' = only P suffix
+                if (subFilters.plating === 'lustre' && (!platingTypes.has('') || ['P', 'D', 'X', 'H'].some(code => platingTypes.has(code)))) return false;
                 if (subFilters.plating === 'patina' && !platingTypes.has('P')) return false;
                 if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
                 if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
             }
 
-            // Production type filter
             if (subFilters.productionType !== 'all') {
-                if (subFilters.productionType === 'InHouse' && p.production_type !== ProductionType.InHouse) return false;
-                if (subFilters.productionType === 'Imported' && p.production_type !== ProductionType.Imported) return false;
+                if (subFilters.productionType === 'InHouse' && product.production_type !== ProductionType.InHouse) return false;
+                if (subFilters.productionType === 'Imported' && product.production_type !== ProductionType.Imported) return false;
             }
 
-            // Collection filter
             if (subFilters.collection !== 'all') {
                 const colId = parseInt(subFilters.collection);
-                if (!p.collections?.includes(colId)) return false;
+                if (!collectionIds.has(colId)) return false;
             }
 
             return true;
-        });
+        }).map(({ product }) => product);
 
         return filtered.sort((a, b) => {
             if (sortBy === 'created_at') {
-                // Sort by creation date (newest first)
                 return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            } else {
-                // Default: sort by SKU
-                return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
             }
+            return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
         });
-    }, [baseProducts, searchTerm, filterCategory, filterGender, subFilters, materials, sortBy]);
+    }, [searchableProducts, normalizedSearchTerm, normalizedSearchSku, filterCategory, filterGender, subFilters, sortBy]);
 
     // Pagination state for table mode
     const [tablePage, setTablePage] = useState(0);
@@ -544,49 +560,40 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     useEffect(() => { setTablePage(0); }, [filteredProducts, viewMode]);
 
     const allTableVariants = useMemo(() => {
-        if (viewMode !== 'table' || !settings || !materials || !products) return [];
-        const items: TableVariant[] = [];
-        filteredProducts.forEach(p => {
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    const estCost = estimateVariantCost(p, v.suffix, settings, materials, products!);
-                    const suggestedPrice = getIliosSuggestedPriceForProduct(p, v.suffix, settings, materials, products!);
-                    const weight = estCost.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
-                    items.push({
-                        masterSku: p.sku,
-                        variantSku: `${p.sku}${v.suffix}`,
-                        product: p,
-                        variant: v,
-                        label: v.description || v.suffix || 'Λουστρέ',
-                        price: v.selling_price || p.selling_price,
-                        cost: estCost.total,
-                        costBreakdown: estCost.breakdown,
-                        suggestedPrice,
-                        weight: weight,
-                        image: p.image_url
-                    });
-                });
-            } else {
-                const costCalc = calculateProductCost(p, settings, materials, products!);
-                const suggestedPrice = getIliosSuggestedPriceForProduct(p, null, settings, materials, products!);
-                const weight = costCalc.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
-                items.push({
-                    masterSku: p.sku,
-                    variantSku: p.sku,
-                    product: p,
-                    variant: null,
-                    label: 'Βασικό',
-                    price: p.selling_price,
-                    cost: costCalc.total,
-                    costBreakdown: costCalc.breakdown,
-                    suggestedPrice,
-                    weight: weight,
-                    image: p.image_url
-                });
+        if (viewMode !== 'table') return [];
+        return filteredProducts.flatMap((product) => {
+            if (product.variants && product.variants.length > 0) {
+                return product.variants.map((variant) => ({
+                    masterSku: product.sku,
+                    variantSku: `${product.sku}${variant.suffix}`,
+                    product,
+                    variant,
+                    label: variant.description || variant.suffix || 'Λουστρέ',
+                    image: product.image_url
+                }));
             }
+
+            return [{
+                masterSku: product.sku,
+                variantSku: product.sku,
+                product,
+                variant: null,
+                label: 'Βασικό',
+                image: product.image_url
+            }];
         });
-        return items;
-    }, [filteredProducts, viewMode, settings, materials, products]);
+    }, [filteredProducts, viewMode]);
+
+    const printableSkuMap = useMemo(() => {
+        const map = new Map<string, { product: Product; variant?: ProductVariant }>();
+        products?.forEach(product => {
+            map.set(product.sku, { product });
+            product.variants?.forEach(variant => {
+                map.set(`${product.sku}${variant.suffix}`, { product, variant });
+            });
+        });
+        return map;
+    }, [products]);
 
     // Grid pagination
     const [gridPage, setGridPage] = useState(0);
@@ -603,12 +610,46 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const totalGridPages = Math.ceil(filteredProducts.length / GRID_PAGE_SIZE);
 
     // Only the current page slice is fed to the virtualizer
-    const tableVariants = useMemo(() => {
+    const tableVariantRows = useMemo(() => {
         const start = tablePage * TABLE_PAGE_SIZE;
         return allTableVariants.slice(start, start + TABLE_PAGE_SIZE);
     }, [allTableVariants, tablePage]);
 
     const totalTablePages = Math.ceil(allTableVariants.length / TABLE_PAGE_SIZE);
+
+    const tableVariants = useMemo(() => {
+        if (!settings || !materials || !products) return [] as TableVariant[];
+
+        return tableVariantRows.map((row) => {
+            if (row.variant) {
+                const estCost = estimateVariantCost(row.product, row.variant.suffix, settings, materials, products, undefined, productsMap, materialsMap);
+                const suggestedPrice = getIliosSuggestedPriceForProduct(row.product, row.variant.suffix, settings, materials, products, productsMap, materialsMap);
+                const weight = estCost.breakdown.details?.total_weight || (row.product.weight_g + (row.product.secondary_weight_g || 0));
+
+                return {
+                    ...row,
+                    price: row.variant.selling_price || row.product.selling_price,
+                    cost: estCost.total,
+                    costBreakdown: estCost.breakdown,
+                    suggestedPrice,
+                    weight,
+                };
+            }
+
+            const costCalc = calculateProductCost(row.product, settings, materials, products, 0, new Set(), undefined, productsMap, materialsMap);
+            const suggestedPrice = getIliosSuggestedPriceForProduct(row.product, null, settings, materials, products, productsMap, materialsMap);
+            const weight = costCalc.breakdown.details?.total_weight || (row.product.weight_g + (row.product.secondary_weight_g || 0));
+
+            return {
+                ...row,
+                price: row.product.selling_price,
+                cost: costCalc.total,
+                costBreakdown: costCalc.breakdown,
+                suggestedPrice,
+                weight,
+            };
+        });
+    }, [tableVariantRows, settings, materials, products, productsMap, materialsMap]);
 
     const rowCount = tableVariants.length;
 
@@ -677,22 +718,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const handleBulkPrint = (format: 'standard' | 'retail') => {
         if (!setPrintItems || !products || !settings || !materials) return;
         const itemsToPrint = Array.from(selectedSkus).map(sku => {
-            if (viewMode === 'table') {
-                let foundProduct: Product | undefined;
-                let foundVariant: ProductVariant | undefined;
-                for (const p of products) {
-                    if (sku === p.sku) { foundProduct = p; break; }
-                    if (p.variants) {
-                        const v = p.variants.find(v => `${p.sku}${v.suffix}` === sku);
-                        if (v) { foundProduct = p; foundVariant = v; break; }
-                    }
-                }
-                if (foundProduct) return { product: foundProduct, variant: foundVariant, quantity: 1, format };
-                return null;
-            } else {
-                const product = products.find(p => p.sku === sku);
-                return product ? { product, quantity: 1, format } : null;
-            }
+            const printable = printableSkuMap.get(sku);
+            if (!printable) return null;
+            return { product: printable.product, variant: printable.variant, quantity: 1, format };
         }).filter(Boolean) as any[];
         setPrintItems(itemsToPrint);
         setSelectedSkus(new Set());
@@ -841,7 +869,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                         materials={materials}
                                         allProducts={products}
                                         productsMap={productsMap}
-                                        onClick={() => setSelectedProduct(product)}
+                                        materialsMap={materialsMap}
+                                        onSelectProduct={setSelectedProduct}
                                         isSelected={selectedSkus.has(product.sku)}
                                     />
                                 </div>

@@ -18,6 +18,7 @@ import { EnhancedProductionBatch } from '../types';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { requiresAssemblyStage } from '../constants';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
+import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 
 interface Props {
     products: Product[];
@@ -50,6 +51,11 @@ const STAGE_LIMITS_HOURS: Record<string, number> = {
     [ProductionStage.Assembly]: 72,   // 3 Days
     [ProductionStage.Labeling]: 72    // 3 Days
 };
+
+const STAGE_ORDER_INDEX = STAGES.reduce<Record<string, number>>((acc, stage, index) => {
+    acc[stage.id] = index;
+    return acc;
+}, {});
 
 const STAGE_COLORS = {
     indigo: { bg: 'bg-indigo-100/40', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-100', header: 'bg-indigo-100/50' },
@@ -1213,13 +1219,18 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
 
+    const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
+    const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
+    const ordersMap = useMemo(() => new Map((orders || []).map(order => [order.id, order])), [orders]);
+    const collectionsMap = useMemo(() => new Map((collections || []).map(collection => [collection.id, collection])), [collections]);
+
     // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         const results = batches?.map(b => {
-            const prod = products.find(p => p.sku === b.sku);
+            const prod = productsMap.get(b.sku);
             const lastUpdate = new Date(b.updated_at);
             const now = new Date();
             const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
@@ -1231,7 +1242,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
             const hasZirconsFromRecipe = prod?.recipe.some(r => {
                 if (r.type !== 'raw') return false;
-                const material = materials.find(m => m.id === r.id);
+                const material = materialsMap.get(r.id);
                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
             }) || false;
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
@@ -1240,7 +1251,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             const requires_assembly = requiresAssemblyStage(b.sku);
 
             // Inject Customer Name (with retail client extraction)
-            const order = orders?.find(o => o.id === b.order_id);
+            const order = b.order_id ? ordersMap.get(b.order_id) : undefined;
             const isRetailOrder = order?.customer_id === RETAIL_CUSTOMER_ID || order?.customer_name === RETAIL_CUSTOMER_NAME;
             const { retailClientLabel } = extractRetailClientFromNotes(order?.notes);
             const customerName = isRetailOrder && retailClientLabel
@@ -1250,7 +1261,34 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, requires_assembly, customer_name: customerName };
         }) || [];
         return results as EnhancedProductionBatch[];
-    }, [batches, products, materials, orders]);
+    }, [batches, productsMap, materialsMap, ordersMap]);
+
+    const batchesByOrderId = useMemo(() => {
+        const map = new Map<string, EnhancedProductionBatch[]>();
+        enhancedBatches.forEach(batch => {
+            if (!batch.order_id) return;
+            const existing = map.get(batch.order_id);
+            if (existing) existing.push(batch);
+            else map.set(batch.order_id, [batch]);
+        });
+        return map;
+    }, [enhancedBatches]);
+
+    const stageBatchesByStage = useMemo(() => {
+        const grouped = STAGES.reduce<Record<string, EnhancedProductionBatch[]>>((acc, stage) => {
+            acc[stage.id] = [];
+            return acc;
+        }, {});
+
+        enhancedBatches.forEach(batch => {
+            if (!grouped[batch.current_stage]) {
+                grouped[batch.current_stage] = [];
+            }
+            grouped[batch.current_stage].push(batch);
+        });
+
+        return grouped;
+    }, [enhancedBatches]);
 
     // Helper for Age/Delay Visualization
     const getAgeInfo = (dateStr: string) => {
@@ -1281,11 +1319,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
     // @FIX: Explicitly type foundBatches result to include customer_name.
     const foundBatches = useMemo(() => {
-        if (!finderTerm || finderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
-        const term = finderTerm.toUpperCase();
-
-        // Define stage order based on the STAGES array
-        const stageOrder = STAGES.reduce((acc, s, i) => ({ ...acc, [s.id]: i }), {} as Record<string, number>);
+        if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
+        const term = deferredFinderTerm.toUpperCase();
 
         return enhancedBatches
             .filter(b => {
@@ -1294,8 +1329,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             })
             // Sort by Stage Order first, then Exact Match
             .sort((a, b) => {
-                const stageA = stageOrder[a.current_stage] ?? 99;
-                const stageB = stageOrder[b.current_stage] ?? 99;
+                const stageA = STAGE_ORDER_INDEX[a.current_stage] ?? 99;
+                const stageB = STAGE_ORDER_INDEX[b.current_stage] ?? 99;
 
                 if (stageA !== stageB) return stageA - stageB;
 
@@ -1479,8 +1514,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         try {
             await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
             await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
         } catch (e: any) {
             console.error("Move failure:", e);
@@ -1510,8 +1544,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             try {
                 await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                await invalidateOrdersAndBatches(queryClient);
                 showToast('Η παρτίδα μετακινήθηκε.', 'success');
             } catch (e: any) {
                 showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -1564,8 +1597,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 await api.logAction(profile?.full_name || 'System', 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
             setSplitModalState(null);
 
@@ -1589,8 +1621,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             try {
                 await api.deleteProductionBatch(batch.id);
                 await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παρτίδας', { sku: batch.sku, quantity: batch.quantity });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
+                await invalidateOrdersAndBatches(queryClient);
                 showToast("Η παρτίδα διαγράφηκε.", "success");
             } catch (e) {
                 showToast("Σφάλμα κατά τη διαγραφή.", "error");
@@ -1696,10 +1727,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     };
 
     // @FIX: Update groupBatches signature to accept extended type and avoid property errors.
-    const groupBatches = (batches: (ProductionBatch & { customer_name: string })[]) => {
+    const groupBatches = (batches: (ProductionBatch & { customer_name?: string })[]) => {
         // Structure: Record<Level1Name, Record<CollectionName, ProductionBatch[]>>
         // Level1Name can be Gender OR Customer
-        const groups: Record<string, Record<string, (ProductionBatch & { customer_name: string })[]>> = {};
+        const groups: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>> = {};
 
         batches.forEach(b => {
             // Determine Level 1 Key
@@ -1712,8 +1743,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
             // Level 2: Collection
             let collName = 'Γενικά';
-            if (b.product_details && b.product_details.collections && b.product_details.collections.length > 0 && collections) {
-                const c = collections.find(col => col.id === b.product_details!.collections![0]);
+            if (b.product_details && b.product_details.collections && b.product_details.collections.length > 0) {
+                const c = collectionsMap.get(b.product_details.collections[0]);
                 if (c) collName = c.name;
             }
 
@@ -1748,6 +1779,28 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         return groups;
     };
 
+    const groupedStageBatches = useMemo(() => {
+        return STAGES.reduce<Record<string, Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>>>((acc, stage) => {
+            acc[stage.id] = groupBatches(stageBatchesByStage[stage.id] || []);
+            return acc;
+        }, {});
+    }, [stageBatchesByStage, groupMode, sortOrder, collectionsMap]);
+
+    const preparationBatches = useMemo(
+        () => enhancedBatches.filter(batch => [ProductionStage.Waxing, ProductionStage.Casting].includes(batch.current_stage)),
+        [enhancedBatches]
+    );
+
+    const technicianBatches = useMemo(
+        () => stageBatchesByStage[ProductionStage.Polishing] || [],
+        [stageBatchesByStage]
+    );
+
+    const labelingBatches = useMemo(
+        () => (stageBatchesByStage[ProductionStage.Labeling] || []).filter(batch => !batch.on_hold),
+        [stageBatchesByStage]
+    );
+
     // Sort Order for Genders
     const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
@@ -1769,7 +1822,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     };
 
     const handleCompleteAllLabeling = async () => {
-        const labelingBatches = enhancedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
         if (labelingBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για ολοκλήρωση.", "info");
             return;
@@ -1780,8 +1832,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 await api.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
                 await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
             }));
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await invalidateOrdersAndBatches(queryClient);
             showToast(`${labelingBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
         } catch (e: any) {
             console.error("Complete all failure:", e);
@@ -1792,7 +1843,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     };
 
     const handlePrintStageLabels = (stageId: string) => {
-        const stageBatches = enhancedBatches.filter(b => b.current_stage === stageId && !b.on_hold);
+        const stageBatches = (stageBatchesByStage[stageId] || []).filter(batch => !batch.on_hold);
 
         if (stageBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για εκτύπωση.", "info");
@@ -1826,7 +1877,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         });
 
         return sortedBatches.map(b => {
-            const product = products.find(p => p.sku === b.sku);
+            const product = productsMap.get(b.sku);
             if (!product) return null;
 
             // Normalized matching for variants to handle null vs empty string
@@ -2047,13 +2098,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         <Layers size={12} /> Συναρμολόγηση
                     </button>
                     <button
-                        onClick={() => handlePrintRequest(enhancedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
+                        onClick={() => handlePrintRequest(preparationBatches, 'preparation')}
                         className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl hover:bg-blue-100 font-semibold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-[11px]"
                     >
                         <BookOpen size={12} /> Προετοιμασία
                     </button>
                     <button
-                        onClick={() => handlePrintRequest(enhancedBatches.filter(b => b.current_stage === ProductionStage.Polishing), 'technician')}
+                        onClick={() => handlePrintRequest(technicianBatches, 'technician')}
                         className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl hover:bg-purple-100 font-semibold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-[11px]"
                     >
                         <Hammer size={12} /> Τεχνίτης
@@ -2079,8 +2130,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
                 <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
                     {STAGES.map(stage => {
-                        const stageBatches = enhancedBatches.filter(b => b.current_stage === stage.id);
-                        const groupedData = groupBatches(stageBatches as any);
+                        const stageBatches = stageBatchesByStage[stage.id] || [];
+                        const groupedData = groupedStageBatches[stage.id] || {};
 
                         const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                         const isTarget = dropTarget === stage.id;
@@ -2254,11 +2305,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     order={quickManageOrder}
                     products={products}
                     materials={materials}
-                    existingBatches={enhancedBatches.filter(b => b.order_id === quickManageOrder.id)}
+                    existingBatches={batchesByOrderId.get(quickManageOrder.id) || []}
                     onClose={() => { setQuickManageOrder(null); setQuickPickerOpen(false); }}
                     onSuccess={() => {
-                        queryClient.invalidateQueries({ queryKey: ['orders'] });
-                        queryClient.invalidateQueries({ queryKey: ['batches'] });
+                        void invalidateOrdersAndBatches(queryClient);
                     }}
                     collections={collections}
                     onPrintAggregated={onPrintAggregated}

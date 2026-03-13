@@ -11,3 +11,10 @@ export function invalidateProductsAndCatalog(queryClient: QueryClient): Promise<
         queryClient.invalidateQueries({ queryKey: ['productsCatalog'] }),
     ]).then(() => undefined);
 }
+
+export function invalidateOrdersAndBatches(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+    ]).then(() => undefined);
+}

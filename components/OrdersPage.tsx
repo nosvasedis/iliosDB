@@ -11,8 +11,9 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { isOrderReady, groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
+import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
+import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 
 interface Props {
     products: Product[];
@@ -442,6 +443,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+    const deferredSearchTerm = React.useDeferredValue(searchTerm);
 
     // Create/Edit/Manage State
     const [isCreating, setIsCreating] = useState(false);
@@ -456,24 +458,51 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     const [tagInput, setTagInput] = useState('');
     const [tagInputFocused, setTagInputFocused] = useState(false);
 
+    const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
+    const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
+
     const enrichedBatches = useMemo(() => {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         return batches?.map(b => {
-            const prod = products.find(p => p.sku === b.sku);
+            const prod = productsMap.get(b.sku);
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
             const hasZirconsFromRecipe = prod?.recipe.some(r => {
                 if (r.type !== 'raw') return false;
-                const material = materials.find(m => m.id === r.id);
+                const material = materialsMap.get(r.id);
                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
             }) || false;
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             return { ...b, product_details: prod, requires_setting: hasZircons }
         }) || [];
-    }, [batches, products, materials]);
+    }, [batches, productsMap, materialsMap]);
+
+    const batchesByOrderId = useMemo(() => {
+        const map = new Map<string, typeof enrichedBatches>();
+        enrichedBatches.forEach(batch => {
+            if (!batch.order_id) return;
+            const existing = map.get(batch.order_id);
+            if (existing) existing.push(batch);
+            else map.set(batch.order_id, [batch]);
+        });
+        return map;
+    }, [enrichedBatches]);
+
+    const orderMetaById = useMemo(() => {
+        const map = new Map<string, { isReady: boolean; retailClientLabel: string }>();
+        orders?.forEach(order => {
+            const orderBatches = batchesByOrderId.get(order.id) || [];
+            const retailClientLabel = extractRetailClientFromNotes(order.notes).retailClientLabel;
+            map.set(order.id, {
+                isReady: orderBatches.length > 0 && orderBatches.every(batch => batch.current_stage === ProductionStage.Ready),
+                retailClientLabel
+            });
+        });
+        return map;
+    }, [orders, batchesByOrderId]);
 
     // Derived: All unique tags across all orders (for filter bar + autocomplete)
     const allTags = useMemo(() => {
@@ -482,6 +511,21 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         orders.forEach(o => o.tags?.forEach(t => tagSet.add(t)));
         return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'el'));
     }, [orders]);
+
+    const tagSuggestions = useMemo(() => {
+        if (!managingOrder || !tagInputFocused) return [];
+        const currentTags = managingOrder.tags || [];
+        const normalizedInput = tagInput.toLowerCase();
+        return allTags.filter(tag =>
+            !currentTags.includes(tag) &&
+            (tagInput.trim() === '' || tag.toLowerCase().includes(normalizedInput))
+        );
+    }, [allTags, managingOrder, tagInput, tagInputFocused]);
+
+    const managingShipmentReadiness = useMemo(() => {
+        if (!managingOrder) return null;
+        return getShipmentReadiness(managingOrder.id, batchesByOrderId.get(managingOrder.id) || []);
+    }, [managingOrder, batchesByOrderId]);
 
     const toggleTagFilter = (tag: string) => {
         setSelectedTags(prev => {
@@ -510,15 +554,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             }
 
             // Search Filter (ID, Name, Tags)
-            if (!searchTerm) return true;
-            const term = searchTerm.toLowerCase();
+            if (!deferredSearchTerm) return true;
+            const term = deferredSearchTerm.toLowerCase();
             return (
                 o.id.toLowerCase().includes(term) ||
                 o.customer_name.toLowerCase().includes(term) ||
                 (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
             );
         });
-    }, [orders, activeTab, searchTerm, selectedTags]);
+    }, [orders, activeTab, deferredSearchTerm, selectedTags]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
     const ordersRowVirtualizer = useVirtualizer({
@@ -545,8 +589,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
 
     const onProductionSuccess = () => {
         setProductionModalOrder(null);
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['batches'] });
+        void invalidateOrdersAndBatches(queryClient);
     };
 
     const handleRevertFromProduction = async (orderId: string) => {
@@ -567,8 +610,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         if (yes) {
             try {
                 await api.revertOrderFromProduction(orderId);
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                await invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
             } catch (err: any) {
@@ -589,8 +631,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.updateOrderStatus(orderId, OrderStatus.Cancelled);
                 await api.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                await invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία ακυρώθηκε.', 'info');
             } catch (err: any) {
@@ -611,8 +652,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.deleteOrder(orderId);
                 await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                await invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία διαγράφηκε οριστικά.', 'success');
             } catch (err: any) {
@@ -632,8 +672,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             try {
                 await api.updateOrderStatus(order.id, OrderStatus.Delivered);
                 await api.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                await invalidateOrdersAndBatches(queryClient);
                 if (managingOrder?.id === order.id) setManagingOrder(null);
                 showToast("Η παραγγελία ολοκληρώθηκε επιτυχώς!", "success");
             } catch (e) {
@@ -658,8 +697,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                 notes,
                 allBatches: batches || []
             });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await invalidateOrdersAndBatches(queryClient);
             showToast(`Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`, 'success');
             setShipmentModalOrder(null);
         } catch (e) {
@@ -845,9 +883,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 const order = filteredOrders[virtualRow.index];
                                 const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
                                 const netValue = order.total_price / (1 + activeVat);
-                                const ready = isOrderReady(order, enrichedBatches);
+                                const orderMeta = orderMetaById.get(order.id);
+                                const ready = orderMeta?.isReady || false;
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
-                                const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
+                                const retailClientLabel = orderMeta?.retailClientLabel || '';
                                 return (
                                     <div
                                         key={order.id}
@@ -926,9 +965,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                 <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
                                 <p className="text-sm font-bold text-slate-500">
                                     {managingOrder.customer_name}
-                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && extractRetailClientFromNotes(managingOrder.notes).retailClientLabel && (
+                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && (orderMetaById.get(managingOrder.id)?.retailClientLabel || '') && (
                                         <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-600">
-                                            {extractRetailClientFromNotes(managingOrder.notes).retailClientLabel}
+                                            {orderMetaById.get(managingOrder.id)?.retailClientLabel}
                                         </span>
                                     )}
                                 </p>
@@ -968,16 +1007,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                                     </div>
                                     {/* Autocomplete dropdown */}
                                     {tagInputFocused && (() => {
-                                        const currentTags = managingOrder.tags || [];
-                                        const suggestions = allTags.filter(t =>
-                                            !currentTags.includes(t) &&
-                                            (tagInput.trim() === '' || t.toLowerCase().includes(tagInput.toLowerCase()))
-                                        );
-                                        if (suggestions.length === 0) return null;
+                                        if (tagSuggestions.length === 0) return null;
                                         return (
                                             <div className="absolute left-0 right-12 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
                                                 <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
-                                                {suggestions.map(s => {
+                                                {tagSuggestions.map(s => {
                                                     const c = getTagColor(s);
                                                     return (
                                                         <button
@@ -999,18 +1033,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18} /> Επεξεργασία</button>
 
                             <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Calendar size={18} /> Προγραμματισμός παράδοσης</button>
-                            {isOrderReady(managingOrder, enrichedBatches) && managingOrder.status !== OrderStatus.Delivered && (
+                            {(orderMetaById.get(managingOrder.id)?.isReady || false) && managingOrder.status !== OrderStatus.Delivered && (
                                 <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100">
                                     <CheckSquare size={18} /> Ολοκλήρωση & Παράδοση
                                 </button>
                             )}
 
                             {(() => {
-                                const sr = getShipmentReadiness(managingOrder.id, enrichedBatches);
-                                if (sr.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled) {
+                                if (managingShipmentReadiness?.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled) {
                                     return (
                                         <button onClick={() => { setShipmentModalOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
-                                            <Truck size={18} /> Μερική Αποστολή ({sr.ready_batches}/{sr.total_batches} έτοιμα)
+                                            <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_batches}/{managingShipmentReadiness.total_batches} έτοιμα)
                                         </button>
                                     );
                                 }
@@ -1069,7 +1102,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
             {printModalOrder && showPartSelector && (
                 <OrderPartSelectorModal
                     order={printModalOrder}
-                    batches={enrichedBatches.filter(b => b.order_id === printModalOrder.id)}
+                    batches={batchesByOrderId.get(printModalOrder.id) || []}
                     products={products}
                     onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
                     onPrintSelected={(selectedBatches) => {
@@ -1130,7 +1163,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     order={productionModalOrder}
                     products={products}
                     materials={materials}
-                    existingBatches={enrichedBatches.filter(b => b.order_id === productionModalOrder.id)}
+                    existingBatches={batchesByOrderId.get(productionModalOrder.id) || []}
                     onClose={() => setProductionModalOrder(null)}
                     onSuccess={onProductionSuccess}
                     collections={collections}
