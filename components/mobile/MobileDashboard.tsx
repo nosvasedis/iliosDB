@@ -159,7 +159,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                         </div>
                         <div className="relative z-10">
                             <div className="flex items-center gap-2">
-                                <div className={`text-2xl font-black text-white ${!showPendingRevenue ? 'blur-sm select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</div>
+                                <div className={`text-2xl font-black text-white ${!showPendingRevenue ? 'blur-lg select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</div>
                                 <button 
                                     onClick={() => setShowPendingRevenue(!showPendingRevenue)}
                                     className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"

@@ -299,7 +299,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                             <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />
                           </p>
                           <div className="flex items-center gap-2">
-                            <h3 className={`text-3xl font-black text-slate-800 tracking-tight ${!showPendingRevenue ? 'blur-sm select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</h3>
+                            <h3 className={`text-3xl font-black text-slate-800 tracking-tight ${!showPendingRevenue ? 'blur-lg select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</h3>
                             <button 
                               onClick={() => setShowPendingRevenue(!showPendingRevenue)}
                               className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
