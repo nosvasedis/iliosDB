@@ -1,15 +1,15 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { groupBatchesByShipment } from '../utils/orderReadiness';
+import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
 
 interface Props {
     order: Order;
@@ -33,6 +33,23 @@ const STAGES = [
     { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'bg-yellow-100/60 border-yellow-200 text-yellow-800' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-100/60 border-emerald-200 text-emerald-800' }
 ];
+
+const STAGE_SHORT_LABELS: Record<string, string> = {
+    [ProductionStage.AwaitingDelivery]: 'Αναμονή',
+    [ProductionStage.Waxing]: 'Παρασκευή',
+    [ProductionStage.Casting]: 'Χυτήριο',
+    [ProductionStage.Setting]: 'Καρφωτής',
+    [ProductionStage.Polishing]: 'Τεχνίτης',
+    [ProductionStage.Assembly]: 'Συναρμολ.',
+    [ProductionStage.Labeling]: 'Συσκευασία',
+    [ProductionStage.Ready]: 'Έτοιμα'
+};
+
+const BATCH_TYPE_STYLES: Record<string, string> = {
+    'Νέα': 'bg-slate-100 text-slate-700 border-slate-200',
+    'Φρεσκάρισμα': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Από Stock': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+};
 
 // Stage colors for movement buttons - matching ProductionBatchCard
 const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
@@ -81,6 +98,8 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
 };
 
 interface RowItem extends OrderItem {
+    shippedQty: number;
+    openOrderQty: number;
     readyQty: number;
     inProgressQty: number;
     remainingQty: number;
@@ -106,6 +125,10 @@ const VIBRANT_STAGES: Record<string, string> = {
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
+    const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useQuery({
+        queryKey: ['order-shipments', order.id],
+        queryFn: () => api.getShipmentsForOrder(order.id)
+    });
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
     const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
@@ -203,9 +226,16 @@ export default function ProductionSendModal({ order, products, materials, existi
             });
     }, [activeStagePopup, existingBatches]);
 
+    const shippedQuantities = useMemo(
+        () => getShippedQuantities(shipmentSnapshot?.items || []),
+        [shipmentSnapshot]
+    );
+
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
+            const key = itemKey(item.sku, item.variant_suffix, item.size_info);
+            const shippedQty = shippedQuantities.get(key) || 0;
 
             const relevantBatches = existingBatches.filter(b =>
                 b.sku === item.sku &&
@@ -225,10 +255,13 @@ export default function ProductionSendModal({ order, products, materials, existi
                 .reduce((s, b) => s + b.quantity, 0);
 
             const sentTotal = readyQty + inProgressQty;
-            const remainingQty = Math.max(0, item.quantity - sentTotal);
+            const openOrderQty = Math.max(0, item.quantity - shippedQty);
+            const remainingQty = Math.max(0, openOrderQty - sentTotal);
 
             return {
                 ...item,
+                shippedQty,
+                openOrderQty,
                 readyQty,
                 inProgressQty,
                 remainingQty,
@@ -247,7 +280,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });
         });
-    }, [order.items, existingBatches, products]);
+    }, [order.items, existingBatches, products, shippedQuantities]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
 
@@ -295,32 +328,6 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
     }, [rows, filterGender, filterCollection, products, searchTerm]);
 
-    const listParentRef = useRef<HTMLDivElement>(null);
-    const rowVirtualizer = useVirtualizer({
-        count: filteredRows.length,
-        getScrollElement: () => listParentRef.current,
-        getItemKey: (index) => `${filteredRows[index]?.sku}-${filteredRows[index]?.variant_suffix || ''}-${filteredRows[index]?.size_info || ''}-${filteredRows[index]?.originalIndex}`,
-        estimateSize: () => 180,
-        measureElement: (element) => {
-            if (!element) return 0;
-            const rect = element.getBoundingClientRect();
-            // Add small buffer to prevent overlap issues
-            return Math.max(rect.height, 150);
-        },
-        overscan: 5,
-        scrollPaddingStart: 20,
-        scrollPaddingEnd: 20,
-        initialRect: { width: 0, height: 0 }
-    });
-
-    // Stabilize measurements after data changes - use requestAnimationFrame for smoother updates
-    useEffect(() => {
-        const rafId = requestAnimationFrame(() => {
-            rowVirtualizer.measure();
-        });
-        return () => cancelAnimationFrame(rafId);
-    }, [filteredRows.length]);
-
     const currentSendValue = useMemo(() => {
         return order.items.reduce((sum, item, idx) => {
             const qty = toSendQuantities[idx] || 0;
@@ -345,6 +352,10 @@ export default function ProductionSendModal({ order, products, materials, existi
     };
 
     const handleSelectVisible = () => {
+        if (isLoadingShipments) {
+            showToast("Περιμένετε να φορτωθεί το ιστορικό αποστολών.", "info");
+            return;
+        }
         const newQuantities = { ...toSendQuantities };
         filteredRows.forEach(row => {
             if (row.remainingQty > 0) newQuantities[row.originalIndex] = row.remainingQty;
@@ -355,6 +366,11 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleClearSelection = () => setToSendQuantities({});
 
     const handleSend = async () => {
+        if (isLoadingShipments) {
+            showToast("Περιμένετε να φορτωθεί το ιστορικό αποστολών.", "info");
+            return;
+        }
+
         const itemsToSend = rows.map((r) => ({
             sku: r.sku,
             variant: r.variant_suffix || null,
@@ -400,9 +416,11 @@ export default function ProductionSendModal({ order, products, materials, existi
             }
 
             await api.sendPartialOrderToProduction(order.id, itemsToSend, products, materials, stockFulfilledItems);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
-            await queryClient.invalidateQueries({ queryKey: ['orders'] });
-            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['batches'] }),
+                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+            ]);
             showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών.`, "success");
             setToSendQuantities({});
             setStockDecision(null);
@@ -442,7 +460,11 @@ export default function ProductionSendModal({ order, products, materials, existi
         setIsWorking(true);
         try {
             await api.updateBatchStage(batch.id, newStage);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['batches'] }),
+                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+            ]);
             showToast("Η παρτίδα μετακινήθηκε.", "success");
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", "error");
@@ -458,10 +480,47 @@ export default function ProductionSendModal({ order, products, materials, existi
         setIsWorking(true);
         try {
             await api.deleteProductionBatch(batch.id);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['batches'] }),
+                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+            ]);
             showToast("Η παρτίδα διαγράφηκε.", "info");
         } catch (e) {
             showToast("Σφάλμα διαγραφής.", "error");
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const handleRevertBatch = async (batch: ProductionBatch) => {
+        if (isWorking) return;
+
+        const batchLabel = `${batch.sku}${batch.variant_suffix || ''}${batch.size_info ? ` / ${batch.size_info}` : ''}`;
+        const stockHint = batch.type === 'Από Stock'
+            ? ' Η ποσότητα θα επιστραφεί και στο απόθεμα.'
+            : '';
+
+        const confirmed = await confirm({
+            title: 'Επαναφορά παρτίδας',
+            message: `Η παρτίδα ${batchLabel} (${batch.quantity} τεμ.) θα αφαιρεθεί από την παραγωγή και η ποσότητα θα επιστρέψει ως εκκρεμής στην παραγγελία, ώστε να σταλεί ξανά αργότερα.${stockHint}`,
+            isDestructive: true,
+            confirmText: 'Επαναφορά'
+        });
+
+        if (!confirmed) return;
+
+        setIsWorking(true);
+        try {
+            await api.revertProductionBatch(batch.id);
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['batches'] }),
+                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+            ]);
+            showToast("Η παρτίδα επανήλθε επιτυχώς και μπορεί να σταλεί ξανά αργότερα.", "success");
+        } catch (e) {
+            showToast("Σφάλμα κατά την επαναφορά της παρτίδας.", "error");
         } finally {
             setIsWorking(false);
         }
@@ -693,12 +752,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                             </div>
                         </div>
 
+                        {isLoadingShipments && (
+                            <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2 text-sm font-bold text-blue-700">
+                                <Loader2 size={16} className="animate-spin" />
+                                Φόρτωση ιστορικού αποστολών για σωστό υπολογισμό υπολοίπου...
+                            </div>
+                        )}
+
                         {/* LIST */}
-                        <div ref={listParentRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-0">
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-0">
                             {filteredRows.length > 0 ? (
-                                <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
-                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                        const row = filteredRows[virtualRow.index];
+                                <div className="space-y-4">
+                                    {filteredRows.map((row) => {
                                         const product = products.find(p => p.sku === row.sku);
                                         const originalIndex = row.originalIndex;
                                         const currentSend = toSendQuantities[originalIndex] || 0;
@@ -712,18 +777,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         });
 
                                         return (
-                                            <div
-                                                key={`row-${virtualRow.key}`}
-                                                ref={rowVirtualizer.measureElement}
-                                                data-index={virtualRow.index}
-                                                className="absolute left-0 top-0 w-full"
-                                                style={{ transform: `translateY(${virtualRow.start}px)` }}
-                                            >
-                                    <div key={`content-${row.sku}-${row.variant_suffix || ''}-${row.size_info || ''}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm mb-4">
+                                    <div key={`content-${row.sku}-${row.variant_suffix || ''}-${row.size_info || ''}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
 
                                         {/* TOP: Item Info & Send Controls */}
-                                        <div className="flex items-center justify-between gap-4 mb-4">
-                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                                            <div className="flex items-start gap-3 min-w-0 flex-1">
                                                 <button
                                                     type="button"
                                                     className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100"
@@ -744,11 +802,28 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     )}
                                                 </button>
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-baseline gap-1.5">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
                                                         <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
                                                         {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                                                     </div>
                                                     <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
+
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold">
+                                                        <span className="bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+                                                            Παραγγελία: {row.quantity}
+                                                        </span>
+                                                        {row.shippedQty > 0 && (
+                                                            <span className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg border border-emerald-200">
+                                                                Παραδόθηκαν: {row.shippedQty}
+                                                            </span>
+                                                        )}
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-200">
+                                                            Σε παραγωγή / έτοιμα: {row.inProgressQty + row.readyQty}
+                                                        </span>
+                                                        <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded-lg border border-amber-200">
+                                                            Απομένουν: {row.remainingQty}
+                                                        </span>
+                                                    </div>
 
                                                     {/* UNIT PRICE DISPLAY */}
                                                     <div className="text-[10px] font-mono text-slate-500 font-bold mt-1">
@@ -772,11 +847,11 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                             {/* Send Controls */}
                                             {isFullySent ? (
-                                                <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap flex items-center gap-1">
+                                                <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap flex items-center gap-1 self-start">
                                                     <CheckCircle size={12} /> Ολοκληρώθηκε
                                                 </div>
                                             ) : (
-                                                <div className="flex flex-col items-end gap-1">
+                                                <div className="flex flex-col items-start xl:items-end gap-1">
                                                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Αποστολή (Max: {row.remainingQty})</div>
                                                     <div className="flex items-center gap-1 bg-blue-50 p-1 rounded-xl border border-blue-100">
                                                         <button onClick={() => updateToSend(originalIndex, currentSend - 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={14} /></button>
@@ -822,12 +897,17 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
 
                                                                 return (
-                                                                    <div key={batch.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm w-10 text-center">{batch.quantity}</span>
+                                                                    <div key={batch.id} className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                                                                        <div className="flex flex-col gap-2 min-w-0 flex-1">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm min-w-[3rem] text-center">{batch.quantity}</span>
+                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${stageConf.color}`}>{stageConf.label}</span>
+                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${BATCH_TYPE_STYLES[batch.type || 'Νέα'] || BATCH_TYPE_STYLES['Νέα']}`}>{batch.type || 'Νέα'}</span>
+                                                                                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">{formatCurrency(batchVal)}</span>
+                                                                            </div>
 
                                                                             {/* Stage Selector - Horizontal Buttons */}
-                                                                            <div className="flex gap-1 items-center">
+                                                                            <div className="flex flex-wrap gap-1.5 items-center">
                                                                                 {STAGES.map((stage, index) => {
                                                                                     const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
                                                                                     const isCurrentStage = stage.id === batch.current_stage;
@@ -856,7 +936,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                             )}
                                                                                             <button
                                                                                                 onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
-                                                                                                className={`relative px-2 py-1 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
+                                                                                                className={`relative px-2.5 py-1.5 rounded-lg font-bold text-[10px] transition-all border flex items-center gap-1 ${
                                                                                                     isCurrentStage
                                                                                                         ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm z-10`
                                                                                                         : isStageDisabled
@@ -868,7 +948,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                                 title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
                                                                                                 disabled={isStageDisabled}
                                                                                             >
-                                                                                                {stage.label}
+                                                                                                {STAGE_SHORT_LABELS[stage.id] || stage.label}
                                                                                                 {isCurrentStage && <span className="text-[7px]">●</span>}
                                                                                                 {isStageDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
                                                                                             </button>
@@ -879,36 +959,42 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                                                             {/* Batch Note */}
                                                                             {batch.notes && (
-                                                                                <div className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-bold flex items-center gap-1" title={batch.notes}>
+                                                                                <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100 font-bold flex items-center gap-1 w-fit max-w-full" title={batch.notes}>
                                                                                     <StickyNote size={10} /> {batch.notes}
                                                                                 </div>
                                                                             )}
                                                                         </div>
 
-                                                                        <div className="flex gap-1 items-center">
-                                                                            <span className="text-[10px] font-mono text-slate-400 mr-2">{formatCurrency(batchVal)}</span>
+                                                                        <div className="flex flex-wrap gap-1 items-center lg:justify-end">
                                                                             <button
                                                                                 onClick={() => { setEditingNoteBatch(batch); setNoteText(batch.notes || ''); }}
-                                                                                className={`p-1.5 rounded transition-colors ${batch.notes ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
+                                                                                className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 ${batch.notes ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
                                                                                 title="Σημειώσεις"
                                                                             >
-                                                                                <StickyNote size={14} className={batch.notes ? "fill-current" : ""} />
+                                                                                <StickyNote size={12} className={batch.notes ? "fill-current" : ""} /> Σημείωση
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleRevertBatch(batch)}
+                                                                                className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                                                                                title="Επαναφορά παρτίδας"
+                                                                            >
+                                                                                <RefreshCcw size={12} /> Επαναφορά
                                                                             </button>
                                                                             {batch.current_stage !== ProductionStage.Ready && (
                                                                                 <button
                                                                                     onClick={() => openSplitModal(batch)}
-                                                                                    className="p-1.5 text-blue-500 hover:bg-blue-100 rounded transition-colors"
+                                                                                    className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
                                                                                     title="Διαχωρισμός"
                                                                                 >
-                                                                                    <Split size={14} />
+                                                                                    <Split size={12} /> Διαχωρισμός
                                                                                 </button>
                                                                             )}
                                                                             <button
                                                                                 onClick={() => handleDeleteBatch(batch)}
-                                                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                                className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-red-600 bg-red-50 border-red-200 hover:bg-red-100"
                                                                                 title="Διαγραφή"
                                                                             >
-                                                                                <Trash2 size={14} />
+                                                                                <Trash2 size={12} /> Διαγραφή
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -919,7 +1005,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 }                                                )}
                                             </div>
                                         )}
-                                    </div>
                                     </div>
                                 );
                                     })}
@@ -951,7 +1036,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                             <button
                                 onClick={handleSend}
-                                disabled={isSending || totalToSend === 0}
+                                disabled={isSending || isLoadingShipments || totalToSend === 0}
                                 className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-lg shadow-lg hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 active:scale-95"
                             >
                                 {isSending ? <Loader2 className="animate-spin" /> : <Factory size={20} />}
@@ -1027,7 +1112,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                         {/* 3. TOTALS FOOTER */}
                         <div className="p-4 bg-white border-t border-slate-200">
                             <div className="flex gap-2 w-full mb-4">
-                                <button onClick={handleSelectVisible} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-200 transition-colors border border-blue-200 whitespace-nowrap shadow-sm">
+                                <button onClick={handleSelectVisible} disabled={isLoadingShipments} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-200 transition-colors border border-blue-200 whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                     <CheckSquare size={14} /> Επιλογή Ορατών
                                 </button>
                                 <button onClick={handleClearSelection} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200 whitespace-nowrap shadow-sm">

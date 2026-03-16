@@ -313,6 +313,91 @@ async function getBatchSnapshot(batchId: string): Promise<ProductionBatch | null
     return ((batches as ProductionBatch[]).find((batch) => batch.id === batchId) || null);
 }
 
+async function getOrderSnapshot(orderId: string): Promise<Order | null> {
+    const orders = await fetchFullTable('orders');
+    return ((orders as Order[]).find((order) => order.id === orderId) || null);
+}
+
+async function restoreStockForBatch(batch: ProductionBatch): Promise<void> {
+    if (batch.type !== 'Από Stock') return;
+
+    const products = await api.getProducts();
+    const product = products.find((item) => item.sku === batch.sku);
+    if (!product) {
+        throw new Error(`Δεν βρέθηκε προϊόν για επαναφορά stock (${batch.sku}).`);
+    }
+
+    if (batch.variant_suffix) {
+        const variant = product.variants?.find((item) => item.suffix === batch.variant_suffix);
+        if (!variant) {
+            throw new Error(`Δεν βρέθηκε παραλλαγή για επαναφορά stock (${batch.sku}${batch.variant_suffix}).`);
+        }
+
+        const updateData: any = {
+            stock_qty: (variant.stock_qty || 0) + batch.quantity
+        };
+
+        if (batch.size_info) {
+            const nextBySize = { ...(variant.stock_by_size || {}) };
+            nextBySize[batch.size_info] = (nextBySize[batch.size_info] || 0) + batch.quantity;
+            updateData.stock_by_size = nextBySize;
+        }
+
+        await safeMutate('product_variants', 'UPDATE', updateData, {
+            match: { product_sku: batch.sku, suffix: batch.variant_suffix }
+        });
+    } else {
+        const updateData: any = {
+            stock_qty: (product.stock_qty || 0) + batch.quantity
+        };
+
+        if (batch.size_info) {
+            const nextBySize = { ...(product.stock_by_size || {}) };
+            nextBySize[batch.size_info] = (nextBySize[batch.size_info] || 0) + batch.quantity;
+            updateData.stock_by_size = nextBySize;
+        }
+
+        await safeMutate('products', 'UPDATE', updateData, { match: { sku: batch.sku } });
+    }
+
+    await recordStockMovement(
+        batch.sku,
+        batch.quantity,
+        `Επαναφορά από παραγωγή — Παραγγελία #${(batch.order_id || '').slice(0, 12) || 'χωρίς κωδικό'}`,
+        batch.variant_suffix || undefined
+    );
+}
+
+async function syncOrderStatusAfterBatchChange(orderId?: string): Promise<void> {
+    if (!orderId) return;
+
+    const [order, batches] = await Promise.all([
+        getOrderSnapshot(orderId),
+        fetchFullTable('production_batches')
+    ]);
+
+    if (!order) return;
+
+    const remainingBatches = (batches as ProductionBatch[]).filter((batch) => batch.order_id === orderId);
+
+    if (remainingBatches.length === 0) {
+        if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready) {
+            await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId }, noSelect: true });
+        }
+        return;
+    }
+
+    const hasInProgressBatch = remainingBatches.some((batch) => batch.current_stage !== ProductionStage.Ready);
+    if (hasInProgressBatch && order.status === OrderStatus.Ready) {
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId }, noSelect: true });
+        return;
+    }
+
+    if (order.status === OrderStatus.Pending) {
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId }, noSelect: true });
+    }
+}
+
 async function insertBatchStageHistory(entry: BatchStageHistoryEntry): Promise<void> {
     await safeMutate('batch_stage_history', 'INSERT', {
         ...entry,
@@ -1281,8 +1366,16 @@ export const api = {
             moved_by: userName || 'System',
             moved_at: now
         });
+        await syncOrderStatusAfterBatchChange(currentBatch?.order_id);
     },
-    deleteProductionBatch: async (id: string): Promise<void> => { await safeMutate('production_batches', 'DELETE', null, { match: { id } }); },
+    deleteProductionBatch: async (id: string): Promise<void> => {
+        const batch = await getBatchSnapshot(id);
+        if (!batch) return;
+
+        await restoreStockForBatch(batch);
+        await safeMutate('production_batches', 'DELETE', null, { match: { id } });
+        await syncOrderStatusAfterBatchChange(batch.order_id);
+    },
 
     // Batch History
     getBatchHistory: async (batchId: string): Promise<BatchStageHistoryEntry[]> => {
@@ -1655,10 +1748,24 @@ export const api = {
 
     // NEW: REVERT FROM PRODUCTION
     revertOrderFromProduction: async (orderId: string): Promise<void> => {
+        const orderBatches = (await fetchFullTable('production_batches') as ProductionBatch[]).filter((batch) => batch.order_id === orderId);
+        for (const batch of orderBatches) {
+            await restoreStockForBatch(batch);
+        }
+
         // 1. Delete all batches
         await safeMutate('production_batches', 'DELETE', null, { match: { order_id: orderId } });
         // 2. Set order status back to Pending
-        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId } });
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId }, noSelect: true });
+    },
+
+    revertProductionBatch: async (batchId: string): Promise<void> => {
+        const batch = await getBatchSnapshot(batchId);
+        if (!batch) throw new Error('Η παρτίδα δεν βρέθηκε.');
+
+        await restoreStockForBatch(batch);
+        await safeMutate('production_batches', 'DELETE', null, { match: { id: batchId } });
+        await syncOrderStatusAfterBatchChange(batch.order_id);
     },
 
     splitBatch: async (originalBatchId: string, originalNewQty: number, newBatchData: any, userName?: string): Promise<void> => {
