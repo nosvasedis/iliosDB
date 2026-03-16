@@ -4,6 +4,7 @@ import { APP_LOGO } from '../constants';
 import { Layers, User, Hash } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
 
 interface Props {
     rows: AssemblyPrintRow[];
@@ -54,9 +55,10 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                     .map(([orderId, items]) => ({
                         orderId,
                         items: [...items].sort((a, b) => {
-                            const skuA = `${a.row.sku}${a.row.variant_suffix || ''}`.toUpperCase();
-                            const skuB = `${b.row.sku}${b.row.variant_suffix || ''}`.toUpperCase();
-                            const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
+                            const bySku = compareSkuValues(
+                                buildSkuKey(a.row.sku, a.row.variant_suffix),
+                                buildSkuKey(b.row.sku, b.row.variant_suffix)
+                            );
                             if (bySku !== 0) return bySku;
                             return (a.row.size_info || '').localeCompare(b.row.size_info || '');
                         })

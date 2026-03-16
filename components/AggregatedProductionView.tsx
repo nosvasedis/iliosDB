@@ -5,6 +5,7 @@ import { Box, MapPin, Coins, Factory, Package, DollarSign, Weight, StickyNote, H
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { GlobalSettings } from '../types';
 import { formatOrderId } from '../utils/orderUtils';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     data: AggregatedData;
@@ -13,6 +14,10 @@ interface Props {
 
 export default function AggregatedProductionView({ data, settings }: Props) {
     const totalItems = data.batches.reduce((sum, b) => sum + b.quantity, 0);
+    const sortedBatches = useMemo(
+        () => sortBySkuKey(data.batches, (batch) => buildSkuKey(batch.sku, batch.variant_suffix)),
+        [data.batches]
+    );
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('el-GR', {
@@ -170,7 +175,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     </tr>
                 </thead>
                 <tbody className="leading-tight">
-                    {data.batches.sort((a,b) => (a.sku+(a.variant_suffix || '')).localeCompare(b.sku+(b.variant_suffix||''))).map((batch, idx) => {
+                    {sortedBatches.map((batch, idx) => {
                         const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
                         return (
                         <tr key={batch.id} className="border-b border-slate-50 break-inside-avoid">

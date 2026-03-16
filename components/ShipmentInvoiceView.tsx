@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
 import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, Truck } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     order: Order;
@@ -14,6 +15,11 @@ interface Props {
 }
 
 export default function ShipmentInvoiceView({ order, shipment, shipmentItems, products, customer }: Props) {
+    const sortedShipmentItems = useMemo(
+        () => sortBySkuKey(shipmentItems, (item) => buildSkuKey(item.sku, item.variant_suffix)),
+        [shipmentItems]
+    );
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('el-GR', {
             day: '2-digit', month: '2-digit', year: 'numeric'
@@ -112,7 +118,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
 
                 <div className="text-[12px] leading-snug">
-                    {shipmentItems.map((item, index) => {
+                    {sortedShipmentItems.map((item, index) => {
                         const product = products.find(p => p.sku === item.sku);
                         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
                         const fullSku = item.sku + (item.variant_suffix || '');

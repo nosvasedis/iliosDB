@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
 import { Wallet, Tag, Target, Coins, Hammer, Box, AlertTriangle, Weight } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     stats: any; // Result from calculateBusinessStats
@@ -14,6 +15,10 @@ interface Props {
 
 export default function OrderFinancialReport({ stats, orderId, customerName, date, silverPrice }: Props) {
     if (!stats) return null;
+    const sortedItemsBreakdown = useMemo(
+        () => sortBySkuKey(stats.itemsBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variant)),
+        [stats.itemsBreakdown]
+    );
 
     // Calculate percentages for the cost bar
     const silverPct = (stats.costBreakdown.silver / stats.totalCost) * 100;
@@ -150,7 +155,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {stats.itemsBreakdown?.map((item: any, idx: number) => {
+                        {sortedItemsBreakdown.map((item: any, idx: number) => {
                             const isLowMargin = item.margin < 30;
                             return (
                                 <tr key={idx} className="break-inside-avoid">

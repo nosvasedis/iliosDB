@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
 import { TrendingUp, DollarSign, Wallet, Scale, Users, Award, PieChart, ShoppingCart, Tag } from 'lucide-react';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     stats: any;
@@ -13,6 +14,10 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
     if (!stats) return null;
 
     const isSingleOrder = stats.isSingleOrder;
+    const sortedItemsBreakdown = useMemo(
+        () => sortBySkuKey(stats.itemsBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variant)),
+        [stats.itemsBreakdown]
+    );
 
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto page-break-after-always relative">
@@ -109,7 +114,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {stats.itemsBreakdown?.map((item: any, idx: number) => (
+                            {sortedItemsBreakdown.map((item: any, idx: number) => (
                                 <tr key={idx} className="break-inside-avoid">
                                     <td className="font-bold text-slate-800 pl-4 py-2">
                                         {item.sku}

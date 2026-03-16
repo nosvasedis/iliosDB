@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Order, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User } from 'lucide-react';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     order: Order;
@@ -43,6 +44,10 @@ export default function OrderInvoiceView({ order }: Props) {
     const customer = order.customer_id
         ? allCustomers?.find(c => c.id === order.customer_id)
         : allCustomers?.find(c => c.full_name === order.customer_name);
+    const sortedItems = useMemo(
+        () => sortBySkuKey(order.items, (item) => buildSkuKey(item.sku, item.variant_suffix)),
+        [order.items]
+    );
 
 
     const formatDate = (dateString: string) => {
@@ -149,7 +154,7 @@ export default function OrderInvoiceView({ order }: Props) {
 
                 {/* Items Grid */}
                 <div className="grid grid-cols-2 text-[12px] leading-snug auto-rows-min">
-                    {order.items.map((item, index) => {
+                    {sortedItems.map((item, index) => {
                         const product = allProducts?.find(p => p.sku === item.sku);
                         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
 

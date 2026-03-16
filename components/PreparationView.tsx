@@ -4,6 +4,7 @@ import { ProductionBatch, Product, Material, RecipeItem, MaterialType, Productio
 import { APP_LOGO } from '../constants';
 import { Box, Coins, Gem, Puzzle, Globe, MapPin, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
 
 interface Props {
     batches: ProductionBatch[];
@@ -16,9 +17,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
     
     // Sort logic
     const sortBatches = (a: ProductionBatch, b: ProductionBatch) => {
-        const keyA = (a.sku + (a.variant_suffix || '')).toUpperCase();
-        const keyB = (b.sku + (b.variant_suffix || '')).toUpperCase();
-        return keyA.localeCompare(keyB, undefined, { numeric: true });
+        return compareSkuValues(buildSkuKey(a.sku, a.variant_suffix), buildSkuKey(b.sku, b.variant_suffix));
     };
 
     // Filter batches into In-House and Imported and Sort them

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Product, Mold } from '../types';
+import { compareSkuValues } from '../utils/skuSort';
 
 interface Props {
     products: Product[];
@@ -33,7 +34,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτο-κατάλογος', date }: Props) {
     // Sort by SKU ascending (consistent with all other views in the app)
-    const sorted = [...products].sort((a, b) => a.sku.localeCompare(b.sku));
+    const sorted = [...products].sort((a, b) => compareSkuValues(a.sku, b.sku));
     const pages = chunk(sorted, ITEMS_PER_PAGE);
     const printDate = date || new Date().toLocaleDateString('el-GR');
 

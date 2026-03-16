@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Offer } from '../types';
 import { APP_LOGO } from '../constants';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { Phone, Mail, MapPin, Coins } from 'lucide-react';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     offer: Offer;
@@ -31,6 +32,10 @@ export default function OfferPrintView({ offer }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+    const sortedItems = useMemo(
+        () => sortBySkuKey(offer.items, (item) => buildSkuKey(item.sku, item.variant_suffix)),
+        [offer.items]
+    );
 
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
@@ -113,7 +118,7 @@ export default function OfferPrintView({ offer }: Props) {
 
                 {/* Grid Content */}
                 <div className="grid grid-cols-2 text-[9px] leading-tight auto-rows-min">
-                    {offer.items.map((item, index) => {
+                    {sortedItems.map((item, index) => {
                         const fullSku = item.sku + (item.variant_suffix || '');
                         const imageUrl = item.product_details?.image_url;
                         const description = item.product_details?.variants?.find(v => v.suffix === item.variant_suffix)?.description || item.product_details?.category || 'Προϊόν';

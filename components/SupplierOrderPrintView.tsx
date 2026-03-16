@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SupplierOrder, Product, Gender } from '../types';
 import { APP_LOGO } from '../constants';
 import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { compareSkuValues } from '../utils/skuSort';
 
 interface Props {
     order: SupplierOrder;
@@ -11,6 +12,15 @@ interface Props {
 }
 
 export default function SupplierOrderPrintView({ order, products }: Props) {
+    const sortedItems = useMemo(
+        () => [...order.items].sort((a, b) => {
+            const keyA = a.item_type === 'Product' ? a.item_id : a.item_name;
+            const keyB = b.item_type === 'Product' ? b.item_id : b.item_name;
+            return compareSkuValues(keyA, keyB);
+        }),
+        [order.items]
+    );
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('el-GR', {
             day: '2-digit', month: '2-digit', year: 'numeric'
@@ -77,7 +87,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                         </tr>
                     </thead>
                     <tbody className="text-xs">
-                        {order.items.map((item, idx) => {
+                        {sortedItems.map((item, idx) => {
                             // Resolve Product Details for rich display
                             let product: Product | undefined;
                             if (item.item_type === 'Product') {

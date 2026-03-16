@@ -4,6 +4,7 @@ import { ProductionBatch, ProductionType, ProductionStage } from '../types';
 import { APP_LOGO } from '../constants';
 import { Hammer, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
 
 interface Props {
     batches: ProductionBatch[];
@@ -69,7 +70,7 @@ export default function TechnicianView({ batches }: Props) {
                     });
                 }
             });
-        return Array.from(map.values()).sort((a,b) => (a.sku + (a.variantSuffix || '')).localeCompare(b.sku + (b.variantSuffix || '')));
+        return Array.from(map.values()).sort((a,b) => compareSkuValues(buildSkuKey(a.sku, a.variantSuffix), buildSkuKey(b.sku, b.variantSuffix)));
     }, [batches]);
 
     return (

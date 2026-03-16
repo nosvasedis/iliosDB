@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { APP_LOGO } from '../constants';
+import { compareSkuValues } from '../utils/skuSort';
 
 export interface PriceListPrintData {
     title: string;
@@ -24,6 +25,11 @@ interface Props {
 }
 
 export default function PriceListPrintView({ data }: Props) {
+    const sortedItems = useMemo(
+        () => [...data.items].sort((a, b) => compareSkuValues(a.skuBase, b.skuBase)),
+        [data.items]
+    );
+
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] mx-auto shadow-lg p-8 print:p-0 print:shadow-none print:w-full relative">
             <style>
@@ -95,7 +101,7 @@ export default function PriceListPrintView({ data }: Props) {
 
             {/* CONTENT - CSS COLUMNS LAYOUT */}
             <div className="price-list-columns text-base">
-                {data.items.map((item, idx) => {
+                {sortedItems.map((item, idx) => {
                     const isSinglePrice = item.priceGroups.length === 1;
                     
                     return (
