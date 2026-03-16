@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus, Order } from '../../types';
-import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck } from 'lucide-react';
+import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck, Eye, EyeOff } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -73,6 +73,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { profile } = useAuth();
+    const [showPendingRevenue, setShowPendingRevenue] = useState(false);
 
     const stats = useMemo(() => {
         // Inventory Value (Approx)
@@ -146,14 +147,30 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
             {/* Main Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                    <StatCard
-                        title="Εκκρεμης Τζιρος (Live)"
-                        value={formatCurrency(stats.pendingRevenue)}
-                        sub={`${stats.activeOrdersCount} Ενεργές Παραγγελίες`}
-                        icon={<Activity />}
-                        bg="bg-slate-900"
-                        text="text-white"
-                    />
+                    <div className="p-5 rounded-2xl bg-slate-900 flex flex-col justify-between h-32 relative overflow-hidden shadow-sm">
+                        <div className="absolute right-0 top-0 p-4 opacity-10 transform scale-150 origin-top-right">
+                            <Activity size={48} />
+                        </div>
+                        <div className="flex items-center gap-2 mb-2 relative z-10">
+                            <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
+                                <Activity size={16} />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμης Τζιρος (Live)</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-2">
+                                <div className={`text-2xl font-black text-white ${!showPendingRevenue ? 'blur-sm select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</div>
+                                <button 
+                                    onClick={() => setShowPendingRevenue(!showPendingRevenue)}
+                                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+                                    title={showPendingRevenue ? 'Απόκρυψη' : 'Εμφάνιση'}
+                                >
+                                    {showPendingRevenue ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                            <div className="text-[10px] font-medium opacity-70 text-white">{stats.activeOrdersCount} Ενεργές Παραγγελίες</div>
+                        </div>
+                    </div>
                 </div>
                 <StatCard
                     title="Παραγωγη"

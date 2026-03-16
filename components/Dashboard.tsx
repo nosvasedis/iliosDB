@@ -19,7 +19,9 @@ import {
   Trophy,
   Crown,
   Gem,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -58,6 +60,7 @@ const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'
 export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory'>('overview');
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
+  const [showPendingRevenue, setShowPendingRevenue] = useState(false);
 
   const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -284,7 +287,34 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" hint="Η συνολική αξία κόστους των προϊόντων που βρίσκονται στην αποθήκη." />
-                  <KPICard title="Εκκρεμής Τζίρος (Live)" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} Παραγγελίες`} icon={<Activity />} colorClass="text-blue-600" hint="Τρέχουσα αξία των ανοιχτών παραγγελιών βάσει σημερινών τιμών." />
+                  <div 
+                    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
+                  >
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 text-blue-600">
+                          <Activity size={64} />
+                      </div>
+                      <div>
+                          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
+                            Εκκρεμής Τζίρος (Live)
+                            <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <h3 className={`text-3xl font-black text-slate-800 tracking-tight ${!showPendingRevenue ? 'blur-sm select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</h3>
+                            <button 
+                              onClick={() => setShowPendingRevenue(!showPendingRevenue)}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+                              title={showPendingRevenue ? 'Απόκρυψη' : 'Εμφάνιση'}
+                            >
+                              {showPendingRevenue ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                      </div>
+                      <div className="mt-4">
+                          <div className="text-xs font-bold px-2 py-1 rounded-full bg-slate-50 inline-flex items-center gap-1 text-blue-600">
+                              {stats.activeOrdersCount} Παραγγελίες
+                          </div>
+                      </div>
+                  </div>
                   <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" hint="Συνολικά τεμάχια που βρίσκονται αυτή τη στιγμή στα διάφορα στάδια της παραγωγής." />
                   <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" hint="Η τρέχουσα τιμή αγοράς του ασημιού ανά γραμμάριο." />
               </div>
