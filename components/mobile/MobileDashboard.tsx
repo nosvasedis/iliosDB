@@ -155,7 +155,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                             <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
                                 <Activity size={16} />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμης Τζιρος (Live)</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμής Τζίρος</span>
                         </div>
                         <div className="relative z-10">
                             <div className="flex items-center gap-2">

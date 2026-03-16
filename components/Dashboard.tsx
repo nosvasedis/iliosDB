@@ -295,7 +295,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </div>
                       <div>
                           <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
-                            Εκκρεμής Τζίρος (Live)
+                            Εκκρεμής Τζίρος
                             <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />
                           </p>
                           <div className="flex items-center gap-2">
