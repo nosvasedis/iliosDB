@@ -1545,7 +1545,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             {showPager && (
                                 <div className="flex max-w-full flex-wrap items-center gap-2">
-                                    <div ref={variantPickerRef} className="relative z-40">
+                                    <div ref={variantPickerRef} className="relative z-[120]">
                                         <button
                                             type="button"
                                             onClick={() => setIsVariantPickerOpen(prev => !prev)}
@@ -1566,7 +1566,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         </button>
 
                                         {isVariantPickerOpen && (
-                                            <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                                            <div className="absolute left-0 top-full z-[140] mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                                                 <div className="max-h-80 overflow-y-auto p-2">
                                                     {sortedVariantsList.map((variant, index) => {
                                                         const variantSku = `${editedProduct.sku}${variant.suffix}`;
@@ -1625,7 +1625,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             <span className="font-bold text-slate-600">{displayedLabel}</span>
                         </div>
                     </div>
-                    <div className="absolute top-6 right-6 flex items-center gap-2">
+                    <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
                         {onDuplicate && (
                             <button onClick={() => onDuplicate(product)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors relative group">
                                 <Copy size={20} />
@@ -1666,7 +1666,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         <button 
                                             onClick={handleDeleteImage}
                                             disabled={isDeletingImage}
-                                            className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors z-10"
+                                            className="absolute top-2 left-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors z-[1]"
                                             title="Διαγραφή Φωτογραφίας"
                                         >
                                             {isDeletingImage ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
