@@ -1972,7 +1972,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-[#060b00] tracking-tight">
-                            Ροή Παραγωγής
+                            Παραγωγή
                         </h1>
                     </div>
                 </div>
