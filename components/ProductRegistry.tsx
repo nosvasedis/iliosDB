@@ -277,7 +277,7 @@ const ProductCard: React.FC<{
             <div className="p-5 flex-1 flex flex-col relative min-h-0">
                 <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
-                        <h3 className="text-[15px] leading-tight break-all">
+                        <h3 className="text-[16px] leading-[1.05] break-all">
                             <SkuColorizedText
                                 sku={displaySku}
                                 gender={product.gender}

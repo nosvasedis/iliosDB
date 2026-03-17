@@ -1504,9 +1504,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
             <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
 
-                <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-100 bg-white z-10 shrink-0">
+                <div className="relative p-6 pr-40 border-b border-slate-100 bg-white z-10 shrink-0">
                     {/* ... (Existing header code) ... */}
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                             {isEditingSku ? (
                                 <div className="flex items-center gap-2">
@@ -1545,7 +1545,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             {showPager && (
                                 <div className="flex max-w-full flex-wrap items-center gap-2">
-                                    <div ref={variantPickerRef} className="relative">
+                                    <div ref={variantPickerRef} className="relative z-40">
                                         <button
                                             type="button"
                                             onClick={() => setIsVariantPickerOpen(prev => !prev)}
@@ -1625,7 +1625,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             <span className="font-bold text-slate-600">{displayedLabel}</span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="absolute top-6 right-6 flex items-center gap-2">
                         {onDuplicate && (
                             <button onClick={() => onDuplicate(product)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors relative group">
                                 <Copy size={20} />
