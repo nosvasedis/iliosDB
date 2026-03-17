@@ -561,6 +561,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [viewIndex, setViewIndex] = useState(0);
+    const [isVariantPickerOpen, setIsVariantPickerOpen] = useState(false);
+    const variantPickerRef = useRef<HTMLDivElement | null>(null);
 
     // Rename SKU State
     const [isEditingSku, setIsEditingSku] = useState(false);
@@ -860,6 +862,23 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     useEffect(() => {
         setViewIndex(initialViewIndex);
     }, [product.sku]);
+
+    useEffect(() => {
+        setIsVariantPickerOpen(false);
+    }, [product.sku, viewIndex]);
+
+    useEffect(() => {
+        if (!isVariantPickerOpen) return;
+
+        const handlePointerDown = (event: MouseEvent) => {
+            if (variantPickerRef.current && !variantPickerRef.current.contains(event.target as Node)) {
+                setIsVariantPickerOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [isVariantPickerOpen]);
 
     const normalizedViewIndex = hasVariants && maxViews > 0 ? viewIndex % maxViews : 0;
     const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
@@ -1526,19 +1545,63 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             {showPager && (
                                 <div className="flex items-center gap-2">
-                                    <div className="relative">
-                                        <select
-                                            value={normalizedViewIndex}
-                                            onChange={(e) => setViewIndex(Number(e.target.value))}
-                                            className="appearance-none min-w-[16rem] max-w-[22rem] rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm font-medium text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                                    <div ref={variantPickerRef} className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsVariantPickerOpen(prev => !prev)}
+                                            className="flex min-w-[17rem] max-w-[24rem] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                         >
-                                            {sortedVariantsList.map((variant, index) => (
-                                                <option key={variant.suffix || `variant-${index}`} value={index}>
-                                                    {`${editedProduct.sku}${variant.suffix} - ${variant.description || variant.suffix || 'Βασικό'}`}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <div className="min-w-0">
+                                                <SkuColorizedText
+                                                    sku={displayedSku}
+                                                    gender={editedProduct.gender}
+                                                    className="block truncate text-[13px]"
+                                                    masterClassName="text-slate-900"
+                                                />
+                                                <div className="truncate text-[11px] font-semibold text-slate-500">
+                                                    {displayedLabel}
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isVariantPickerOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        {isVariantPickerOpen && (
+                                            <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                                                <div className="max-h-80 overflow-y-auto p-2">
+                                                    {sortedVariantsList.map((variant, index) => {
+                                                        const variantSku = `${editedProduct.sku}${variant.suffix}`;
+                                                        const isActive = index === normalizedViewIndex;
+
+                                                        return (
+                                                            <button
+                                                                key={variant.suffix || `variant-${index}`}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setViewIndex(index);
+                                                                    setIsVariantPickerOpen(false);
+                                                                }}
+                                                                className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50'}`}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <SkuColorizedText
+                                                                        sku={variantSku}
+                                                                        gender={editedProduct.gender}
+                                                                        className="block truncate text-[13px]"
+                                                                        masterClassName={isActive ? 'text-emerald-900' : 'text-slate-900'}
+                                                                    />
+                                                                    <div className={`truncate text-[11px] font-semibold ${isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                        {variant.description || variant.suffix || 'Βασικό'}
+                                                                    </div>
+                                                                </div>
+                                                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                                    {index + 1}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
                                         <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">

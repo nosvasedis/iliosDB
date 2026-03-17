@@ -23,9 +23,9 @@ export default function SkuColorizedText({
     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
 
     return (
-        <span className={`font-mono tracking-tight cursor-default ${className}`.trim()}>
+        <span className={`font-sans uppercase tracking-[0.08em] tabular-nums cursor-default ${className}`.trim()}>
             <span className={`font-black ${masterClassName}`.trim()}>{master}</span>
-            <span className="font-black">
+            <span className="font-extrabold">
                 {suffix.split('').map((char, index) => {
                     let colorClass = 'text-slate-400';
                     if (finish.code && index < finish.code.length) {
