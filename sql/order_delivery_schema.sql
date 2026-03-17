@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.order_delivery_plans (
     id uuid primary key default gen_random_uuid(),
-    order_id uuid not null references public.orders(id) on delete cascade,
+    order_id text not null references public.orders(id) on delete cascade,
     plan_status text not null default 'active' check (plan_status in ('active', 'completed', 'cancelled')),
     planning_mode text not null check (planning_mode in ('exact', 'month', 'custom_period', 'holiday_anchor')),
     target_at timestamptz null,
@@ -22,7 +22,7 @@ create table if not exists public.order_delivery_plans (
     updated_at timestamptz not null default timezone('utc', now())
 );
 
-alter table public.order_delivery_plans add column if not exists order_id uuid;
+alter table public.order_delivery_plans add column if not exists order_id text;
 alter table public.order_delivery_plans add column if not exists plan_status text;
 alter table public.order_delivery_plans add column if not exists planning_mode text;
 alter table public.order_delivery_plans add column if not exists target_at timestamptz;
