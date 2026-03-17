@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, PlayCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
     onClose: () => void;
     onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
     onEditNote?: (batch: ProductionBatch) => void;
+    onToggleHold?: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
 }
 
@@ -61,7 +62,7 @@ const STONE_CHIP_STYLES: Record<string, string> = {
     'AX': 'bg-emerald-100 text-emerald-800 border-emerald-200'
 };
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onViewHistory }: Props) {
+export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onToggleHold, onViewHistory }: Props) {
     const product = batch.product_details;
     const [isMoving, setIsMoving] = useState(false);
     const [isImageZoomed, setIsImageZoomed] = useState(false);
@@ -306,6 +307,16 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     </div>
                     
                     <div className="flex items-center gap-4">
+                        {onToggleHold && (
+                             <button 
+                                 onClick={() => onToggleHold(batch)}
+                                 className={`p-3 rounded-full transition-colors hidden md:block ${batch.on_hold ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600' : 'bg-amber-50 hover:bg-amber-100 text-amber-600'}`}
+                                 title={batch.on_hold ? "Συνέχιση Παραγωγής" : "Θέση σε Αναμονή"}
+                             >
+                                 {batch.on_hold ? <PlayCircle size={20} className="fill-current"/> : <PauseCircle size={20}/>}
+                             </button>
+                        )}
+
                         {onEditNote && (
                              <button 
                                  onClick={() => onEditNote(batch)}
@@ -358,6 +369,15 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                     {/* Mobile Stage Mover (Visible only on small screens) */}
                     {onMove && (
                         <div className="md:hidden mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                             {onToggleHold && (
+                                <button
+                                    onClick={() => onToggleHold(batch)}
+                                    className={`w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-sm transition-colors ${batch.on_hold ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}
+                                >
+                                    {batch.on_hold ? <PlayCircle size={16} className="fill-current" /> : <PauseCircle size={16} />}
+                                    {batch.on_hold ? 'Συνέχιση Παραγωγής' : 'Θέση σε Αναμονή'}
+                                </button>
+                             )}
                              <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
                              <div className="flex flex-wrap gap-1">
                                 {STAGES.map((stage, index) => {

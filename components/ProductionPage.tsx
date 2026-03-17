@@ -881,10 +881,12 @@ const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
 // Component for stage selector in finder results
 const FinderBatchStageSelector = ({ 
     batch, 
-    onMoveToStage 
+    onMoveToStage,
+    onToggleHold
 }: { 
     batch: ProductionBatch & { customer_name?: string }, 
-    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void 
+    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void,
+    onToggleHold: (batch: ProductionBatch) => void
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
@@ -977,6 +979,12 @@ const FinderBatchStageSelector = ({
     
     return (
         <div className="mt-2 pt-2 border-t border-slate-200/50">
+            {batch.on_hold && (
+                <div className="bg-amber-100 text-amber-800 text-xs font-black p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-200 mb-2">
+                    <PauseCircle size={11} className="shrink-0" />
+                    <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
+                </div>
+            )}
             {batch.notes && (
                 <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
                     <StickyNote size={10} className="shrink-0" />
@@ -987,8 +995,17 @@ const FinderBatchStageSelector = ({
             <div className="flex items-center justify-between">
                 <span className="text-[9px] font-bold text-slate-400 uppercase">Μετακίνηση:</span>
                 
-                <div>
-                    {/* Main toggle button */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleHold(batch);
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                    >
+                        {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
+                        {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
+                    </button>
                     <button
                         ref={buttonRef}
                         onClick={handleToggle}
@@ -2059,12 +2076,19 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                             <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
                                                             <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
                                                             {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
+                                                            {b.on_hold && <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1"><PauseCircle size={10} /> Σε Αναμονή</span>}
                                                         </div>
                                                         <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
                                                             <span className="font-bold text-slate-700 text-xs">{b.customer_name || 'Unknown'}</span>
-                                                            <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
-                                                                <Clock size={10} /> {age.label}
-                                                            </div>
+                                                            {b.on_hold ? (
+                                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                                                                    <PauseCircle size={10} /> Hold
+                                                                </div>
+                                                            ) : (
+                                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
+                                                                    <Clock size={10} /> {age.label}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2078,7 +2102,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                             </div>
                                             <FinderBatchStageSelector 
                                                 batch={b} 
-                                                onMoveToStage={(batch, stage) => attemptMove(batch, stage, true)} 
+                                                onMoveToStage={(batch, stage) => attemptMove(batch, stage, true)}
+                                                onToggleHold={handleToggleHold}
                                             />
                                         </div>
                                     )
@@ -2325,6 +2350,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onClose={() => setViewBuildBatch(null)}
                     onMove={handleMoveBatch}
                     onEditNote={(b) => setEditingNoteBatch(b)}
+                    onToggleHold={handleToggleHold}
                     onViewHistory={handleViewHistory}
                 />
             )}

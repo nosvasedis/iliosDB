@@ -5,6 +5,7 @@ import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users a
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
+import SkuColorizedText from './SkuColorizedText';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../lib/supabase';
@@ -276,8 +277,12 @@ const ProductCard: React.FC<{
             <div className="p-5 flex-1 flex flex-col relative min-h-0">
                 <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
-                        <h3 className="font-black text-lg leading-none truncate text-slate-800 group-hover:text-emerald-700 transition-colors">
-                            {displaySku}
+                        <h3 className="font-black text-lg leading-none truncate">
+                            <SkuColorizedText
+                                sku={displaySku}
+                                gender={product.gender}
+                                masterClassName="text-slate-800 group-hover:text-emerald-700 transition-colors"
+                            />
                         </h3>
                         <div className="text-xs font-bold text-slate-400 mt-1 truncate flex items-center gap-1">
                             {hasVariants && <Tag size={10} />} {displayLabel}
@@ -912,7 +917,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 </div>
                                                 <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
                                                     <div className="font-black text-slate-800 text-sm truncate flex items-center gap-2">
-                                                        <SkuColorizer sku={item.variantSku} gender={item.product.gender} />
+                                                        <SkuColorizedText sku={item.variantSku} gender={item.product.gender} />
                                                     </div>
                                                     <div className="text-xs text-slate-500 truncate flex items-center gap-2">
                                                         {isFirstInTeam && (

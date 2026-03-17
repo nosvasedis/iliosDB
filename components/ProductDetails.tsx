@@ -11,6 +11,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
+import SkuColorizedText from './SkuColorizedText';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
 
@@ -860,10 +861,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         setViewIndex(initialViewIndex);
     }, [product.sku]);
 
+    const normalizedViewIndex = hasVariants && maxViews > 0 ? viewIndex % maxViews : 0;
     const nextView = () => setViewIndex(prev => (prev + 1) % maxViews);
     const prevView = () => setViewIndex(prev => (prev - 1 + maxViews) % maxViews);
 
-    const currentViewVariant = hasVariants ? sortedVariantsList[viewIndex % maxViews] : null;
+    const currentViewVariant = hasVariants ? sortedVariantsList[normalizedViewIndex] : null;
 
     let displayedSku = editedProduct.sku;
     let displayedLabel = 'Βασικό';
@@ -1504,8 +1506,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </button>
                                 </div>
                             ) : (
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3 group">
-                                    <span>{displayedSku}</span>
+                                <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 group">
+                                    <SkuColorizedText
+                                        sku={displayedSku}
+                                        gender={editedProduct.gender}
+                                        masterClassName="text-slate-900"
+                                    />
                                     {viewMode === 'registry' && (
                                         <button
                                             onClick={() => setIsEditingSku(true)}
@@ -1519,16 +1525,32 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             )}
 
                             {showPager && (
-                                <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                                    <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                        <ChevronLeft size={18} />
-                                    </button>
-                                    <span className="text-xs font-mono text-slate-500 w-10 text-center">
-                                        {viewIndex + 1}/{maxViews}
-                                    </span>
-                                    <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                        <ChevronRight size={18} />
-                                    </button>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <select
+                                            value={normalizedViewIndex}
+                                            onChange={(e) => setViewIndex(Number(e.target.value))}
+                                            className="appearance-none min-w-[16rem] max-w-[22rem] rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm font-medium text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                                        >
+                                            {sortedVariantsList.map((variant, index) => (
+                                                <option key={variant.suffix || `variant-${index}`} value={index}>
+                                                    {`${editedProduct.sku}${variant.suffix} - ${variant.description || variant.suffix || 'Βασικό'}`}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                                        <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <span className="text-xs font-mono text-slate-500 w-10 text-center">
+                                            {normalizedViewIndex + 1}/{maxViews}
+                                        </span>
+                                        <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                             {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
