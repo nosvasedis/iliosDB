@@ -1,5 +1,5 @@
 
-import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import MobileLayout from './components/mobile/MobileLayout';
 import PriceListPrintView, { PriceListPrintData } from './components/PriceListPrintView';
 import OrderInvoiceView from './components/OrderInvoiceView';
@@ -14,25 +14,29 @@ import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder } from './types';
 import { calculateProductCost, transliterateForBarcode } from './utils/pricingEngine';
+import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 
-const MobileDashboard = lazy(() => import('./components/mobile/MobileDashboard'));
-const MobileMenu = lazy(() => import('./components/mobile/MobileMenu'));
-const MobileOrders = lazy(() => import('./components/mobile/MobileOrders'));
-const MobileOrderBuilder = lazy(() => import('./components/mobile/MobileOrderBuilder'));
-const MobileProduction = lazy(() => import('./components/mobile/MobileProduction'));
-const MobileInventory = lazy(() => import('./components/mobile/MobileInventory'));
-const MobileProductDetails = lazy(() => import('./components/mobile/MobileProductDetails'));
-const MobileResources = lazy(() => import('./components/mobile/MobileResources'));
-const MobileCustomers = lazy(() => import('./components/mobile/MobileCustomers'));
-const MobileRegistry = lazy(() => import('./components/mobile/MobileRegistry'));
-const MobileAiStudio = lazy(() => import('./components/mobile/MobileAiStudio'));
-const MobileSettings = lazy(() => import('./components/mobile/MobileSettings'));
-const MobilePricing = lazy(() => import('./components/mobile/MobilePricing'));
-const MobileBatchPrint = lazy(() => import('./components/mobile/MobileBatchPrint'));
-const MobileCollections = lazy(() => import('./components/mobile/MobileCollections'));
-const MobilePriceList = lazy(() => import('./components/mobile/MobilePriceList'));
-const MobileOffers = lazy(() => import('./components/mobile/MobileOffers'));
-const MobileDeliveries = lazy(() => import('./components/mobile/MobileDeliveries'));
+const lazyMobilePage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
+  lazyWithChunkRecovery(factory, import.meta.url);
+
+const MobileDashboard = lazyMobilePage(() => import('./components/mobile/MobileDashboard'));
+const MobileMenu = lazyMobilePage(() => import('./components/mobile/MobileMenu'));
+const MobileOrders = lazyMobilePage(() => import('./components/mobile/MobileOrders'));
+const MobileOrderBuilder = lazyMobilePage(() => import('./components/mobile/MobileOrderBuilder'));
+const MobileProduction = lazyMobilePage(() => import('./components/mobile/MobileProduction'));
+const MobileInventory = lazyMobilePage(() => import('./components/mobile/MobileInventory'));
+const MobileProductDetails = lazyMobilePage(() => import('./components/mobile/MobileProductDetails'));
+const MobileResources = lazyMobilePage(() => import('./components/mobile/MobileResources'));
+const MobileCustomers = lazyMobilePage(() => import('./components/mobile/MobileCustomers'));
+const MobileRegistry = lazyMobilePage(() => import('./components/mobile/MobileRegistry'));
+const MobileAiStudio = lazyMobilePage(() => import('./components/mobile/MobileAiStudio'));
+const MobileSettings = lazyMobilePage(() => import('./components/mobile/MobileSettings'));
+const MobilePricing = lazyMobilePage(() => import('./components/mobile/MobilePricing'));
+const MobileBatchPrint = lazyMobilePage(() => import('./components/mobile/MobileBatchPrint'));
+const MobileCollections = lazyMobilePage(() => import('./components/mobile/MobileCollections'));
+const MobilePriceList = lazyMobilePage(() => import('./components/mobile/MobilePriceList'));
+const MobileOffers = lazyMobilePage(() => import('./components/mobile/MobileOffers'));
+const MobileDeliveries = lazyMobilePage(() => import('./components/mobile/MobileDeliveries'));
 
 interface MobileAppProps {
   isOnline?: boolean;

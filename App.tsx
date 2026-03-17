@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Warehouse,
@@ -57,6 +57,7 @@ import { calculateBusinessStats } from './utils/businessAnalytics';
 import { useIsMobile } from './hooks/useIsMobile';
 import { PrintManager } from './components/PrintManager';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
+import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 
 import SetupScreen from './components/SetupScreen';
 import AnalyticsPrintReport from './components/AnalyticsPrintReport';
@@ -65,27 +66,30 @@ import { PrintProvider, usePrint } from './components/PrintContext';
 import { useDeliveryNavBadge } from './hooks/api/useOrderDeliveryPlans';
 import type { PriceListPrintData } from './components/PriceListPrintView';
 
-const MobileApp = lazy(() => import('./MobileApp'));
-const EmployeeApp = lazy(() => import('./components/employee/EmployeeApp'));
-const SellerApp = lazy(() => import('./components/seller/SellerApp'));
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const Inventory = lazy(() => import('./components/Inventory'));
-const ProductRegistry = lazy(() => import('./components/ProductRegistry'));
-const PricingManager = lazy(() => import('./components/PricingManager'));
-const SettingsPage = lazy(() => import('./components/SettingsPage'));
-const MaterialsPage = lazy(() => import('./components/MaterialsPage'));
-const MoldsPage = lazy(() => import('./components/MoldsPage'));
-const CollectionsPage = lazy(() => import('./components/CollectionsPage'));
-const BatchPrintPage = lazy(() => import('./components/BatchPrintPage'));
-const OrdersPage = lazy(() => import('./components/OrdersPage'));
-const ProductionPage = lazy(() => import('./components/ProductionPage'));
-const CustomersPage = lazy(() => import('./components/CustomersPage'));
-const SuppliersPage = lazy(() => import('./components/SuppliersPage'));
-const AiStudio = lazy(() => import('./components/AiStudio'));
-const PriceListPage = lazy(() => import('./components/PriceListPage'));
-const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
-const OffersPage = lazy(() => import('./components/OffersPage'));
-const DeliveriesPage = lazy(() => import('./components/DeliveriesPage'));
+const lazyPage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
+  lazyWithChunkRecovery(factory, import.meta.url);
+
+const MobileApp = lazyPage(() => import('./MobileApp'));
+const EmployeeApp = lazyPage(() => import('./components/employee/EmployeeApp'));
+const SellerApp = lazyPage(() => import('./components/seller/SellerApp'));
+const Dashboard = lazyPage(() => import('./components/Dashboard'));
+const Inventory = lazyPage(() => import('./components/Inventory'));
+const ProductRegistry = lazyPage(() => import('./components/ProductRegistry'));
+const PricingManager = lazyPage(() => import('./components/PricingManager'));
+const SettingsPage = lazyPage(() => import('./components/SettingsPage'));
+const MaterialsPage = lazyPage(() => import('./components/MaterialsPage'));
+const MoldsPage = lazyPage(() => import('./components/MoldsPage'));
+const CollectionsPage = lazyPage(() => import('./components/CollectionsPage'));
+const BatchPrintPage = lazyPage(() => import('./components/BatchPrintPage'));
+const OrdersPage = lazyPage(() => import('./components/OrdersPage'));
+const ProductionPage = lazyPage(() => import('./components/ProductionPage'));
+const CustomersPage = lazyPage(() => import('./components/CustomersPage'));
+const SuppliersPage = lazyPage(() => import('./components/SuppliersPage'));
+const AiStudio = lazyPage(() => import('./components/AiStudio'));
+const PriceListPage = lazyPage(() => import('./components/PriceListPage'));
+const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
+const OffersPage = lazyPage(() => import('./components/OffersPage'));
+const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 
 
 type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries';

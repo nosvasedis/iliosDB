@@ -79,7 +79,14 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          const entryScript = document.querySelector('script[type="module"][src]');
+          const buildToken = entryScript instanceof HTMLScriptElement
+            ? new URL(entryScript.src, window.location.origin).pathname
+            : 'dev';
+          const serviceWorkerUrl = new URL('/sw.js', window.location.origin);
+          serviceWorkerUrl.searchParams.set('v', buildToken);
+
+          navigator.serviceWorker.register(serviceWorkerUrl.toString(), { updateViaCache: 'none' })
             .then(reg => {
               console.log('Ilios SW Ready');
               reg.update();

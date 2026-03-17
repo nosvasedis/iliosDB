@@ -1,4 +1,6 @@
-const CACHE_NAME = 'ilios-runtime-v1.15';
+const workerUrl = new URL(self.location.href);
+const cacheVersion = (workerUrl.searchParams.get('v') || 'dev').replace(/[^a-z0-9_-]/gi, '_');
+const CACHE_NAME = `ilios-runtime-${cacheVersion}`;
 const PRECACHE_URLS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {

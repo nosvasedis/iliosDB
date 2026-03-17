@@ -99,6 +99,33 @@ const sanitizeBatchData = (data: any) => {
     return sanitized;
 };
 
+const sanitizeDeliveryPlanData = (data: any) => {
+    const validColumns = [
+        'id', 'order_id', 'plan_status', 'planning_mode', 'target_at', 'window_start', 'window_end',
+        'holiday_anchor', 'holiday_year', 'holiday_offset_days', 'contact_phone_override',
+        'internal_notes', 'snoozed_until', 'completed_at', 'cancelled_at', 'created_by',
+        'updated_by', 'created_at', 'updated_at'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (data?.[col] !== undefined) sanitized[col] = data[col];
+    });
+    return sanitized;
+};
+
+const sanitizeDeliveryReminderData = (data: any) => {
+    const validColumns = [
+        'id', 'plan_id', 'trigger_at', 'action_type', 'reason', 'sort_order', 'source',
+        'acknowledged_at', 'completed_at', 'completion_note', 'completed_by',
+        'snoozed_until', 'created_at', 'updated_at'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (data?.[col] !== undefined) sanitized[col] = data[col];
+    });
+    return sanitized;
+};
+
 async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
     const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
@@ -194,10 +221,15 @@ async function safeMutate(
         } else if (method === 'DELETE') {
             query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
         } else if (method === 'UPSERT') {
-            query = supabase.from(tableName).upsert(data, {
-                onConflict: options?.onConflict,
-                ignoreDuplicates: options?.ignoreDuplicates
-            }).select();
+            query = options?.noSelect
+                ? supabase.from(tableName).upsert(data, {
+                    onConflict: options?.onConflict,
+                    ignoreDuplicates: options?.ignoreDuplicates
+                })
+                : supabase.from(tableName).upsert(data, {
+                    onConflict: options?.onConflict,
+                    ignoreDuplicates: options?.ignoreDuplicates
+                }).select();
         }
 
         const { data: resData, error } = await query!;
@@ -1090,18 +1122,18 @@ export const api = {
     },
 
     saveOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
-        await safeMutate('order_delivery_plans', 'INSERT', plan, { noSelect: true });
+        await safeMutate('order_delivery_plans', 'UPSERT', sanitizeDeliveryPlanData(plan), { onConflict: 'id', noSelect: true });
         await safeMutate('order_delivery_reminders', 'DELETE', null, { match: { plan_id: plan.id } });
         if (reminders.length > 0) {
-            await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
+            await safeMutate('order_delivery_reminders', 'UPSERT', reminders.map(sanitizeDeliveryReminderData), { onConflict: 'id', noSelect: true });
         }
     },
 
     updateOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
-        await safeMutate('order_delivery_plans', 'UPDATE', plan, { match: { id: plan.id }, noSelect: true });
+        await safeMutate('order_delivery_plans', 'UPSERT', sanitizeDeliveryPlanData(plan), { onConflict: 'id', noSelect: true });
         await safeMutate('order_delivery_reminders', 'DELETE', null, { match: { plan_id: plan.id } });
         if (reminders.length > 0) {
-            await safeMutate('order_delivery_reminders', 'INSERT', reminders, { noSelect: true });
+            await safeMutate('order_delivery_reminders', 'UPSERT', reminders.map(sanitizeDeliveryReminderData), { onConflict: 'id', noSelect: true });
         }
     },
 
@@ -1326,10 +1358,10 @@ export const api = {
         }
 
         if (nextPlan) {
-            await safeMutate('order_delivery_plans', 'INSERT', nextPlan, { noSelect: true });
+            await safeMutate('order_delivery_plans', 'UPSERT', sanitizeDeliveryPlanData(nextPlan), { onConflict: 'id', noSelect: true });
         }
         if (nextPlanReminders.length > 0) {
-            await safeMutate('order_delivery_reminders', 'INSERT', nextPlanReminders, { noSelect: true });
+            await safeMutate('order_delivery_reminders', 'UPSERT', nextPlanReminders.map(sanitizeDeliveryReminderData), { onConflict: 'id', noSelect: true });
         }
 
         if (!hasRemaining) {
@@ -1830,7 +1862,13 @@ export const api = {
                 const rawData = item.data;
                 const cleanData = item.table === 'products' && rawData
                     ? sanitizeProductData(rawData)
-                    : (item.table === 'production_batches' && rawData ? sanitizeBatchData(rawData) : rawData);
+                    : item.table === 'production_batches' && rawData
+                        ? sanitizeBatchData(rawData)
+                        : item.table === 'order_delivery_plans' && rawData
+                            ? (Array.isArray(rawData) ? rawData.map(sanitizeDeliveryPlanData) : sanitizeDeliveryPlanData(rawData))
+                            : item.table === 'order_delivery_reminders' && rawData
+                                ? (Array.isArray(rawData) ? rawData.map(sanitizeDeliveryReminderData) : sanitizeDeliveryReminderData(rawData))
+                                : rawData;
                 const matchTarget = item.match || { id: rawData?.id || rawData?.sku };
 
                 if (['UPDATE', 'UPSERT', 'DELETE'].includes(item.method) && cleanData && cleanData.id && cleanData.updated_at) {
