@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Gem, Image as ImageIcon } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -604,6 +604,168 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     );
 };
 
+type SettingStageBatch = ProductionBatch & {
+    customer_name?: string;
+    product_details?: Product;
+    product_image?: string | null;
+};
+
+type SettingOrderOption = {
+    orderId: string;
+    customerName: string;
+    totalQuantity: number;
+    batches: SettingStageBatch[];
+};
+
+type OrderStoneRequirement = {
+    materialId: string;
+    name: string;
+    description: string;
+    unit: string;
+    totalRequired: number;
+    usages: Array<{
+        sku: string;
+        variantSuffix?: string;
+        quantity: number;
+        batchQuantity: number;
+        sizeInfo?: string;
+    }>;
+};
+
+const SettingOrderPickerModal = ({
+    orders,
+    onClose,
+    onSelect,
+}: {
+    orders: SettingOrderOption[];
+    onClose: () => void;
+    onSelect: (order: SettingOrderOption) => void;
+}) => (
+    <div className="fixed inset-0 z-[240] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-white w-full max-w-lg max-h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Καρφωτής</div>
+                    <h2 className="text-lg font-black text-slate-900">Επιλογή Παραγγελίας</h2>
+                </div>
+                <button onClick={onClose} className="p-2 rounded-full bg-white border border-slate-200 text-slate-500">
+                    <X size={18} />
+                </button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+                {orders.map(order => (
+                    <button
+                        key={order.orderId}
+                        type="button"
+                        onClick={() => onSelect(order)}
+                        className="w-full text-left rounded-2xl border border-slate-200 bg-white p-4 shadow-sm active:scale-[0.99] transition-transform"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="text-xs font-black text-slate-400 uppercase tracking-wide">#{formatOrderId(order.orderId)}</div>
+                                <div className="text-sm font-black text-slate-900 truncate">{order.customerName || 'Χωρίς πελάτη'}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-lg font-black text-slate-900">{order.totalQuantity}</div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase">τεμ.</div>
+                            </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                            <span className="px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                                {order.batches.length} παρτίδες
+                            </span>
+                            <span className="truncate">
+                                {order.batches.slice(0, 3).map(batch => `${batch.sku}${batch.variant_suffix || ''}`).join(', ')}
+                                {order.batches.length > 3 ? '…' : ''}
+                            </span>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+const SettingOrderStoneModal = ({
+    order,
+    requirements,
+    onClose,
+}: {
+    order: SettingOrderOption;
+    requirements: OrderStoneRequirement[];
+    onClose: () => void;
+}) => (
+    <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Καρφωτής</div>
+                    <h2 className="text-lg font-black text-slate-900 truncate">Πέτρες Παραγγελίας #{formatOrderId(order.orderId)}</h2>
+                    <div className="text-sm font-medium text-slate-500 truncate">{order.customerName || 'Χωρίς πελάτη'}</div>
+                </div>
+                <button onClick={onClose} className="p-2 rounded-full bg-white border border-slate-200 text-slate-500 shrink-0">
+                    <X size={18} />
+                </button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Παρτίδες</div>
+                        <div className="mt-1 text-2xl font-black text-slate-900">{order.batches.length}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Σύνολο Τεμαχίων</div>
+                        <div className="mt-1 text-2xl font-black text-slate-900">{order.totalQuantity}</div>
+                    </div>
+                </div>
+
+                {requirements.length === 0 ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+                        Δεν βρέθηκαν πέτρες στη συνταγή των προϊόντων αυτής της παραγγελίας στο στάδιο Καρφωτής.
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {requirements.map(requirement => (
+                            <div key={requirement.materialId} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                                <div className="p-4 flex items-start justify-between gap-3 border-b border-slate-100">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-black text-slate-900 truncate">{requirement.name}</div>
+                                        {requirement.description && (
+                                            <div className="text-xs text-slate-500 font-medium mt-1">{requirement.description}</div>
+                                        )}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <div className="text-xl font-black text-slate-900">{formatDecimal(requirement.totalRequired)}</div>
+                                        <div className="text-[10px] font-bold uppercase text-slate-400">{requirement.unit || 'τεμ.'}</div>
+                                    </div>
+                                </div>
+                                <div className="p-4 space-y-2 bg-slate-50/70">
+                                    {requirement.usages.map((usage, index) => (
+                                        <div key={`${requirement.materialId}-${usage.sku}-${index}`} className="flex items-center justify-between gap-3 text-xs">
+                                            <div className="min-w-0">
+                                                <div className="font-black text-slate-800 truncate">
+                                                    {usage.sku}{usage.variantSuffix || ''}
+                                                </div>
+                                                {usage.sizeInfo && (
+                                                    <div className="text-slate-500 font-medium">{usage.sizeInfo}</div>
+                                                )}
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="font-black text-slate-900">{formatDecimal(usage.quantity)}</div>
+                                                <div className="text-slate-400 font-medium">{usage.batchQuantity} τεμ.</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -612,11 +774,16 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const queryClient = useQueryClient();
     const { showToast } = useUI();
+    const productMap = useMemo(() => new Map(allProducts.map(product => [product.sku, product])), [allProducts]);
+    const materialsMap = useMemo(() => new Map((materials || []).map(material => [material.id, material])), [materials]);
+    const ordersMap = useMemo(() => new Map((orders || []).map(order => [order.id, order])), [orders]);
 
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
+    const [isSettingOrderPickerOpen, setIsSettingOrderPickerOpen] = useState(false);
+    const [selectedSettingOrder, setSelectedSettingOrder] = useState<SettingOrderOption | null>(null);
 
     // Note Saving Handler
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
@@ -636,18 +803,18 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         return batches.map(b => {
-            const prod = allProducts.find(p => p.sku === b.sku);
+            const prod = productMap.get(b.sku);
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
             const hasZirconsFromRecipe = prod?.recipe.some(r => {
                 if (r.type !== 'raw') return false;
-                const material = materials.find(m => m.id === r.id);
+                const material = materialsMap.get(r.id);
                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
             }) || false;
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
-            const order = orders.find(o => o.id === b.order_id);
+            const order = b.order_id ? ordersMap.get(b.order_id) : undefined;
 
             const lastUpdate = new Date(b.updated_at);
             const now = new Date();
@@ -668,7 +835,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 isDelayed
             };
         });
-    }, [batches, allProducts, materials, orders]);
+    }, [batches, allProducts, materials, orders, productMap, materialsMap, ordersMap]);
 
     const foundBatches = useMemo(() => {
         if (!finderTerm || finderTerm.length < 2) return [];
@@ -680,6 +847,87 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             return { ...b, customerName: b.customer_name || 'Άγνωστο' };
         }).sort((a, b) => (a.sku + a.variant_suffix).localeCompare(b.sku + b.variant_suffix));
     }, [enrichedBatches, finderTerm]);
+
+    const settingStageOrders = useMemo(() => {
+        const grouped = new Map<string, SettingOrderOption>();
+
+        enrichedBatches.forEach(batch => {
+            if (batch.current_stage !== ProductionStage.Setting || !batch.order_id) return;
+
+            const existing = grouped.get(batch.order_id);
+            if (existing) {
+                existing.batches.push(batch);
+                existing.totalQuantity += batch.quantity;
+                return;
+            }
+
+            grouped.set(batch.order_id, {
+                orderId: batch.order_id,
+                customerName: batch.customer_name || '',
+                totalQuantity: batch.quantity,
+                batches: [batch],
+            });
+        });
+
+        return [...grouped.values()].sort((a, b) => a.orderId.localeCompare(b.orderId)).map(order => ({
+            ...order,
+            batches: [...order.batches].sort((a, b) => `${a.sku}${a.variant_suffix || ''}`.localeCompare(`${b.sku}${b.variant_suffix || ''}`)),
+        }));
+    }, [enrichedBatches]);
+
+    const selectedSettingOrderRequirements = useMemo(() => {
+        if (!selectedSettingOrder) return [];
+
+        const requirements = new Map<string, OrderStoneRequirement>();
+
+        selectedSettingOrder.batches.forEach(batch => {
+            const product = batch.product_details || productMap.get(batch.sku);
+            if (!product?.recipe?.length) return;
+
+            product.recipe.forEach(recipeItem => {
+                if (recipeItem.type !== 'raw') return;
+                const material = materialsMap.get(recipeItem.id);
+                if (!material || material.type !== MaterialType.Stone) return;
+
+                const totalRequired = recipeItem.quantity * batch.quantity;
+                const existing = requirements.get(material.id);
+
+                if (existing) {
+                    existing.totalRequired += totalRequired;
+                    existing.usages.push({
+                        sku: batch.sku,
+                        variantSuffix: batch.variant_suffix,
+                        quantity: totalRequired,
+                        batchQuantity: batch.quantity,
+                        sizeInfo: batch.size_info,
+                    });
+                    return;
+                }
+
+                requirements.set(material.id, {
+                    materialId: material.id,
+                    name: material.name,
+                    description: material.description || '',
+                    unit: material.unit || 'τεμ.',
+                    totalRequired,
+                    usages: [{
+                        sku: batch.sku,
+                        variantSuffix: batch.variant_suffix,
+                        quantity: totalRequired,
+                        batchQuantity: batch.quantity,
+                        sizeInfo: batch.size_info,
+                    }],
+                });
+            });
+        });
+
+        return [...requirements.values()].sort((a, b) => a.name.localeCompare(b.name, 'el'));
+    }, [selectedSettingOrder, productMap, materialsMap]);
+
+    const handleOpenSettingOrder = (order: SettingOrderOption) => {
+        setIsSettingOrderPickerOpen(false);
+        setSelectedSettingOrder(order);
+    };
 
     const toggleStage = (stageId: string) => setOpenStage(openStage === stageId ? null : stageId);
 
@@ -999,7 +1247,26 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                         <div key={stage.id} className={`rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`}`}>
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-3"><div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0].replace('bg-', 'bg-').replace('50', '500')}`} /><span className={`font-bold text-sm ${isOpen ? 'text-slate-900' : 'text-slate-600'}`}>{stage.label}</span></div>
-                                <div className="flex items-center gap-3"><span className={`px-2 py-0.5 rounded-md text-xs font-black ${stageBatches.length > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{stageBatches.length}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}</div>
+                                <div className="flex items-center gap-2">
+                                    {stage.id === ProductionStage.Setting && (
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                if (settingStageOrders.length === 0) {
+                                                    showToast("Δεν υπάρχουν παραγγελίες στο στάδιο Καρφωτής.", "info");
+                                                    return;
+                                                }
+                                                setIsSettingOrderPickerOpen(true);
+                                            }}
+                                            className="px-2.5 py-1.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 text-[11px] font-black flex items-center gap-1.5"
+                                        >
+                                            <Gem size={12} /> Πέτρες
+                                        </button>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded-md text-xs font-black ${stageBatches.length > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{stageBatches.length}</span>
+                                    {isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                                </div>
                             </div>
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
@@ -1011,6 +1278,22 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     );
                 })}
             </div>
+
+            {isSettingOrderPickerOpen && (
+                <SettingOrderPickerModal
+                    orders={settingStageOrders}
+                    onClose={() => setIsSettingOrderPickerOpen(false)}
+                    onSelect={handleOpenSettingOrder}
+                />
+            )}
+
+            {selectedSettingOrder && (
+                <SettingOrderStoneModal
+                    order={selectedSettingOrder}
+                    requirements={selectedSettingOrderRequirements}
+                    onClose={() => setSelectedSettingOrder(null)}
+                />
+            )}
 
             {holdBatch && <MobileHoldModal batch={holdBatch} onClose={() => setHoldBatch(null)} onConfirm={confirmHold} />}
 
