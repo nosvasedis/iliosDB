@@ -1,10 +1,10 @@
 
-import React, { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../../types';
 import {
     ArrowLeft, Save, Plus, Search, Trash2, X, ChevronRight, User, Check, AlertCircle,
     ImageIcon, Camera, StickyNote, Minus, Percent, Loader2, FolderKanban, Tag,
-    ChevronLeft, Hash, ShoppingCart, Pencil
+    BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart, Pencil
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
@@ -68,8 +68,6 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gen
 
 // ─── Catalog Inline Browser (Seller Only) ─────────────────────────────────────
 type CatalogStep = 'collections' | 'products';
-const INITIAL_CATALOG_VISIBLE = 24;
-const CATALOG_LOAD_STEP = 24;
 
 interface CatalogBrowserProps {
     products: Product[];
@@ -88,8 +86,6 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
     const [internalStep, setInternalStep] = useState<CatalogStep>('collections');
     const [internalCollection, setInternalCollection] = useState<Collection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [visibleCount, setVisibleCount] = useState(INITIAL_CATALOG_VISIBLE);
-    const deferredSearchTerm = useDeferredValue(searchTerm.trim().toLowerCase());
 
     const step = controlledStep !== undefined ? controlledStep : internalStep;
     const setStep = onStepChange || setInternalStep;
@@ -99,51 +95,18 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
         else setInternalCollection(col);
     };
 
-    const collectionCatalog = useMemo(() => {
-        const productsByCollection = new Map<number, Product[]>();
-        const counts = new Map<number, number>();
-        const previews = new Map<number, string | null>();
-
-        products.forEach(product => {
-            if (product.is_component) return;
-            (product.collections || []).forEach(collectionId => {
-                const bucket = productsByCollection.get(collectionId);
-                if (bucket) bucket.push(product);
-                else productsByCollection.set(collectionId, [product]);
-
-                counts.set(collectionId, (counts.get(collectionId) || 0) + 1);
-                if (!previews.has(collectionId) && product.image_url) {
-                    previews.set(collectionId, product.image_url);
-                }
-            });
-        });
-
-        productsByCollection.forEach((bucket, collectionId) => {
-            productsByCollection.set(collectionId, [...bucket].sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' })));
-        });
-
-        return { productsByCollection, counts, previews };
-    }, [products]);
-
-    const collectionProducts = useMemo(() => {
-        if (!selectedCollection) return [];
-        return collectionCatalog.productsByCollection.get(selectedCollection.id) || [];
-    }, [collectionCatalog.productsByCollection, selectedCollection]);
-
     const filteredProducts = useMemo(() => {
-        if (deferredSearchTerm === '') return collectionProducts;
-        return collectionProducts.filter(product =>
-            product.sku.toLowerCase().includes(deferredSearchTerm) ||
-            product.category.toLowerCase().includes(deferredSearchTerm)
-        );
-    }, [collectionProducts, deferredSearchTerm]);
-
-    useEffect(() => {
-        setVisibleCount(INITIAL_CATALOG_VISIBLE);
-    }, [selectedCollection?.id, deferredSearchTerm, step]);
-
-    const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount]);
-    const canLoadMore = visibleCount < filteredProducts.length;
+        if (!selectedCollection) return [];
+        return products
+            .filter(p =>
+                p.collections?.includes(selectedCollection.id) &&
+                !p.is_component &&
+                (searchTerm === '' ||
+                    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+            )
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [selectedCollection, products, searchTerm]);
 
     if (step === 'collections') {
         return (
@@ -151,16 +114,16 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Επιλέξτε Συλλογή</p>
                 <div className="grid grid-cols-2 gap-3 landscape:grid-cols-3">
                     {collections.map(col => {
-                        const previewImage = collectionCatalog.previews.get(col.id);
-                        const count = collectionCatalog.counts.get(col.id) || 0;
+                        const previewProduct = products.find(p => p.collections?.includes(col.id) && p.image_url);
+                        const count = products.filter(p => p.collections?.includes(col.id) && !p.is_component).length;
                         return (
                             <button
                                 key={col.id}
                                 onClick={() => { setSelectedCollection(col); setStep('products'); setSearchTerm(''); }}
                                 className="group relative rounded-2xl overflow-hidden border border-slate-100 h-32 bg-slate-100 shadow-sm active:scale-[0.97] transition-transform text-left"
                             >
-                                {previewImage && (
-                                    <img src={previewImage} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                                {previewProduct?.image_url && (
+                                    <img src={previewProduct.image_url} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                 <div className="absolute bottom-0 inset-x-0 p-3">
@@ -200,8 +163,8 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                 />
             </div>
             {/* Product grid — when expanded, taller and slightly larger cards */}
-            <div className={`grid gap-2 overflow-y-auto custom-scrollbar pb-1 flex-1 min-h-0 content-start ${expanded ? 'grid-cols-3 landscape:grid-cols-4 gap-3 max-h-[60vh]' : 'grid-cols-3 landscape:grid-cols-4 max-h-96'}`}>
-                {visibleProducts.map(p => (
+            <div className={`grid gap-2 overflow-y-auto custom-scrollbar pb-1 flex-1 min-h-0 ${expanded ? 'grid-cols-3 landscape:grid-cols-4 gap-3 max-h-[60vh]' : 'grid-cols-3 landscape:grid-cols-4 max-h-96'}`}>
+                {filteredProducts.map(p => (
                     <button
                         key={p.sku}
                         onClick={() => onSelectProduct(p)}
@@ -223,15 +186,6 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     <div className="col-span-3 text-center py-8 text-slate-400 text-xs">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
-            {canLoadMore && (
-                <button
-                    type="button"
-                    onClick={() => setVisibleCount(prev => prev + CATALOG_LOAD_STEP)}
-                    className="w-full shrink-0 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-black"
-                >
-                    Ξ¦ΟΟΟ„Ο‰ΟƒΞ· Ξ€ΞµΟΞΉΟƒΟƒΟΟ„ΞµΟΟ‰Ξ½ ({filteredProducts.length - visibleCount})
-                </button>
-            )}
         </div>
     );
 };
@@ -245,17 +199,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const { user, profile } = useAuth();
     const queryClient = useQueryClient();
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: collections, isLoading: collectionsLoading } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
 
     const isSeller = profile?.role === 'seller';
 
     // ── Input Mode (seller only): 'sku' | 'catalog' ─────────────────────────
-    // ── Catalog browser state (lifted so we stay in same collection after adding item) ──
     const [inputMode, setInputMode] = useState<'sku' | 'catalog'>('sku');
+
+    // ── Catalog browser state (lifted so we stay in same collection after adding item) ──
     const [catalogStep, setCatalogStep] = useState<CatalogStep>('collections');
     const [catalogCollection, setCatalogCollection] = useState<Collection | null>(null);
-    const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
-    const [hasOpenedCatalog, setHasOpenedCatalog] = useState(false);
     const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
     const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
 
@@ -515,13 +468,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     // Called from CatalogBrowser when user taps a product
     const handleCatalogSelectProduct = (p: Product) => {
-        setIsCatalogModalOpen(false);
         handleSelectMaster(p);
-    };
-
-    const handleOpenCatalog = () => {
-        setHasOpenedCatalog(true);
-        setIsCatalogModalOpen(true);
     };
 
     const handleScan = (code: string) => {
@@ -745,45 +692,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             )}
 
             {/* ── Top Bar ──────────────────────────────────────────── */}
-            {isSeller && isCatalogModalOpen && (
-                <div className="fixed inset-0 z-[120] bg-slate-900/65 backdrop-blur-sm p-3 sm:p-4" onClick={() => setIsCatalogModalOpen(false)}>
-                    <div className="bg-white h-full w-full rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-                            <div>
-                                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Seller</div>
-                                <h2 className="text-base font-black text-slate-900">Αναζήτηση στον Κατάλογο</h2>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsCatalogModalOpen(false)}
-                                className="p-2 rounded-full bg-slate-100 text-slate-500"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="flex-1 min-h-0 p-4">
-                            {collectionsLoading && (
-                                <div className="h-full flex items-center justify-center text-slate-400">
-                                    <Loader2 size={24} className="animate-spin" />
-                                </div>
-                            )}
-                            {!collectionsLoading && collections && hasOpenedCatalog && (
-                                <CatalogBrowser
-                                    products={products}
-                                    collections={collections}
-                                    onSelectProduct={handleCatalogSelectProduct}
-                                    step={catalogStep}
-                                    onStepChange={setCatalogStep}
-                                    selectedCollection={catalogCollection}
-                                    onCollectionSelect={setCatalogCollection}
-                                    expanded
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
                 {/* Back button — shows warning if items exist */}
                 <button
@@ -820,29 +728,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
             {/* ── Scrollable Body — portrait/landscape optimized ─────────── */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar flex flex-col gap-4 pb-40 landscape:max-w-3xl landscape:mx-auto landscape:px-6">
-
-                {isSeller && !activeMaster && (
-                    <button
-                        type="button"
-                        onClick={handleOpenCatalog}
-                        className="w-full bg-white border border-emerald-200 rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between gap-3 text-left"
-                    >
-                        <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center shrink-0">
-                                <FolderKanban size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-sm font-black text-slate-900 truncate">Αναζήτηση στον Κατάλογο</div>
-                                <div className="text-[11px] text-slate-500 font-medium truncate">
-                                    {catalogStep === 'products' && catalogCollection
-                                        ? `${catalogCollection.name} • συνέχεια από εκεί`
-                                        : 'Άνοιγμα συλλογών και κωδικών χωρίς βαρύ φόρτωμα στη σελίδα'}
-                                </div>
-                            </div>
-                        </div>
-                        <ChevronRight size={18} className="text-slate-400 shrink-0" />
-                    </button>
-                )}
 
                 {/* Customer Section */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
@@ -921,7 +806,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <Hash size={14} /> Κωδικός
                                 </button>
                                 <button
-                                    onClick={handleOpenCatalog}
+                                    onClick={() => setInputMode('catalog')}
                                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'catalog' ? 'bg-white text-[#060b00] shadow-sm' : 'text-slate-400'}`}
                                 >
                                     <FolderKanban size={14} /> Κατάλογος

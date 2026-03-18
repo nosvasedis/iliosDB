@@ -1432,8 +1432,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             )
             .map((order) => {
                 const mergedRows = new Map<string, AssemblyPrintRow>();
-                const readyQtyByKey = new Map<string, number>();
-                const orderBatches = batchesByOrderId.get(order.id) || [];
 
                 const isRetailOrder =
                     order.customer_id === RETAIL_CUSTOMER_ID ||
@@ -1443,18 +1441,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     isRetailOrder && retailClientLabel
                         ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
                         : order.customer_name;
-
-                orderBatches
-                    .filter((batch) => batch.current_stage === ProductionStage.Ready)
-                    .forEach((batch) => {
-                        const key = [
-                            order.id,
-                            batch.sku,
-                            batch.variant_suffix || '',
-                            batch.size_info || ''
-                        ].join('::');
-                        readyQtyByKey.set(key, (readyQtyByKey.get(key) || 0) + batch.quantity);
-                    });
 
                 order.items.forEach((item, index) => {
                     if (!requiresAssemblyStage(item.sku)) return;
@@ -1484,28 +1470,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     });
                 });
 
-                const rows = Array.from(mergedRows.values())
-                    .map((row) => {
-                        const key = [
-                            row.order_id,
-                            row.sku,
-                            row.variant_suffix || '',
-                            row.size_info || ''
-                        ].join('::');
-                        const readyQty = readyQtyByKey.get(key) || 0;
-                        return {
-                            ...row,
-                            quantity: Math.max(0, row.quantity - readyQty)
-                        };
-                    })
-                    .filter((row) => row.quantity > 0)
-                    .sort((a, b) => {
-                        const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
-                        const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
-                        const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
-                        if (bySku !== 0) return bySku;
-                        return (a.size_info || '').localeCompare(b.size_info || '');
-                    });
+                const rows = Array.from(mergedRows.values()).sort((a, b) => {
+                    const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
+                    const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+                    const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
+                    if (bySku !== 0) return bySku;
+                    return (a.size_info || '').localeCompare(b.size_info || '');
+                });
 
                 return {
                     order,
@@ -1516,7 +1487,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             })
             .filter((candidate) => candidate.rows.length > 0)
             .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
-    }, [orders, batchesByOrderId]);
+    }, [orders]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
         e.dataTransfer.effectAllowed = 'move';
