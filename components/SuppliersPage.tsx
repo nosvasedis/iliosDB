@@ -8,6 +8,7 @@ import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
 import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
+import { usePrint } from './PrintContext';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -69,6 +70,7 @@ const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, onClick, latestOr
 export default function SuppliersPage() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
+    const { setSupplierOrderToPrint } = usePrint();
 
     // Data Fetching
     const { data: suppliers, isError: suppliersError, error: suppliersErr, refetch: refetchSuppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
@@ -516,7 +518,15 @@ export default function SuppliersPage() {
                                 </div>
                             </div>
                             <div className="p-4 border-t border-slate-100 flex justify-end gap-3 bg-white">
-                                <button onClick={() => window.print()} className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-black shadow-lg">Εκτύπωση</button>
+                                <button
+                                    onClick={() => {
+                                        setSupplierOrderToPrint(orderToPrint);
+                                        setOrderToPrint(null);
+                                    }}
+                                    className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-black shadow-lg"
+                                >
+                                    Εκτύπωση
+                                </button>
                             </div>
                         </div>
                     </div>

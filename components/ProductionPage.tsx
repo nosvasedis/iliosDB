@@ -166,6 +166,205 @@ type AssemblyOrderCandidate = {
     totalAssemblyQty: number;
 };
 
+// ── DesktopSettingStoneModal ─────────────────────────────────────────────────
+const DesktopSettingStoneModal: React.FC<{
+    batches: Array<ProductionBatch & { product_details?: Product; customer_name?: string }>;
+    orders: Order[];
+    allProducts: Product[];
+    allMaterials: Material[];
+    onClose: () => void;
+}> = ({ batches, orders, allProducts, allMaterials, onClose }) => {
+    const settingBatches = batches.filter(b => b.current_stage === ProductionStage.Setting);
+
+    const orderGroups = useMemo(() => {
+        const map = new Map<string, typeof settingBatches>();
+        settingBatches.forEach(b => {
+            const key = b.order_id || '__none__';
+            const arr = map.get(key) || [];
+            arr.push(b);
+            map.set(key, arr);
+        });
+        return map;
+    }, [settingBatches]);
+
+    const orderList = useMemo(() =>
+        Array.from(orderGroups.entries()).map(([key, bs]) => {
+            const order = key !== '__none__' ? orders.find(o => o.id === key) : null;
+            return {
+                key,
+                orderId: key !== '__none__' ? key : null,
+                customerName: order?.customer_name || (bs[0] as any)?.customer_name || 'Χωρίς Πελάτη',
+                batchCount: bs.length,
+            };
+        }), [orderGroups, orders]);
+
+    const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(
+        () => orderGroups.size === 1 ? Array.from(orderGroups.keys())[0] : null
+    );
+
+    const stones = useMemo(() => {
+        if (!selectedOrderKey) return [];
+        const orderBatches = orderGroups.get(selectedOrderKey) || [];
+        const stoneMap = new Map<string, { name: string; description?: string; quantity: number; unit: string }>();
+
+        orderBatches.forEach(batch => {
+            const product = allProducts.find(p => p.sku === batch.sku);
+            if (!product) return;
+
+            let hasRecipeStones = false;
+            product.recipe.forEach(item => {
+                if (item.type !== 'raw') return;
+                const mat = allMaterials.find(m => m.id === item.id);
+                if (!mat || mat.type !== MaterialType.Stone) return;
+                hasRecipeStones = true;
+                const totalQty = item.quantity * batch.quantity;
+                const existing = stoneMap.get(mat.id);
+                if (existing) existing.quantity += totalQty;
+                else stoneMap.set(mat.id, { name: mat.name, description: mat.description, quantity: totalQty, unit: mat.unit || 'τεμ' });
+            });
+
+            if (!hasRecipeStones) {
+                const { stone } = getVariantComponents(batch.variant_suffix || '', product.gender);
+                if (stone.code) {
+                    const sfxKey = `sfx_${stone.code}`;
+                    const existing = stoneMap.get(sfxKey);
+                    if (existing) existing.quantity += batch.quantity;
+                    else stoneMap.set(sfxKey, { name: stone.name || stone.code, quantity: batch.quantity, unit: 'τεμ' });
+                }
+            }
+        });
+        return Array.from(stoneMap.values()).sort((a, b) => b.quantity - a.quantity);
+    }, [selectedOrderKey, orderGroups, allProducts, allMaterials]);
+
+    const selectedBatches = selectedOrderKey ? (orderGroups.get(selectedOrderKey) || []) : [];
+    const selectedOrderInfo = orderList.find(o => o.key === selectedOrderKey);
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={onClose}>
+            <div
+                className="bg-white w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 bg-purple-50/60 flex items-center justify-between rounded-t-3xl">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 rounded-xl">
+                            <Gem size={20} className="text-purple-700" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 text-lg">Πέτρες Καρφωτή</h3>
+                            <p className="text-xs text-slate-500 font-medium">{settingBatches.length} παρτίδες στο στάδιο Καρφωτής</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Body: Two-column layout */}
+                <div className="flex flex-1 min-h-0">
+                    {/* Left: Order List */}
+                    <div className="w-64 shrink-0 border-r border-slate-100 flex flex-col bg-slate-50/50">
+                        <div className="px-4 py-3 border-b border-slate-100">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παραγγελίες</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
+                            {orderList.map(order => (
+                                <button
+                                    key={order.key}
+                                    onClick={() => setSelectedOrderKey(order.key)}
+                                    className={`w-full text-left rounded-xl px-3 py-3 border transition-all ${
+                                        selectedOrderKey === order.key
+                                            ? 'bg-purple-50 border-purple-300 shadow-sm'
+                                            : 'bg-white border-slate-200 hover:border-purple-200 hover:bg-purple-50/30'
+                                    }`}
+                                >
+                                    <div className={`font-bold text-sm leading-tight ${
+                                        selectedOrderKey === order.key ? 'text-purple-900' : 'text-slate-800'
+                                    }`}>{order.customerName}</div>
+                                    {order.orderId && (
+                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">#{formatOrderId(order.orderId)}</div>
+                                    )}
+                                    <div className={`text-[10px] font-black mt-1 ${
+                                        selectedOrderKey === order.key ? 'text-purple-600' : 'text-slate-400'
+                                    }`}>{order.batchCount} παρτίδες</div>
+                                </button>
+                            ))}
+                            {orderList.length === 0 && (
+                                <p className="text-center text-xs text-slate-400 italic py-8">Κανένα στάδιο Καρφωτή</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right: Stone Details */}
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                        {!selectedOrderKey ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400/60 py-12">
+                                <Gem size={44} className="mb-3 text-purple-200" />
+                                <p className="font-bold text-sm text-slate-400">Επιλέξτε παραγγελία για να δείτε τις πέτρες</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Order Info */}
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                                        Παρτίδες — {selectedOrderInfo?.customerName}
+                                        {selectedOrderInfo?.orderId && (
+                                            <span className="text-slate-300 ml-1">#{formatOrderId(selectedOrderInfo.orderId)}</span>
+                                        )}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {selectedBatches.map(b => (
+                                            <div key={b.id} className="bg-slate-50 rounded-xl px-3 py-2.5 flex items-center justify-between border border-slate-100">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <SkuColored sku={b.sku} suffix={b.variant_suffix || ''} gender={(b as any).product_details?.gender} />
+                                                    {b.size_info && (
+                                                        <span className="text-[9px] bg-slate-200 px-1.5 rounded-md font-bold text-slate-600 shrink-0">{b.size_info}</span>
+                                                    )}
+                                                </div>
+                                                <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-sm shrink-0">
+                                                    {b.quantity} τμχ
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Stones */}
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Απαιτούμενες Πέτρες</p>
+                                    {stones.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {stones.map((stone, i) => (
+                                                <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-sm ring-1 ring-purple-50">
+                                                    <div className="flex-1 min-w-0 pr-4">
+                                                        <div className="font-black text-slate-800 text-sm leading-tight">{stone.name}</div>
+                                                        {stone.description && (
+                                                            <div className="text-xs text-slate-500 font-medium mt-0.5">{stone.description}</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-4xl font-black text-purple-700 leading-none">{stone.quantity}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold mt-0.5">{stone.unit}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-amber-700 text-sm font-bold text-center">
+                                            Δεν βρέθηκαν πέτρες στη Λίστα Υλικών για αυτή την παραγγελία.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
     isOpen: boolean,
     onClose: () => void,
@@ -1235,6 +1434,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [batchHistory, setBatchHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
+    const [showSettingStones, setShowSettingStones] = useState(false);
 
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
@@ -1424,6 +1624,21 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const assemblyOrderCandidates = useMemo(() => {
         if (!orders || orders.length === 0) return [] as AssemblyOrderCandidate[];
 
+        // Build a quick lookup of READY quantities per order+sku+variant+size,
+        // so Assembly sheets won't show items already marked Ready.
+        const readyQtyByKey = new Map<string, number>();
+        enhancedBatches.forEach((b) => {
+            if (!b.order_id) return;
+            if (b.current_stage !== ProductionStage.Ready) return;
+            const key = [
+                b.order_id,
+                b.sku,
+                b.variant_suffix || '',
+                b.size_info || ''
+            ].join('::');
+            readyQtyByKey.set(key, (readyQtyByKey.get(key) || 0) + (b.quantity || 0));
+        });
+
         return orders
             .filter((order) =>
                 !order.is_archived &&
@@ -1431,7 +1646,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 order.items.some((item) => requiresAssemblyStage(item.sku))
             )
             .map((order) => {
-                const mergedRows = new Map<string, AssemblyPrintRow>();
+                const qtyByKey = new Map<string, number>();
+                const notesByKey = new Map<string, Set<string>>();
 
                 const isRetailOrder =
                     order.customer_id === RETAIL_CUSTOMER_ID ||
@@ -1442,7 +1658,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
                         : order.customer_name;
 
-                order.items.forEach((item, index) => {
+                order.items.forEach((item) => {
                     if (!requiresAssemblyStage(item.sku)) return;
 
                     const key = [
@@ -1452,25 +1668,37 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         item.size_info || ''
                     ].join('::');
 
-                    const existing = mergedRows.get(key);
-                    if (existing) {
-                        existing.quantity += item.quantity;
-                        return;
+                    qtyByKey.set(key, (qtyByKey.get(key) || 0) + (item.quantity || 0));
+                    if (item.notes && item.notes.trim()) {
+                        if (!notesByKey.has(key)) notesByKey.set(key, new Set());
+                        notesByKey.get(key)!.add(item.notes.trim());
                     }
-
-                    mergedRows.set(key, {
-                        id: `assembly-order-${order.id}-${index}`,
-                        order_id: order.id,
-                        customer_name: displayCustomerName,
-                        sku: item.sku,
-                        variant_suffix: item.variant_suffix,
-                        size_info: item.size_info,
-                        quantity: item.quantity,
-                        notes: item.notes
-                    });
                 });
 
-                const rows = Array.from(mergedRows.values()).sort((a, b) => {
+                const rows = Array.from(qtyByKey.entries())
+                    .map(([key, orderedQty], idx) => {
+                        const [order_id, sku, variant_suffix, size_info] = key.split('::');
+                        const readyQty = readyQtyByKey.get(key) || 0;
+                        const remainingQty = Math.max(0, orderedQty - readyQty);
+                        if (remainingQty <= 0) return null;
+
+                        const notes = Array.from(notesByKey.get(key) || [])
+                            .filter(Boolean)
+                            .join(' • ');
+
+                        return {
+                            id: `assembly-order-${order.id}-${idx}`,
+                            order_id,
+                            customer_name: displayCustomerName,
+                            sku,
+                            variant_suffix: variant_suffix || undefined,
+                            size_info: size_info || undefined,
+                            quantity: remainingQty,
+                            notes: notes || undefined
+                        } as AssemblyPrintRow;
+                    })
+                    .filter((r): r is AssemblyPrintRow => r !== null)
+                    .sort((a, b) => {
                     const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
                     const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
                     const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
@@ -1487,7 +1715,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             })
             .filter((candidate) => candidate.rows.length > 0)
             .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
-    }, [orders]);
+    }, [orders, enhancedBatches]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -2188,6 +2416,15 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                         <h3 className={`font-bold ${colors.text} text-sm`}>{stage.label}</h3>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {stage.id === ProductionStage.Setting && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowSettingStones(true); }}
+                                                className="p-1.5 bg-white rounded-lg hover:bg-purple-100 text-purple-500 hover:text-purple-700 transition-colors shadow-sm"
+                                                title="Πέτρες Καρφωτή"
+                                            >
+                                                <Gem size={14} />
+                                            </button>
+                                        )}
                                         {stage.id === ProductionStage.Labeling && (
                                             <>
                                                 <button
@@ -2418,6 +2655,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 batch={historyModalBatch}
                 history={batchHistory}
             />
+
+            {showSettingStones && orders && (
+                <DesktopSettingStoneModal
+                    batches={enhancedBatches}
+                    orders={orders}
+                    allProducts={products}
+                    allMaterials={materials}
+                    onClose={() => setShowSettingStones(false)}
+                />
+            )}
         </div>
     );
 }
