@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../AuthContext';
-import { ShoppingCart, Plus, BookOpen, FolderKanban } from 'lucide-react';
+import { ShoppingCart, Plus, BookOpen, FolderKanban, Search, ChevronRight } from 'lucide-react';
 
 interface Props {
     onNavigate: (page: string) => void;
@@ -36,6 +36,21 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
 
     return (
         <div className="p-5 space-y-6 pb-28 landscape:pb-8 landscape:max-w-4xl landscape:mx-auto">
+
+            {/* ── Quick Catalog Search ─────────────────────────────────────── */}
+            <button
+                onClick={() => onNavigate('catalog')}
+                className="w-full flex items-center gap-3.5 bg-gradient-to-r from-violet-600 to-violet-500 text-white px-5 py-4 rounded-3xl shadow-lg active:scale-[0.97] transition-all"
+            >
+                <div className="p-2.5 bg-white/20 rounded-xl shrink-0">
+                    <Search size={20} />
+                </div>
+                <div className="text-left flex-1 min-w-0">
+                    <div className="font-black text-base leading-tight">Αναζήτηση στον Κατάλογο</div>
+                    <div className="text-xs text-white/70 font-medium mt-0.5">Δειγματολόγιο &amp; Τιμές</div>
+                </div>
+                <ChevronRight size={20} className="text-white/60 shrink-0" />
+            </button>
 
             {/* ── Hero Greeting ─────────────────────────────────────────────── */}
             <div className="relative rounded-3xl overflow-hidden shadow-lg"

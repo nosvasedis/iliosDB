@@ -11,7 +11,7 @@ import { useUI } from '../UIProvider';
 import SellerImageLightbox from './SellerImageLightbox';
 
 const CATALOG_PAGE_SIZE = 60;
-const PAGE_SIZE = 60;
+const PAGE_SIZE = 30;
 
 interface Props { products?: Product[]; }
 
@@ -193,7 +193,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                     style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
                 >
                     {product.image_url ? (
-                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} />
+                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} loading="lazy" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <ImageIcon size={20} />
@@ -308,10 +308,14 @@ export default function SellerCatalog({ products: productsProp }: Props) {
     const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);
     const products = productsProp ?? catalogProducts;
 
-    // Auto-load remaining catalog pages in background so search + category filters have full data
+    // Auto-load remaining catalog pages in background with a throttled delay so the
+    // UI thread stays free between fetches (critical for older/slower mobile devices).
     useEffect(() => {
         if (productsProp != null || !hasNextPage || isFetchingNextPage) return;
-        fetchNextPage();
+        const timer = setTimeout(() => {
+            fetchNextPage();
+        }, 800);
+        return () => clearTimeout(timer);
     }, [productsProp, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     // ── Filter states ────────────────────────────────────────────────────────

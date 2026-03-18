@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import BatchBuildModal from '../BatchBuildModal';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -604,6 +604,206 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     );
 };
 
+// ── SettingStoneModal ────────────────────────────────────────────────────────
+const SettingStoneModal: React.FC<{
+    batches: Array<ProductionBatch & { requires_setting?: boolean; requires_assembly?: boolean; product_details?: Product; product_image?: string | null; customer_name?: string; isDelayed?: boolean }>;
+    orders: Order[];
+    allProducts: Product[];
+    allMaterials: Material[];
+    onClose: () => void;
+}> = ({ batches, orders, allProducts, allMaterials, onClose }) => {
+    const settingBatches = batches.filter(b => b.current_stage === ProductionStage.Setting);
+
+    const orderGroups = useMemo(() => {
+        const map = new Map<string, typeof settingBatches>();
+        settingBatches.forEach(b => {
+            const key = b.order_id || '__none__';
+            const arr = map.get(key) || [];
+            arr.push(b);
+            map.set(key, arr);
+        });
+        return map;
+    }, [settingBatches]);
+
+    const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(
+        () => orderGroups.size === 1 ? Array.from(orderGroups.keys())[0] : null
+    );
+
+    const orderList = useMemo(() =>
+        Array.from(orderGroups.entries()).map(([key, bs]) => {
+            const order = key !== '__none__' ? orders.find(o => o.id === key) : null;
+            return {
+                key,
+                orderId: key !== '__none__' ? key : null,
+                customerName: order?.customer_name || bs[0]?.customer_name || 'Χωρίς Πελάτη',
+                batchCount: bs.length,
+            };
+        }), [orderGroups, orders]);
+
+    const stones = useMemo(() => {
+        if (!selectedOrderKey) return [];
+        const orderBatches = orderGroups.get(selectedOrderKey) || [];
+        const stoneMap = new Map<string, { name: string; description?: string; quantity: number; unit: string }>();
+
+        orderBatches.forEach(batch => {
+            const product = allProducts.find(p => p.sku === batch.sku);
+            if (!product) return;
+
+            let hasRecipeStones = false;
+            product.recipe.forEach(item => {
+                if (item.type !== 'raw') return;
+                const mat = allMaterials.find(m => m.id === item.id);
+                if (!mat || mat.type !== MaterialType.Stone) return;
+                hasRecipeStones = true;
+                const totalQty = item.quantity * batch.quantity;
+                const existing = stoneMap.get(mat.id);
+                if (existing) existing.quantity += totalQty;
+                else stoneMap.set(mat.id, { name: mat.name, description: mat.description, quantity: totalQty, unit: mat.unit || 'τεμ' });
+            });
+
+            // Fallback: use suffix stone when no explicit recipe entry
+            if (!hasRecipeStones) {
+                const { stone } = getVariantComponents(batch.variant_suffix || '', product.gender);
+                if (stone.code) {
+                    const key = `sfx_${stone.code}`;
+                    const existing = stoneMap.get(key);
+                    if (existing) existing.quantity += batch.quantity;
+                    else stoneMap.set(key, { name: stone.name || stone.code, quantity: batch.quantity, unit: 'τεμ' });
+                }
+            }
+        });
+        return Array.from(stoneMap.values()).sort((a, b) => b.quantity - a.quantity);
+    }, [selectedOrderKey, orderGroups, allProducts, allMaterials]);
+
+    const selectedBatches = selectedOrderKey ? (orderGroups.get(selectedOrderKey) || []) : [];
+    const selectedOrderInfo = orderList.find(o => o.key === selectedOrderKey);
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in" onClick={onClose}>
+            <div
+                className="bg-white w-full max-w-lg rounded-t-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-full duration-300"
+                style={{ maxHeight: '85vh' }}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex-shrink-0 p-5 border-b border-slate-100 bg-purple-50/60">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            {selectedOrderKey ? (
+                                <button
+                                    onClick={() => setSelectedOrderKey(null)}
+                                    className="p-1.5 bg-purple-100 text-purple-700 rounded-xl hover:bg-purple-200 transition-colors active:scale-90"
+                                >
+                                    <ArrowLeft size={16} />
+                                </button>
+                            ) : (
+                                <div className="p-2 bg-purple-100 rounded-xl">
+                                    <Gem size={18} className="text-purple-700" />
+                                </div>
+                            )}
+                            <div>
+                                <h3 className="font-black text-slate-900 text-base">Πέτρες Καρφωτή</h3>
+                                <p className="text-[10px] text-slate-500 font-medium">
+                                    {selectedOrderInfo
+                                        ? selectedOrderInfo.customerName
+                                        : `${settingBatches.length} παρτίδες σε εξέλιξη`}
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {!selectedOrderKey ? (
+                        /* ── Order selection ── */
+                        <div className="p-4 space-y-2.5">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Επιλέξτε Παραγγελία</p>
+                            {orderList.map(order => (
+                                <button
+                                    key={order.key}
+                                    onClick={() => setSelectedOrderKey(order.key)}
+                                    className="w-full bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between hover:border-purple-300 hover:bg-purple-50/30 transition-all active:scale-[0.98] shadow-sm"
+                                >
+                                    <div className="text-left">
+                                        <div className="font-black text-slate-800 text-sm">{order.customerName}</div>
+                                        {order.orderId && (
+                                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">#{formatOrderId(order.orderId)}</div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-lg">
+                                            {order.batchCount} παρτ.
+                                        </span>
+                                        <ArrowRight size={16} className="text-slate-400" />
+                                    </div>
+                                </button>
+                            ))}
+                            {orderList.length === 0 && (
+                                <div className="text-center py-12 text-slate-400 text-sm italic">
+                                    Κανένα στάδιο Καρφωτή αυτή τη στιγμή.
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* ── Stones breakdown for selected order ── */
+                        <div className="p-4 space-y-5">
+                            {/* Batches */}
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Παρτίδες</p>
+                                <div className="space-y-2">
+                                    {selectedBatches.map(b => (
+                                        <div key={b.id} className="bg-slate-50 rounded-xl px-3 py-2.5 flex items-center justify-between border border-slate-100">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <SkuColored sku={b.sku} suffix={b.variant_suffix || ''} gender={(b as any).product_details?.gender} />
+                                                {b.size_info && (
+                                                    <span className="text-[9px] bg-slate-200 px-1.5 rounded-md font-bold text-slate-600 shrink-0">{b.size_info}</span>
+                                                )}
+                                            </div>
+                                            <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-sm shrink-0">
+                                                {b.quantity} τμχ
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Stones */}
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Απαιτούμενες Πέτρες</p>
+                                {stones.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {stones.map((stone, i) => (
+                                            <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-sm ring-1 ring-purple-50">
+                                                <div className="flex-1 min-w-0 pr-3">
+                                                    <div className="font-black text-slate-800 text-sm leading-tight">{stone.name}</div>
+                                                    {stone.description && (
+                                                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">{stone.description}</div>
+                                                    )}
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-3xl font-black text-purple-700 leading-none">{stone.quantity}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold mt-0.5">{stone.unit}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-amber-700 text-sm font-bold text-center">
+                                        Δεν βρέθηκαν πέτρες στη Λίστα Υλικών για αυτή την παραγγελία.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
@@ -617,6 +817,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
+    const [showSettingStones, setShowSettingStones] = useState(false);
 
     // Note Saving Handler
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
@@ -999,7 +1200,18 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                         <div key={stage.id} className={`rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`}`}>
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-3"><div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0].replace('bg-', 'bg-').replace('50', '500')}`} /><span className={`font-bold text-sm ${isOpen ? 'text-slate-900' : 'text-slate-600'}`}>{stage.label}</span></div>
-                                <div className="flex items-center gap-3"><span className={`px-2 py-0.5 rounded-md text-xs font-black ${stageBatches.length > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{stageBatches.length}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}</div>
+                                <div className="flex items-center gap-3">
+                                    {stage.id === ProductionStage.Setting && (
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setShowSettingStones(true); }}
+                                            className="p-1.5 bg-purple-100 text-purple-600 rounded-xl hover:bg-purple-200 active:scale-90 transition-all"
+                                            title="Πέτρες Καρφωτή"
+                                        >
+                                            <Gem size={13} />
+                                        </button>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded-md text-xs font-black ${stageBatches.length > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{stageBatches.length}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                                </div>
                             </div>
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
@@ -1013,6 +1225,16 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             </div>
 
             {holdBatch && <MobileHoldModal batch={holdBatch} onClose={() => setHoldBatch(null)} onConfirm={confirmHold} />}
+
+            {showSettingStones && orders && (
+                <SettingStoneModal
+                    batches={enrichedBatches}
+                    orders={orders}
+                    allProducts={allProducts}
+                    allMaterials={materials}
+                    onClose={() => setShowSettingStones(false)}
+                />
+            )}
 
             {viewBuildBatch && molds && (
                 <BatchBuildModal
