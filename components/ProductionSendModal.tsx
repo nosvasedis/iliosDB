@@ -124,6 +124,122 @@ const VIBRANT_STAGES: Record<string, string> = {
     [ProductionStage.Ready]: 'bg-emerald-500'
 };
 
+const getStageColorKey = (stageId: ProductionStage): keyof typeof STAGE_BUTTON_COLORS => {
+    switch (stageId) {
+        case ProductionStage.AwaitingDelivery:
+            return 'AwaitingDelivery';
+        case ProductionStage.Waxing:
+            return 'Waxing';
+        case ProductionStage.Casting:
+            return 'Casting';
+        case ProductionStage.Setting:
+            return 'Setting';
+        case ProductionStage.Polishing:
+            return 'Polishing';
+        case ProductionStage.Assembly:
+            return 'Assembly';
+        case ProductionStage.Labeling:
+            return 'Labeling';
+        default:
+            return 'Ready';
+    }
+};
+
+const isStageNotRequired = (batch: ProductionBatch, stage: ProductionStage) => {
+    if (stage === ProductionStage.Setting) return !batch.requires_setting;
+    if (stage === ProductionStage.Assembly) return !batch.requires_assembly;
+    return false;
+};
+
+const BulkStageActions = ({
+    onMove,
+    disabled
+}: {
+    onMove: (stage: ProductionStage) => void;
+    disabled: boolean;
+}) => (
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-8">
+        {STAGES.map((stage) => {
+            const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(stage.id as ProductionStage)];
+            return (
+                <button
+                    key={`bulk-stage-${stage.id}`}
+                    onClick={() => onMove(stage.id as ProductionStage)}
+                    disabled={disabled}
+                    className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all ${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
+                    title={`Μετακίνηση επιλεγμένων σε ${stage.label}`}
+                >
+                    <span className="block truncate">{STAGE_SHORT_LABELS[stage.id] || stage.label}</span>
+                </button>
+            );
+        })}
+    </div>
+);
+
+const StageFlowRail = ({
+    batch,
+    onMove,
+    disabled
+}: {
+    batch: ProductionBatch;
+    onMove: (stage: ProductionStage) => void;
+    disabled: boolean;
+}) => {
+    const currentStageIndex = STAGES.findIndex((stage) => stage.id === batch.current_stage);
+
+    return (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+            {STAGES.map((stage, index) => {
+                const stageId = stage.id as ProductionStage;
+                const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(stageId)];
+                const isCurrentStage = stageId === batch.current_stage;
+                const isCompletedStage = index < currentStageIndex;
+                const isUnavailableStage = !isCurrentStage && isStageNotRequired(batch, stageId);
+                const isClickable = !disabled && !batch.on_hold && !isCurrentStage && !isUnavailableStage;
+                const helperText = isCurrentStage
+                    ? 'Τρέχον στάδιο'
+                    : isUnavailableStage
+                    ? 'Δεν απαιτείται'
+                    : isCompletedStage
+                    ? 'Ολοκληρώθηκε'
+                    : 'Μετακίνηση';
+
+                const className = isCurrentStage
+                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/25 shadow-sm`
+                    : isUnavailableStage
+                    ? 'bg-slate-50 text-slate-400 border-slate-200'
+                    : isCompletedStage
+                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} opacity-70 hover:opacity-100`
+                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:-translate-y-0.5 hover:shadow-sm`;
+
+                const title = isCurrentStage
+                    ? `${stage.label} (τρέχον στάδιο)`
+                    : isUnavailableStage
+                    ? `${stage.label} (δεν απαιτείται για αυτή την παρτίδα)`
+                    : `Μετακίνηση σε ${stage.label}`;
+
+                return (
+                    <button
+                        key={stage.id}
+                        onClick={() => isClickable && onMove(stageId)}
+                        disabled={!isClickable}
+                        className={`min-h-[58px] rounded-2xl border px-2.5 py-2 text-left transition-all ${className} ${!isClickable ? 'cursor-default' : ''}`}
+                        title={title}
+                    >
+                        <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-[11px] font-black">{STAGE_SHORT_LABELS[stage.id] || stage.label}</span>
+                            {isCurrentStage && <CheckCircle size={12} className="shrink-0" />}
+                        </span>
+                        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.14em] opacity-80">
+                            {helperText}
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
@@ -878,18 +994,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 Επιλεγμένες: <span className="text-slate-900">{selectedVisibleActiveCount}</span>
                                             </span>
                                         </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {STAGES.map((stage) => (
-                                                <button
-                                                    key={`bulk-stage-${stage.id}`}
-                                                    onClick={() => handleBulkStageMove(stage.id as ProductionStage, visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
-                                                    disabled={isWorking || selectedVisibleActiveCount === 0}
-                                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                                >
-                                                    {stage.label}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <BulkStageActions
+                                            disabled={isWorking || selectedVisibleActiveCount === 0}
+                                            onMove={(stage) => handleBulkStageMove(stage, visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -1053,7 +1161,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                             </div>
 
                                                                             {/* Stage Selector - Horizontal Buttons */}
-                                                                            <div className="flex flex-wrap gap-1.5 items-center">
+                                                                            <div className="hidden">
                                                                                 {STAGES.map((stage, index) => {
                                                                                     const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
                                                                                     const isCurrentStage = stage.id === batch.current_stage;
@@ -1098,6 +1206,12 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     );
                                                                                 })}
                                                                             </div>
+
+                                                                            <StageFlowRail
+                                                                                batch={batch}
+                                                                                disabled={isWorking}
+                                                                                onMove={(stage) => handleStageMove(batch, stage)}
+                                                                            />
 
                                                                             {/* Batch Note */}
                                                                             {batch.notes && (
@@ -1398,18 +1512,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     Επιλεγμένες: <span className="text-slate-900">{selectedVisiblePopupCount}</span>
                                                 </span>
                                             </div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {STAGES.map((stage) => (
-                                                    <button
-                                                        key={`popup-bulk-stage-${stage.id}`}
-                                                        onClick={() => handleBulkStageMove(stage.id as ProductionStage, popupBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
-                                                        disabled={isWorking || selectedVisiblePopupCount === 0}
-                                                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    >
-                                                        {stage.label}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                            <BulkStageActions
+                                                disabled={isWorking || selectedVisiblePopupCount === 0}
+                                                onMove={(stage) => handleBulkStageMove(stage, popupBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                            />
                                         </div>
                                     </div>
                                     {popupBatches.map((batch) => {
@@ -1480,7 +1586,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                                                         <RefreshCw size={10} /> Μετακίνηση σε Στάδιο
                                                     </div>
-                                                    <div className="flex flex-wrap gap-1">
+                                                    <div className="hidden">
                                                         {STAGES.map((stage, index) => {
                                                             const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
                                                             const isCurrentStage = stage.id === batch.current_stage;
@@ -1521,6 +1627,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             );
                                                         })}
                                                     </div>
+                                                    <StageFlowRail
+                                                        batch={batch}
+                                                        disabled={isWorking}
+                                                        onMove={(stage) => handleStageMove(batch, stage)}
+                                                    />
                                                 </div>
 
                                                 {/* Batch Note */}
