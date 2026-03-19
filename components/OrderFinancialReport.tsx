@@ -148,8 +148,8 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                         <tr className="bg-slate-100 text-slate-500 text-[8px] uppercase tracking-wider">
                             <th className="text-left font-bold pl-4 rounded-l-lg py-2">Κωδικος</th>
                             <th className="text-center py-2">Ποσ.</th>
-                            <th className="text-right py-2">Τιμη Πωλ.</th>
-                            <th className="text-right text-slate-400 py-2">Κοστος</th>
+                            <th className="text-right py-2">Συνολ. Πωλ.</th>
+                            <th className="text-right text-slate-400 py-2">Συνολ. Κοστος</th>
                             <th className="text-right font-bold text-emerald-600 py-2">Κερδος</th>
                             <th className="text-right pr-4 rounded-r-lg py-2">Margin</th>
                         </tr>
@@ -164,8 +164,8 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                                         {item.variant && <span className="text-[9px] text-slate-500 ml-1 font-normal bg-slate-50 border border-slate-200 px-1 rounded">{item.variant}</span>}
                                     </td>
                                     <td className="text-center py-2.5 font-medium">{item.quantity}</td>
-                                    <td className="text-right font-mono py-2.5 font-bold">{formatCurrency(item.revenue / item.quantity)}</td>
-                                    <td className="text-right font-mono text-slate-500 py-2.5">{formatCurrency(item.cost / item.quantity)}</td>
+                                    <td className="text-right font-mono py-2.5 font-bold">{formatCurrency(item.revenue)}</td>
+                                    <td className="text-right font-mono text-slate-500 py-2.5">{formatCurrency(item.cost)}</td>
                                     <td className="text-right font-mono font-bold text-emerald-600 py-2.5">{formatCurrency(item.profit)}</td>
                                     <td className="text-right font-black pr-4 py-2.5">
                                         <div className="flex items-center justify-end gap-1">

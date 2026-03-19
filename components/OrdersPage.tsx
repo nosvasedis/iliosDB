@@ -331,6 +331,23 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
         onClose();
     };
 
+    const buildSyntheticBatchesForAggregated = (): ProductionBatch[] => {
+        const now = new Date().toISOString();
+        return order.items.map((item, index) => ({
+            id: `synthetic-${order.id}-${index}`,
+            order_id: order.id,
+            sku: item.sku,
+            variant_suffix: item.variant_suffix,
+            quantity: item.quantity,
+            current_stage: ProductionStage.AwaitingDelivery,
+            created_at: now,
+            updated_at: now,
+            priority: 'Normal',
+            requires_setting: false,
+            size_info: item.size_info,
+        }));
+    };
+
     const productionSheetsDisabled = orderBatches.length === 0;
 
     const options = [
@@ -360,8 +377,20 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
             label: "Συγκεντρωτική Παραγωγής",
             icon: <FileText size={20} />,
             color: "blue",
-            action: () => handlePrintProductionSheet(onPrintAggregated),
-            disabled: productionSheetsDisabled,
+            action: () => {
+                if (orderBatches.length === 0) {
+                    const syntheticBatches = buildSyntheticBatchesForAggregated();
+                    if (syntheticBatches.length === 0) {
+                        showToast("Η παραγγελία δεν έχει είδη για εκτύπωση.", "info");
+                        return;
+                    }
+                    onPrintAggregated(syntheticBatches, { orderId: order.id, customerName: order.customer_name });
+                    onClose();
+                } else {
+                    handlePrintProductionSheet(onPrintAggregated);
+                }
+            },
+            disabled: !onPrintAggregated,
         },
         {
             label: "Φύλλο Προετοιμασίας",
