@@ -12,12 +12,14 @@ import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedC
 import { FINISH_CODES } from '../../constants';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
-import { getSizingInfo } from '../../utils/sizing';
+import { getSizingInfo, ProductSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { buildItemIdentityKey } from '../../utils/itemIdentity';
+import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 
 interface Props {
     onBack: () => void;
@@ -234,13 +236,17 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [editFinish, setEditFinish] = useState('');
     const [editVariantSuffix, setEditVariantSuffix] = useState('');
     const [editSizeInfo, setEditSizeInfo] = useState('');
+    const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
+    const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
 
     // ── SKU Input State ──────────────────────────────────────────────────────
     const [input, setInput] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
-    const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος'; sizes: string[] } | null>(null);
+    const [sizeMode, setSizeMode] = useState<ProductSizingInfo | null>(null);
     const [selectedSize, setSelectedSize] = useState('');
+    const [selectedCordColor, setSelectedCordColor] = useState<OrderItem['cord_color']>();
+    const [selectedEnamelColor, setSelectedEnamelColor] = useState<OrderItem['enamel_color']>();
     const [selectedFinish, setSelectedFinish] = useState<string | null>(null); // step 1: metal (finish) chosen
     const [itemNotes, setItemNotes] = useState('');
     const [qty, setQty] = useState(1);
@@ -251,6 +257,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const inputRef = useRef<HTMLInputElement>(null);
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
+
+    const buildOrderItemIdentity = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) =>
+        buildItemIdentityKey({
+            sku: item.sku,
+            variant_suffix: item.variant_suffix,
+            size_info: item.size_info,
+            cord_color: item.cord_color,
+            enamel_color: item.enamel_color
+        });
+
+    const getOrderItemMatchKey = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes'>) =>
+        `${buildOrderItemIdentity(item)}::${item.notes || ''}`;
 
     // Group variants by finish (metal) for two-step selection
     const variantsByFinish = useMemo(() => {
@@ -329,6 +347,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             const sizing = getSizingInfo(fullMatch.product);
             setSizeMode(sizing || null);
             setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
             setSelectedFinish(null);
             setItemNotes('');
             setQty(1);
@@ -425,6 +445,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         const sizing = getSizingInfo(p);
         setSizeMode(sizing || null);
         setSelectedSize('');
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
         setItemNotes('');
         setQty(1);
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -441,15 +463,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             price_at_order: unitPrice,
             product_details: master,
             size_info: selectedSize || undefined,
+            cord_color: selectedCordColor,
+            enamel_color: selectedEnamelColor,
             notes: itemNotes || undefined
         };
         setItems(prev => {
-            const existingIdx = prev.findIndex(i =>
-                i.sku === newItem.sku &&
-                i.variant_suffix === newItem.variant_suffix &&
-                i.size_info === newItem.size_info &&
-                i.notes === newItem.notes
-            );
+            const nextKey = getOrderItemMatchKey(newItem);
+            const existingIdx = prev.findIndex(i => getOrderItemMatchKey(i) === nextKey);
             if (existingIdx >= 0) {
                 const updated = [...prev];
                 updated[existingIdx].quantity += qty;
@@ -461,6 +481,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setResolvedVariant(null);
         setSelectedFinish(null);
         setSelectedSize('');
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
         setItemNotes('');
         setQty(1);
         setCartExpanded(false);
@@ -479,7 +501,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             const unitPrice = variant?.selling_price || product.selling_price || 0;
             const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, product_details: product };
             setItems(prev => {
-                const existingIdx = prev.findIndex(i => i.sku === newItem.sku && i.variant_suffix === newItem.variant_suffix && !i.size_info);
+                const existingIdx = prev.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(newItem));
                 if (existingIdx >= 0) { const updated = [...prev]; updated[existingIdx].quantity += 1; return updated; }
                 return [newItem, ...prev];
             });
@@ -490,7 +512,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         }
     };
 
-    const updateItemVariantAndSize = (itemIndex: number, nextVariantSuffix: string | undefined, nextSizeInfo: string | undefined) => {
+    const updateItemVariantAndSize = (
+        itemIndex: number,
+        nextVariantSuffix: string | undefined,
+        nextSizeInfo: string | undefined,
+        nextCordColor?: OrderItem['cord_color'],
+        nextEnamelColor?: OrderItem['enamel_color']
+    ) => {
         setItems(prev => {
             if (itemIndex < 0 || itemIndex >= prev.length) return prev;
 
@@ -511,16 +539,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 ...current,
                 variant_suffix: nextVariantSuffix,
                 size_info: nextSizeInfo,
+                cord_color: nextCordColor,
+                enamel_color: nextEnamelColor,
                 price_at_order: nextPrice,
                 product_details: product || current.product_details
             };
 
             const mergeIdx = prev.findIndex((candidate, i) =>
                 i !== itemIndex &&
-                candidate.sku === edited.sku &&
-                candidate.variant_suffix === edited.variant_suffix &&
-                candidate.size_info === edited.size_info &&
-                (candidate.notes || '') === (edited.notes || '')
+                getOrderItemMatchKey(candidate) === getOrderItemMatchKey(edited)
             );
 
             if (mergeIdx !== -1) {
@@ -559,6 +586,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         }
 
         setEditSizeInfo(item.size_info || '');
+        setEditCordColor(item.cord_color);
+        setEditEnamelColor(item.enamel_color);
     };
 
     const handleEditFinishChange = (finishCode: string) => {
@@ -574,12 +603,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setEditFinish('');
         setEditVariantSuffix('');
         setEditSizeInfo('');
+        setEditCordColor(undefined);
+        setEditEnamelColor(undefined);
     };
 
     const handleConfirmItemEdit = () => {
         if (editingIndex === null) return;
         const nextVariant = editingVariants.length > 0 ? editVariantSuffix : undefined;
-        updateItemVariantAndSize(editingIndex, nextVariant, editSizeInfo || undefined);
+        updateItemVariantAndSize(editingIndex, nextVariant, editSizeInfo || undefined, editCordColor, editEnamelColor);
         showToast('Το είδος ενημερώθηκε.', 'success');
         closeItemEditor();
     };
@@ -892,7 +923,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 )}
                             </div>
                             <button
-                                onClick={() => { setActiveMaster(null); setSelectedFinish(null); setResolvedVariant(null); }}
+                                onClick={() => { setActiveMaster(null); setSelectedFinish(null); setResolvedVariant(null); setSelectedCordColor(undefined); setSelectedEnamelColor(undefined); }}
                                 className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full shrink-0 transition-colors"
                                 title="Επιστροφή στην αναζήτηση"
                             >
@@ -915,6 +946,41 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         )}
 
                         {/* Quantity — touch-friendly portrait/landscape */}
+                        {isXrCordEnamelSku(activeMaster.sku) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Χρώμα Κορδόνι</label>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <button
+                                                key={`cord-${color}`}
+                                                type="button"
+                                                onClick={() => setSelectedCordColor(selectedCordColor === color ? undefined : color)}
+                                                className={`py-2 rounded-lg text-[11px] font-black border transition-colors ${selectedCordColor === color ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                                            >
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Χρώμα Σμάλτο</label>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <button
+                                                key={`enamel-${color}`}
+                                                type="button"
+                                                onClick={() => setSelectedEnamelColor(selectedEnamelColor === color ? undefined : color)}
+                                                className={`py-2 rounded-lg text-[11px] font-black border transition-colors ${selectedEnamelColor === color ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                                            >
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl shrink-0">
                             <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
                             <div className="flex items-center gap-3 sm:gap-4">
@@ -1084,6 +1150,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
                                         {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded border border-blue-100 font-bold">{item.size_info}</span>}
+                                        {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                        {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -1204,6 +1272,37 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     ))}
                                 </select>
                             </div>
+                        )}
+
+                        {editingProduct && isXrCordEnamelSku(editingProduct.sku) && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Κορδόνι</label>
+                                    <select
+                                        value={editCordColor || ''}
+                                        onChange={e => setEditCordColor((e.target.value || undefined) as OrderItem['cord_color'])}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                    >
+                                        <option value="">Χωρίς επιλογή</option>
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <option key={`edit-cord-${color}`} value={color}>{PRODUCT_OPTION_COLOR_LABELS[color]}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Σμάλτο</label>
+                                    <select
+                                        value={editEnamelColor || ''}
+                                        onChange={e => setEditEnamelColor((e.target.value || undefined) as OrderItem['enamel_color'])}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                    >
+                                        <option value="">Χωρίς επιλογή</option>
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <option key={`edit-enamel-${color}`} value={color}>{PRODUCT_OPTION_COLOR_LABELS[color]}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </>
                         )}
 
                         <div className="flex justify-end gap-2 pt-1">

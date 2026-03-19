@@ -180,15 +180,15 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   const handleConfirmShipment = async (
-    items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>,
+    items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number }>,
     notes: string | null
   ) => {
     if (!shipmentItem) return;
     const order = shipmentItem.order;
     await api.createPartialShipment({
       orderId: order.id,
-      orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info })),
-      items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, quantity: i.quantity, price_at_order: i.price_at_order })),
+      orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color })),
+      items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order })),
       shippedBy: profile?.full_name || 'Σύστημα',
       deliveryPlanId: shipmentItem.plan.id,
       notes,

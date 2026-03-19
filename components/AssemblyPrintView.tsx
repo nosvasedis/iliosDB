@@ -5,6 +5,8 @@ import { Layers, User, Hash } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
+import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { getProductOptionColorLabel } from '../utils/xrOptions';
 
 interface Props {
     rows: AssemblyPrintRow[];
@@ -77,7 +79,7 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
     );
 
     const totalSKUs = useMemo(
-        () => new Set(rows.map((row) => `${row.order_id}::${row.sku}::${row.variant_suffix || ''}::${row.size_info || ''}`)).size,
+        () => new Set(rows.map((row) => `${row.order_id}::${buildItemIdentityKey(row)}`)).size,
         [rows]
     );
 
@@ -205,6 +207,16 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                                             <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
                                                                 <Hash size={8} />
                                                                 {row.size_info}
+                                                            </span>
+                                                        )}
+                                                        {row.cord_color && (
+                                                            <span className="text-[9px] font-black text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 leading-tight">
+                                                                Κορδόνι: {getProductOptionColorLabel(row.cord_color)}
+                                                            </span>
+                                                        )}
+                                                        {row.enamel_color && (
+                                                            <span className="text-[9px] font-black text-rose-800 bg-rose-50 px-1 py-0.5 rounded border border-rose-200 leading-tight">
+                                                                Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}
                                                             </span>
                                                         )}
 

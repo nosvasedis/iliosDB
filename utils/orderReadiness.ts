@@ -23,11 +23,11 @@ export function isOrderReady(order: Order, batches: ProductionBatch[] | undefine
 }
 
 /** Batches for this order that are not yet Ready (for delivery info pane). */
-export function getNotReadyBatches(orderId: string, batches: ProductionBatch[] | undefined | null): Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string }> {
+export function getNotReadyBatches(orderId: string, batches: ProductionBatch[] | undefined | null): Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; cord_color?: ProductionBatch['cord_color']; enamel_color?: ProductionBatch['enamel_color'] }> {
   if (!batches) return [];
   return getOrderBatches(orderId, batches)
     .filter((b) => b.current_stage !== ProductionStage.Ready)
-    .map((b) => ({ sku: b.sku, variant_suffix: b.variant_suffix, current_stage: b.current_stage, size_info: b.size_info }));
+    .map((b) => ({ sku: b.sku, variant_suffix: b.variant_suffix, current_stage: b.current_stage, size_info: b.size_info, cord_color: b.cord_color, enamel_color: b.enamel_color }));
 }
 
 /** Detailed per-shipment readiness breakdown for an order. */
@@ -57,6 +57,8 @@ export function getShipmentReadiness(orderId: string, batches: ProductionBatch[]
           variant_suffix: b.variant_suffix,
           current_stage: b.current_stage,
           size_info: b.size_info,
+          cord_color: b.cord_color,
+          enamel_color: b.enamel_color,
           product_image: b.product_image ?? b.product_details?.image_url ?? null,
           gender: b.product_details?.gender
         }))

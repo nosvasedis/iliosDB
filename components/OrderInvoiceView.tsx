@@ -9,6 +9,7 @@ import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User } from 'luci
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
+import { getProductOptionColorLabel } from '../utils/xrOptions';
 
 interface Props {
     order: Order;
@@ -190,6 +191,8 @@ export default function OrderInvoiceView({ order }: Props) {
                                         <div className="flex items-baseline gap-1">
                                             <span className="font-bold text-slate-900">{fullSku}</span>
                                             {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
+                                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                         </div>
                                         <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
                                         {item.notes && (

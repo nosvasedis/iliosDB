@@ -31,6 +31,8 @@ export enum VatRegime {
   Zero = 0.00
 }
 
+export type ProductOptionColor = 'black' | 'red' | 'blue';
+
 export interface Supplier {
   id: string;
   name: string;
@@ -201,6 +203,8 @@ export interface OrderItem {
   price_at_order: number;
   product_details?: Product;
   size_info?: string; // e.g., "58" or "19cm"
+  cord_color?: ProductOptionColor;
+  enamel_color?: ProductOptionColor;
   notes?: string;
 }
 
@@ -308,7 +312,7 @@ export interface ShipmentGroup {
   total: number;
   ready: number;
   is_ready: boolean;
-  not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; product_image?: string | null; gender?: Gender }>;
+  not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; cord_color?: ProductOptionColor; enamel_color?: ProductOptionColor; product_image?: string | null; gender?: Gender }>;
 }
 
 export interface ShipmentReadinessSummary {
@@ -332,7 +336,7 @@ export interface EnrichedDeliveryItem {
   needs_call: boolean;
   call_reasons: string[];
   /** When order is not ready: which batches are still in progress (for info pane). */
-  readiness_detail?: { not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; product_image?: string | null; gender?: Gender }> };
+  readiness_detail?: { not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; cord_color?: ProductOptionColor; enamel_color?: ProductOptionColor; product_image?: string | null; gender?: Gender }> };
   urgency: DeliveryUrgency;
   suggestions: DeliverySuggestion[];
   matched_keywords: string[];
@@ -364,6 +368,8 @@ export interface OrderShipmentItem {
   sku: string;
   variant_suffix?: string | null;
   size_info?: string | null;
+  cord_color?: ProductOptionColor | null;
+  enamel_color?: ProductOptionColor | null;
   quantity: number;
   price_at_order: number;
 }
@@ -443,6 +449,8 @@ export interface ProductionBatch {
   requires_setting: boolean;
   requires_assembly?: boolean; // NEW: computed from SKU - determines if Assembly stage is needed
   size_info?: string; // Added size info for production tracking
+  cord_color?: ProductOptionColor;
+  enamel_color?: ProductOptionColor;
 
   product_image?: string | null;
   product_details?: Product;
@@ -510,6 +518,8 @@ export interface AssemblyPrintRow {
   sku: string;
   variant_suffix?: string;
   size_info?: string;
+  cord_color?: ProductOptionColor;
+  enamel_color?: ProductOptionColor;
   quantity: number;
   notes?: string; // SKU notes from order item
 }

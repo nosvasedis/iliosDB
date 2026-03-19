@@ -14,6 +14,7 @@ import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
+import { buildItemIdentityKey } from '../utils/itemIdentity';
 
 interface Props {
     products: Product[];
@@ -711,7 +712,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
     };
 
     const handleConfirmShipmentFromOrders = async (
-        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>,
+        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number }>,
         notes: string | null
     ) => {
         if (!shipmentModalOrder) return;
@@ -719,8 +720,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
         try {
             await api.createPartialShipment({
                 orderId: order.id,
-                orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info })),
-                items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, quantity: i.quantity, price_at_order: i.price_at_order })),
+                orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color })),
+                items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order })),
                 shippedBy: profile?.full_name || 'System',
                 deliveryPlanId: null,
                 notes,
@@ -1141,12 +1142,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                             // Fallback: create a modified order with only selected items
                             const partialItems = new Map<string, { item: typeof printModalOrder.items[0], qty: number }>();
                             selectedBatches.forEach(b => {
-                                const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
-                                const existingItem = printModalOrder.items.find(i =>
-                                    i.sku === b.sku &&
-                                    (i.variant_suffix || '') === (b.variant_suffix || '') &&
-                                    (i.size_info || '') === (b.size_info || '')
-                                );
+                                const key = buildItemIdentityKey(b);
+                                const existingItem = printModalOrder.items.find(i => buildItemIdentityKey(i) === key);
                                 if (existingItem) {
                                     if (!partialItems.has(key)) {
                                         partialItems.set(key, { item: existingItem, qty: 0 });

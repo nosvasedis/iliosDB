@@ -1,16 +1,29 @@
 
 import { Order, OrderShipment, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
+import { buildItemIdentityKey } from './itemIdentity';
 
 /** Natural key for matching order items / batches / shipment items. */
-export function itemKey(sku: string, variantSuffix?: string | null, sizeInfo?: string | null): string {
-  return `${sku}::${variantSuffix || ''}::${sizeInfo || ''}`;
+export function itemKey(
+  sku: string,
+  variantSuffix?: string | null,
+  sizeInfo?: string | null,
+  cordColor?: string | null,
+  enamelColor?: string | null
+): string {
+  return buildItemIdentityKey({
+    sku,
+    variant_suffix: variantSuffix,
+    size_info: sizeInfo,
+    cord_color: cordColor as any,
+    enamel_color: enamelColor as any
+  });
 }
 
 /** Build a map of total shipped quantities per (sku::variant::size) across all shipments. */
 export function getShippedQuantities(shipmentItems: OrderShipmentItem[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const item of shipmentItems) {
-    const key = itemKey(item.sku, item.variant_suffix, item.size_info);
+    const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
     map.set(key, (map.get(key) || 0) + item.quantity);
   }
   return map;
@@ -20,12 +33,12 @@ export function getShippedQuantities(shipmentItems: OrderShipmentItem[]): Map<st
 export function getRemainingOrderItems(
   order: Order,
   shipmentItems: OrderShipmentItem[]
-): Array<{ sku: string; variant_suffix?: string; size_info?: string; quantity: number; price_at_order: number }> {
+): Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number }> {
   const shipped = getShippedQuantities(shipmentItems);
-  const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; quantity: number; price_at_order: number }> = [];
+  const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number }> = [];
 
   for (const item of order.items) {
-    const key = itemKey(item.sku, item.variant_suffix, item.size_info);
+    const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
     const shippedQty = shipped.get(key) || 0;
     const remainingQty = item.quantity - shippedQty;
     if (remainingQty > 0) {
@@ -33,6 +46,8 @@ export function getRemainingOrderItems(
         sku: item.sku,
         variant_suffix: item.variant_suffix,
         size_info: item.size_info,
+        cord_color: item.cord_color,
+        enamel_color: item.enamel_color,
         quantity: remainingQty,
         price_at_order: item.price_at_order
       });
@@ -45,12 +60,12 @@ export function getRemainingOrderItems(
 export function getReadyToShipItems(
   orderId: string,
   batches: ProductionBatch[],
-): Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; batchIds: string[] }> {
+): Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[] }> {
   const orderBatches = batches.filter(b => b.order_id === orderId && b.current_stage === ProductionStage.Ready);
-  const groupMap = new Map<string, { sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; batchIds: string[] }>();
+  const groupMap = new Map<string, { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[] }>();
 
   for (const batch of orderBatches) {
-    const key = itemKey(batch.sku, batch.variant_suffix, batch.size_info);
+    const key = itemKey(batch.sku, batch.variant_suffix, batch.size_info, batch.cord_color, batch.enamel_color);
     const existing = groupMap.get(key);
     if (existing) {
       existing.quantity += batch.quantity;
@@ -60,6 +75,8 @@ export function getReadyToShipItems(
         sku: batch.sku,
         variant_suffix: batch.variant_suffix,
         size_info: batch.size_info,
+        cord_color: batch.cord_color,
+        enamel_color: batch.enamel_color,
         quantity: batch.quantity,
         batchIds: [batch.id]
       });

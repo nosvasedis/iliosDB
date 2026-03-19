@@ -7,6 +7,7 @@ import { offlineDb } from './offlineDb';
 import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEYS, BackupEnvelope, BackupMeta, ProgressCallback, RestoreOptions, RestoreResult } from './backupConfig';
 import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
+import { buildItemIdentityKey } from '../utils/itemIdentity';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -90,7 +91,7 @@ const sanitizeBatchData = (data: any) => {
     const validColumns = [
         'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
         'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting', 'requires_assembly',
-        'size_info', 'on_hold', 'on_hold_reason'
+        'size_info', 'cord_color', 'enamel_color', 'on_hold', 'on_hold_reason'
     ];
     const sanitized: any = {};
     validColumns.forEach(col => {
@@ -321,8 +322,19 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     return mergedData;
 }
 
-const buildShipmentItemKey = (sku: string, variantSuffix?: string | null, sizeInfo?: string | null) =>
-    `${sku}::${variantSuffix || ''}::${sizeInfo || ''}`;
+const buildShipmentItemKey = (
+    sku: string,
+    variantSuffix?: string | null,
+    sizeInfo?: string | null,
+    cordColor?: string | null,
+    enamelColor?: string | null
+) => buildItemIdentityKey({
+    sku,
+    variant_suffix: variantSuffix,
+    size_info: sizeInfo,
+    cord_color: cordColor as any,
+    enamel_color: enamelColor as any
+});
 
 async function getOrderShipmentsSnapshot(orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> {
     const [shipments, items] = await Promise.all([
@@ -460,6 +472,20 @@ export const SYSTEM_IDS = {
     SHOWROOM: '00000000-0000-0000-0000-000000000002'
 };
 
+type BulkBatchStageUpdateSummary = {
+    movedCount: number;
+    skippedCount: number;
+    impactedOrderIds: string[];
+};
+
+const canMoveBatchToStage = (batch: ProductionBatch, stage: ProductionStage): boolean => {
+    if (batch.on_hold) return false;
+    if (batch.current_stage === stage) return false;
+    if (stage === ProductionStage.Setting && !batch.requires_setting) return false;
+    if (stage === ProductionStage.Assembly && !batch.requires_assembly) return false;
+    return true;
+};
+
 export const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 export const RETAIL_CUSTOMER_NAME = 'Λιανική';
 export const RETAIL_NOTE_PREFIX = '[ΛΙΑΝΙΚΗ_ΠΕΛΑΤΗΣ]:';
@@ -537,12 +563,12 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 
 /** Check stock availability for order items (pure function, no DB call — reads from in-memory products). */
 export function checkStockForOrderItems(
-    itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string }[],
+    itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }[],
     allProducts: Product[]
-): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; requested_qty: number; available_in_stock: number }> {
+): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number }> {
     return itemsToSend.map(item => {
         const product = allProducts.find(p => p.sku === item.sku);
-        if (!product) return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, requested_qty: item.qty, available_in_stock: 0 };
+        if (!product) return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, cord_color: item.cord_color || null, enamel_color: item.enamel_color || null, requested_qty: item.qty, available_in_stock: 0 };
 
         let available = 0;
         const variant = item.variant ? product.variants?.find(v => v.suffix === item.variant) : null;
@@ -558,14 +584,14 @@ export function checkStockForOrderItems(
             available = variant ? (variant.stock_qty || 0) : (product.stock_qty || 0);
         }
 
-        return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, requested_qty: item.qty, available_in_stock: Math.max(0, available) };
+        return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, cord_color: item.cord_color || null, enamel_color: item.enamel_color || null, requested_qty: item.qty, available_in_stock: Math.max(0, available) };
     });
 }
 
 /** Deduct stock for items fulfilled from inventory when sending an order to production. */
 export async function deductStockForOrder(
     orderId: string,
-    items: { sku: string; variant_suffix: string | null; qty: number; size_info?: string | null }[],
+    items: { sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }[],
     allProducts: Product[]
 ): Promise<void> {
     for (const item of items) {
@@ -1207,8 +1233,8 @@ export const api = {
 
     createPartialShipment: async (params: {
         orderId: string;
-        orderItems: Array<{ sku: string; variant_suffix?: string; quantity: number; price_at_order: number; size_info?: string }>;
-        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>;
+        orderItems: Array<{ sku: string; variant_suffix?: string; quantity: number; price_at_order: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }>;
+        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number }>;
         shippedBy: string;
         deliveryPlanId?: string | null;
         notes?: string | null;
@@ -1237,6 +1263,8 @@ export const api = {
             sku: item.sku,
             variant_suffix: item.variant_suffix || null,
             size_info: item.size_info || null,
+            cord_color: (item.cord_color || null) as OrderShipmentItem['cord_color'],
+            enamel_color: (item.enamel_color || null) as OrderShipmentItem['enamel_color'],
             quantity: item.quantity,
             price_at_order: item.price_at_order
         }));
@@ -1250,6 +1278,8 @@ export const api = {
                     b.sku === item.sku &&
                     (b.variant_suffix || null) === (item.variant_suffix || null) &&
                     (b.size_info || null) === (item.size_info || null) &&
+                    (b.cord_color || null) === (item.cord_color || null) &&
+                    (b.enamel_color || null) === (item.enamel_color || null) &&
                     b.current_stage === ProductionStage.Ready
                 )
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); // FIFO
@@ -1271,17 +1301,17 @@ export const api = {
 
         const shippedMap = new Map<string, number>();
         existingShipmentSnapshot.items.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info);
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
         shipmentItems.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info);
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
 
         let hasRemaining = false;
         for (const orderItem of params.orderItems) {
-            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info);
+            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color);
             const shipped = shippedMap.get(key) || 0;
             if (shipped < orderItem.quantity) {
                 hasRemaining = true;
@@ -1388,6 +1418,8 @@ export const api = {
     updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => {
         const now = new Date().toISOString();
         const currentBatch = await getBatchSnapshot(id);
+        if (!currentBatch) return;
+        if (!canMoveBatchToStage(currentBatch, stage)) return;
 
         await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: now }, { match: { id } });
         await insertBatchStageHistory({
@@ -1399,6 +1431,59 @@ export const api = {
             moved_at: now
         });
         await syncOrderStatusAfterBatchChange(currentBatch?.order_id);
+    },
+    bulkUpdateBatchStages: async (batchIds: string[], stage: ProductionStage, userName?: string): Promise<BulkBatchStageUpdateSummary> => {
+        const uniqueIds = Array.from(new Set(batchIds.filter(Boolean)));
+        if (uniqueIds.length === 0) {
+            return { movedCount: 0, skippedCount: 0, impactedOrderIds: [] };
+        }
+
+        const now = new Date().toISOString();
+        const allBatches = await fetchFullTable('production_batches');
+        const selectedBatches = (allBatches as ProductionBatch[]).filter((batch) => uniqueIds.includes(batch.id));
+
+        const movableBatches = selectedBatches.filter((batch) => canMoveBatchToStage(batch, stage));
+        if (movableBatches.length === 0) {
+            return {
+                movedCount: 0,
+                skippedCount: uniqueIds.length,
+                impactedOrderIds: []
+            };
+        }
+
+        const impactedOrderIds = Array.from(new Set(movableBatches.map((batch) => batch.order_id).filter(Boolean))) as string[];
+
+        await Promise.all(movableBatches.map((batch) =>
+            safeMutate(
+                'production_batches',
+                'UPDATE',
+                { current_stage: stage, updated_at: now },
+                { match: { id: batch.id } }
+            )
+        ));
+
+        await safeMutate(
+            'batch_stage_history',
+            'INSERT',
+            movableBatches.map((batch) => ({
+                id: crypto.randomUUID(),
+                batch_id: batch.id,
+                from_stage: batch.current_stage || null,
+                to_stage: stage,
+                moved_by: userName || 'System',
+                moved_at: now,
+                notes: null
+            })),
+            { noSelect: true }
+        );
+
+        await Promise.all(impactedOrderIds.map((orderId) => syncOrderStatusAfterBatchChange(orderId)));
+
+        return {
+            movedCount: movableBatches.length,
+            skippedCount: uniqueIds.length - movableBatches.length,
+            impactedOrderIds
+        };
     },
     deleteProductionBatch: async (id: string): Promise<void> => {
         const batch = await getBatchSnapshot(id);
@@ -1532,15 +1617,25 @@ export const api = {
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
             const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
-            // 3. Define "Natural Key" for matching: SKU + Variant + Size
-            const getNaturalKey = (sku: string, variant: string | null | undefined, size: string | null | undefined) => {
-                return `${sku.toUpperCase()}::${(variant || '').toUpperCase()}::${(size || '').toUpperCase()}`;
-            };
+            // 3. Define "Natural Key" for matching: SKU + Variant + Size + extra XR options
+            const getNaturalKey = (
+                sku: string,
+                variant: string | null | undefined,
+                size: string | null | undefined,
+                cordColor?: string | null,
+                enamelColor?: string | null
+            ) => buildItemIdentityKey({
+                sku: sku.toUpperCase(),
+                variant_suffix: (variant || '').toUpperCase(),
+                size_info: (size || '').toUpperCase(),
+                cord_color: ((cordColor || '').toLowerCase() || null) as any,
+                enamel_color: ((enamelColor || '').toLowerCase() || null) as any
+            });
 
             // 4. Map Demand (What the order says NOW)
             const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
-                const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info);
+                const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
                 demandMap[key].qty += item.quantity;
             });
@@ -1548,7 +1643,7 @@ export const api = {
             // 5. Map Supply (What batches currently exist)
             const supplyMap: Record<string, ProductionBatch[]> = {};
             existingBatches.forEach((b: any) => {
-                const key = getNaturalKey(b.sku, b.variant_suffix, b.size_info);
+                const key = getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
                 if (!supplyMap[key]) supplyMap[key] = [];
                 supplyMap[key].push(b);
             });
@@ -1557,8 +1652,8 @@ export const api = {
             const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
             const batchesToInsert: any[] = [];
             const batchIdsToDelete: string[] = [];
-            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null }[] = [];
-            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; updated_at: string }[] = [];
+            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }[] = [];
+            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; cord_color: string | null; enamel_color: string | null; updated_at: string }[] = [];
 
             for (const key of allKeys) {
                 const targetQty = demandMap[key]?.qty || 0;
@@ -1593,6 +1688,8 @@ export const api = {
                             quantity: diff,
                             current_stage: stage,
                             size_info: item.size_info || null,
+                            cord_color: item.cord_color || null,
+                            enamel_color: item.enamel_color || null,
                             notes: item.notes || null,
                             priority: 'Normal',
                             type: 'Νέα',
@@ -1622,7 +1719,9 @@ export const api = {
                                 quantity: batch.quantity - surplus,
                                 updated_at: now,
                                 notes: demandItem ? (demandItem.notes ?? null) : undefined,
-                                size_info: demandItem ? (demandItem.size_info ?? null) : undefined
+                                size_info: demandItem ? (demandItem.size_info ?? null) : undefined,
+                                cord_color: demandItem ? (demandItem.cord_color ?? null) : undefined,
+                                enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined
                             });
                             surplus = 0;
                         }
@@ -1633,8 +1732,10 @@ export const api = {
                     const now = new Date().toISOString();
                     const notes = demandItem.notes ?? null;
                     const size_info = demandItem.size_info ?? null;
+                    const cord_color = demandItem.cord_color ?? null;
+                    const enamel_color = demandItem.enamel_color ?? null;
                     for (const b of existingList) {
-                        batchMetadataUpdates.push({ id: b.id, notes, size_info, updated_at: now });
+                        batchMetadataUpdates.push({ id: b.id, notes, size_info, cord_color, enamel_color, updated_at: now });
                     }
                 }
             }
@@ -1652,13 +1753,15 @@ export const api = {
                     const payload: any = { quantity: u.quantity, updated_at: u.updated_at };
                     if (u.notes !== undefined) payload.notes = u.notes;
                     if (u.size_info !== undefined) payload.size_info = u.size_info;
+                    if (u.cord_color !== undefined) payload.cord_color = u.cord_color;
+                    if (u.enamel_color !== undefined) payload.enamel_color = u.enamel_color;
                     return safeMutate('production_batches', 'UPDATE', payload, { match: { id: u.id } });
                 }));
             }
             // Sync notes/size_info when qty matches so order re-edits (notes, size) are reflected
             if (batchMetadataUpdates.length > 0) {
                 await Promise.all(batchMetadataUpdates.map(u =>
-                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, updated_at: u.updated_at }, { match: { id: u.id } })
+                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, cord_color: u.cord_color, enamel_color: u.enamel_color, updated_at: u.updated_at }, { match: { id: u.id } })
                 ));
             }
         } catch (err) {
@@ -1687,7 +1790,13 @@ export const api = {
     },
 
     // NEW: PARTIAL SEND TO PRODUCTION
-    sendPartialOrderToProduction: async (orderId: string, itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, notes?: string }[], allProducts: Product[], allMaterials: Material[], stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null }[]): Promise<void> => {
+    sendPartialOrderToProduction: async (
+        orderId: string,
+        itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, cord_color?: string | null, enamel_color?: string | null, notes?: string }[],
+        allProducts: Product[],
+        allMaterials: Material[],
+        stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null, cord_color?: string | null, enamel_color?: string | null }[]
+    ): Promise<void> => {
         if (itemsToSend.length === 0) return;
 
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
@@ -1698,7 +1807,13 @@ export const api = {
         const stockMap = new Map<string, number>();
         if (stockFulfilledItems) {
             for (const sf of stockFulfilledItems) {
-                const key = `${sf.sku}::${sf.variant_suffix || ''}::${sf.size_info || ''}`;
+                const key = buildItemIdentityKey({
+                    sku: sf.sku,
+                    variant_suffix: sf.variant_suffix,
+                    size_info: sf.size_info,
+                    cord_color: sf.cord_color as any,
+                    enamel_color: sf.enamel_color as any
+                });
                 stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
             }
         }
@@ -1723,7 +1838,13 @@ export const api = {
             const requires_assembly = requiresAssemblyStage(item.sku);
 
             // Check if any of this item's quantity should come from stock
-            const stockKey = `${item.sku}::${item.variant || ''}::${item.size_info || ''}`;
+            const stockKey = buildItemIdentityKey({
+                sku: item.sku,
+                variant_suffix: item.variant,
+                size_info: item.size_info,
+                cord_color: item.cord_color as any,
+                enamel_color: item.enamel_color as any
+            });
             const fromStock = stockMap.get(stockKey) || 0;
             const toProduce = item.qty - fromStock;
 
@@ -1739,6 +1860,8 @@ export const api = {
                     quantity: fromStock,
                     current_stage: ProductionStage.Ready,
                     size_info: item.size_info || null,
+                    cord_color: item.cord_color || null,
+                    enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
                     priority: 'Normal',
                     type: 'Από Stock' as BatchType,
@@ -1759,6 +1882,8 @@ export const api = {
                     quantity: toProduce,
                     current_stage: normalStage,
                     size_info: item.size_info || null,
+                    cord_color: item.cord_color || null,
+                    enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
                     priority: 'Normal',
                     type: 'Νέα',

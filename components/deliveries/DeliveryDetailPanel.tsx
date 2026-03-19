@@ -18,6 +18,7 @@ import {
   ORDER_STATUS_LABELS,
   PRODUCTION_STAGE_COLORS
 } from '../../utils/deliveryLabels';
+import { getProductOptionColorLabel } from '../../utils/xrOptions';
 
 const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
   [ProductionStage.AwaitingDelivery]: <Globe size={14} />,
@@ -56,6 +57,8 @@ function BatchCard({ b, idx }: { b: ShipmentGroup['not_ready_batches'][number]; 
           {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}>{stone.code}</span>}
         </div>
         {b.size_info && <span className="text-[10px] font-bold text-slate-500 mt-0.5 block">({b.size_info})</span>}
+        {b.cord_color && <span className="text-[10px] font-bold text-amber-700 mt-0.5 block">Κορδόνι: {getProductOptionColorLabel(b.cord_color)}</span>}
+        {b.enamel_color && <span className="text-[10px] font-bold text-rose-700 mt-0.5 block">Σμάλτο: {getProductOptionColorLabel(b.enamel_color)}</span>}
         <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>
           {StageIcon}
           {getProductionStageLabel(b.current_stage)}

@@ -2,6 +2,7 @@ import React from 'react';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
+import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -117,7 +118,14 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 </div>
                             </div>
                             <button
-                                onClick={() => { setters.setActiveMaster(null); setters.setScanInput(''); setters.setFilteredVariants([]); setters.setSelectedSize(''); }}
+                                onClick={() => {
+                                    setters.setActiveMaster(null);
+                                    setters.setScanInput('');
+                                    setters.setFilteredVariants([]);
+                                    setters.setSelectedSize('');
+                                    setters.setSelectedCordColor(undefined);
+                                    setters.setSelectedEnamelColor(undefined);
+                                }}
                                 className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                             >
                                 <X size={16} />
@@ -140,6 +148,39 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                             {s}
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {isXrCordEnamelSku(state.activeMaster) && (
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Κορδόνι</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <button
+                                                key={`cord-${color}`}
+                                                onClick={() => setters.setSelectedCordColor(state.selectedCordColor === color ? undefined : color)}
+                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${state.selectedCordColor === color ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                            >
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Σμάλτο</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <button
+                                                key={`enamel-${color}`}
+                                                onClick={() => setters.setSelectedEnamelColor(state.selectedEnamelColor === color ? undefined : color)}
+                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${state.selectedEnamelColor === color ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                            >
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}

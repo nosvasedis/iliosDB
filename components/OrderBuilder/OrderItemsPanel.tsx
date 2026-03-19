@@ -5,6 +5,7 @@ import { OrderItem } from '../../types';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
+import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -18,6 +19,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
     const [editFinish, setEditFinish] = useState('');
     const [editVariantSuffix, setEditVariantSuffix] = useState('');
     const [editSizeInfo, setEditSizeInfo] = useState('');
+    const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
+    const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
 
     const editProduct = editingItem?.product_details;
     const editVariants = editProduct?.variants || [];
@@ -74,6 +77,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
         }
 
         setEditSizeInfo(item.size_info || '');
+        setEditCordColor(item.cord_color);
+        setEditEnamelColor(item.enamel_color);
     };
 
     const handleEditFinishChange = (finishCode: string) => {
@@ -89,12 +94,14 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
         setEditFinish('');
         setEditVariantSuffix('');
         setEditSizeInfo('');
+        setEditCordColor(undefined);
+        setEditEnamelColor(undefined);
     };
 
     const handleConfirmEdit = () => {
         if (!editingItem) return;
         const nextVariant = editVariants.length > 0 ? editVariantSuffix : undefined;
-        actions.updateItemVariantAndSize(editingItem, nextVariant, editSizeInfo || undefined);
+        actions.updateItemVariantAndSize(editingItem, nextVariant, editSizeInfo || undefined, editCordColor, editEnamelColor);
         closeEditModal();
     };
 
@@ -175,6 +182,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">
                                         {formatCurrency(item.price_at_order)}
                                         {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}
+                                        {item.cord_color && <span className="bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                        {item.enamel_color && <span className="bg-rose-50 text-rose-700 px-1 rounded border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -339,6 +348,41 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     ))}
                                 </select>
                             </div>
+                        )}
+
+                        {editProduct && isXrCordEnamelSku(editProduct) && (
+                            <>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Κορδόνι</label>
+                                    <select
+                                        value={editCordColor || ''}
+                                        onChange={e => setEditCordColor((e.target.value || undefined) as OrderItem['cord_color'])}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    >
+                                        <option value="">Χωρίς επιλογή</option>
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <option key={`edit-cord-${color}`} value={color}>
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Σμάλτο</label>
+                                    <select
+                                        value={editEnamelColor || ''}
+                                        onChange={e => setEditEnamelColor((e.target.value || undefined) as OrderItem['enamel_color'])}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    >
+                                        <option value="">Χωρίς επιλογή</option>
+                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                            <option key={`edit-enamel-${color}`} value={color}>
+                                                {PRODUCT_OPTION_COLOR_LABELS[color]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </>
                         )}
 
                         <div className="flex justify-end gap-2 pt-2">

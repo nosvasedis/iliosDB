@@ -5,6 +5,7 @@ import { APP_LOGO } from '../constants';
 import { Box, Coins, Gem, Puzzle, Globe, MapPin, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
+import { getProductOptionColorLabel } from '../utils/xrOptions';
 
 interface Props {
     batches: ProductionBatch[];
@@ -137,6 +138,16 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 {batch.size_info && (
                                                     <span className="text-[9px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block mt-0.5">
                                                         {batch.size_info}
+                                                    </span>
+                                                )}
+                                                {batch.cord_color && (
+                                                    <span className="text-[9px] font-black bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded inline-block mt-0.5 border border-amber-200">
+                                                        Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}
+                                                    </span>
+                                                )}
+                                                {batch.enamel_color && (
+                                                    <span className="text-[9px] font-black bg-rose-50 text-rose-800 px-1.5 py-0.5 rounded inline-block mt-0.5 border border-rose-200">
+                                                        Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}
                                                     </span>
                                                 )}
                                             </div>

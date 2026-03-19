@@ -5,10 +5,12 @@ import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
-import { getSizingInfo } from '../utils/sizing';
+import { getSizingInfo, ProductSizingInfo, SIZE_TYPE_LENGTH, SIZE_TYPE_NUMBER } from '../utils/sizing';
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
+import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { isXrCordEnamelSku } from '../utils/xrOptions';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -80,7 +82,9 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
     const [selectedSize, setSelectedSize] = useState('');
-    const [sizeMode, setSizeMode] = useState<{ type: 'Νούμερο' | 'Μήκος', sizes: string[] } | null>(null);
+    const [selectedCordColor, setSelectedCordColor] = useState<OrderItem['cord_color']>();
+    const [selectedEnamelColor, setSelectedEnamelColor] = useState<OrderItem['enamel_color']>();
+    const [sizeMode, setSizeMode] = useState<ProductSizingInfo | null>(null);
     const [showScanner, setShowScanner] = useState(false);
 
     // --- Sort & Filter State ---
@@ -92,6 +96,18 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const buildOrderItemIdentity = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) =>
+        buildItemIdentityKey({
+            sku: item.sku,
+            variant_suffix: item.variant_suffix,
+            size_info: item.size_info,
+            cord_color: item.cord_color,
+            enamel_color: item.enamel_color
+        });
+
+    const getOrderItemMatchKey = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes'>) =>
+        `${buildOrderItemIdentity(item)}::${item.notes || ''}`;
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -245,6 +261,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setFilteredVariants([]);
             setSizeMode(null);
             setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
             return;
         }
 
@@ -295,6 +313,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
         if (bestMaster) {
             setActiveMaster(bestMaster);
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
             const sizing = getSizingInfo(bestMaster);
             setSizeMode(sizing);
 
@@ -328,8 +348,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                     const numeric = /^[0-9]{2,3}$/;
                     const lengthLike = /^[0-9]{2,3}(CM)?$/;
                     if (
-                        (sizing.type === 'Νούμερο' && numeric.test(token)) ||
-                        (sizing.type === 'Μήκος' && lengthLike.test(token))
+                        (sizing.type === SIZE_TYPE_NUMBER && numeric.test(token)) ||
+                        (sizing.type === SIZE_TYPE_LENGTH && lengthLike.test(token))
                     ) {
                         sizePart = token;
                     }
@@ -340,7 +360,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 const normalizedSize = sizePart.toUpperCase();
                 const matchedSize = sizing.sizes.find(stored => {
                     const upperStored = stored.toUpperCase();
-                    if (sizing.type === 'Μήκος') {
+                    if (sizing.type === SIZE_TYPE_LENGTH) {
                         const baseStored = upperStored.replace(/CM$/, '');
                         const baseInput = normalizedSize.replace(/CM$/, '');
                         return upperStored === normalizedSize || baseStored === baseInput;
@@ -368,6 +388,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setFilteredVariants([]);
             setSizeMode(null);
             setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
         }
     };
 
@@ -378,6 +400,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         const sizing = getSizingInfo(p);
         if (sizing) { setSizeMode(sizing); setSelectedSize(''); }
         else setSizeMode(null);
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
         if (p.variants) {
             setFilteredVariants(p.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
         } else {
@@ -386,7 +410,15 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         inputRef.current?.focus();
     };
 
-    const _addItemToOrder = (master: Product, variant: ProductVariant | null, qty: number, size: string, notes: string) => {
+    const _addItemToOrder = (
+        master: Product,
+        variant: ProductVariant | null,
+        qty: number,
+        size: string,
+        notes: string,
+        cordColor?: OrderItem['cord_color'],
+        enamelColor?: OrderItem['enamel_color']
+    ) => {
         const unitPrice = variant?.selling_price || master.selling_price || 0;
         const newItem: OrderItem = {
             sku: master.sku,
@@ -395,15 +427,13 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             price_at_order: unitPrice,
             product_details: master,
             size_info: size || undefined,
+            cord_color: cordColor,
+            enamel_color: enamelColor,
             notes: notes || undefined
         };
         setSelectedItems(prev => {
-            const existingIdx = prev.findIndex(i =>
-                i.sku === newItem.sku &&
-                i.variant_suffix === newItem.variant_suffix &&
-                i.size_info === newItem.size_info &&
-                i.notes === newItem.notes
-            );
+            const nextKey = getOrderItemMatchKey(newItem);
+            const existingIdx = prev.findIndex(i => getOrderItemMatchKey(i) === nextKey);
             if (existingIdx >= 0) {
                 const updated = [...prev];
                 updated[existingIdx].quantity += qty;
@@ -426,8 +456,9 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         }
         if (navigator.vibrate) navigator.vibrate(50);
         showToast(`${activeMaster.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
-        _addItemToOrder(activeMaster, variant, scanQty, selectedSize, itemNotes);
+        _addItemToOrder(activeMaster, variant, scanQty, selectedSize, itemNotes, selectedCordColor, selectedEnamelColor);
         setActiveMaster(null); setScanQty(1); setSelectedSize(''); setItemNotes('');
+        setSelectedCordColor(undefined); setSelectedEnamelColor(undefined);
         setSizeMode(null); setScanInput('');
         setTimeout(() => inputRef.current?.focus(), 100);
     };
@@ -468,7 +499,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                         const normalized = tail.toUpperCase();
                         const matchedSize = sizing.sizes.find(stored => {
                             const upperStored = stored.toUpperCase();
-                            if (sizing.type === 'Μήκος') {
+                            if (sizing.type === SIZE_TYPE_LENGTH) {
                                 const baseStored = upperStored.replace(/CM$/, '');
                                 const baseInput = normalized.replace(/CM$/, '');
                                 return upperStored === normalized || baseStored === baseInput;
@@ -488,11 +519,13 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
                     if (navigator.vibrate) navigator.vibrate(50);
                     showToast(`${activeMaster.sku}${chosenVariant?.suffix || ''} προστέθηκε`, 'success');
-                    _addItemToOrder(activeMaster, chosenVariant, scanQty, sizeToUse, itemNotes);
+                    _addItemToOrder(activeMaster, chosenVariant, scanQty, sizeToUse, itemNotes, selectedCordColor, selectedEnamelColor);
                     setActiveMaster(null);
                     setScanQty(1);
                     setSelectedSize('');
                     setItemNotes('');
+                    setSelectedCordColor(undefined);
+                    setSelectedEnamelColor(undefined);
                     setSizeMode(null);
                     setScanInput('');
                     setCandidateProducts([]);
@@ -524,11 +557,13 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 return;
             }
         }
-        _addItemToOrder(product, variant ?? null, scanQty, selectedSize, itemNotes);
+        _addItemToOrder(product, variant ?? null, scanQty, selectedSize, itemNotes, selectedCordColor, selectedEnamelColor);
         setScanInput('');
         setScanQty(1);
         setItemNotes('');
         setSelectedSize('');
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
         setCandidateProducts([]);
         setActiveMaster(null);
         setFilteredVariants([]);
@@ -581,12 +616,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Item Mutation Actions ---
     const updateQuantity = (item: OrderItem, qty: number) => {
-        const idx = selectedItems.findIndex(i =>
-            i.sku === item.sku &&
-            i.variant_suffix === item.variant_suffix &&
-            i.size_info === item.size_info &&
-            (i.notes || '') === (item.notes || '')
-        );
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx === -1) return;
         if (qty <= 0) {
             setSelectedItems(prev => prev.filter((_, i) => i !== idx));
@@ -601,12 +631,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const updateItemNotes = (item: OrderItem, notes: string) => {
-        const idx = selectedItems.findIndex(i =>
-            i.sku === item.sku &&
-            i.variant_suffix === item.variant_suffix &&
-            i.size_info === item.size_info &&
-            (i.notes || '') === (item.notes || '')
-        );
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx === -1) return;
         setSelectedItems(prev => {
             const updated = [...prev];
@@ -615,22 +640,18 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         });
     };
 
-    const updateItemVariantAndSize = (item: OrderItem, nextVariantSuffix: string | undefined, nextSizeInfo: string | undefined) => {
-        const idx = selectedItems.findIndex(i =>
-            i.sku === item.sku &&
-            i.variant_suffix === item.variant_suffix &&
-            i.size_info === item.size_info &&
-            (i.notes || '') === (item.notes || '')
-        );
+    const updateItemVariantAndSize = (
+        item: OrderItem,
+        nextVariantSuffix: string | undefined,
+        nextSizeInfo: string | undefined,
+        nextCordColor?: OrderItem['cord_color'],
+        nextEnamelColor?: OrderItem['enamel_color']
+    ) => {
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx === -1) return;
 
         setSelectedItems(prev => {
-            const dynamicIdx = prev.findIndex(i =>
-                i.sku === item.sku &&
-                i.variant_suffix === item.variant_suffix &&
-                i.size_info === item.size_info &&
-                (i.notes || '') === (item.notes || '')
-            );
+            const dynamicIdx = prev.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
             if (dynamicIdx === -1) return prev;
 
             const current = prev[dynamicIdx];
@@ -650,16 +671,15 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 ...current,
                 variant_suffix: nextVariantSuffix,
                 size_info: nextSizeInfo,
+                cord_color: nextCordColor,
+                enamel_color: nextEnamelColor,
                 price_at_order: nextPrice,
                 product_details: product || current.product_details
             };
 
             const mergeIdx = prev.findIndex((candidate, i) =>
                 i !== dynamicIdx &&
-                candidate.sku === edited.sku &&
-                candidate.variant_suffix === edited.variant_suffix &&
-                candidate.size_info === edited.size_info &&
-                (candidate.notes || '') === (edited.notes || '')
+                getOrderItemMatchKey(candidate) === getOrderItemMatchKey(edited)
             );
 
             if (mergeIdx !== -1) {
@@ -681,12 +701,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const handleRemoveItem = (item: OrderItem) => {
-        const idx = selectedItems.findIndex(i =>
-            i.sku === item.sku &&
-            i.variant_suffix === item.variant_suffix &&
-            i.size_info === item.size_info &&
-            (i.notes || '') === (item.notes || '')
-        );
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx !== -1) setSelectedItems(prev => prev.filter((_, i) => i !== idx));
         setPriceDiffs(null);
     };
@@ -817,7 +832,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             // Smart entry
             scanInput, scanQty, itemNotes,
             candidateProducts, activeMaster, filteredVariants,
-            selectedSize, sizeMode, showScanner,
+            selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter
             sortOrder, itemSearchTerm,
             // Price diffs
@@ -834,7 +849,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setOrderNotes, setRetailClientLabel, setVatRate, setDiscountPercent, setTagInput,
             setCustomerSearch, setShowCustomerResults,
             setScanInput, setScanQty, setItemNotes,
-            setActiveMaster, setFilteredVariants, setSelectedSize,
+            setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
             setSizeMode, setCandidateProducts, setShowScanner,
             setSortOrder, setItemSearchTerm,
         },

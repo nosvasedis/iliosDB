@@ -6,6 +6,7 @@ import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { GlobalSettings } from '../types';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
+import { getProductOptionColorLabel } from '../utils/xrOptions';
 
 interface Props {
     data: AggregatedData;
@@ -207,6 +208,8 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                 <div className="flex items-baseline gap-1">
                                     <span className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</span>
                                     {batch.size_info && <span className="text-[9px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200">{batch.size_info}</span>}
+                                    {batch.cord_color && <span className="text-[9px] font-bold bg-amber-50 px-1 rounded text-amber-700 border border-amber-100">Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}</span>}
+                                    {batch.enamel_color && <span className="text-[9px] font-bold bg-rose-50 px-1 rounded text-rose-700 border border-rose-100">Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}</span>}
                                     {batch.product_details?.is_component && <span className="text-[8px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
                                     {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[8px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase ml-1">IMP</span>}
                                 </div>

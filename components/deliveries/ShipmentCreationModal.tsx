@@ -5,6 +5,8 @@ import { Order, ProductionBatch, ProductionStage, Product, OrderShipmentItem } f
 import { getReadyToShipItems, computeShipmentValue } from '../../utils/shipmentUtils';
 import { getVariantComponents, formatCurrency } from '../../utils/pricingEngine';
 import { formatOrderId } from '../../utils/orderUtils';
+import { buildItemIdentityKey } from '../../utils/itemIdentity';
+import { getProductOptionColorLabel } from '../../utils/xrOptions';
 
 interface Props {
   order: Order;
@@ -12,18 +14,26 @@ interface Props {
   products: Product[];
   deliveryPlanId?: string | null;
   userName: string;
-  onConfirm: (items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; quantity: number; price_at_order: number }>, notes: string | null) => Promise<void>;
+  onConfirm: (items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: OrderShipmentItem['cord_color']; enamel_color?: OrderShipmentItem['enamel_color']; quantity: number; price_at_order: number }>, notes: string | null) => Promise<void>;
   onClose: () => void;
 }
 
 export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, onConfirm, onClose }: Props) {
   const readyItems = useMemo(() => getReadyToShipItems(order.id, batches), [order.id, batches]);
+  const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }) =>
+    buildItemIdentityKey({
+      sku: item.sku,
+      variant_suffix: item.variant_suffix,
+      size_info: item.size_info,
+      cord_color: item.cord_color as OrderShipmentItem['cord_color'],
+      enamel_color: item.enamel_color as OrderShipmentItem['enamel_color']
+    });
 
   // Per-item shipping quantities (default: ship all ready)
   const [shipQtys, setShipQtys] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     for (const item of readyItems) {
-      const key = `${item.sku}::${item.variant_suffix || ''}::${item.size_info || ''}`;
+      const key = getItemIdentityKey(item);
       initial[key] = item.quantity;
     }
     return initial;
@@ -33,7 +43,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
   const adjustQty = (key: string, delta: number) => {
     setShipQtys(prev => {
-      const item = readyItems.find(i => `${i.sku}::${i.variant_suffix || ''}::${i.size_info || ''}` === key);
+      const item = readyItems.find(i => getItemIdentityKey(i) === key);
       if (!item) return prev;
       const newQty = Math.max(0, Math.min(item.quantity, (prev[key] || 0) + delta));
       return { ...prev, [key]: newQty };
@@ -41,12 +51,21 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   };
 
   // Find price_at_order for each item from the order
-  const getPrice = (sku: string, variantSuffix?: string | null, sizeInfo?: string | null): number => {
-    const match = order.items.find(i =>
-      i.sku === sku &&
-      (i.variant_suffix || null) === (variantSuffix || null) &&
-      (i.size_info || null) === (sizeInfo || null)
-    );
+  const getPrice = (
+    sku: string,
+    variantSuffix?: string | null,
+    sizeInfo?: string | null,
+    cordColor?: OrderShipmentItem['cord_color'],
+    enamelColor?: OrderShipmentItem['enamel_color']
+  ): number => {
+    const targetKey = buildItemIdentityKey({
+      sku,
+      variant_suffix: variantSuffix,
+      size_info: sizeInfo,
+      cord_color: cordColor as OrderShipmentItem['cord_color'],
+      enamel_color: enamelColor as OrderShipmentItem['enamel_color']
+    });
+    const match = order.items.find(i => buildItemIdentityKey(i) === targetKey);
     if (match) return match.price_at_order;
     // Fallback: match without size
     const fallback = order.items.find(i => i.sku === sku && (i.variant_suffix || null) === (variantSuffix || null));
@@ -57,7 +76,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   const shipmentItems: OrderShipmentItem[] = useMemo(() =>
     readyItems
       .map(item => {
-        const key = `${item.sku}::${item.variant_suffix || ''}::${item.size_info || ''}`;
+        const key = getItemIdentityKey(item);
         const qty = shipQtys[key] || 0;
         if (qty <= 0) return null;
         return {
@@ -66,8 +85,10 @@ export default function ShipmentCreationModal({ order, batches, products, delive
           sku: item.sku,
           variant_suffix: item.variant_suffix || null,
           size_info: item.size_info || null,
+          cord_color: item.cord_color || null,
+          enamel_color: item.enamel_color || null,
           quantity: qty,
-          price_at_order: getPrice(item.sku, item.variant_suffix, item.size_info)
+          price_at_order: getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'])
         };
       })
       .filter(Boolean) as OrderShipmentItem[],
@@ -85,7 +106,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     setLoading(true);
     try {
       await onConfirm(
-        shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, quantity: i.quantity, price_at_order: i.price_at_order })),
+        shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order })),
         notes.trim() || null
       );
     } finally {
@@ -130,11 +151,11 @@ export default function ShipmentCreationModal({ order, batches, products, delive
         {/* Items */}
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
           {readyItems.map(item => {
-            const key = `${item.sku}::${item.variant_suffix || ''}::${item.size_info || ''}`;
+            const key = getItemIdentityKey(item);
             const qty = shipQtys[key] || 0;
             const product = products.find(p => p.sku === item.sku);
             const { finish, stone } = getVariantComponents(item.variant_suffix ?? '', product?.gender);
-            const price = getPrice(item.sku, item.variant_suffix, item.size_info);
+            const price = getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color']);
 
             return (
               <div key={key} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
@@ -152,6 +173,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                   <div className="font-black text-slate-900 text-sm">{item.sku}{item.variant_suffix ? <span className="text-slate-400 font-bold ml-1">{item.variant_suffix}</span> : null}</div>
                   <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
                     {item.size_info && <span className="font-bold">#{item.size_info}</span>}
+                    {item.cord_color && <span className="font-bold text-amber-700">Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderShipmentItem['cord_color'])}</span>}
+                    {item.enamel_color && <span className="font-bold text-rose-700">Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderShipmentItem['enamel_color'])}</span>}
                     {finish.name && <span>{finish.name}</span>}
                     {stone.name && <span>{stone.name}</span>}
                   </div>

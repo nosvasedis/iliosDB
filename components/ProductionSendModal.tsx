@@ -10,6 +10,8 @@ import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pr
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { groupBatchesByShipment } from '../utils/orderReadiness';
 import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
+import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { getProductOptionColorLabel } from '../utils/xrOptions';
 
 interface Props {
     order: Order;
@@ -141,8 +143,8 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     // Stock Decision State
     const [stockDecision, setStockDecision] = useState<{
-        items: Array<{ sku: string; variant_suffix: string | null; size_info: string | null; requested_qty: number; available_in_stock: number; fromStock: number }>;
-        originalItemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; notes?: string }>;
+        items: Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number; fromStock: number }>;
+        originalItemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string }>;
     } | null>(null);
 
     // Split Modal State
@@ -156,6 +158,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
+    const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
 
     // Order Financials
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -190,7 +193,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         }> = {};
 
         targetBatches.forEach(b => {
-            const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
+            const key = buildBatchIdentityKey(b);
             if (!groups[key]) {
                 const product = products.find(p => p.sku === b.sku);
                 groups[key] = {
@@ -209,7 +212,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
 
         return Object.values(groups).sort((a, b) => a.sku.localeCompare(b.sku));
-    }, [activeStagePopup, existingBatches, products]);
+    }, [activeStagePopup, buildBatchIdentityKey, existingBatches, products]);
 
     // Popup Batches - individual batches for stage popup with movement buttons
     const popupBatches = useMemo(() => {
@@ -234,13 +237,11 @@ export default function ProductionSendModal({ order, products, materials, existi
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
-            const key = itemKey(item.sku, item.variant_suffix, item.size_info);
+            const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
             const shippedQty = shippedQuantities.get(key) || 0;
 
             const relevantBatches = existingBatches.filter(b =>
-                b.sku === item.sku &&
-                (b.variant_suffix || '') === (item.variant_suffix || '') &&
-                (b.size_info || '') === (item.size_info || '')
+                buildBatchIdentityKey(b) === buildBatchIdentityKey(item)
             ).sort((a, b) => {
                 const stages = Object.values(ProductionStage);
                 return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
@@ -280,11 +281,29 @@ export default function ProductionSendModal({ order, products, materials, existi
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });
         });
-    }, [order.items, existingBatches, products, shippedQuantities]);
+    }, [order.items, existingBatches, products, shippedQuantities, buildBatchIdentityKey]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
 
     const shipmentHistory = useMemo(() => groupBatchesByShipment(existingBatches), [existingBatches]);
+
+    function buildBatchIdentityKey(item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) {
+        return buildItemIdentityKey({
+            sku: item.sku,
+            variant_suffix: item.variant_suffix,
+            size_info: item.size_info,
+            cord_color: item.cord_color,
+            enamel_color: item.enamel_color
+        });
+    }
+
+    function canMoveBatchToStage(batch: ProductionBatch, stage: ProductionStage) {
+        if (batch.on_hold) return false;
+        if (batch.current_stage === stage) return false;
+        if (stage === ProductionStage.Setting && !batch.requires_setting) return false;
+        if (stage === ProductionStage.Assembly && !batch.requires_assembly) return false;
+        return true;
+    }
 
     const relevantCollections = useMemo(() => {
         if (!collections) return [];
@@ -327,6 +346,42 @@ export default function ProductionSendModal({ order, products, materials, existi
             return true;
         });
     }, [rows, filterGender, filterCollection, products, searchTerm]);
+
+    const visibleActiveBatches = useMemo(
+        () => filteredRows.flatMap((row) => row.batchDetails),
+        [filteredRows]
+    );
+
+    const visiblePopupBatchIds = useMemo(
+        () => popupBatches.map((batch) => batch.id),
+        [popupBatches]
+    );
+
+    const selectedVisibleActiveCount = useMemo(
+        () => visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).length,
+        [selectedBatchIds, visibleActiveBatches]
+    );
+
+    const selectedVisiblePopupCount = useMemo(
+        () => visiblePopupBatchIds.filter((id) => selectedBatchIds.includes(id)).length,
+        [selectedBatchIds, visiblePopupBatchIds]
+    );
+
+    const toggleBatchSelection = (batchId: string) => {
+        setSelectedBatchIds((prev) => prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId]);
+    };
+
+    const selectBatchIds = (batchIds: string[]) => {
+        setSelectedBatchIds((prev) => Array.from(new Set([...prev, ...batchIds])));
+    };
+
+    const clearBatchSelection = (batchIds?: string[]) => {
+        if (!batchIds) {
+            setSelectedBatchIds([]);
+            return;
+        }
+        setSelectedBatchIds((prev) => prev.filter((id) => !batchIds.includes(id)));
+    };
 
     const currentSendValue = useMemo(() => {
         return order.items.reduce((sum, item, idx) => {
@@ -376,6 +431,8 @@ export default function ProductionSendModal({ order, products, materials, existi
             variant: r.variant_suffix || null,
             qty: toSendQuantities[r.originalIndex] || 0,
             size_info: r.size_info,
+            cord_color: r.cord_color || null,
+            enamel_color: r.enamel_color || null,
             notes: r.notes
         })).filter(i => i.qty > 0);
 
@@ -405,8 +462,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     };
 
     const executeSend = async (
-        itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; notes?: string }>,
-        stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null }>
+        itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string }>,
+        stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }>
     ) => {
         setIsSending(true);
         try {
@@ -436,11 +493,24 @@ export default function ProductionSendModal({ order, products, materials, existi
 
         const stockFulfilled = stockDecision.items
             .filter(i => i.fromStock > 0)
-            .map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, qty: i.fromStock, size_info: i.size_info }));
+            .map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, qty: i.fromStock, size_info: i.size_info, cord_color: i.cord_color || null, enamel_color: i.enamel_color || null }));
 
         // Build the production items: reduce qty by fromStock for items partially in stock, remove items fully in stock
         const productionItems = stockDecision.originalItemsToSend.map(orig => {
-            const match = stockDecision.items.find(s => s.sku === orig.sku && (s.variant_suffix || null) === (orig.variant || null) && (s.size_info || '') === (orig.size_info || ''));
+            const matchKey = buildItemIdentityKey({
+                sku: orig.sku,
+                variant_suffix: orig.variant,
+                size_info: orig.size_info,
+                cord_color: orig.cord_color as OrderItem['cord_color'],
+                enamel_color: orig.enamel_color as OrderItem['enamel_color']
+            });
+            const match = stockDecision.items.find(s => buildItemIdentityKey({
+                sku: s.sku,
+                variant_suffix: s.variant_suffix,
+                size_info: s.size_info,
+                cord_color: s.cord_color as OrderItem['cord_color'],
+                enamel_color: s.enamel_color as OrderItem['enamel_color']
+            }) === matchKey);
             if (!match) return orig;
             const prodQty = orig.qty - match.fromStock;
             return { ...orig, qty: prodQty };
@@ -496,7 +566,12 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleRevertBatch = async (batch: ProductionBatch) => {
         if (isWorking) return;
 
-        const batchLabel = `${batch.sku}${batch.variant_suffix || ''}${batch.size_info ? ` / ${batch.size_info}` : ''}`;
+        const batchLabel = [
+            `${batch.sku}${batch.variant_suffix || ''}`,
+            batch.size_info,
+            batch.cord_color ? `Κορδόνι: ${getProductOptionColorLabel(batch.cord_color)}` : null,
+            batch.enamel_color ? `Σμάλτο: ${getProductOptionColorLabel(batch.enamel_color)}` : null
+        ].filter(Boolean).join(' / ');
         const stockHint = batch.type === 'Από Stock'
             ? ' Η ποσότητα θα επιστραφεί και στο απόθεμα.'
             : '';
@@ -521,6 +596,25 @@ export default function ProductionSendModal({ order, products, materials, existi
             showToast("Η παρτίδα επανήλθε επιτυχώς και μπορεί να σταλεί ξανά αργότερα.", "success");
         } catch (e) {
             showToast("Σφάλμα κατά την επαναφορά της παρτίδας.", "error");
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const handleBulkStageMove = async (newStage: ProductionStage, batchIds = selectedBatchIds) => {
+        if (isWorking || batchIds.length === 0) return;
+        setIsWorking(true);
+        try {
+            const summary = await api.bulkUpdateBatchStages(batchIds, newStage);
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['batches'] }),
+                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+            ]);
+            clearBatchSelection(batchIds);
+            showToast(`Μετακινήθηκαν ${summary.movedCount} παρτίδες${summary.skippedCount > 0 ? `, παραλείφθηκαν ${summary.skippedCount}` : ''}.`, summary.movedCount > 0 ? "success" : "info");
+        } catch (e) {
+            showToast("Σφάλμα μαζικής μετακίνησης.", "error");
         } finally {
             setIsWorking(false);
         }
@@ -618,7 +712,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                 type: batch.type,
                 notes: batch.notes,
                 requires_setting: batch.requires_setting,
+                requires_assembly: batch.requires_assembly,
                 size_info: batch.size_info,
+                cord_color: batch.cord_color,
+                enamel_color: batch.enamel_color,
                 on_hold: false
             };
 
@@ -761,6 +858,41 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         {/* LIST */}
                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar min-h-0">
+                            {visibleActiveBatches.length > 0 && (
+                                <div className="sticky top-0 z-[5] mb-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl p-3 shadow-sm">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <button
+                                                onClick={() => selectBatchIds(visibleActiveBatches.map((batch) => batch.id))}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                            >
+                                                Επιλογή όλων των ορατών
+                                            </button>
+                                            <button
+                                                onClick={() => clearBatchSelection(visibleActiveBatches.map((batch) => batch.id))}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                                            >
+                                                Καθαρισμός
+                                            </button>
+                                            <span className="text-xs font-black text-slate-500">
+                                                Επιλεγμένες: <span className="text-slate-900">{selectedVisibleActiveCount}</span>
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {STAGES.map((stage) => (
+                                                <button
+                                                    key={`bulk-stage-${stage.id}`}
+                                                    onClick={() => handleBulkStageMove(stage.id as ProductionStage, visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                                    disabled={isWorking || selectedVisibleActiveCount === 0}
+                                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    {stage.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {filteredRows.length > 0 ? (
                                 <div className="space-y-4">
                                     {filteredRows.map((row) => {
@@ -777,7 +909,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         });
 
                                         return (
-                                    <div key={`content-${row.sku}-${row.variant_suffix || ''}-${row.size_info || ''}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
+                                    <div key={`content-${buildBatchIdentityKey(row)}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
 
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
@@ -805,6 +937,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                         <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
                                                         {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
+                                                        {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
+                                                        {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}
                                                     </div>
                                                     <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
 
@@ -892,18 +1026,30 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
 
                                                                 // Calculate value for this specific batch
-                                                                const batchRow = rows.find(r => r.sku === batch.sku && (r.variant_suffix || '') === (batch.variant_suffix || '') && (r.size_info || '') === (batch.size_info || ''));
+                                                                const batchRow = rows.find(r => buildBatchIdentityKey(r) === buildBatchIdentityKey(batch));
                                                                 const unitPrice = batchRow?.price || 0;
                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
+                                                                const isSelected = selectedBatchIds.includes(batch.id);
 
                                                                 return (
                                                                     <div key={batch.id} className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                                                                         <div className="flex flex-col gap-2 min-w-0 flex-1">
                                                                             <div className="flex flex-wrap items-center gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => toggleBatchSelection(batch.id)}
+                                                                                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-600'}`}
+                                                                                    title="Επιλογή παρτίδας"
+                                                                                >
+                                                                                    {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                                                </button>
                                                                                 <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm min-w-[3rem] text-center">{batch.quantity}</span>
                                                                                 <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${stageConf.color}`}>{stageConf.label}</span>
                                                                                 <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${BATCH_TYPE_STYLES[batch.type || 'Νέα'] || BATCH_TYPE_STYLES['Νέα']}`}>{batch.type || 'Νέα'}</span>
                                                                                 <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">{formatCurrency(batchVal)}</span>
+                                                                                {batch.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-100 font-bold">{batch.size_info}</span>}
+                                                                                {batch.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded-lg border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}</span>}
+                                                                                {batch.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-2 py-1 rounded-lg border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}</span>}
                                                                             </div>
 
                                                                             {/* Stage Selector - Horizontal Buttons */}
@@ -913,11 +1059,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     const isCurrentStage = stage.id === batch.current_stage;
                                                                                     const isCompletedStage = index < currentStageIndex;
                                                                                     const isUpcomingStage = index > currentStageIndex;
-                                                                                    
-                                                                                    // Check if stage is disabled (skipped) for this batch
-                                                                                    const isStageDisabled = 
-                                                                                        (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
-                                                                                        (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                                                                    const isStageDisabled = !canMoveBatchToStage(batch, stage.id as ProductionStage);
                                                                                     
                                                                                     // Get correct color key for this stage
                                                                                     const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
@@ -946,7 +1088,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                                         : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
                                                                                                 }`}
                                                                                                 title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
-                                                                                                disabled={isStageDisabled}
+                                                                                                disabled={isWorking || isStageDisabled}
                                                                                             >
                                                                                                 {STAGE_SHORT_LABELS[stage.id] || stage.label}
                                                                                                 {isCurrentStage && <span className="text-[7px]">●</span>}
@@ -1056,11 +1198,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 // Calculate Shipment Financials
                                 let shipNet = 0;
                                 batches.forEach(b => {
-                                    const item = order.items.find(i =>
-                                        i.sku === b.sku &&
-                                        (i.variant_suffix || '') === (b.variant_suffix || '') &&
-                                        (i.size_info || '') === (b.size_info || '')
-                                    );
+                                    const item = order.items.find(i => buildBatchIdentityKey(i) === buildBatchIdentityKey(b));
                                     if (item) {
                                         shipNet += (item.price_at_order * b.quantity * discountFactor);
                                     }
@@ -1241,14 +1379,56 @@ export default function ProductionSendModal({ order, products, materials, existi
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
                             {popupBatches.length > 0 ? (
                                 <div className="space-y-3">
+                                    <div className="sticky top-0 z-[5] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl p-3 shadow-sm">
+                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <button
+                                                    onClick={() => selectBatchIds(visiblePopupBatchIds)}
+                                                    className="px-3 py-1.5 rounded-lg text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    Επιλογή όλων των ορατών
+                                                </button>
+                                                <button
+                                                    onClick={() => clearBatchSelection(visiblePopupBatchIds)}
+                                                    className="px-3 py-1.5 rounded-lg text-xs font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                                                >
+                                                    Καθαρισμός
+                                                </button>
+                                                <span className="text-xs font-black text-slate-500">
+                                                    Επιλεγμένες: <span className="text-slate-900">{selectedVisiblePopupCount}</span>
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {STAGES.map((stage) => (
+                                                    <button
+                                                        key={`popup-bulk-stage-${stage.id}`}
+                                                        onClick={() => handleBulkStageMove(stage.id as ProductionStage, popupBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                                        disabled={isWorking || selectedVisiblePopupCount === 0}
+                                                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        {stage.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
                                     {popupBatches.map((batch) => {
                                         const product = products.find(p => p.sku === batch.sku);
                                         const stageConf = STAGES.find(s => s.id === batch.current_stage);
+                                        const isSelected = selectedBatchIds.includes(batch.id);
                                         
                                         return (
                                             <div key={batch.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                                 {/* Card Header */}
                                                 <div className="p-3 flex gap-3 border-b border-slate-50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleBatchSelection(batch.id)}
+                                                        className={`w-9 h-9 mt-2 rounded-xl border flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-600'}`}
+                                                        title="Επιλογή παρτίδας"
+                                                    >
+                                                        {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-100 shrink-0"
@@ -1278,6 +1458,16 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 <Hash size={8} /> {batch.size_info}
                                                             </span>
                                                         )}
+                                                        {batch.cord_color && (
+                                                            <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold w-fit mt-1">
+                                                                Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}
+                                                            </span>
+                                                        )}
+                                                        {batch.enamel_color && (
+                                                            <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold w-fit mt-1">
+                                                                Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
                                                         <span className="text-[9px] font-bold text-slate-400 uppercase">Ποσ.</span>
@@ -1296,11 +1486,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             const isCurrentStage = stage.id === batch.current_stage;
                                                             const isCompletedStage = index < currentStageIndex;
                                                             const isUpcomingStage = index > currentStageIndex;
-                                                            
-                                                            // Check if stage is disabled (skipped) for this batch
-                                                            const isStageDisabled = 
-                                                                (stage.id === ProductionStage.Setting && !batch.requires_setting) ||
-                                                                (stage.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                                            const isStageDisabled = !canMoveBatchToStage(batch, stage.id as ProductionStage);
                                                             
                                                             // Get correct color key for this stage
                                                             const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
@@ -1394,6 +1580,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 <div className="flex items-center gap-2">
                                                     <SkuColored sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} />
                                                     {item.size_info && <span className="text-xs text-slate-500 font-bold">#{item.size_info}</span>}
+                                                    {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderItem['cord_color'])}</span>}
+                                                    {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderItem['enamel_color'])}</span>}
                                                 </div>
                                                 <div className="text-xs text-slate-500 font-medium mt-0.5">
                                                     Ζητούνται: <span className="font-bold text-slate-700">{item.requested_qty}</span> · Stock: <span className={`font-bold ${hasStock ? 'text-emerald-600' : 'text-slate-400'}`}>{item.available_in_stock}</span>
