@@ -382,33 +382,41 @@ function AppContent() {
     let totalImportedLaborCost = 0;
     let totalSubcontractCost = 0;
 
-    const augmentedBatches: AggregatedBatch[] = batches.map(b => {
+    const augmentedBatches: AggregatedBatch[] = [];
+    const importedAugmentedBatches: AggregatedBatch[] = [];
+
+    batches.forEach(b => {
       const product = products.find(p => p.sku === b.sku);
-      if (!product) return { ...b, cost_per_piece: 0, total_cost: 0 };
+      if (!product) {
+        const fallback: AggregatedBatch = { ...b, cost_per_piece: 0, total_cost: 0 };
+        augmentedBatches.push(fallback);
+        return;
+      }
 
       const cost = calculateProductCost(product, settings, materials, products);
       const costPerPiece = cost.total;
       const totalCost = costPerPiece * b.quantity;
-
-      const w = product.weight_g + (product.secondary_weight_g || 0);
-      totalSilverWeight += (w * b.quantity);
-      totalSilverCost += (cost.breakdown.silver * b.quantity);
-      totalMaterialsCost += (cost.breakdown.materials * b.quantity);
 
       const labor = cost.breakdown.labor;
       const sub = cost.breakdown.details?.subcontract_cost || 0;
 
       if (product.production_type === 'Imported') {
         totalImportedLaborCost += (labor * b.quantity);
+        totalSubcontractCost += (sub * b.quantity);
+        importedAugmentedBatches.push({ ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product });
       } else {
+        const w = product.weight_g + (product.secondary_weight_g || 0);
+        totalSilverWeight += (w * b.quantity);
+        totalSilverCost += (cost.breakdown.silver * b.quantity);
+        totalMaterialsCost += (cost.breakdown.materials * b.quantity);
         totalInHouseLaborCost += (labor * b.quantity);
+        totalSubcontractCost += (sub * b.quantity);
+        augmentedBatches.push({ ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product });
       }
-      totalSubcontractCost += (sub * b.quantity);
-
-      return { ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product };
     });
 
     const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
+    const importedTotalCost = importedAugmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
 
     setAggregatedPrintData({
       molds: new Map(),
@@ -422,6 +430,8 @@ function AppContent() {
       totalInHouseLaborCost,
       totalImportedLaborCost,
       totalSubcontractCost,
+      importedBatches: importedAugmentedBatches.length > 0 ? importedAugmentedBatches : undefined,
+      importedTotalCost: importedAugmentedBatches.length > 0 ? importedTotalCost : undefined,
       orderId: orderDetails?.orderId,
       customerName: orderDetails?.customerName
     });

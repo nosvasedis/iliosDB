@@ -13,10 +13,23 @@ interface Props {
 }
 
 export default function AggregatedProductionView({ data, settings }: Props) {
-    const totalItems = data.batches.reduce((sum, b) => sum + b.quantity, 0);
-    const sortedBatches = useMemo(
-        () => sortBySkuKey(data.batches, (batch) => buildSkuKey(batch.sku, batch.variant_suffix)),
+    const inHouseBatches = useMemo(
+        () => data.batches.filter(b => b.product_details?.production_type !== ProductionType.Imported),
         [data.batches]
+    );
+
+    const importedBatches = useMemo(
+        () => (data.importedBatches && data.importedBatches.length > 0
+            ? data.importedBatches
+            : data.batches.filter(b => b.product_details?.production_type === ProductionType.Imported)),
+        [data.importedBatches, data.batches]
+    );
+
+    const totalItems = inHouseBatches.reduce((sum, b) => sum + b.quantity, 0);
+
+    const sortedInHouseBatches = useMemo(
+        () => sortBySkuKey(inHouseBatches, (batch) => buildSkuKey(batch.sku, batch.variant_suffix)),
+        [inHouseBatches]
     );
 
     const formatDate = (dateString: string) => {
@@ -29,7 +42,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
     const techMetal = useMemo(() => {
         const acc = { P: 0, X: 0, H: 0 };
         
-        data.batches.forEach(batch => {
+        inHouseBatches.forEach(batch => {
             const p = batch.product_details;
             // CRITICAL: Exclude STX (Components) AND Imported items.
             // Only workshop (InHouse) manufactured products are calculated for technician metal delivery.
@@ -74,7 +87,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
         });
 
         return acc;
-    }, [data.batches]);
+    }, [inHouseBatches]);
 
     const totalTechnicianSilver = techMetal.P + techMetal.X + techMetal.H;
 
@@ -111,10 +124,10 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <Package size={14} className="text-slate-400"/>
                         <span className="font-bold text-slate-700">{totalItems} Τεμ.</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <Weight size={14} className="text-slate-400"/>
-                        <span className="font-bold text-slate-700">{formatDecimal(data.totalSilverWeight, 1)}g Ag (Total)</span>
-                    </div>
+                <div className="flex items-center gap-1.5">
+                    <Weight size={14} className="text-slate-400"/>
+                    <span className="font-bold text-slate-700">{formatDecimal(data.totalSilverWeight, 1)}g Ag (In-House)</span>
+                </div>
                     <div className="flex items-center gap-1.5">
                         <Coins size={14} className="text-slate-400"/>
                         <span className="font-bold text-slate-700">{formatDecimal(settings.silver_price_gram, 3)}€/g</span>
@@ -153,12 +166,17 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             </div>
             
             {/* HORIZONTAL COST BREAKDOWN */}
-            <div className="flex gap-4 text-[10px] text-slate-500 mb-4 px-1 border-b border-slate-100 pb-2">
-                <span>Ασήμι: <b className="text-slate-800">{formatCurrency(data.totalSilverCost)}</b></span>
-                <span>Υλικά: <b className="text-slate-800">{formatCurrency(data.totalMaterialsCost)}</b></span>
+            <div className="flex flex-wrap gap-4 text-[10px] text-slate-500 mb-4 px-1 border-b border-slate-100 pb-2">
+                <span>Ασήμι (Εργαστηρίου): <b className="text-slate-800">{formatCurrency(data.totalSilverCost)}</b></span>
+                <span>Υλικά (Εργαστηρίου): <b className="text-slate-800">{formatCurrency(data.totalMaterialsCost)}</b></span>
                 <span>Εργ.(Εργ): <b className="text-slate-800">{formatCurrency(data.totalInHouseLaborCost - data.totalSubcontractCost)}</b></span>
-                {data.totalImportedLaborCost > 0 && <span>Εργ.(Εισ): <b className="text-slate-800">{formatCurrency(data.totalImportedLaborCost)}</b></span>}
+                {data.totalImportedLaborCost > 0 && (
+                    <span>Εργ.(Εισ): <b className="text-slate-800">{formatCurrency(data.totalImportedLaborCost)}</b></span>
+                )}
                 <span>Φασόν: <b className="text-slate-800">{formatCurrency(data.totalSubcontractCost)}</b></span>
+                {data.importedTotalCost && data.importedTotalCost > 0 && (
+                    <span>Κόστος Εισαγόμενων: <b className="text-slate-800">{formatCurrency(data.importedTotalCost)}</b></span>
+                )}
             </div>
 
             {/* DENSE TABLE */}
@@ -175,7 +193,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     </tr>
                 </thead>
                 <tbody className="leading-tight">
-                    {sortedBatches.map((batch, idx) => {
+                    {sortedInHouseBatches.map((batch, idx) => {
                         const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
                         return (
                         <tr key={batch.id} className="border-b border-slate-50 break-inside-avoid">
@@ -209,6 +227,46 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     )})}
                 </tbody>
             </table>
+
+            {importedBatches.length > 0 && (
+                <div className="mt-4 border border-amber-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-50 px-3 py-1 border-b border-amber-200 flex justify-between items-center">
+                        <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
+                            Εισαγόμενα Είδη (Εκτός Ενδοεργαστηριακής Ανάλυσης)
+                        </span>
+                        {data.importedTotalCost !== undefined && (
+                            <span className="text-[9px] font-mono font-bold text-amber-700">
+                                Σύνολο: {formatCurrency(data.importedTotalCost)}
+                            </span>
+                        )}
+                    </div>
+                    <table className="w-full text-left text-[10px] border-collapse">
+                        <thead className="bg-amber-50/60 text-amber-700">
+                            <tr>
+                                <th className="py-1 px-2 w-8 text-center">#</th>
+                                <th className="py-1 px-2">SKU</th>
+                                <th className="py-1 px-2 text-center w-12">Ποσ.</th>
+                                <th className="py-1 px-2 text-right w-20">Κόστος</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {importedBatches.map((batch, idx) => (
+                                <tr key={batch.id} className="border-t border-amber-100">
+                                    <td className="py-1 px-2 text-center text-slate-400 font-mono text-[9px]">{idx + 1}</td>
+                                    <td className="py-1 px-2 font-bold text-slate-800">
+                                        {batch.sku}{batch.variant_suffix}
+                                        <span className="ml-1 text-[8px] font-bold text-purple-600 bg-purple-50 px-1 rounded border border-purple-100 uppercase">IMP</span>
+                                    </td>
+                                    <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-700">{batch.quantity}</td>
+                                    <td className="py-1 px-2 text-right font-mono text-[10px] text-slate-800">
+                                        {formatCurrency(batch.total_cost)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             <footer className="mt-4 pt-2 border-t border-slate-200 text-center">
                 <p className="text-[8px] text-slate-400 uppercase tracking-widest">Ilios Kosmima ERP • Σελίδα 1</p>

@@ -498,6 +498,9 @@ export interface AggregatedData {
   totalSubcontractCost: number;
   orderId?: string;
   customerName?: string;
+  // Optional: Imported items (not counted in in-house production totals)
+  importedBatches?: AggregatedBatch[];
+  importedTotalCost?: number;
 }
 
 export interface AssemblyPrintRow {
