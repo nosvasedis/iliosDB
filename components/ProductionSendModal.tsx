@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save } from 'lucide-react';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry } from '../types';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -12,6 +12,7 @@ import { groupBatchesByShipment } from '../utils/orderReadiness';
 import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import BatchHistoryModal from './BatchHistoryModal';
 
 interface Props {
     order: Order;
@@ -205,11 +206,11 @@ const StageFlowRail = ({
                     : '';
 
                 const className = isCurrentStage
-                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/25 shadow-sm`
+                    ? `${stage.color} ring-2 ring-offset-1 ring-current/25 shadow-md saturate-150`
                     : isUnavailableStage
                     ? 'bg-slate-50 text-slate-400 border-slate-200'
                     : isCompletedStage
-                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} opacity-70 hover:opacity-100`
+                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} opacity-45`
                     : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:-translate-y-0.5 hover:shadow-sm`;
 
                 const title = isCurrentStage
@@ -229,6 +230,7 @@ const StageFlowRail = ({
                         <span className="flex items-start justify-between gap-2">
                             <span className="text-[11px] font-black leading-tight break-words">{stage.label}</span>
                             {isCurrentStage && <CheckCircle size={12} className="shrink-0" />}
+                            {isCompletedStage && !isCurrentStage && !isUnavailableStage && <Check size={12} className="shrink-0 opacity-80" />}
                         </span>
                         {helperText && (
                             <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">
@@ -240,6 +242,32 @@ const StageFlowRail = ({
             })}
         </div>
     );
+};
+
+const getTimeInStage = (dateStr: string) => {
+    const start = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffHrs = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+    const diffDays = Math.floor(diffHrs / 24);
+
+    if (diffDays > 0) {
+        return {
+            label: `${diffDays}η ${diffHrs % 24}ω`,
+            className: diffDays >= 6
+                ? 'bg-red-50 text-red-600 border-red-200'
+                : diffDays >= 4
+                ? 'bg-orange-50 text-orange-600 border-orange-200'
+                : 'bg-blue-50 text-blue-600 border-blue-200'
+        };
+    }
+
+    return {
+        label: `${diffHrs}ω`,
+        className: diffHrs < 4
+            ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+            : 'bg-blue-50 text-blue-600 border-blue-200'
+    };
 };
 
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onBack }: Props) {
@@ -273,6 +301,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Note Editing State
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [noteText, setNoteText] = useState('');
+    const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
+    const [batchHistory, setBatchHistory] = useState<BatchStageHistoryEntry[]>([]);
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
@@ -790,7 +820,20 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
+    const handleViewHistory = async (batch: ProductionBatch) => {
+        setHistoryModalBatch(batch);
+        try {
+            const history = await api.getBatchHistory(batch.id);
+            setBatchHistory(history);
+        } catch (e) {
+            console.error('Failed to load batch history:', e);
+            setBatchHistory([]);
+            showToast('Αποτυχία φόρτωσης ιστορικού παρτίδας.', 'error');
+        }
+    };
+
     const openSplitModal = (batch: ProductionBatch) => {
+        if (batch.quantity < 2) return;
         setSplitTarget({ batch, maxQty: batch.quantity });
         setSplitQty(1);
 
@@ -1091,8 +1134,11 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                             {/* Send Controls */}
                                             {isFullySent ? (
-                                                <div className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-400 border border-slate-100 whitespace-nowrap flex items-center gap-1 self-start">
-                                                    <CheckCircle size={12} /> Ολοκληρώθηκε
+                                                <div
+                                                    className="px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-500 border border-slate-100 whitespace-nowrap flex items-center gap-1 self-start"
+                                                    title="Δεν απομένει ποσότητα για αποστολή σε παραγωγή για αυτό το είδος."
+                                                >
+                                                    <CheckCircle size={12} /> Δεν απομένουν
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col items-start xl:items-end gap-1">
@@ -1133,13 +1179,12 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             </div>
 
                                                             {stageBatches.map(batch => {
-                                                                const stageConf = STAGES.find(s => s.id === batch.current_stage) || STAGES[0];
-
                                                                 // Calculate value for this specific batch
                                                                 const batchRow = rows.find(r => buildBatchIdentityKey(r) === buildBatchIdentityKey(batch));
                                                                 const unitPrice = batchRow?.price || 0;
                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
                                                                 const isSelected = selectedBatchIds.includes(batch.id);
+                                                                const timeInfo = getTimeInStage(batch.updated_at);
 
                                                                 return (
                                                                     <div key={batch.id} className="flex flex-col gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
@@ -1154,8 +1199,9 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                                                                                 </button>
                                                                                 <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm min-w-[3rem] text-center">{batch.quantity}</span>
-                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${stageConf.color}`}>{stageConf.label}</span>
-                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${BATCH_TYPE_STYLES[batch.type || 'Νέα'] || BATCH_TYPE_STYLES['Νέα']}`}>{batch.type || 'Νέα'}</span>
+                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${timeInfo.className}`} title={`Χρόνος στο τρέχον στάδιο από ${new Date(batch.updated_at).toLocaleString('el-GR')}`}>
+                                                                                    <Clock size={11} className="inline mr-1" />{timeInfo.label}
+                                                                                </span>
                                                                                 <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">{formatCurrency(batchVal)}</span>
                                                                                 {batch.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-100 font-bold">{batch.size_info}</span>}
                                                                                 {batch.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded-lg border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}</span>}
@@ -1232,13 +1278,20 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                 <StickyNote size={12} className={batch.notes ? "fill-current" : ""} /> Σημείωση
                                                                             </button>
                                                                             <button
+                                                                                onClick={() => handleViewHistory(batch)}
+                                                                                className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-slate-700 bg-white border-slate-200 hover:bg-slate-50"
+                                                                                title="Ιστορικό παρτίδας"
+                                                                            >
+                                                                                <History size={12} /> Ιστορικό
+                                                                            </button>
+                                                                            <button
                                                                                 onClick={() => handleRevertBatch(batch)}
                                                                                 className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
                                                                                 title="Επαναφορά παρτίδας"
                                                                             >
                                                                                 <RefreshCcw size={12} /> Επαναφορά
                                                                             </button>
-                                                                            {batch.current_stage !== ProductionStage.Ready && (
+                                                                            {batch.current_stage !== ProductionStage.Ready && batch.quantity >= 2 && (
                                                                                 <button
                                                                                     onClick={() => openSplitModal(batch)}
                                                                                     className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
@@ -1756,6 +1809,16 @@ export default function ProductionSendModal({ order, products, materials, existi
             )}
 
             {/* Image zoom overlay */}
+            <BatchHistoryModal
+                isOpen={!!historyModalBatch}
+                onClose={() => {
+                    setHistoryModalBatch(null);
+                    setBatchHistory([]);
+                }}
+                batch={historyModalBatch}
+                history={batchHistory as any}
+            />
+
             {zoomImageUrl && ReactDOM.createPortal(
                 <div
                     className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
