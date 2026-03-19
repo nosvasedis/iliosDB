@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -46,12 +46,6 @@ const STAGE_SHORT_LABELS: Record<string, string> = {
     [ProductionStage.Assembly]: 'Συναρμολ.',
     [ProductionStage.Labeling]: 'Συσκευασία',
     [ProductionStage.Ready]: 'Έτοιμα'
-};
-
-const BATCH_TYPE_STYLES: Record<string, string> = {
-    'Νέα': 'bg-slate-100 text-slate-700 border-slate-200',
-    'Φρεσκάρισμα': 'bg-blue-50 text-blue-700 border-blue-200',
-    'Από Stock': 'bg-emerald-50 text-emerald-700 border-emerald-200'
 };
 
 // Stage colors for movement buttons - matching ProductionBatchCard
@@ -301,6 +295,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Note Editing State
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [noteText, setNoteText] = useState('');
+    const [holdingBatch, setHoldingBatch] = useState<ProductionBatch | null>(null);
+    const [holdReason, setHoldReason] = useState('');
     const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
     const [batchHistory, setBatchHistory] = useState<BatchStageHistoryEntry[]>([]);
 
@@ -744,6 +740,43 @@ export default function ProductionSendModal({ order, products, materials, existi
             showToast("Η παρτίδα επανήλθε επιτυχώς και μπορεί να σταλεί ξανά αργότερα.", "success");
         } catch (e) {
             showToast("Σφάλμα κατά την επαναφορά της παρτίδας.", "error");
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
+    const handleToggleHold = async (batch: ProductionBatch) => {
+        if (isWorking) return;
+
+        if (batch.on_hold) {
+            setIsWorking(true);
+            try {
+                await api.toggleBatchHold(batch.id, false);
+                await queryClient.invalidateQueries({ queryKey: ['batches'] });
+                showToast('Η παρτίδα συνεχίζει την παραγωγή.', 'success');
+            } catch (e) {
+                showToast('Σφάλμα ενημέρωσης αναμονής.', 'error');
+            } finally {
+                setIsWorking(false);
+            }
+            return;
+        }
+
+        setHoldingBatch(batch);
+        setHoldReason(batch.on_hold_reason || '');
+    };
+
+    const confirmHold = async () => {
+        if (!holdingBatch || !holdReason.trim()) return;
+        setIsWorking(true);
+        try {
+            await api.toggleBatchHold(holdingBatch.id, true, holdReason.trim());
+            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            showToast('Η παρτίδα τέθηκε σε αναμονή.', 'warning');
+            setHoldingBatch(null);
+            setHoldReason('');
+        } catch (e) {
+            showToast('Σφάλμα ενημέρωσης αναμονής.', 'error');
         } finally {
             setIsWorking(false);
         }
@@ -1208,53 +1241,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                 {batch.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-2 py-1 rounded-lg border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}</span>}
                                                                             </div>
 
-                                                                            {/* Stage Selector - Horizontal Buttons */}
-                                                                            <div className="hidden">
-                                                                                {STAGES.map((stage, index) => {
-                                                                                    const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
-                                                                                    const isCurrentStage = stage.id === batch.current_stage;
-                                                                                    const isCompletedStage = index < currentStageIndex;
-                                                                                    const isUpcomingStage = index > currentStageIndex;
-                                                                                    const isStageDisabled = !canMoveBatchToStage(batch, stage.id as ProductionStage);
-                                                                                    
-                                                                                    // Get correct color key for this stage
-                                                                                    const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
-                                                                                                     stage.id === ProductionStage.Waxing ? 'Waxing' :
-                                                                                                     stage.id === ProductionStage.Casting ? 'Casting' :
-                                                                                                     stage.id === ProductionStage.Setting ? 'Setting' :
-                                                                                                     stage.id === ProductionStage.Polishing ? 'Polishing' :
-                                                                                                     stage.id === ProductionStage.Assembly ? 'Assembly' :
-                                                                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
-                                                                                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
-                                                                                    
-                                                                                    return (
-                                                                                        <div key={stage.id} className="relative">
-                                                                                            {isCompletedStage && !isStageDisabled && (
-                                                                                                <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-slate-400 rounded-full"></div>
-                                                                                            )}
-                                                                                            <button
-                                                                                                onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
-                                                                                                className={`relative px-2.5 py-1.5 rounded-lg font-bold text-[10px] transition-all border flex items-center gap-1 ${
-                                                                                                    isCurrentStage
-                                                                                                        ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm z-10`
-                                                                                                        : isStageDisabled
-                                                                                                        ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                                                                        : isCompletedStage
-                                                                                                        ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                                                                                        : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
-                                                                                                }`}
-                                                                                                title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
-                                                                                                disabled={isWorking || isStageDisabled}
-                                                                                            >
-                                                                                                {STAGE_SHORT_LABELS[stage.id] || stage.label}
-                                                                                                {isCurrentStage && <span className="text-[7px]">●</span>}
-                                                                                                {isStageDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-
                                                                             <StageFlowRail
                                                                                 batch={batch}
                                                                                 disabled={isWorking}
@@ -1267,9 +1253,23 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     <StickyNote size={10} /> {batch.notes}
                                                                                 </div>
                                                                             )}
+                                                                            {batch.on_hold && (
+                                                                                <div className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 font-bold flex items-center gap-1 w-fit max-w-full" title={batch.on_hold_reason || 'Σε αναμονή'}>
+                                                                                    <PauseCircle size={10} className="shrink-0" />
+                                                                                    <span>Σε αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
 
                                                                         <div className="flex flex-wrap gap-1 items-center">
+                                                                            <button
+                                                                                onClick={() => handleToggleHold(batch)}
+                                                                                className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 ${batch.on_hold ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+                                                                                title={batch.on_hold ? 'Συνέχιση παραγωγής' : 'Θέση σε αναμονή'}
+                                                                            >
+                                                                                {batch.on_hold ? <PlayCircle size={12} /> : <PauseCircle size={12} />}
+                                                                                {batch.on_hold ? 'Συνέχιση' : 'Αναμονή'}
+                                                                            </button>
                                                                             <button
                                                                                 onClick={() => { setEditingNoteBatch(batch); setNoteText(batch.notes || ''); }}
                                                                                 className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 ${batch.notes ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
@@ -1526,6 +1526,36 @@ export default function ProductionSendModal({ order, products, materials, existi
                 </div>
             )}
 
+            {holdingBatch && (
+                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 space-y-4 border border-amber-200">
+                        <div className="flex justify-between items-center pb-2 border-b border-amber-100">
+                            <h3 className="font-black text-lg text-amber-800 flex items-center gap-2"><PauseCircle className="text-amber-500" /> Θέση σε Αναμονή</h3>
+                            <button onClick={() => { setHoldingBatch(null); setHoldReason(''); }}><X size={20} className="text-slate-400" /></button>
+                        </div>
+                        <div>
+                            <div className="mb-3 text-sm font-bold text-slate-600">
+                                Γιατί σταματάει η παραγωγή του {holdingBatch.sku}{holdingBatch.variant_suffix || ''};
+                            </div>
+                            <textarea
+                                value={holdReason}
+                                onChange={(e) => setHoldReason(e.target.value)}
+                                className="w-full p-4 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-32 resize-none text-sm font-bold text-slate-800"
+                                placeholder="π.χ. Έλλειψη εξαρτήματος, Σπασμένο λάστιχο..."
+                                autoFocus
+                            />
+                        </div>
+                        <button
+                            onClick={confirmHold}
+                            disabled={isWorking || !holdReason.trim()}
+                            className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isWorking ? <Loader2 size={18} className="animate-spin" /> : <PauseCircle size={18} />} Σε Αναμονή
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* STAGE POPUP */}
             {activeStagePopup && (
                 <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
@@ -1575,8 +1605,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     </div>
                                     {popupBatches.map((batch) => {
                                         const product = products.find(p => p.sku === batch.sku);
-                                        const stageConf = STAGES.find(s => s.id === batch.current_stage);
                                         const isSelected = selectedBatchIds.includes(batch.id);
+                                        const timeInfo = getTimeInStage(batch.updated_at);
                                         
                                         return (
                                             <div key={batch.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1614,6 +1644,16 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                         <div className="font-black text-slate-900 text-base leading-none truncate">
                                                             <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} />
                                                         </div>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${timeInfo.className}`}>
+                                                                <Clock size={11} className="inline mr-1" />{timeInfo.label}
+                                                            </span>
+                                                            {batch.on_hold && (
+                                                                <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-amber-50 text-amber-800 border-amber-200">
+                                                                    <PauseCircle size={11} className="inline mr-1" />Σε αναμονή
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         {batch.size_info && (
                                                             <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5 w-fit mt-1">
                                                                 <Hash size={8} /> {batch.size_info}
@@ -1641,47 +1681,6 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                                                         <RefreshCw size={10} /> Μετακίνηση σε Στάδιο
                                                     </div>
-                                                    <div className="hidden">
-                                                        {STAGES.map((stage, index) => {
-                                                            const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
-                                                            const isCurrentStage = stage.id === batch.current_stage;
-                                                            const isCompletedStage = index < currentStageIndex;
-                                                            const isUpcomingStage = index > currentStageIndex;
-                                                            const isStageDisabled = !canMoveBatchToStage(batch, stage.id as ProductionStage);
-                                                            
-                                                            // Get correct color key for this stage
-                                                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
-                                                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
-                                                                             stage.id === ProductionStage.Casting ? 'Casting' :
-                                                                             stage.id === ProductionStage.Setting ? 'Setting' :
-                                                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
-                                                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
-                                                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
-                                                            const stageColors = STAGE_BUTTON_COLORS[colorKey];
-                                                            
-                                                            return (
-                                                                <button
-                                                                    key={stage.id}
-                                                                    onClick={() => !isStageDisabled && handleStageMove(batch, stage.id as ProductionStage)}
-                                                                    disabled={isWorking || isStageDisabled}
-                                                                    className={`px-2 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
-                                                                        isCurrentStage
-                                                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
-                                                                            : isStageDisabled
-                                                                            ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                                            : isCompletedStage
-                                                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
-                                                                    }`}
-                                                                    title={isStageDisabled ? `${stage.label} (παραλείπεται)` : stage.label}
-                                                                >
-                                                                    {stage.label}
-                                                                    {isCurrentStage && <span className="text-[7px]">●</span>}
-                                                                    {isStageDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
                                                     <StageFlowRail
                                                         batch={batch}
                                                         disabled={isWorking}
@@ -1698,6 +1697,29 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                         </div>
                                                     </div>
                                                 )}
+                                                {batch.on_hold && (
+                                                    <div className="px-3 pb-3">
+                                                        <div className="flex items-start gap-2 text-[10px] font-medium text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 leading-snug">
+                                                            <PauseCircle size={12} className="shrink-0 mt-0.5 text-amber-600" />
+                                                            <span>{batch.on_hold_reason || 'Σε αναμονή'}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="px-3 pb-3 flex flex-wrap gap-1">
+                                                    <button
+                                                        onClick={() => handleToggleHold(batch)}
+                                                        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 ${batch.on_hold ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+                                                    >
+                                                        {batch.on_hold ? <PlayCircle size={12} /> : <PauseCircle size={12} />}
+                                                        {batch.on_hold ? 'Συνέχιση' : 'Αναμονή'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleViewHistory(batch)}
+                                                        className="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1.5 text-slate-700 bg-white border-slate-200 hover:bg-slate-50"
+                                                    >
+                                                        <History size={12} /> Ιστορικό
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })}
