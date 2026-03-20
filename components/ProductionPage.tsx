@@ -17,6 +17,7 @@ import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { requiresAssemblyStage } from '../constants';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 
@@ -1643,7 +1644,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             .filter((order) =>
                 !order.is_archived &&
                 (order.status === OrderStatus.Pending || order.status === OrderStatus.InProduction) &&
-                order.items.some((item) => requiresAssemblyStage(item.sku))
+                order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku))
             )
             .map((order) => {
                 const qtyByKey = new Map<string, number>();
@@ -1659,7 +1660,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         : order.customer_name;
 
                 order.items.forEach((item) => {
-                    if (!requiresAssemblyStage(item.sku)) return;
+                    if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;
 
                     const key = [
                         order.id,

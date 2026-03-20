@@ -10,6 +10,7 @@ import { transliterateForBarcode } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 
 interface Props {
     order: Order;
@@ -46,7 +47,7 @@ export default function OrderInvoiceView({ order }: Props) {
         ? allCustomers?.find(c => c.id === order.customer_id)
         : allCustomers?.find(c => c.full_name === order.customer_name);
     const sortedItems = useMemo(
-        () => sortBySkuKey(order.items, (item) => buildSkuKey(item.sku, item.variant_suffix)),
+        () => sortBySkuKey(order.items, (item) => `${buildSkuKey(item.sku, item.variant_suffix)}${item.line_id ? `::${item.line_id}` : ''}`),
         [order.items]
     );
 
@@ -160,8 +161,10 @@ export default function OrderInvoiceView({ order }: Props) {
                         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
 
                         const fullSku = item.sku + (item.variant_suffix || '');
-                        const imageUrl = product?.image_url;
-                        const description = variant?.description || product?.category || 'Προϊόν';
+                        const imageUrl = isSpecialCreationSku(item.sku) ? null : product?.image_url;
+                        const description = isSpecialCreationSku(item.sku)
+                            ? 'Ειδική δημιουργία (χειροκίνητη τιμή)'
+                            : (variant?.description || product?.category || 'Προϊόν');
 
                         return (
                             <div 
@@ -189,7 +192,7 @@ export default function OrderInvoiceView({ order }: Props) {
                                 <div className="flex-1 px-1 min-w-0">
                                     <div className="flex flex-col">
                                         <div className="flex items-baseline gap-1">
-                                            <span className="font-bold text-slate-900">{fullSku}</span>
+                                            <span className={`font-bold ${isSpecialCreationSku(item.sku) ? 'text-violet-900' : 'text-slate-900'}`}>{fullSku}</span>
                                             {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
                                             {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}

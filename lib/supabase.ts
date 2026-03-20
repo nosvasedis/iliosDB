@@ -8,6 +8,7 @@ import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEY
 import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -327,13 +328,15 @@ const buildShipmentItemKey = (
     variantSuffix?: string | null,
     sizeInfo?: string | null,
     cordColor?: string | null,
-    enamelColor?: string | null
+    enamelColor?: string | null,
+    lineId?: string | null
 ) => buildItemIdentityKey({
     sku,
     variant_suffix: variantSuffix,
     size_info: sizeInfo,
     cord_color: cordColor as any,
-    enamel_color: enamelColor as any
+    enamel_color: enamelColor as any,
+    line_id: lineId || null
 });
 
 async function getOrderShipmentsSnapshot(orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> {
@@ -1233,8 +1236,8 @@ export const api = {
 
     createPartialShipment: async (params: {
         orderId: string;
-        orderItems: Array<{ sku: string; variant_suffix?: string; quantity: number; price_at_order: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }>;
-        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number }>;
+        orderItems: Array<{ sku: string; variant_suffix?: string; quantity: number; price_at_order: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }>;
+        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }>;
         shippedBy: string;
         deliveryPlanId?: string | null;
         notes?: string | null;
@@ -1266,7 +1269,8 @@ export const api = {
             cord_color: (item.cord_color || null) as OrderShipmentItem['cord_color'],
             enamel_color: (item.enamel_color || null) as OrderShipmentItem['enamel_color'],
             quantity: item.quantity,
-            price_at_order: item.price_at_order
+            price_at_order: item.price_at_order,
+            line_id: item.line_id || null
         }));
 
         const orderBatches = params.allBatches.filter(b => b.order_id === params.orderId);
@@ -1301,17 +1305,17 @@ export const api = {
 
         const shippedMap = new Map<string, number>();
         existingShipmentSnapshot.items.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color);
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
         shipmentItems.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color);
+            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
 
         let hasRemaining = false;
         for (const orderItem of params.orderItems) {
-            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color);
+            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color, orderItem.line_id);
             const shipped = shippedMap.get(key) || 0;
             if (shipped < orderItem.quantity) {
                 hasRemaining = true;
@@ -1635,6 +1639,7 @@ export const api = {
             // 4. Map Demand (What the order says NOW)
             const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
+                if (isSpecialCreationSku(item.sku)) return;
                 const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
                 demandMap[key].qty += item.quantity;

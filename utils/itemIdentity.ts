@@ -6,16 +6,18 @@ export interface ItemIdentityLike {
   size_info?: string | null;
   cord_color?: ProductOptionColor | null;
   enamel_color?: ProductOptionColor | null;
+  line_id?: string | null;
 }
 
 export function buildItemIdentityKey(item: ItemIdentityLike): string {
-  return [
+  const base = [
     item.sku,
     item.variant_suffix || '',
     item.size_info || '',
     item.cord_color || '',
     item.enamel_color || ''
   ].join('::');
+  return item.line_id ? `${base}::lid:${item.line_id}` : base;
 }
 
 export function getItemIdentityParts(item: ItemIdentityLike) {

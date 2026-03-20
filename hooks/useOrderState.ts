@@ -9,7 +9,8 @@ import { getSizingInfo, ProductSizingInfo, SIZE_TYPE_LENGTH, SIZE_TYPE_NUMBER } 
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
-import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
+import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
@@ -59,8 +60,11 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
-        const items = initialOrder?.items || [];
+        const items = assignMissingSpecialCreationLineIds(initialOrder?.items || []);
         return items.map(item => {
+            if (isSpecialCreationSku(item.sku)) {
+                return { ...item, product_details: getSpecialCreationProductStub() };
+            }
             const product = products.find(p => p.sku === item.sku);
             return {
                 ...item,
@@ -86,6 +90,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [selectedEnamelColor, setSelectedEnamelColor] = useState<OrderItem['enamel_color']>();
     const [sizeMode, setSizeMode] = useState<ProductSizingInfo | null>(null);
     const [showScanner, setShowScanner] = useState(false);
+    const [specialCreationUnitPriceStr, setSpecialCreationUnitPriceStr] = useState('');
 
     // --- Sort & Filter State ---
     const [sortOrder, setSortOrder] = useState<'input' | 'alpha'>('input');
@@ -96,18 +101,6 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
-
-    const buildOrderItemIdentity = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) =>
-        buildItemIdentityKey({
-            sku: item.sku,
-            variant_suffix: item.variant_suffix,
-            size_info: item.size_info,
-            cord_color: item.cord_color,
-            enamel_color: item.enamel_color
-        });
-
-    const getOrderItemMatchKey = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes'>) =>
-        `${buildOrderItemIdentity(item)}::${item.notes || ''}`;
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -129,13 +122,16 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                         setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
                         setDiscountPercent(draft.discountPercent || 0);
-                        const syncedItems = (draft.selectedItems || []).map((item: any) => {
+                        const syncedItems = assignMissingSpecialCreationLineIds((draft.selectedItems || []).map((item: any) => {
+                            if (isSpecialCreationSku(item.sku)) {
+                                return { ...item, product_details: getSpecialCreationProductStub() };
+                            }
                             const product = products.find(p => p.sku === item.sku);
                             return {
                                 ...item,
                                 product_details: product || item.product_details
                             };
-                        });
+                        }));
                         setSelectedItems(syncedItems);
                         setTags(draft.tags || []);
                         showToast('Ανακτήθηκε πρόχειρη παραγγελία.', 'info');
@@ -172,6 +168,9 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const displayItems = useMemo(() => {
         // Always sync with latest product details from registry to avoid broken images/stale data
         let items = selectedItems.map(item => {
+            if (isSpecialCreationSku(item.sku)) {
+                return { ...item, product_details: getSpecialCreationProductStub() };
+            }
             const latestProduct = products.find(p => p.sku === item.sku);
             return {
                 ...item,
@@ -256,6 +255,17 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         setScanInput(rawVal);
 
         if (skuPart.length < 2) {
+            setCandidateProducts([]);
+            setActiveMaster(null);
+            setFilteredVariants([]);
+            setSizeMode(null);
+            setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
+            return;
+        }
+
+        if (skuPart === SPECIAL_CREATION_SKU) {
             setCandidateProducts([]);
             setActiveMaster(null);
             setFilteredVariants([]);
@@ -464,8 +474,42 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const executeAddItem = () => {
-        const skuCode = scanInput.split(/\s+/)[0];
+        const skuCode = scanInput.split(/\s+/)[0]?.toUpperCase();
         if (!skuCode) return;
+
+        if (skuCode === SPECIAL_CREATION_SKU) {
+            const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
+            const unit = parseFloat(normalized);
+            if (Number.isNaN(unit) || unit < 0) {
+                showToast('Καταχωρήστε έγκυρη μονάδα τιμής (€) για το SP.', 'error');
+                return;
+            }
+            const rounded = Math.round(unit * 100) / 100;
+            const newItem: OrderItem = {
+                sku: SPECIAL_CREATION_SKU,
+                quantity: scanQty,
+                price_at_order: rounded,
+                product_details: getSpecialCreationProductStub(),
+                notes: itemNotes || undefined,
+                line_id: crypto.randomUUID()
+            };
+            setSelectedItems(prev => [newItem, ...prev]);
+            setPriceDiffs(null);
+            showToast('Προστέθηκε ειδική δημιουργία (SP).', 'success');
+            setScanInput('');
+            setScanQty(1);
+            setItemNotes('');
+            setSpecialCreationUnitPriceStr('');
+            setActiveMaster(null);
+            setCandidateProducts([]);
+            setFilteredVariants([]);
+            setSizeMode(null);
+            setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
+            setTimeout(() => inputRef.current?.focus(), 100);
+            return;
+        }
 
         // First, try the standard barcode/SKU resolution logic
         const match = findProductByScannedCode(skuCode, products);
@@ -573,6 +617,10 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const handleScanInOrder = (code: string) => {
+        if (code.trim().toUpperCase() === SPECIAL_CREATION_SKU) {
+            showToast('Για SP χρησιμοποιήστε την έξυπνη είσοδο: κωδικός SP, τιμή μονάδας και Enter.', 'error');
+            return;
+        }
         const match = findProductByScannedCode(code, products);
         if (match) {
             if (match.product.is_component) {
@@ -640,6 +688,21 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         });
     };
 
+    const updateItemUnitPrice = (item: OrderItem, rawPrice: number) => {
+        if (!isSpecialCreationSku(item.sku)) return;
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
+        if (idx === -1) return;
+        const price = Math.max(0, Math.round(rawPrice * 100) / 100);
+        setSelectedItems(prev => {
+            const updated = [...prev];
+            const i = prev.findIndex(r => getOrderItemMatchKey(r) === getOrderItemMatchKey(item));
+            if (i === -1) return prev;
+            updated[i] = { ...updated[i], price_at_order: price };
+            return updated;
+        });
+        setPriceDiffs(null);
+    };
+
     const updateItemVariantAndSize = (
         item: OrderItem,
         nextVariantSuffix: string | undefined,
@@ -649,6 +712,10 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     ) => {
         const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx === -1) return;
+        if (isSpecialCreationSku(item.sku)) {
+            showToast('Το SP δεν έχει παραλλαγές καταλόγου — αλλάξτε μόνο την τιμή ή τις σημειώσεις.', 'info');
+            return;
+        }
 
         setSelectedItems(prev => {
             const dynamicIdx = prev.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
@@ -714,6 +781,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
         let updatedCount = 0;
         const newItems = selectedItems.map(item => {
+            if (isSpecialCreationSku(item.sku)) return item;
             const product = products.find(p => p.sku === item.sku);
             if (!product) return item;
             let currentRegistryPrice = 0;
@@ -830,7 +898,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             customerSearch, showCustomerResults, isSaving,
             isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
             // Smart entry
-            scanInput, scanQty, itemNotes,
+            scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter
@@ -848,7 +916,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setCustomerName, setCustomerPhone, setSelectedCustomerId,
             setOrderNotes, setRetailClientLabel, setVatRate, setDiscountPercent, setTagInput,
             setCustomerSearch, setShowCustomerResults,
-            setScanInput, setScanQty, setItemNotes,
+            setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
             setSizeMode, setCandidateProducts, setShowScanner,
             setSortOrder, setItemSearchTerm,
@@ -857,7 +925,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, handleScanInOrder,
-            updateQuantity, updateItemNotes, updateItemVariantAndSize, handleRemoveItem,
+            updateQuantity, updateItemNotes, updateItemUnitPrice, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, handleSaveOrder, handleBack,
             getSkuComponents,
         },

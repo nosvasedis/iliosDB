@@ -293,6 +293,8 @@ export const transliterateForBarcode = (input: string): string => {
  */
 export const findProductByScannedCode = (scanned: string, products: Product[]) => {
     const cleanScanned = scanned.trim().toUpperCase();
+    // Reserved systemic order line code (special creations) — never resolve as a catalog product.
+    if (cleanScanned === 'SP') return null;
 
     for (const p of products) {
         if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: undefined };

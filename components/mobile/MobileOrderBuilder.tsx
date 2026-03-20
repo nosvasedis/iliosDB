@@ -18,7 +18,8 @@ import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { buildItemIdentityKey } from '../../utils/itemIdentity';
+import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
+import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 
 interface Props {
@@ -219,8 +220,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
     const [items, setItems] = useState<OrderItem[]>(() => {
-        const baseItems = initialOrder?.items || [];
+        const baseItems = assignMissingSpecialCreationLineIds(initialOrder?.items || []);
         return baseItems.map(item => {
+            if (isSpecialCreationSku(item.sku)) {
+                return { ...item, product_details: getSpecialCreationProductStub() };
+            }
             const product = products.find(p => p.sku === item.sku);
             return { ...item, product_details: product || item.product_details };
         });
@@ -254,21 +258,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
     const [showCreateClientScreen, setShowCreateClientScreen] = useState(false);
     const [resolvedVariant, setResolvedVariant] = useState<ProductVariant | null>(null);
+    const [specialCreationUnitPriceStr, setSpecialCreationUnitPriceStr] = useState('');
 
     const inputRef = useRef<HTMLInputElement>(null);
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
-
-    const buildOrderItemIdentity = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) =>
-        buildItemIdentityKey({
-            sku: item.sku,
-            variant_suffix: item.variant_suffix,
-            size_info: item.size_info,
-            cord_color: item.cord_color,
-            enamel_color: item.enamel_color
-        });
-
-    const getOrderItemMatchKey = (item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes'>) =>
-        `${buildOrderItemIdentity(item)}::${item.notes || ''}`;
 
     // Group variants by finish (metal) for two-step selection
     const variantsByFinish = useMemo(() => {
@@ -337,6 +330,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     useEffect(() => {
         const term = input.trim().toUpperCase();
         if (term.length < 2) { setSuggestions([]); return; }
+        if (term === SPECIAL_CREATION_SKU) { setSuggestions([]); return; }
         // If input matches a full product+variant code (e.g. SK005PAK), resolve immediately
         const fullMatch = findProductByScannedCode(term, products);
         if (fullMatch?.variant && fullMatch.product && !fullMatch.product.is_component) {
@@ -388,7 +382,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             setCustomerName(isRetailDraft ? RETAIL_CUSTOMER_NAME : draftCustomerName);
             setCustomerPhone(isRetailDraft ? '' : (draft.customerPhone || ''));
             setCustomerId(isRetailDraft ? RETAIL_CUSTOMER_ID : draftCustomerId);
-            if (draft.items?.length) setItems(draft.items);
+            if (draft.items?.length) {
+                const synced = assignMissingSpecialCreationLineIds(draft.items).map((item: OrderItem) => {
+                    if (isSpecialCreationSku(item.sku)) return { ...item, product_details: getSpecialCreationProductStub() };
+                    const product = products.find(p => p.sku === item.sku);
+                    return { ...item, product_details: product || item.product_details };
+                });
+                setItems(synced);
+            }
             if (draft.vatRate !== undefined) setVatRate(draft.vatRate);
             if (draft.discountPercent !== undefined) setDiscountPercent(draft.discountPercent);
             setOrderNotes(parsedDraftNotes.cleanNotes || '');
@@ -452,6 +453,31 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setTimeout(() => inputRef.current?.focus(), 100);
     };
 
+    const handleAddSpecialCreation = () => {
+        const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
+        const unit = parseFloat(normalized);
+        if (Number.isNaN(unit) || unit < 0) {
+            showToast('Καταχωρήστε έγκυρη μονάδα τιμής (€) για το SP.', 'error');
+            return;
+        }
+        const rounded = Math.round(unit * 100) / 100;
+        const newItem: OrderItem = {
+            sku: SPECIAL_CREATION_SKU,
+            quantity: qty,
+            price_at_order: rounded,
+            product_details: getSpecialCreationProductStub(),
+            notes: itemNotes || undefined,
+            line_id: crypto.randomUUID()
+        };
+        setItems(prev => [newItem, ...prev]);
+        showToast('Προστέθηκε ειδική δημιουργία (SP).', 'success');
+        setSpecialCreationUnitPriceStr('');
+        setItemNotes('');
+        setQty(1);
+        setInput('');
+        setSuggestions([]);
+    };
+
     const handleAddItem = (variant: ProductVariant | null) => {
         if (!activeMaster) return;
         const master = activeMaster; // capture before state reset
@@ -494,6 +520,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     };
 
     const handleScan = (code: string) => {
+        if (code.trim().toUpperCase() === SPECIAL_CREATION_SKU) {
+            showToast('Για SP πληκτρολογήστε SP, τιμή μονάδας και «Προσθήκη SP».', 'error');
+            return;
+        }
         const match = findProductByScannedCode(code, products);
         if (match) {
             const { product, variant } = match;
@@ -523,6 +553,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             if (itemIndex < 0 || itemIndex >= prev.length) return prev;
 
             const current = prev[itemIndex];
+            if (isSpecialCreationSku(current.sku)) return prev;
             const product = products.find(p => p.sku === current.sku) || current.product_details;
 
             let nextPrice = current.price_at_order;
@@ -569,6 +600,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const openItemEditor = (idx: number) => {
         const item = items[idx];
         if (!item) return;
+        if (isSpecialCreationSku(item.sku)) return;
         setEditingIndex(idx);
 
         const product = products.find(p => p.sku === item.sku) || item.product_details;
@@ -863,6 +895,26 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         <Camera size={20} />
                                     </button>
                                 </div>
+                                {input.trim().toUpperCase() === SPECIAL_CREATION_SKU && (
+                                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 space-y-2">
+                                        <p className="text-[10px] font-black text-violet-800 uppercase">Ειδική δημιουργία (SP)</p>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={specialCreationUnitPriceStr}
+                                            onChange={e => setSpecialCreationUnitPriceStr(e.target.value)}
+                                            placeholder="Τιμή μονάδας €"
+                                            className="w-full p-2.5 rounded-lg border border-violet-200 bg-white font-mono font-bold text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddSpecialCreation}
+                                            className="w-full py-3 rounded-xl bg-violet-700 text-white font-black text-sm"
+                                        >
+                                            Προσθήκη SP
+                                        </button>
+                                    </div>
+                                )}
                                 {suggestions.length > 0 && (
                                     <div className="space-y-2">
                                         {suggestions.map(p => (
@@ -1127,28 +1179,58 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </button>
 
                     {cartExpanded && items.map((item, idx) => (
-                        <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                        <div key={item.line_id || `${item.sku}-${idx}`} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
-                                    {item.product_details?.image_url
-                                        ? <img src={item.product_details.image_url} className="w-full h-full object-cover" />
-                                        : <ImageIcon size={20} className="m-auto text-slate-200" />
-                                    }
+                                    {isSpecialCreationSku(item.sku) ? (
+                                        <div className="w-full h-full flex items-center justify-center text-[11px] font-black text-violet-700 bg-violet-50">SP</div>
+                                    ) : item.product_details?.image_url ? (
+                                        <img src={item.product_details.image_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <ImageIcon size={20} className="m-auto text-slate-200" />
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
-                                        <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
+                                        {isSpecialCreationSku(item.sku) ? (
+                                            <span className="font-black text-violet-900">{item.sku}</span>
+                                        ) : (
+                                            <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
+                                        )}
                                         <div className="flex items-center gap-1">
-                                            <button onClick={() => openItemEditor(idx)} className="text-blue-300 hover:text-blue-500 p-1" title="Επεξεργασία SKU">
-                                                <Pencil size={15} />
-                                            </button>
+                                            {!isSpecialCreationSku(item.sku) && (
+                                                <button onClick={() => openItemEditor(idx)} className="text-blue-300 hover:text-blue-500 p-1" title="Επεξεργασία SKU">
+                                                    <Pencil size={15} />
+                                                </button>
+                                            )}
                                             <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-300 p-1">
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        {isSpecialCreationSku(item.sku) ? (
+                                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-800">
+                                                €/τεμ
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step={0.01}
+                                                    value={item.price_at_order}
+                                                    onChange={e => {
+                                                        const v = Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100) / 100);
+                                                        setItems(prev => {
+                                                            const n = [...prev];
+                                                            if (n[idx]) n[idx] = { ...n[idx], price_at_order: v };
+                                                            return n;
+                                                        });
+                                                    }}
+                                                    className="w-24 px-1 py-0.5 rounded border border-violet-200 font-mono text-xs"
+                                                />
+                                            </label>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
+                                        )}
                                         {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded border border-blue-100 font-bold">{item.size_info}</span>}
                                         {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                                         {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}

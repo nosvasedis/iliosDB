@@ -14,19 +14,20 @@ interface Props {
   products: Product[];
   deliveryPlanId?: string | null;
   userName: string;
-  onConfirm: (items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: OrderShipmentItem['cord_color']; enamel_color?: OrderShipmentItem['enamel_color']; quantity: number; price_at_order: number }>, notes: string | null) => Promise<void>;
+  onConfirm: (items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: OrderShipmentItem['cord_color']; enamel_color?: OrderShipmentItem['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>, notes: string | null) => Promise<void>;
   onClose: () => void;
 }
 
 export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, onConfirm, onClose }: Props) {
   const readyItems = useMemo(() => getReadyToShipItems(order.id, batches), [order.id, batches]);
-  const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }) =>
+  const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }) =>
     buildItemIdentityKey({
       sku: item.sku,
       variant_suffix: item.variant_suffix,
       size_info: item.size_info,
       cord_color: item.cord_color as OrderShipmentItem['cord_color'],
-      enamel_color: item.enamel_color as OrderShipmentItem['enamel_color']
+      enamel_color: item.enamel_color as OrderShipmentItem['enamel_color'],
+      line_id: item.line_id || null
     });
 
   // Per-item shipping quantities (default: ship all ready)
@@ -56,14 +57,16 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     variantSuffix?: string | null,
     sizeInfo?: string | null,
     cordColor?: OrderShipmentItem['cord_color'],
-    enamelColor?: OrderShipmentItem['enamel_color']
+    enamelColor?: OrderShipmentItem['enamel_color'],
+    lineId?: string | null
   ): number => {
     const targetKey = buildItemIdentityKey({
       sku,
       variant_suffix: variantSuffix,
       size_info: sizeInfo,
       cord_color: cordColor as OrderShipmentItem['cord_color'],
-      enamel_color: enamelColor as OrderShipmentItem['enamel_color']
+      enamel_color: enamelColor as OrderShipmentItem['enamel_color'],
+      line_id: lineId || null
     });
     const match = order.items.find(i => buildItemIdentityKey(i) === targetKey);
     if (match) return match.price_at_order;
@@ -88,7 +91,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
           cord_color: item.cord_color || null,
           enamel_color: item.enamel_color || null,
           quantity: qty,
-          price_at_order: getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'])
+          price_at_order: getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'], item.line_id || null),
+          line_id: item.line_id || null
         };
       })
       .filter(Boolean) as OrderShipmentItem[],
@@ -106,7 +110,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     setLoading(true);
     try {
       await onConfirm(
-        shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order })),
+        shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
         notes.trim() || null
       );
     } finally {
@@ -155,7 +159,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
             const qty = shipQtys[key] || 0;
             const product = products.find(p => p.sku === item.sku);
             const { finish, stone } = getVariantComponents(item.variant_suffix ?? '', product?.gender);
-            const price = getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color']);
+            const price = getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'], item.line_id || null);
 
             return (
               <div key={key} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">

@@ -3,6 +3,7 @@ import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote } from 'lucid
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
+import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -79,6 +80,27 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         />
                     </div>
                 </div>
+
+                {state.scanInput.trim().split(/\s+/)[0]?.toUpperCase() === SPECIAL_CREATION_SKU && (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4 space-y-2">
+                        <p className="text-[10px] font-black text-violet-800 uppercase tracking-widest">Ειδική δημιουργία ({SPECIAL_CREATION_SKU})</p>
+                        <p className="text-xs text-violet-700 font-medium leading-snug">
+                            Καταχωρήστε την τιμή μονάδας (πριν ΦΠΑ), ποσότητα και προαιρετικές σημειώσεις. Μπορείτε να προσθέσετε πολλές γραμμές SP στην ίδια παραγγελία.
+                        </p>
+                        <div>
+                            <label className="text-[10px] text-violet-600 font-black uppercase mb-1 ml-0.5 block">Τιμή μονάδας (€)</label>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                value={state.specialCreationUnitPriceStr}
+                                onChange={e => setters.setSpecialCreationUnitPriceStr(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && actions.executeAddItem()}
+                                placeholder="π.χ. 120 ή 120,50"
+                                className="w-full p-3 bg-white border border-violet-200 rounded-xl font-mono font-bold text-slate-900 outline-none focus:ring-4 focus:ring-violet-500/15"
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* Candidate products carousel */}
                 {state.candidateProducts.length > 0 && !state.activeMaster && (

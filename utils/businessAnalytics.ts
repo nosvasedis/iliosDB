@@ -1,6 +1,7 @@
 import { GlobalSettings, MaterialType, Order, OrderStatus, Product } from '../types';
 import { calculateProductCost } from './pricingEngine';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { isSpecialCreationSku } from './specialCreationSku';
 
 export const calculateBusinessStats = (orders: Order[], products: Product[], materials: any[], globalSettings: GlobalSettings) => {
     if (!orders || !products || !materials || !globalSettings) return null;
@@ -51,7 +52,7 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             const product = products.find(p => p.sku === item.sku);
 
             let unitPrice = item.price_at_order;
-            if (isActiveOrder && product) {
+            if (isActiveOrder && product && !isSpecialCreationSku(item.sku)) {
                 if (item.variant_suffix) {
                     const v = product.variants?.find(v => v.suffix === item.variant_suffix);
                     if (v && (v.selling_price || 0) > 0) unitPrice = v.selling_price!;
@@ -92,13 +93,16 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
             materialCostSum += costResult.breakdown.materials * item.quantity;
             silverSoldWeight += ((product?.weight_g || 0) + (product?.secondary_weight_g || 0)) * item.quantity;
 
-            if (product?.category) {
-                if (!categoryStats[product.category]) {
-                    categoryStats[product.category] = { name: product.category, revenue: 0, profit: 0, cost: 0 };
+            const categoryKey = isSpecialCreationSku(item.sku)
+                ? 'Ειδική δημιουργία'
+                : product?.category;
+            if (categoryKey) {
+                if (!categoryStats[categoryKey]) {
+                    categoryStats[categoryKey] = { name: categoryKey, revenue: 0, profit: 0, cost: 0 };
                 }
-                categoryStats[product.category].revenue += revenue;
-                categoryStats[product.category].profit += profit;
-                categoryStats[product.category].cost += lineCost;
+                categoryStats[categoryKey].revenue += revenue;
+                categoryStats[categoryKey].profit += profit;
+                categoryStats[categoryKey].cost += lineCost;
             }
 
             salesOverTime[monthKey].revenue += revenue;

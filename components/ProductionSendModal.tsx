@@ -381,7 +381,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
-            const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+            const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
             const shippedQty = shippedQuantities.get(key) || 0;
 
             const relevantBatches = existingBatches.filter(b =>

@@ -206,6 +206,8 @@ export interface OrderItem {
   cord_color?: ProductOptionColor;
   enamel_color?: ProductOptionColor;
   notes?: string;
+  /** Stable row id for systemic SKU SP so multiple special lines never merge. */
+  line_id?: string;
 }
 
 export interface Order {
@@ -372,6 +374,7 @@ export interface OrderShipmentItem {
   enamel_color?: ProductOptionColor | null;
   quantity: number;
   price_at_order: number;
+  line_id?: string | null;
 }
 
 export interface BatchStageHistoryEntry {

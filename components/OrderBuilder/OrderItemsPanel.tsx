@@ -6,6 +6,7 @@ import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine'
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -61,6 +62,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
     }, [editVariantsByFinish, editFinish]);
 
     const openEditItem = (item: OrderItem) => {
+        if (isSpecialCreationSku(item.sku)) return;
         setEditingItem(item);
         const product = item.product_details;
         const variants = product?.variants || [];
@@ -156,31 +158,56 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             <div className="flex-1 overflow-y-auto space-y-3 p-4 custom-scrollbar bg-slate-50/50">
                 {state.displayItems.map((item, index) => (
                     <div
-                        key={`${item.sku}-${item.variant_suffix}-${item.size_info}-${index}`}
+                        key={item.line_id || `${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes || ''}-${index}`}
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
-                                    {item.product_details?.image_url && <img src={item.product_details.image_url} className="w-full h-full object-cover" />}
+                                    {isSpecialCreationSku(item.sku) ? (
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
+                                    ) : item.product_details?.image_url ? (
+                                        <img src={item.product_details.image_url} className="w-full h-full object-cover" alt="" />
+                                    ) : null}
                                 </div>
                                 <div className="min-w-0">
                                     <div className="font-black text-slate-800 text-sm leading-none truncate">
-                                        {(() => {
-                                            const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
-                                            const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
-                                            const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-                                            return (
-                                                <span>
-                                                    <span className="text-slate-800">{item.sku}</span>
-                                                    <span className={finishClass}>{finish.code}</span>
-                                                    <span className={stoneClass}>{stone.code}</span>
-                                                </span>
-                                            );
-                                        })()}
+                                        {isSpecialCreationSku(item.sku) ? (
+                                            <span className="text-violet-900">{item.sku}</span>
+                                        ) : (
+                                            (() => {
+                                                const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
+                                                const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
+                                                const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+                                                return (
+                                                    <span>
+                                                        <span className="text-slate-800">{item.sku}</span>
+                                                        <span className={finishClass}>{finish.code}</span>
+                                                        <span className={stoneClass}>{stone.code}</span>
+                                                    </span>
+                                                );
+                                            })()
+                                        )}
                                     </div>
-                                    <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">
-                                        {formatCurrency(item.price_at_order)}
+                                    {isSpecialCreationSku(item.sku) && (
+                                        <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
+                                    )}
+                                    <div className="text-[10px] text-slate-500 font-bold mt-1 flex flex-wrap items-center gap-1">
+                                        {isSpecialCreationSku(item.sku) ? (
+                                            <label className="inline-flex items-center gap-1 bg-violet-50 border border-violet-100 rounded-lg px-2 py-0.5">
+                                                <span className="text-violet-800">€/τεμ.</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step={0.01}
+                                                    value={item.price_at_order}
+                                                    onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
+                                                    className="w-20 bg-white border border-violet-200 rounded px-1 py-0.5 font-mono text-violet-900 text-[11px]"
+                                                />
+                                            </label>
+                                        ) : (
+                                            formatCurrency(item.price_at_order)
+                                        )}
                                         {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}
                                         {item.cord_color && <span className="bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                                         {item.enamel_color && <span className="bg-rose-50 text-rose-700 px-1 rounded border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
@@ -193,9 +220,11 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
                                     <button onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12} /></button>
                                 </div>
-                                <button onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
-                                    <Pencil size={15} />
-                                </button>
+                                {!isSpecialCreationSku(item.sku) && (
+                                    <button onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
+                                        <Pencil size={15} />
+                                    </button>
+                                )}
                                 <button onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                                     <Trash2 size={16} />
                                 </button>
