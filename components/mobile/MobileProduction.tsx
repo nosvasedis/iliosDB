@@ -1,14 +1,17 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase } from '../../lib/supabase';
+import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
 import { useUI } from '../UIProvider';
-import BatchBuildModal from '../BatchBuildModal';
+import MobileBatchBuildModal from './MobileBatchBuildModal';
+import BatchHistoryModal from '../BatchHistoryModal';
 import { formatOrderId } from '../../utils/orderUtils';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { requiresAssemblyStage } from '../../constants';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
 
 interface Props {
     allProducts: Product[];
@@ -28,6 +31,11 @@ const STAGES = [
     { id: ProductionStage.Labeling, label: 'Συσκευασία & Πακετάρισμα', color: 'yellow' },
     { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
 ];
+
+const STAGE_ORDER_INDEX = STAGES.reduce<Record<string, number>>((acc, stage, index) => {
+    acc[stage.id] = index;
+    return acc;
+}, {});
 
 const STAGE_COLORS: Record<string, string> = {
     indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -816,12 +824,18 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
+    const deferredFinderTerm = React.useDeferredValue(finderTerm);
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
     const [showSettingStones, setShowSettingStones] = useState(false);
 
     // Note Saving Handler
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [isSavingNote, setIsSavingNote] = useState(false);
+
+    // Batch History Modal State
+    const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
+    const [batchHistory, setBatchHistory] = useState<any[]>([]);
+    const [, setIsLoadingHistory] = useState(false);
 
     // Split/Move State
     const [splitModalState, setSplitModalState] = useState<{ batch: ProductionBatch, targetStage: ProductionStage } | null>(null);
@@ -865,22 +879,49 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 requires_assembly,
                 product_details: prod,
                 product_image: prod?.image_url,
-                customer_name: order?.customer_name || '',
+                customer_name: (() => {
+                    const isRetailOrder =
+                        order?.customer_id === RETAIL_CUSTOMER_ID ||
+                        order?.customer_name === RETAIL_CUSTOMER_NAME;
+
+                    const { retailClientLabel } = extractRetailClientFromNotes(order?.notes);
+                    if (isRetailOrder && retailClientLabel) {
+                        return `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`;
+                    }
+
+                    return order?.customer_name || '';
+                })(),
                 isDelayed
             };
         });
     }, [batches, allProducts, materials, orders]);
 
     const foundBatches = useMemo(() => {
-        if (!finderTerm || finderTerm.length < 2) return [];
-        const term = finderTerm.toUpperCase();
-        return enrichedBatches.filter(b => {
-            const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
-            return fullSku.includes(term) || (b.order_id && b.order_id.includes(term)) || (b.customer_name && b.customer_name.toUpperCase().includes(term));
-        }).map(b => {
-            return { ...b, customerName: b.customer_name || 'Άγνωστο' };
-        }).sort((a, b) => (a.sku + a.variant_suffix).localeCompare(b.sku + b.variant_suffix));
-    }, [enrichedBatches, finderTerm]);
+        if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [];
+        const term = deferredFinderTerm.toUpperCase();
+
+        return enrichedBatches
+            .filter(b => {
+                const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+                return fullSku.includes(term) ||
+                    (b.order_id && b.order_id.includes(term)) ||
+                    (b.customer_name && b.customer_name.toUpperCase().includes(term));
+            })
+            // Keep mobile order identical to desktop:
+            // 1) pipeline stage order, 2) exact full SKU (+ suffix) match.
+            .sort((a, b) => {
+                const stageA = STAGE_ORDER_INDEX[a.current_stage] ?? 99;
+                const stageB = STAGE_ORDER_INDEX[b.current_stage] ?? 99;
+                if (stageA !== stageB) return stageA - stageB;
+
+                const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
+                const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
+                return (aExact === bExact) ? 0 : aExact ? -1 : 1;
+            })
+            .map(b => {
+                return { ...b, customerName: b.customer_name || 'Άγνωστο' };
+            });
+    }, [enrichedBatches, deferredFinderTerm]);
 
     const toggleStage = (stageId: string) => setOpenStage(openStage === stageId ? null : stageId);
 
@@ -931,6 +972,20 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             setHoldBatch(null);
             showToast("Τέθηκε σε αναμονή.", "warning");
         } catch (e) { showToast("Σφάλμα.", "error"); }
+    };
+
+    const handleViewHistory = async (batch: ProductionBatch) => {
+        setHistoryModalBatch(batch);
+        setIsLoadingHistory(true);
+        try {
+            const history = await api.getBatchHistory(batch.id);
+            setBatchHistory(history);
+        } catch (e) {
+            console.error('Failed to load batch history:', e);
+            setBatchHistory([]);
+        } finally {
+            setIsLoadingHistory(false);
+        }
     };
 
     const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage) => {
@@ -1105,7 +1160,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     return (
         <div className="p-4 space-y-4 pb-24">
             <div className="flex justify-between items-center mb-2">
-                <h1 className="text-2xl font-black text-slate-900">Ροή Παραγωγής</h1>
+                <h1 className="text-2xl font-black text-slate-900">Παραγωγή</h1>
                 <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">{activeBatchesCount} ΕΝΕΡΓΑ</span>
             </div>
 
@@ -1143,7 +1198,11 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         </div>
                                     </div>
                                 </div>
-                                {b.notes && <div className="mt-2 bg-amber-50 text-amber-800 text-xs font-bold p-3 rounded-xl flex items-start gap-2 border border-amber-100"><StickyNote size={14} className="shrink-0 mt-0.5 text-amber-500" /><span>"{b.notes}"</span></div>}
+                                <FinderBatchStageSelector
+                                    batch={b}
+                                    onMoveToStage={(batch, stage) => handleMoveBatch(batch, stage)}
+                                    onToggleHold={handleToggleHold}
+                                />
                             </div>
                         ))}
                         {foundBatches.length === 0 && <div className="text-center py-8 text-white/40 italic font-bold">Δεν βρέθηκαν παρτίδες.</div>}
@@ -1237,7 +1296,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             )}
 
             {viewBuildBatch && molds && (
-                <BatchBuildModal
+                <MobileBatchBuildModal
                     batch={viewBuildBatch}
                     allMaterials={materials}
                     allMolds={molds}
@@ -1245,8 +1304,17 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     onClose={() => setViewBuildBatch(null)}
                     onMove={handleMoveBatch}
                     onEditNote={(b) => setEditingNoteBatch(b)}
+                    onToggleHold={handleToggleHold}
+                    onViewHistory={handleViewHistory}
                 />
             )}
+
+            <BatchHistoryModal
+                isOpen={!!historyModalBatch}
+                onClose={() => setHistoryModalBatch(null)}
+                batch={historyModalBatch}
+                history={batchHistory}
+            />
 
             {/* Edit Note Modal */}
             {editingNoteBatch && (
