@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle, User, Edit, History } from 'lucide-react';
+import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle, User, Edit, History, LayoutList, Layers, Wrench } from 'lucide-react';
 import { formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { buildBatchBuildData } from '../../utils/batchBuildData';
 import { Material, Mold, ProductionBatch, ProductionStage, Product, ProductionType } from '../../types';
@@ -42,6 +42,15 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string; text: string; border: st
     Ready: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
 };
 
+type TabId = 'summary' | 'materials' | 'molds' | 'actions';
+
+const TABS: { id: TabId; label: string; shortLabel: string; icon: typeof LayoutList }[] = [
+    { id: 'summary', label: 'Σύνοψη', shortLabel: 'Σύνοψη', icon: LayoutList },
+    { id: 'materials', label: 'Υλικά', shortLabel: 'Υλικά', icon: Box },
+    { id: 'molds', label: 'Λάστιχα', shortLabel: 'Λάστ.', icon: MapPin },
+    { id: 'actions', label: 'Ενέργειες', shortLabel: 'Ενεργ.', icon: Wrench },
+];
+
 const colorKeyForStage = (stageId: ProductionStage): keyof typeof STAGE_BUTTON_COLORS => {
     if (stageId === ProductionStage.AwaitingDelivery) return 'AwaitingDelivery';
     if (stageId === ProductionStage.Waxing) return 'Waxing';
@@ -67,6 +76,7 @@ export default function MobileBatchBuildModal({
     const product = batch.product_details;
     const [isImageZoomed, setIsImageZoomed] = useState(false);
     const [isMoving, setIsMoving] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabId>('summary');
 
     const buildData = useMemo(() => {
         if (!product) return null;
@@ -111,284 +121,327 @@ export default function MobileBatchBuildModal({
 
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-0 sm:p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div
-                className="bg-white w-full max-w-2xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+                role="dialog"
+                aria-modal="true"
+                className="bg-white w-full sm:w-[min(100%,36rem)] md:w-[min(100%,42rem)] max-w-[100vw] h-[min(88dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] sm:h-[min(86dvh,820px)] sm:max-h-[86dvh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 sm:slide-in-from-bottom-0 duration-200 min-h-0 border border-slate-200/80 sm:border-0"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-16 h-16 bg-white rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                {/* Compact header — keeps vertical footprint small on phones */}
+                <div className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4 sm:pb-3 border-b border-slate-100 flex justify-between items-start gap-2 bg-slate-50/80 shrink-0">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                             {product.image_url ? (
-                                <button
-                                    type="button"
-                                    className="w-full h-full"
-                                    onClick={() => setIsImageZoomed(true)}
-                                >
+                                <button type="button" className="w-full h-full" onClick={() => setIsImageZoomed(true)}>
                                     <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
                                 </button>
                             ) : (
-                                <ImageIcon size={24} className="text-slate-300" />
+                                <ImageIcon size={20} className="text-slate-300" />
                             )}
                         </div>
 
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{batch.sku}</h2>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <h2 className="text-base sm:text-lg font-black text-slate-800 tracking-tight leading-tight">{batch.sku}</h2>
+                                <span className="inline-flex items-center gap-1 shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs font-black text-emerald-800">
+                                    ×{batch.quantity}
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                 {batch.variant_suffix && (
-                                    <span className="flex items-center gap-2 flex-wrap">
+                                    <>
                                         {finish.code && (
-                                            <span className="px-2 py-0.5 rounded-lg text-base font-mono font-bold border border-slate-200 bg-slate-100 text-slate-700">
+                                            <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold border border-slate-200 bg-white text-slate-700">
                                                 {finish.code}
                                             </span>
                                         )}
                                         {stone.code && (
-                                            <span className="px-2 py-0.5 rounded-lg text-base font-mono font-bold border border-slate-200 bg-emerald-50 text-emerald-800">
+                                            <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold border border-emerald-100 bg-emerald-50 text-emerald-800">
                                                 {stone.code}
                                             </span>
                                         )}
-                                    </span>
+                                    </>
                                 )}
                                 {product.production_type === ProductionType.Imported && product.supplier_sku && (
-                                    <span className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200 flex items-center gap-1">
-                                        <span className="text-[9px] font-bold uppercase text-purple-400">SUP:</span>
-                                        {product.supplier_sku}
+                                    <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                        SUP {product.supplier_sku}
                                     </span>
                                 )}
                             </div>
-
                             {batch.customer_name && (
-                                <div className="flex items-center gap-1 text-blue-700 font-bold text-sm mt-1 truncate">
-                                    <User size={14} className="shrink-0" />
+                                <div className="flex items-center gap-1 text-blue-700 font-bold text-xs mt-0.5 truncate">
+                                    <User size={12} className="shrink-0" />
                                     <span className="truncate">{batch.customer_name}</span>
                                 </div>
                             )}
-
-                            <p className="text-sm text-slate-500 font-medium mt-1 truncate">
-                                {buildData.description}
-                            </p>
-
-                            <div className="mt-2 flex items-center gap-2">
-                                <div className="text-3xl sm:text-4xl font-black text-emerald-700 leading-none">
-                                    {batch.quantity}
-                                </div>
-                                {buildData.recipe.length > 0 && (
-                                    <div className="text-[10px] font-black text-slate-500 uppercase bg-slate-100 px-2 py-1 rounded-lg">
-                                        {buildData.recipe.length} Είδη
-                                    </div>
-                                )}
-                            </div>
                         </div>
                     </div>
 
-                    <button onClick={onClose} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                        <X size={24} />
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors shrink-0 touch-manipulation"
+                    >
+                        <X size={22} />
                     </button>
                 </div>
 
-                <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
-                    {/* Notes */}
-                    {batch.notes ? (
-                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3 items-start shadow-sm relative mb-4">
-                            <StickyNote className="text-amber-500 shrink-0" size={22} />
-                            <div className="min-w-0">
-                                <h4 className="font-bold text-amber-800 text-sm uppercase tracking-wide mb-1">Σημείωση Παραγωγής</h4>
-                                <p className="text-amber-900 font-medium text-sm leading-relaxed whitespace-pre-wrap">{batch.notes}</p>
-                            </div>
-                            {onEditNote && (
+                {/* Tabs: horizontal scroll on narrow phones; icon+short label on xs */}
+                <div className="shrink-0 border-b border-slate-100 bg-white px-1 pt-1">
+                    <div
+                        className="flex gap-0.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 custom-scrollbar touch-pan-x"
+                        role="tablist"
+                        aria-label="Ενότητες παρτίδας"
+                    >
+                        {TABS.map((tab) => {
+                            const Icon = tab.icon;
+                            const selected = activeTab === tab.id;
+                            return (
                                 <button
-                                    onClick={() => onEditNote(batch)}
-                                    className="absolute top-3 right-3 p-1.5 text-amber-400 hover:text-amber-700 bg-white/50 hover:bg-white rounded-lg transition-all"
-                                    title="Επεξεργασία σημείωσης"
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={selected}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] sm:text-xs font-black uppercase tracking-wide transition-colors touch-manipulation min-w-[4.5rem] sm:min-w-0 sm:px-3 ${selected
+                                        ? 'bg-slate-900 text-white shadow-sm'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                                        }`}
                                 >
-                                    <Edit size={16} />
+                                    <Icon size={14} className="shrink-0 opacity-90" aria-hidden />
+                                    <span className="max-[380px]:hidden">{tab.label}</span>
+                                    <span className="hidden max-[380px]:inline">{tab.shortLabel}</span>
                                 </button>
-                            )}
-                        </div>
-                    ) : (
-                        onEditNote && (
-                            <button
-                                onClick={() => onEditNote(batch)}
-                                className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2 mb-4"
-                            >
-                                <StickyNote size={16} className="text-amber-500" />
-                                Προσθήκη Σημείωσης
-                            </button>
-                        )
-                    )}
-
-                    {/* Hold/Move controls */}
-                    {onMove && (
-                        <div className="mb-5 p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                            {onToggleHold && (
-                                <button
-                                    onClick={() => {
-                                        onToggleHold(batch);
-                                        onClose();
-                                    }}
-                                    className={`w-full mb-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-sm transition-colors ${batch.on_hold ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}
-                                    disabled={isMoving}
-                                >
-                                    {batch.on_hold ? <PlayCircle size={16} className="fill-current" /> : <PauseCircle size={16} />}
-                                    {batch.on_hold ? 'Συνέχιση Παραγωγής' : 'Θέση σε Αναμονή'}
-                                </button>
-                            )}
-
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
-
-                            <div className="flex flex-wrap gap-2">
-                                {STAGES.map((stage, index) => {
-                                    const isCurrent = stage.id === batch.current_stage;
-                                    const disabled = isMoving || isStageDisabled(stage.id) || isCurrent;
-                                    const colorKey = colorKeyForStage(stage.id);
-                                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
-                                    const isPast = index < currentStageIndex;
-
-                                    return (
-                                        <button
-                                            key={stage.id}
-                                            onClick={() => handleStageSelect(stage.id)}
-                                            disabled={disabled}
-                                            className={`px-2.5 py-2 rounded-xl font-bold text-[11px] transition-all border flex items-center gap-1 ${isCurrent
-                                                ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
-                                                : disabled
-                                                    ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed opacity-60'
-                                                    : isPast
-                                                        ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                                        : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md active:scale-95`
-                                                }`}
-                                        >
-                                            {stage.label}
-                                            {isCurrent && <span className="text-[8px]">●</span>}
-                                            {isStageDisabled(stage.id) && !isCurrent && <span className="text-[8px] opacity-60">παράλειψη</span>}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Quick actions (history) */}
-                    {onViewHistory && (
-                        <div className="mb-4 flex items-center justify-end">
-                            <button
-                                onClick={() => onViewHistory(batch)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 active:scale-95 transition-all"
-                            >
-                                <History size={14} />
-                                Ιστορικό
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Summary */}
-                    {batch.on_hold && batch.on_hold_reason && (
-                        <div className="mb-4 bg-amber-100 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
-                            <PauseCircle size={14} className="fill-current text-amber-700 mt-0.5" />
-                            <div className="min-w-0">
-                                <div className="text-xs font-black text-amber-800">Σε Αναμονή</div>
-                                <div className="text-xs font-bold text-amber-900 whitespace-pre-wrap">{batch.on_hold_reason}</div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Molds */}
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm mb-4">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                <MapPin size={18} className="text-orange-500" />
-                                Απαιτούμενα Λάστιχα
-                            </h3>
-                        </div>
-                        <div className="p-3">
-                            {buildData.molds.length > 0 ? (
-                                <div className="space-y-2">
-                                    {buildData.molds.map(m => (
-                                        <div key={m.code} className="flex justify-between items-start p-3 rounded-xl bg-orange-50/50 border border-orange-100">
-                                            <div className="flex flex-col gap-0.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-black text-slate-800 text-lg">{m.code}</span>
-                                                    <span className="text-xs font-bold bg-white text-orange-600 px-2 py-0.5 rounded-md border border-orange-200">
-                                                        x{m.quantity}
-                                                    </span>
-                                                </div>
-                                                <span className="text-xs text-slate-500">{m.description || ''}</span>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="block text-[10px] font-bold text-slate-400 uppercase">Τοποθεσία</span>
-                                                <span className="text-sm font-bold text-orange-700">{m.location}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-4 text-center text-slate-400 text-sm italic">Δεν απαιτούνται λάστιχα.</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Metal Estimation */}
-                    <div className="bg-slate-100 rounded-2xl p-4 flex justify-between items-center border border-slate-200 mb-4">
-                        <div>
-                            <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wide">Εκτίμηση Μετάλλου</h4>
-                            <p className="text-xs text-slate-500">Ασήμι 925 (χωρίς απώλεια)</p>
-                        </div>
-                        <div className="text-3xl font-black text-slate-600 leading-none">
-                            {formatDecimal(buildData.totalSilverWeight, 1)} <span className="text-sm text-slate-400 font-bold">gr</span>
-                        </div>
-                    </div>
-
-                    {/* Recipe */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                <Box size={18} className="text-blue-500" />
-                                Υλικά & Εξαρτήματα
-                            </h3>
-                            <div className="text-xs text-slate-400 font-bold">Λίστα συλλογής</div>
-                        </div>
-                        <div className="p-3 space-y-2">
-                            {buildData.recipe.length > 0 ? (
-                                buildData.recipe.map((item, idx) => (
-                                    <div key={idx} className="p-4 rounded-2xl bg-slate-50/30 border border-slate-100">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <div className={`font-black text-sm ${item.type === 'raw' ? 'text-slate-700' : 'text-purple-700'}`}>
-                                                    {item.name}
-                                                </div>
-                                                {item.description && (
-                                                    <div className="text-[12px] text-slate-500 italic mt-1 whitespace-pre-wrap">
-                                                        {item.description}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="text-right flex flex-col items-end gap-1 shrink-0">
-                                                <div className="text-[10px] font-black text-slate-400 uppercase">Ανά τμχ</div>
-                                                <div className="font-mono text-slate-700 text-sm">
-                                                    {formatDecimal(item.qtyPerUnit, 2)} <span className="text-[10px] text-slate-400 font-bold">{item.unit}</span>
-                                                </div>
-                                                <div className="text-[10px] font-black text-blue-600 uppercase">Σύνολο</div>
-                                                <div className="font-mono text-blue-900 text-sm">
-                                                    {formatDecimal(item.totalQtyRequired, 2)} <span className="text-[10px] text-blue-400 font-bold">{item.unit}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="p-10 text-center text-slate-400 italic text-sm">Δεν απαιτούνται επιπλέον υλικά.</div>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
                 </div>
 
-                <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex justify-end">
+                {/* Single scroll region per tab — modal body flexes, never grows past dvh cap */}
+                <div className="flex-1 min-h-0 flex flex-col bg-slate-50/40">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
+                        {activeTab === 'summary' && (
+                            <div className="space-y-3">
+                                {buildData.description && (
+                                    <p className="text-xs sm:text-sm text-slate-600 font-medium leading-snug">{buildData.description}</p>
+                                )}
+                                <div className="flex flex-wrap gap-2 text-[10px] font-black text-slate-500 uppercase">
+                                    {buildData.recipe.length > 0 && (
+                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{buildData.recipe.length} είδη υλικών</span>
+                                    )}
+                                    {buildData.molds.length > 0 && (
+                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{buildData.molds.length} λάστιχα</span>
+                                    )}
+                                </div>
+
+                                {batch.on_hold && batch.on_hold_reason && (
+                                    <div className="bg-amber-100 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                                        <PauseCircle size={14} className="fill-current text-amber-700 mt-0.5 shrink-0" />
+                                        <div className="min-w-0">
+                                            <div className="text-xs font-black text-amber-800">Σε Αναμονή</div>
+                                            <div className="text-xs font-bold text-amber-900 whitespace-pre-wrap">{batch.on_hold_reason}</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {batch.notes ? (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-2 items-start shadow-sm relative">
+                                        <StickyNote className="text-amber-500 shrink-0" size={18} />
+                                        <div className="min-w-0 pr-8">
+                                            <h4 className="font-bold text-amber-800 text-[10px] uppercase tracking-wide mb-0.5">Σημείωση</h4>
+                                            <p className="text-amber-900 font-medium text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{batch.notes}</p>
+                                        </div>
+                                        {onEditNote && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onEditNote(batch)}
+                                                className="absolute top-2 right-2 p-1.5 text-amber-500 hover:text-amber-800 bg-white/60 rounded-lg"
+                                                title="Επεξεργασία σημείωσης"
+                                            >
+                                                <Edit size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    onEditNote && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onEditNote(batch)}
+                                            className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold text-xs hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-2"
+                                        >
+                                            <StickyNote size={14} className="text-amber-500" />
+                                            Προσθήκη Σημείωσης
+                                        </button>
+                                    )
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'materials' && (
+                            <div className="space-y-3">
+                                <div className="bg-slate-100 rounded-xl p-3 flex justify-between items-center border border-slate-200">
+                                    <div className="min-w-0">
+                                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wide">Εκτίμηση Μετάλλου</h4>
+                                        <p className="text-[10px] text-slate-500">Ασήμι 925 (χωρίς απώλεια)</p>
+                                    </div>
+                                    <div className="text-2xl font-black text-slate-600 leading-none shrink-0">
+                                        {formatDecimal(buildData.totalSilverWeight, 1)}{' '}
+                                        <span className="text-xs text-slate-400 font-bold">gr</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+                                        <Box size={16} className="text-blue-500 shrink-0" />
+                                        <h3 className="font-bold text-slate-700 text-sm">Υλικά & Εξαρτήματα</h3>
+                                    </div>
+                                    <div className="p-2 space-y-2">
+                                        {buildData.recipe.length > 0 ? (
+                                            buildData.recipe.map((item, idx) => (
+                                                <div key={idx} className="p-3 rounded-xl bg-slate-50/50 border border-slate-100">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <div className={`font-black text-xs sm:text-sm ${item.type === 'raw' ? 'text-slate-700' : 'text-purple-700'}`}>
+                                                                {item.name}
+                                                            </div>
+                                                            {item.description && (
+                                                                <div className="text-[11px] text-slate-500 italic mt-0.5 whitespace-pre-wrap">{item.description}</div>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right flex flex-col items-end gap-0.5 shrink-0 text-[10px] sm:text-xs">
+                                                            <span className="font-black text-slate-400 uppercase">Ανά τμχ</span>
+                                                            <span className="font-mono text-slate-700">
+                                                                {formatDecimal(item.qtyPerUnit, 2)} {item.unit}
+                                                            </span>
+                                                            <span className="font-black text-blue-600 uppercase">Σύνολο</span>
+                                                            <span className="font-mono text-blue-900 font-bold">
+                                                                {formatDecimal(item.totalQtyRequired, 2)} {item.unit}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-8 text-center text-slate-400 italic text-sm">Δεν απαιτούνται επιπλέον υλικά.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'molds' && (
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+                                    <Layers size={16} className="text-orange-500 shrink-0" />
+                                    <h3 className="font-bold text-slate-700 text-sm">Απαιτούμενα Λάστιχα</h3>
+                                </div>
+                                <div className="p-2">
+                                    {buildData.molds.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {buildData.molds.map((m) => (
+                                                <div key={m.code} className="flex justify-between items-start gap-2 p-2.5 rounded-xl bg-orange-50/50 border border-orange-100">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-black text-slate-800 text-base">{m.code}</span>
+                                                            <span className="text-[10px] font-bold bg-white text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">
+                                                                ×{m.quantity}
+                                                            </span>
+                                                        </div>
+                                                        {m.description ? <span className="text-[11px] text-slate-500 block mt-0.5">{m.description}</span> : null}
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Τοποθ.</span>
+                                                        <span className="text-xs font-bold text-orange-700">{m.location}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-6 text-center text-slate-400 text-sm italic">Δεν απαιτούνται λάστιχα.</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'actions' && (
+                            <div className="space-y-3">
+                                {onViewHistory && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onViewHistory(batch)}
+                                        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 active:scale-[0.99]"
+                                    >
+                                        <History size={14} />
+                                        Ιστορικό κινήσεων
+                                    </button>
+                                )}
+
+                                {onMove && (
+                                    <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        {onToggleHold && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    onToggleHold(batch);
+                                                    onClose();
+                                                }}
+                                                className={`w-full mb-3 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border font-bold text-xs sm:text-sm transition-colors touch-manipulation ${batch.on_hold
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                                    }`}
+                                                disabled={isMoving}
+                                            >
+                                                {batch.on_hold ? <PlayCircle size={16} className="fill-current" /> : <PauseCircle size={16} />}
+                                                {batch.on_hold ? 'Συνέχιση Παραγωγής' : 'Θέση σε Αναμονή'}
+                                            </button>
+                                        )}
+
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση σταδίου</label>
+                                        <div className="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 gap-1.5">
+                                            {STAGES.map((stage, index) => {
+                                                const isCurrent = stage.id === batch.current_stage;
+                                                const disabled = isMoving || isStageDisabled(stage.id) || isCurrent;
+                                                const colorKey = colorKeyForStage(stage.id);
+                                                const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                                                const isPast = index < currentStageIndex;
+
+                                                return (
+                                                    <button
+                                                        key={stage.id}
+                                                        type="button"
+                                                        onClick={() => handleStageSelect(stage.id)}
+                                                        disabled={disabled}
+                                                        className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${isCurrent
+                                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/25`
+                                                            : disabled
+                                                                ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-60'
+                                                                : isPast
+                                                                    ? `${stageColors.bg}/60 ${stageColors.text} border-slate-100`
+                                                                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} active:scale-[0.98]`
+                                                            }`}
+                                                    >
+                                                        <span>{stage.label}</span>
+                                                        {isCurrent && <span className="text-[7px]">τρέχον</span>}
+                                                        {isStageDisabled(stage.id) && !isCurrent && <span className="text-[7px] opacity-70">—</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="shrink-0 px-3 py-2.5 sm:px-4 sm:py-3 pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-white border-t border-slate-100 flex justify-end">
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-lg active:scale-95"
+                        className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-black shadow-md active:scale-[0.98] touch-manipulation w-full sm:w-auto"
                     >
                         Κλείσιμο
                     </button>
