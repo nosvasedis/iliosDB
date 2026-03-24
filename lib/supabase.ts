@@ -798,6 +798,10 @@ export const api = {
         await Promise.all(updatePromises);
     },
 
+    deleteSupplierOrder: async (id: string): Promise<void> => {
+        await safeMutate('supplier_orders', 'DELETE', null, { match: { id } });
+    },
+
     getCollections: async (): Promise<Collection[]> => {
         return fetchFullTable('collections', '*', (q) => q.order('name'));
     },

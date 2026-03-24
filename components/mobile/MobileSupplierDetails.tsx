@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Supplier, SupplierOrder } from '../../types';
-import { ChevronLeft, Phone, Mail, MapPin, Plus, Package, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { ChevronLeft, Phone, Mail, MapPin, Plus, Package, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobilePurchaseOrderBuilder from './MobilePurchaseOrderBuilder';
@@ -25,11 +25,22 @@ const STATUS_COLORS = {
 };
 
 export default function MobileSupplierDetails({ supplier, onClose }: Props) {
+    const queryClient = useQueryClient();
     const { data: orders } = useQuery({ queryKey: ['supplier_orders'], queryFn: api.getSupplierOrders });
     const [isCreatingOrder, setIsCreatingOrder] = useState(false);
     const [viewTab, setViewTab] = useState<'info' | 'orders'>('orders');
 
     const supplierOrders = orders?.filter(o => o.supplier_id === supplier.id) || [];
+
+    const handleDeleteOrder = async (orderId: string) => {
+        if (!confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εντολή αγοράς;')) return;
+        try {
+            await api.deleteSupplierOrder(orderId);
+            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+        } catch (e) {
+            alert('Σφάλμα διαγραφής.');
+        }
+    };
 
     if (isCreatingOrder) {
         return (
@@ -106,18 +117,27 @@ export default function MobileSupplierDetails({ supplier, onClose }: Props) {
                                 <div className="text-xs text-slate-500 font-medium mb-3">
                                     {new Date(order.created_at).toLocaleDateString('el-GR')} • {order.items.length} είδη
                                 </div>
-                                {order.status === 'Pending' && (
+                                <div className="flex items-center gap-2">
+                                    {order.status === 'Pending' && (
+                                        <button
+                                            onClick={async () => {
+                                                if (confirm("Παραλαβή παραγγελίας;")) {
+                                                    await api.receiveSupplierOrder(order);
+                                                }
+                                            }}
+                                            className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-sm active:scale-95 transition-transform"
+                                        >
+                                            Παραλαβή
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={async () => {
-                                            if (confirm("Παραλαβή παραγγελίας;")) {
-                                                await api.receiveSupplierOrder(order);
-                                            }
-                                        }}
-                                        className="w-full py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-sm active:scale-95 transition-transform"
+                                        onClick={() => handleDeleteOrder(order.id)}
+                                        className="p-2 bg-red-50 text-red-600 rounded-lg active:scale-95 transition-transform"
+                                        title="Διαγραφή"
                                     >
-                                        Παραλαβή
+                                        <Trash2 size={16} />
                                     </button>
-                                )}
+                                </div>
                             </div>
                         ))}
                         {supplierOrders.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν υπάρχουν παραγγελίες.</div>}

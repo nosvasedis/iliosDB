@@ -184,6 +184,16 @@ export default function SuppliersPage() {
         } catch (e) { showToast("Σφάλμα παραλαβής.", "error"); }
     };
 
+    const handleDeleteOrder = async (orderId: string) => {
+        const yes = await confirm({ title: 'Διαγραφή Εντολής', message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εντολή αγοράς;', isDestructive: true, confirmText: 'Διαγραφή' });
+        if (!yes) return;
+        try {
+            await api.deleteSupplierOrder(orderId);
+            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+            showToast("Η εντολή διαγράφηκε.", "success");
+        } catch (e) { showToast("Σφάλμα διαγραφής.", "error"); }
+    };
+
     if (suppliersError) {
         return (
             <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
@@ -466,6 +476,7 @@ export default function SuppliersPage() {
                                                         {o.status === 'Pending' && (
                                                             <button onClick={() => handleReceiveOrder(o)} className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition-colors shadow-md">Παραλαβή</button>
                                                         )}
+                                                        <button onClick={() => handleDeleteOrder(o.id)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors" title="Διαγραφή"><Trash2 size={18} /></button>
                                                     </div>
                                                 </div>
                                             ))}
