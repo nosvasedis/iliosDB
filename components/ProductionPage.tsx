@@ -20,7 +20,6 @@ import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import FinderBatchStageSelector from './production/FinderBatchStageSelector';
 
 interface Props {
     products: Product[];
@@ -1055,7 +1054,226 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
     );
 };
 
-// NOTE: FinderBatchStageSelector extracted to components/production/FinderBatchStageSelector.tsx
+// Stage button colors for finder batch selector
+const FINDER_STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
+    'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'Waxing': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
+    'Casting': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+    'Setting': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    'Polishing': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Assembly': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
+    'Labeling': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+    'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+};
+
+// Stage display order and labels for finder
+const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
+    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
+    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
+    { id: ProductionStage.Casting, label: 'Χυτήριο' },
+    { id: ProductionStage.Setting, label: 'Καρφωτής' },
+    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
+    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
+    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
+    { id: ProductionStage.Ready, label: 'Έτοιμα' },
+];
+
+// Component for stage selector in finder results
+const FinderBatchStageSelector = ({ 
+    batch, 
+    onMoveToStage,
+    onToggleHold
+}: { 
+    batch: ProductionBatch & { customer_name?: string }, 
+    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void,
+    onToggleHold: (batch: ProductionBatch) => void
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const popupRef = useRef<HTMLDivElement>(null);
+    
+    // Calculate popup position when opening
+    const updatePosition = useCallback(() => {
+        if (buttonRef.current) {
+            const buttonRect = buttonRef.current.getBoundingClientRect();
+            const popupHeight = 320; // Approximate max height
+            const popupWidth = 160;
+            const padding = 8;
+            
+            // Calculate vertical position - prefer above, but go below if not enough space
+            let top = buttonRect.top - popupHeight - padding;
+            if (top < padding) {
+                // Not enough space above, show below
+                top = buttonRect.bottom + padding;
+            }
+            
+            // Ensure doesn't go off bottom of screen
+            const viewportHeight = window.innerHeight;
+            if (top + popupHeight > viewportHeight - padding) {
+                top = viewportHeight - popupHeight - padding;
+            }
+            
+            // Calculate horizontal position - align right edge with button
+            let left = buttonRect.right - popupWidth;
+            if (left < padding) {
+                left = padding;
+            }
+            
+            setPopupPosition({ top, left });
+        }
+    }, []);
+    
+    // Open/close handler
+    const handleToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isOpen) {
+            updatePosition();
+        }
+        setIsOpen(!isOpen);
+    }, [isOpen, updatePosition]);
+    
+    // Close selector when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                popupRef.current && !popupRef.current.contains(event.target as Node) &&
+                buttonRef.current && !buttonRef.current.contains(event.target as Node)
+            ) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+    
+    // Update position on scroll/resize
+    useEffect(() => {
+        if (isOpen) {
+            const handleScroll = () => updatePosition();
+            window.addEventListener('scroll', handleScroll, true);
+            window.addEventListener('resize', handleScroll);
+            return () => {
+                window.removeEventListener('scroll', handleScroll, true);
+                window.removeEventListener('resize', handleScroll);
+            };
+        }
+    }, [isOpen, updatePosition]);
+    
+    const currentStageIndex = FINDER_STAGE_ORDER.findIndex(s => s.id === batch.current_stage);
+    
+    const isStageDisabled = (stageId: ProductionStage): boolean => {
+        if (stageId === ProductionStage.Setting && !batch.requires_setting) return true;
+        if (stageId === ProductionStage.Assembly && !batch.requires_assembly) return true;
+        return false;
+    };
+    
+    const handleStageSelect = (targetStage: ProductionStage) => {
+        if (isStageDisabled(targetStage)) return;
+        if (targetStage === batch.current_stage) return;
+        setIsOpen(false);
+        onMoveToStage(batch, targetStage);
+    };
+    
+    return (
+        <div className="mt-2 pt-2 border-t border-slate-200/50">
+            {batch.on_hold && (
+                <div className="bg-amber-100 text-amber-800 text-xs font-black p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-200 mb-2">
+                    <PauseCircle size={11} className="shrink-0" />
+                    <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
+                </div>
+            )}
+            {batch.notes && (
+                <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
+                    <StickyNote size={10} className="shrink-0" />
+                    <span className="truncate">{batch.notes}</span>
+                </div>
+            )}
+            
+            <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold text-slate-400 uppercase">Μετακίνηση:</span>
+                
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleHold(batch);
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                    >
+                        {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
+                        {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
+                    </button>
+                    <button
+                        ref={buttonRef}
+                        onClick={handleToggle}
+                        className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                    >
+                        <MoveRight size={12} />
+                        Στάδιο
+                        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
+                </div>
+            </div>
+            
+            {/* Portal-style fixed position popup - rendered at root level */}
+            {isOpen && ReactDOM.createPortal(
+                <div 
+                    ref={popupRef}
+                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[150px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                    style={{ 
+                        top: popupPosition.top,
+                        left: popupPosition.left,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 sticky top-0 bg-white pt-1">Επιλογή Σταδίου</div>
+                    <div className="space-y-1">
+                        {FINDER_STAGE_ORDER.map((stage, index) => {
+                            const isCurrent = stage.id === batch.current_stage;
+                            const isDisabled = isStageDisabled(stage.id);
+                            const isPast = index < currentStageIndex;
+                            
+                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                             stage.id === ProductionStage.Casting ? 'Casting' :
+                                             stage.id === ProductionStage.Setting ? 'Setting' :
+                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                            const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
+                            
+                            return (
+                                <button
+                                    key={stage.id}
+                                    onClick={() => handleStageSelect(stage.id)}
+                                    disabled={isDisabled}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                        ${isCurrent 
+                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
+                                            : isDisabled
+                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                            : isPast
+                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md active:scale-95`
+                                        }
+                                    `}
+                                >
+                                    <span>{stage.label}</span>
+                                    {isCurrent && <span className="text-[8px]">●</span>}
+                                    {isDisabled && <span className="text-[8px] opacity-50">παράλειψη</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+};
 
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number, targetStage: ProductionStage) => void, isProcessing: boolean }) => {
     const { batch, targetStage } = state;
@@ -1164,6 +1382,189 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 };
 
 
+// ── StageInspectorModal ─────────────────────────────────────────────────────
+const StageInspectorModal: React.FC<{
+    stage: { id: ProductionStage; label: string; icon: React.ReactNode; color: string };
+    batches: EnhancedProductionBatch[];
+    onClose: () => void;
+    onMoveBatch: (batch: ProductionBatch, targetStage: ProductionStage) => void;
+    onToggleHold: (batch: ProductionBatch) => void;
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold }) => {
+    const [sortMode, setSortMode] = useState<'client' | 'oldest' | 'newest'>('client');
+    const [clientFilter, setClientFilter] = useState('');
+    const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
+
+    const filtered = useMemo(() => {
+        let list = [...batches];
+        if (clientFilter.trim()) {
+            const term = clientFilter.toLowerCase();
+            list = list.filter(b =>
+                (b.customer_name || '').toLowerCase().includes(term) ||
+                b.sku.toLowerCase().includes(term) ||
+                (b.order_id || '').toLowerCase().includes(term)
+            );
+        }
+        if (sortMode === 'client') {
+            list.sort((a, b) => {
+                const cA = (a.customer_name || '').toLocaleLowerCase('el');
+                const cB = (b.customer_name || '').toLocaleLowerCase('el');
+                const cmp = cA.localeCompare(cB, 'el');
+                if (cmp !== 0) return cmp;
+                return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+            });
+        } else if (sortMode === 'oldest') {
+            list.sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+        } else {
+            list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        }
+        return list;
+    }, [batches, clientFilter, sortMode]);
+
+    const totalQty = batches.reduce((s, b) => s + b.quantity, 0);
+    const onHoldCount = batches.filter(b => b.on_hold).length;
+
+    return (
+        <div
+            className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+            onClick={onClose}
+        >
+            <div
+                className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className={`flex-shrink-0 px-6 py-4 border-b border-slate-100 ${colors.header} flex items-center justify-between rounded-t-3xl`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 bg-white rounded-xl shadow-sm text-${stage.color}-600`}>
+                            {React.cloneElement(stage.icon as React.ReactElement, { size: 22 })}
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 text-lg">{stage.label}</h3>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="text-xs text-slate-500 font-medium">{batches.length} παρτίδες</span>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-xs text-slate-500 font-medium">{totalQty} τεμ.</span>
+                                {onHoldCount > 0 && (
+                                    <>
+                                        <span className="text-slate-300">·</span>
+                                        <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                                            <PauseCircle size={11} /> {onHoldCount} σε αναμονή
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/70 rounded-full text-slate-400 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Controls */}
+                <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 bg-white space-y-2.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ταξινόμηση:</span>
+                        <button
+                            onClick={() => setSortMode('client')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'client' ? `${colors.header} ${colors.text} ${colors.border}` : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                        >
+                            <User size={12} /> Ανά Πελάτη
+                        </button>
+                        <button
+                            onClick={() => setSortMode('oldest')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'oldest' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                        >
+                            <ArrowUp size={12} /> Παλαιότερα Πρώτα
+                        </button>
+                        <button
+                            onClick={() => setSortMode('newest')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'newest' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                        >
+                            <ArrowDown size={12} /> Νεότερα Πρώτα
+                        </button>
+                    </div>
+                    <div className="relative">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={clientFilter}
+                            onChange={e => setClientFilter(e.target.value)}
+                            placeholder="Φιλτράρισμα ανά πελάτη ή SKU..."
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                        />
+                    </div>
+                </div>
+
+                {/* Batch list */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/30">
+                    {filtered.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 italic text-sm">Δεν βρέθηκαν παρτίδες.</div>
+                    ) : (
+                        filtered.map(batch => {
+                            const ageInfo = getAgeInfo(batch.updated_at);
+                            return (
+                                <div
+                                    key={batch.id}
+                                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
+                                >
+                                    {batch.on_hold && (
+                                        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
+                                            <PauseCircle size={14} className="text-amber-500 shrink-0" />
+                                            <span className="text-xs font-black text-amber-800">
+                                                Σε Αναμονή{batch.on_hold_reason ? ` — ${batch.on_hold_reason}` : ''}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="p-4">
+                                        {/* SKU + qty + age */}
+                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                                <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} />
+                                                {batch.size_info && (
+                                                    <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 shrink-0">{batch.size_info}</span>
+                                                )}
+                                                <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg text-xs font-black border border-slate-200 shrink-0">
+                                                    {batch.quantity} τμχ
+                                                </span>
+                                            </div>
+                                            <span className={`shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold border ${ageInfo.style}`}>
+                                                {ageInfo.label}
+                                            </span>
+                                        </div>
+                                        {/* Customer */}
+                                        {batch.customer_name && (
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <User size={11} className="text-slate-400 shrink-0" />
+                                                <span className="text-xs font-bold text-slate-700">{batch.customer_name}</span>
+                                                {batch.order_id && (
+                                                    <span className="text-[9px] font-mono text-slate-400 ml-1">#{formatOrderId(batch.order_id)}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {/* Notes - full, untruncated */}
+                                        {batch.notes && (
+                                            <div className="mb-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
+                                                <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                                                <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
+                                            </div>
+                                        )}
+                                        {/* Hold + Move controls */}
+                                        <FinderBatchStageSelector
+                                            batch={batch}
+                                            onMoveToStage={onMoveBatch}
+                                            onToggleHold={onToggleHold}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function ProductionPage({ products, materials, molds, onPrintBatch, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAssembly, onPrintLabels }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
@@ -1218,6 +1619,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
     const [showSettingStones, setShowSettingStones] = useState(false);
+    const [stageInspectorStage, setStageInspectorStage] = useState<ProductionStage | null>(null);
 
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
@@ -2195,7 +2597,13 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     onClick={() => setExpandedStageId(isExpanded ? null : stage.id)}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color}-600`}>{stage.icon}</div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setStageInspectorStage(stage.id); }}
+                                            className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color}-600 hover:bg-${stage.color}-50 transition-colors`}
+                                            title={`Προβολή παρτίδων: ${stage.label}`}
+                                        >
+                                            {stage.icon}
+                                        </button>
                                         <h3 className={`font-bold ${colors.text} text-sm`}>{stage.label}</h3>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -2448,6 +2856,20 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onClose={() => setShowSettingStones(false)}
                 />
             )}
+
+            {stageInspectorStage && (() => {
+                const stageConf = STAGES.find(s => s.id === stageInspectorStage)!;
+                const stageBatches = stageBatchesByStage[stageInspectorStage] || [];
+                return (
+                    <StageInspectorModal
+                        stage={stageConf}
+                        batches={stageBatches}
+                        onClose={() => setStageInspectorStage(null)}
+                        onMoveBatch={(b, targetStage) => { attemptMove(b, targetStage); }}
+                        onToggleHold={handleToggleHold}
+                    />
+                );
+            })()}
         </div>
     );
 }
