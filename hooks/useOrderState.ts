@@ -523,7 +523,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
                 if (upperCode.startsWith(activeSku)) {
                     let tail = upperCode.slice(activeSku.length);
-                    let chosenVariant: ProductVariant | null = null;
+                    let chosenVariant: ProductVariant | null = activeMaster.variants?.find(v => v.suffix === '') || null;
 
                     if (activeMaster.variants && activeMaster.variants.length > 0 && tail) {
                         for (const v of activeMaster.variants) {

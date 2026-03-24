@@ -1422,6 +1422,127 @@ const StageInspectorModal: React.FC<{
 
     const totalQty = batches.reduce((s, b) => s + b.quantity, 0);
     const onHoldCount = batches.filter(b => b.on_hold).length;
+    const clientCount = new Set(filtered.map(batch => (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη')).size;
+    const orderCount = new Set(filtered.map(batch => batch.order_id).filter(Boolean)).size;
+
+    const groupedByClient = useMemo(() => {
+        if (sortMode !== 'client') return [];
+
+        const groups = new Map<string, EnhancedProductionBatch[]>();
+        filtered.forEach(batch => {
+            const key = (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη';
+            const existing = groups.get(key) || [];
+            existing.push(batch);
+            groups.set(key, existing);
+        });
+
+        return Array.from(groups.entries()).map(([clientName, clientBatches]) => ({
+            clientName,
+            batches: clientBatches,
+            totalQty: clientBatches.reduce((sum, batch) => sum + batch.quantity, 0),
+            onHold: clientBatches.filter(batch => batch.on_hold).length,
+            orders: new Set(clientBatches.map(batch => batch.order_id).filter(Boolean)).size,
+        }));
+    }, [filtered, sortMode]);
+
+    const renderBatchCard = (batch: EnhancedProductionBatch) => {
+        const ageInfo = getAgeInfo(batch.updated_at);
+        const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
+        const descriptor = [
+            variant?.description,
+            batch.product_details?.description,
+            batch.product_details?.category,
+        ].filter(Boolean).join(' • ');
+        const updatedAtLabel = new Date(batch.updated_at).toLocaleString('el-GR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+
+        return (
+            <div
+                key={batch.id}
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
+            >
+                {batch.on_hold && (
+                    <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
+                        <PauseCircle size={14} className="text-amber-500 shrink-0" />
+                        <span className="text-xs font-black text-amber-800">
+                            Σε Αναμονή{batch.on_hold_reason ? ` - ${batch.on_hold_reason}` : ''}
+                        </span>
+                    </div>
+                )}
+                <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} />
+                                {batch.size_info && (
+                                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-bold text-slate-600 shrink-0">
+                                        {batch.size_info}
+                                    </span>
+                                )}
+                                <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg text-xs font-black border border-slate-200 shrink-0">
+                                    {batch.quantity} τεμ
+                                </span>
+                            </div>
+                            {descriptor && (
+                                <p className="text-xs font-medium text-slate-600 leading-relaxed">{descriptor}</p>
+                            )}
+                        </div>
+                        <span className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border ${ageInfo.style}`}>
+                            {ageInfo.label}
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Πελάτης</div>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <User size={11} className="text-slate-400 shrink-0" />
+                                <span className="font-bold text-slate-700 truncate">{batch.customer_name || 'Χωρίς Πελάτη'}</span>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Παραγγελία</div>
+                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                <Hash size={11} className="text-slate-400 shrink-0" />
+                                <span>{batch.order_id ? formatOrderId(batch.order_id) : '-'}</span>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τελευταία Κίνηση</div>
+                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                <Calendar size={11} className="text-slate-400 shrink-0" />
+                                <span>{updatedAtLabel}</span>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τύπος</div>
+                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                <Package size={11} className="text-slate-400 shrink-0" />
+                                <span>{batch.product_details?.production_type === ProductionType.Imported ? 'Εισαγωγής' : 'Παραγωγή'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {batch.notes && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
+                            <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
+                        </div>
+                    )}
+
+                    <FinderBatchStageSelector
+                        batch={batch}
+                        onMoveToStage={onMoveBatch}
+                        onToggleHold={onToggleHold}
+                    />
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div
@@ -1429,17 +1550,17 @@ const StageInspectorModal: React.FC<{
             onClick={onClose}
         >
             <div
-                className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
+                className="bg-white w-full max-w-6xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className={`flex-shrink-0 px-6 py-4 border-b border-slate-100 ${colors.header} flex items-center justify-between rounded-t-3xl`}>
+                <div className={`flex-shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-start justify-between gap-4 rounded-t-3xl`}>
                     <div className="flex items-center gap-3">
-                        <div className={`p-2.5 bg-white rounded-xl shadow-sm text-${stage.color}-600`}>
+                        <div className={`p-2.5 bg-white rounded-xl shadow-sm ${colors.text}`}>
                             {React.cloneElement(stage.icon as React.ReactElement, { size: 22 })}
                         </div>
                         <div>
-                            <h3 className="font-black text-slate-900 text-lg">{stage.label}</h3>
+                            <h3 className="font-black text-slate-900 text-xl">{stage.label}</h3>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-xs text-slate-500 font-medium">{batches.length} παρτίδες</span>
                                 <span className="text-slate-300">·</span>
@@ -1461,7 +1582,24 @@ const StageInspectorModal: React.FC<{
                 </div>
 
                 {/* Controls */}
-                <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 bg-white space-y-2.5">
+                <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 bg-white space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Παρτίδες</div>
+                            <div className="text-2xl font-black text-slate-900">{filtered.length}</div>
+                            <div className="text-xs text-slate-500 font-medium">{totalQty} συνολικά τεμ.</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Πελάτες</div>
+                            <div className="text-2xl font-black text-slate-900">{clientCount}</div>
+                            <div className="text-xs text-slate-500 font-medium">ξεκάθαρος διαχωρισμός στο "Ανά Πελάτη"</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Παραγγελίες</div>
+                            <div className="text-2xl font-black text-slate-900">{orderCount}</div>
+                            <div className="text-xs text-slate-500 font-medium">{onHoldCount} σε αναμονή</div>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ταξινόμηση:</span>
                         <button
@@ -1500,13 +1638,37 @@ const StageInspectorModal: React.FC<{
                     {filtered.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 italic text-sm">Δεν βρέθηκαν παρτίδες.</div>
                     ) : (
-                        filtered.map(batch => {
+                        filtered.map((batch, index) => {
                             const ageInfo = getAgeInfo(batch.updated_at);
+                            const previousCustomer = index > 0 ? ((filtered[index - 1].customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη') : null;
+                            const currentCustomer = (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη';
+                            const showClientDivider = sortMode === 'client' && currentCustomer !== previousCustomer;
+                            const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
+                            const descriptor = [variant?.description, batch.product_details?.description, batch.product_details?.category].filter(Boolean).join(' • ');
+                            const updatedAtLabel = new Date(batch.updated_at).toLocaleString('el-GR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            });
                             return (
-                                <div
-                                    key={batch.id}
-                                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
-                                >
+                                <React.Fragment key={batch.id}>
+                                    {showClientDivider && (
+                                        <div className={`rounded-2xl border px-4 py-3 ${colors.border} ${colors.header}`}>
+                                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <Users size={14} className={colors.text} />
+                                                    <span className="text-sm font-black text-slate-900 truncate">{currentCustomer}</span>
+                                                </div>
+                                                <span className="text-[11px] font-medium text-slate-500">
+                                                    {groupedByClient.find(group => group.clientName === currentCustomer)?.totalQty || batch.quantity} τεμ.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div
+                                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
+                                    >
                                     {batch.on_hold && (
                                         <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
                                             <PauseCircle size={14} className="text-amber-500 shrink-0" />
@@ -1515,7 +1677,7 @@ const StageInspectorModal: React.FC<{
                                             </span>
                                         </div>
                                     )}
-                                    <div className="p-4">
+                                    <div className="p-4 space-y-3">
                                         {/* SKU + qty + age */}
                                         <div className="flex items-start justify-between gap-3 mb-2">
                                             <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -1531,6 +1693,9 @@ const StageInspectorModal: React.FC<{
                                                 {ageInfo.label}
                                             </span>
                                         </div>
+                                        {descriptor && (
+                                            <div className="text-xs font-medium text-slate-600 leading-relaxed">{descriptor}</div>
+                                        )}
                                         {/* Customer */}
                                         {batch.customer_name && (
                                             <div className="flex items-center gap-1.5 mb-2">
@@ -1541,6 +1706,36 @@ const StageInspectorModal: React.FC<{
                                                 )}
                                             </div>
                                         )}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Πελάτης</div>
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <User size={11} className="text-slate-400 shrink-0" />
+                                                    <span className="font-bold text-slate-700 truncate">{currentCustomer}</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Παραγγελία</div>
+                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                                    <Hash size={11} className="text-slate-400 shrink-0" />
+                                                    <span>{batch.order_id ? formatOrderId(batch.order_id) : '-'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τελευταία Κίνηση</div>
+                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                                    <Calendar size={11} className="text-slate-400 shrink-0" />
+                                                    <span>{updatedAtLabel}</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τύπος</div>
+                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                                    <Package size={11} className="text-slate-400 shrink-0" />
+                                                    <span>{batch.product_details?.production_type === ProductionType.Imported ? 'Εισαγωγής' : 'Παραγωγή'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                         {/* Notes - full, untruncated */}
                                         {batch.notes && (
                                             <div className="mb-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
@@ -1556,6 +1751,7 @@ const StageInspectorModal: React.FC<{
                                         />
                                     </div>
                                 </div>
+                                </React.Fragment>
                             );
                         })
                     )}

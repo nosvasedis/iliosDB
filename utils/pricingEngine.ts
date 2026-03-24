@@ -297,8 +297,9 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
     if (cleanScanned === 'SP') return null;
 
     for (const p of products) {
-        if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: undefined };
-        if (transliterateForBarcode(p.sku).toUpperCase() === cleanScanned) return { product: p, variant: undefined };
+        const defaultVariant = p.variants?.find(v => v.suffix === '');
+        if (p.sku.toUpperCase() === cleanScanned) return { product: p, variant: defaultVariant };
+        if (transliterateForBarcode(p.sku).toUpperCase() === cleanScanned) return { product: p, variant: defaultVariant };
         if (p.variants) {
             for (const v of p.variants) {
                 const fullGreek = (p.sku + v.suffix).toUpperCase();
