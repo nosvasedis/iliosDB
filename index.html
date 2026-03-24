@@ -84,7 +84,10 @@
             ? new URL(entryScript.src, window.location.origin).pathname
             : 'dev';
           const serviceWorkerUrl = new URL('/sw.js', window.location.origin);
-          serviceWorkerUrl.searchParams.set('v', buildToken);
+          // In dev, the module entry is typically `/index.tsx` (stable), which would otherwise
+          // cause the SW cache to persist across code changes. Force a unique version in dev.
+          const isDevEntry = buildToken.endsWith('/index.tsx');
+          serviceWorkerUrl.searchParams.set('v', isDevEntry ? `dev-${Date.now()}` : buildToken);
 
           navigator.serviceWorker.register(serviceWorkerUrl.toString(), { updateViaCache: 'none' })
             .then(reg => {

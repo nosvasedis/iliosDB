@@ -210,12 +210,13 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 {product.molds.length > 0 && (
                                                     <div className="text-slate-900">
                                                         <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ:</span>
-                                                        <ul className="font-bold list-disc pl-3 mt-0.5 space-y-0.5">
+                                                        <ul className="font-bold mt-0.5 grid grid-cols-2 gap-x-2 gap-y-0.5">
                                                             {product.molds.map((pm, idx) => {
                                                                 const details = allMolds.find(m => m.code === pm.code);
                                                                 return (
-                                                                    <li key={idx} className="leading-tight">
-                                                                        {pm.code} <span className="text-[8px] font-black">(x{pm.quantity * batch.quantity})</span>
+                                                                    <li key={idx} className="leading-tight truncate">
+                                                                        <span className="font-black">{pm.code}</span>{' '}
+                                                                        <span className="text-[8px] font-black">(x{pm.quantity * batch.quantity})</span>
                                                                         {details?.description && (
                                                                             <span className="font-medium text-[8px] text-slate-600 normal-case italic"> ({details.description})</span>
                                                                         )}
@@ -229,10 +230,11 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 {stoneRequirementsPerUnit.length > 0 && (
                                                     <div className="text-slate-900">
                                                         <span className="font-bold text-slate-500 uppercase text-[8px]">ΠΕΤΡΕΣ:</span>
-                                                        <ul className="font-bold list-disc pl-3 mt-0.5 space-y-0.5">
+                                                        <ul className="font-bold mt-0.5 grid grid-cols-2 gap-x-2 gap-y-0.5">
                                                             {stoneRequirementsPerUnit.map(stone => (
-                                                                <li key={stone.key} className="leading-tight">
-                                                                    {stone.name} <span className="text-[8px] font-black">(x{stone.quantity * batch.quantity})</span>
+                                                                <li key={stone.key} className="leading-tight truncate">
+                                                                    <span className="font-black">{stone.name}</span>{' '}
+                                                                    <span className="text-[8px] font-black">(x{stone.quantity * batch.quantity})</span>
                                                                 </li>
                                                             ))}
                                                         </ul>
