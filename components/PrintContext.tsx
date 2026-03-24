@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, OrderShipment, OrderShipmentItem } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
 
 interface PrintItem {
@@ -15,6 +15,8 @@ interface PrintContextType {
     setPrintItems: (items: PrintItem[]) => void;
     orderToPrint: Order | null;
     setOrderToPrint: (order: Order | null) => void;
+    shipmentToPrint: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null;
+    setShipmentToPrint: (shipment: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null) => void;
     offerToPrint: Offer | null;
     setOfferToPrint: (offer: Offer | null) => void;
     supplierOrderToPrint: SupplierOrder | null;
@@ -50,6 +52,7 @@ export const usePrint = () => {
 export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [printItems, setPrintItems] = useState<PrintItem[]>([]);
     const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+    const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
     const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
     const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
     const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
@@ -66,6 +69,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             value={{
                 printItems, setPrintItems,
                 orderToPrint, setOrderToPrint,
+                shipmentToPrint, setShipmentToPrint,
                 offerToPrint, setOfferToPrint,
                 supplierOrderToPrint, setSupplierOrderToPrint,
                 batchToPrint, setBatchToPrint,

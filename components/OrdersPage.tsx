@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime } from '../types';
+import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
@@ -15,10 +15,12 @@ import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderRead
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { getRemainingOrderItems } from '../utils/shipmentUtils';
 
 interface Props {
     products: Product[];
     onPrintOrder?: (order: Order) => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     materials: Material[];
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
@@ -266,10 +268,11 @@ const OrderPartSelectorModal = ({
     );
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onShowPartSelector }: {
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onShowPartSelector }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
@@ -281,12 +284,41 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     onShowPartSelector?: () => void;
 }) => {
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
+    const [showShipmentPrompt, setShowShipmentPrompt] = useState(false);
+    const shipmentsQuery = useQuery({
+        queryKey: ['order-shipments', order.id],
+        queryFn: () => api.getShipmentsForOrder(order.id),
+        enabled: !!order.id,
+    });
 
     // Check if order has multiple shipments (parts)
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
+    const latestShipmentData = useMemo(() => {
+        const shipmentData = shipmentsQuery.data;
+        if (!shipmentData?.shipments?.length) return null;
+
+        const sortedShipments = [...shipmentData.shipments].sort((a, b) => {
+            const timeDiff = new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime();
+            if (timeDiff !== 0) return timeDiff;
+            return (b.shipment_number || 0) - (a.shipment_number || 0);
+        });
+
+        const latestShipment = sortedShipments[0];
+        const latestShipmentItems = shipmentData.items.filter(item => item.shipment_id === latestShipment.id);
+        if (latestShipmentItems.length === 0) return null;
+
+        const remainingItems = getRemainingOrderItems(order, shipmentData.items);
+        if (remainingItems.length === 0) return null;
+
+        return { shipment: latestShipment, shipmentItems: latestShipmentItems };
+    }, [order, shipmentsQuery.data]);
 
     const handlePrintOrder = () => {
+        if (latestShipmentData && onPrintShipment) {
+            setShowShipmentPrompt(true);
+            return;
+        }
         // If order has multiple shipments, show the part selector
         if (hasMultipleShipments && onShowPartSelector) {
             onShowPartSelector();
@@ -419,6 +451,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
     };
 
     return (
+        <>
         <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -457,10 +490,61 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintLabels, produc
                 </div>
             </div>
         </div>
+        {showShipmentPrompt && latestShipmentData && (
+            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                    <div className="p-6 border-b border-slate-100 bg-amber-50">
+                        <h3 className="text-xl font-bold text-slate-900">Υπάρχει Μερική Αποστολή</h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                            Η παραγγελία έχει καταχωρημένη μερική αποστολή #{latestShipmentData.shipment.shipment_number}. Τι θέλετε να εκτυπώσετε;
+                        </p>
+                    </div>
+                    <div className="p-6 space-y-3">
+                        <button
+                            onClick={() => {
+                                onPrintShipment?.({ order, shipment: latestShipmentData.shipment, shipmentItems: latestShipmentData.shipmentItems });
+                                setShowShipmentPrompt(false);
+                                onClose();
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors text-left"
+                        >
+                            <div className="font-bold">Εκτύπωση Μερικής Αποστολής</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                Μόνο τα προϊόντα που στάλθηκαν στη μερική αποστολή #{latestShipmentData.shipment.shipment_number}.
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowShipmentPrompt(false);
+                                if (hasMultipleShipments && onShowPartSelector) {
+                                    onShowPartSelector();
+                                } else {
+                                    onPrintOrder?.(order);
+                                    onClose();
+                                }
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors text-left"
+                        >
+                            <div className="font-bold">Εκτύπωση Παραστατικού Παραγγελίας</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                Εκτυπώνει το κανονικό παραστατικό της παραγγελίας.
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setShowShipmentPrompt(false)}
+                            className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                        >
+                            Κλείσιμο
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 
-export default function OrdersPage({ products, onPrintOrder, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -1116,6 +1200,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintLabels, mate
                     order={printModalOrder}
                     onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
                     onPrintOrder={onPrintOrder}
+                    onPrintShipment={onPrintShipment}
                     onPrintLabels={onPrintLabels}
                     onPrintAggregated={onPrintAggregated}
                     onPrintPreparation={onPrintPreparation}

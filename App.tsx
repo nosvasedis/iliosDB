@@ -189,11 +189,11 @@ function AppContent() {
   const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
 
   const {
-    setPrintItems, setOrderToPrint, setOfferToPrint,
+    setPrintItems, setOrderToPrint, setShipmentToPrint, setOfferToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint,
-    printItems, orderToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
+    printItems, orderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   // Local state for app connectivity context
@@ -293,6 +293,7 @@ function AppContent() {
             molds={molds}
             printItems={printItems}
             orderToPrint={orderToPrint}
+            shipmentToPrint={shipmentToPrint}
             offerToPrint={offerToPrint}
             supplierOrderToPrint={supplierOrderToPrint}
             batchToPrint={batchToPrint}
@@ -306,6 +307,7 @@ function AppContent() {
             photoCatalogPrintData={photoCatalogPrintData}
             setPrintItems={setPrintItems}
             setOrderToPrint={setOrderToPrint}
+            setShipmentToPrint={setShipmentToPrint}
             setOfferToPrint={setOfferToPrint}
             setSupplierOrderToPrint={setSupplierOrderToPrint}
             setBatchToPrint={setBatchToPrint}
@@ -478,6 +480,7 @@ function AppContent() {
         molds={molds}
         printItems={printItems}
         orderToPrint={orderToPrint}
+        shipmentToPrint={shipmentToPrint}
         offerToPrint={offerToPrint}
         supplierOrderToPrint={supplierOrderToPrint}
         batchToPrint={batchToPrint}
@@ -491,6 +494,7 @@ function AppContent() {
         photoCatalogPrintData={photoCatalogPrintData}
         setPrintItems={setPrintItems}
         setOrderToPrint={setOrderToPrint}
+        setShipmentToPrint={setShipmentToPrint}
         setOfferToPrint={setOfferToPrint}
         setSupplierOrderToPrint={setSupplierOrderToPrint}
         setBatchToPrint={setBatchToPrint}
@@ -573,7 +577,7 @@ function AppContent() {
               {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
               {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
               {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
+              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} onPrintShipment={setShipmentToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
                 setPendingDeliveryOrderId(order.id);
                 handleNav('deliveries');
               }} onPrintPartialOrder={(order, batches) => {
