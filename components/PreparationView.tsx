@@ -88,42 +88,6 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
         }
     };
 
-    const getStoneRequirementsPerUnit = (product: Product): Array<{ key: string; name: string; quantity: number }> => {
-        const stoneTotals = new Map<string, { name: string; quantity: number }>();
-
-        const collectFromProduct = (currentProduct: Product, multiplier: number, ancestry: Set<string>) => {
-            currentProduct.recipe.forEach(recipeItem => {
-                if (recipeItem.type === 'raw') {
-                    const material = allMaterials.find(m => m.id === recipeItem.id);
-                    if (!material || material.type !== MaterialType.Stone) return;
-
-                    const key = material.id || material.name;
-                    const existing = stoneTotals.get(key);
-                    const qty = recipeItem.quantity * multiplier;
-                    if (existing) {
-                        existing.quantity += qty;
-                    } else {
-                        stoneTotals.set(key, { name: material.name, quantity: qty });
-                    }
-                    return;
-                }
-
-                const component = allProducts.find(p => p.sku === recipeItem.sku);
-                if (!component || ancestry.has(component.sku)) return;
-                const nextAncestry = new Set(ancestry);
-                nextAncestry.add(component.sku);
-                collectFromProduct(component, multiplier * recipeItem.quantity, nextAncestry);
-            });
-        };
-
-        const rootAncestry = new Set<string>([product.sku]);
-        collectFromProduct(product, 1, rootAncestry);
-
-        return Array.from(stoneTotals.entries())
-            .map(([key, value]) => ({ key, name: value.name, quantity: value.quantity }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-    };
-
     return (
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 print:w-full">
             {/* HEADER changed to DIV */}
@@ -145,7 +109,6 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                             {inHouseBatches.map(batch => {
                                 const product = batch.product_details;
                                 if (!product) return null;
-                                const stoneRequirementsPerUnit = getStoneRequirementsPerUnit(product);
                                 
                                 const variant = product.variants?.find(v => v.suffix === batch.variant_suffix);
                                 const platingDesc = variant?.description || product.category;
@@ -209,35 +172,21 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
 
                                                 {product.molds.length > 0 && (
                                                     <div className="text-slate-900">
-                                                        <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ:</span>
-                                                        <ul className="font-bold mt-0.5 grid grid-cols-2 gap-x-2 gap-y-0.5">
+                                                        <span className="font-bold text-slate-500 uppercase text-[8px]">ΛΑΣΤΙΧΑ: </span>
+                                                        <span className="font-bold">
                                                             {product.molds.map((pm, idx) => {
                                                                 const details = allMolds.find(m => m.code === pm.code);
                                                                 return (
-                                                                    <li key={idx} className="leading-tight truncate">
-                                                                        <span className="font-black">{pm.code}</span>{' '}
-                                                                        <span className="text-[8px] font-black">(x{pm.quantity * batch.quantity})</span>
+                                                                    <span key={idx}>
+                                                                        {pm.code} <span className="text-[8px] font-black">(x{pm.quantity})</span>
                                                                         {details?.description && (
                                                                             <span className="font-medium text-[8px] text-slate-600 normal-case italic"> ({details.description})</span>
                                                                         )}
-                                                                    </li>
+                                                                        {idx < product.molds.length - 1 ? ', ' : ''}
+                                                                    </span>
                                                                 );
                                                             })}
-                                                        </ul>
-                                                    </div>
-                                                )}
-
-                                                {stoneRequirementsPerUnit.length > 0 && (
-                                                    <div className="text-slate-900">
-                                                        <span className="font-bold text-slate-500 uppercase text-[8px]">ΠΕΤΡΕΣ:</span>
-                                                        <ul className="font-bold mt-0.5 grid grid-cols-2 gap-x-2 gap-y-0.5">
-                                                            {stoneRequirementsPerUnit.map(stone => (
-                                                                <li key={stone.key} className="leading-tight truncate">
-                                                                    <span className="font-black">{stone.name}</span>{' '}
-                                                                    <span className="text-[8px] font-black">(x{stone.quantity * batch.quantity})</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
