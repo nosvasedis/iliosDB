@@ -343,14 +343,16 @@ export default function MobileBatchBuildModal({
                                         <div className="space-y-2">
                                             {buildData.molds.map((m) => (
                                                 <div key={m.code} className="flex justify-between items-start gap-2 p-2.5 rounded-xl bg-orange-50/50 border border-orange-100">
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap mb-1">
                                                             <span className="font-black text-slate-800 text-base">{m.code}</span>
                                                             <span className="text-[10px] font-bold bg-white text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">
                                                                 ×{m.quantity}
                                                             </span>
                                                         </div>
-                                                        {m.description ? <span className="text-[11px] text-slate-500 block mt-0.5">{m.description}</span> : null}
+                                                        {m.description ? (
+                                                            <div className="text-[11px] text-slate-600 font-medium">{m.description}</div>
+                                                        ) : null}
                                                     </div>
                                                     <div className="text-right shrink-0">
                                                         <span className="block text-[9px] font-bold text-slate-400 uppercase">Τοποθ.</span>
