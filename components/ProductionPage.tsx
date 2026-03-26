@@ -1066,6 +1066,18 @@ const FINDER_STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, bor
     'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
+// Hex colors for native <select> <option> elements (can't use Tailwind classes there)
+const STAGE_SELECT_COLORS: Record<string, { bg: string; color: string }> = {
+    [ProductionStage.AwaitingDelivery]: { bg: '#eef2ff', color: '#4338ca' },
+    [ProductionStage.Waxing]:            { bg: '#f8fafc', color: '#475569' },
+    [ProductionStage.Casting]:           { bg: '#fff7ed', color: '#c2410c' },
+    [ProductionStage.Setting]:           { bg: '#faf5ff', color: '#7e22ce' },
+    [ProductionStage.Polishing]:         { bg: '#eff6ff', color: '#1d4ed8' },
+    [ProductionStage.Assembly]:          { bg: '#fdf2f8', color: '#be185d' },
+    [ProductionStage.Labeling]:          { bg: '#fefce8', color: '#854d0e' },
+    [ProductionStage.Ready]:             { bg: '#ecfdf5', color: '#065f46' },
+};
+
 // Stage display order and labels for finder
 const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
     { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
@@ -3125,7 +3137,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             {/* BULK MOVE FLOATING BAR */}
             {multiSelectIds.size > 0 && ReactDOM.createPortal(
                 <div className="fixed bottom-6 inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
-                    <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-lg w-full">
+                    <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
                         <div className="flex items-center gap-2 shrink-0">
                             <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/40">
                                 {multiSelectIds.size}
@@ -3137,12 +3149,18 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                             <select
                                 value={bulkMoveTarget || ''}
                                 onChange={e => setBulkMoveTarget((e.target.value as ProductionStage) || null)}
-                                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
-                                style={{ colorScheme: 'dark' }}
+                                className="w-full border border-white/20 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
+                                style={{ backgroundColor: '#1e293b', color: bulkMoveTarget ? STAGE_SELECT_COLORS[bulkMoveTarget]?.color ?? '#fff' : '#94a3b8' }}
                             >
-                                <option value="" disabled>Επιλογή σταδίου...</option>
+                                <option value="" disabled style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}>Επιλογή σταδίου...</option>
                                 {STAGES.map(s => (
-                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                    <option
+                                        key={s.id}
+                                        value={s.id}
+                                        style={{ backgroundColor: STAGE_SELECT_COLORS[s.id]?.bg ?? '#f8fafc', color: STAGE_SELECT_COLORS[s.id]?.color ?? '#1e293b' }}
+                                    >
+                                        {s.label}
+                                    </option>
                                 ))}
                             </select>
                         </div>
