@@ -378,9 +378,21 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                               <div className="space-y-1">
                                   {product.molds.map((m, idx) => {
                                       const moldInfo = molds?.find(md => md.code === m.code);
+                                      const moldDescription = moldInfo?.description || '';
                                       return (
                                           <div key={idx} className="flex justify-between items-center text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
-                                              <div className="flex items-center gap-2"><span className="font-black text-amber-800 font-mono">{m.code}</span><span className="text-xs text-slate-500 font-bold">x{m.quantity}</span></div>
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                  <span className="font-black text-amber-800 font-mono">{m.code}</span>
+                                                  {moldDescription ? (
+                                                      <span
+                                                          className="text-[10px] text-slate-600 font-bold truncate max-w-[120px]"
+                                                          title={moldDescription}
+                                                      >
+                                                          {moldDescription}
+                                                      </span>
+                                                  ) : null}
+                                                  <span className="text-xs text-slate-500 font-bold shrink-0">x{m.quantity}</span>
+                                              </div>
                                               <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location ?? ''}</span>
                                           </div>
                                       );
