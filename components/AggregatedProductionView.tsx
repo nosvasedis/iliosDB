@@ -180,56 +180,82 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 )}
             </div>
 
-            {/* DENSE TABLE */}
-            <table className="w-full text-left text-xs border-collapse">
-                <thead className="text-[9px] font-black text-slate-500 uppercase tracking-wider bg-slate-50">
-                    <tr>
-                        <th className="py-1 px-1 w-8 text-center rounded-l-md">#</th>
-                        <th className="py-1 px-1 w-10">Εικ.</th>
-                        <th className="py-1 px-1">Περιγραφη / SKU</th>
-                        <th className="py-1 px-1 text-center w-10">Ποσ.</th>
-                        <th className="py-1 px-1 text-center w-16">Βαρος</th>
-                        <th className="py-1 px-1 text-right w-16">Τιμη</th>
-                        <th className="py-1 px-1 text-right w-16 rounded-r-md">Συνολο</th>
-                    </tr>
-                </thead>
-                <tbody className="leading-tight">
+            {/* DUAL COLUMN ITEMS GRID */}
+            <div>
+                {/* Header Row (Duplicated for 2 Columns) */}
+                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[9px] font-black text-slate-500 uppercase tracking-wider">
+                    <div className="flex-1 flex items-center pr-3">
+                        <div className="w-5 text-center text-slate-400">#</div>
+                        <div className="w-7 text-center">Εικ.</div>
+                        <div className="flex-1 px-1">Περιγραφη / SKU</div>
+                        <div className="w-7 text-center">Ποσ.</div>
+                        <div className="w-12 text-center">Βαρος</div>
+                        <div className="w-14 text-right">Συνολο</div>
+                    </div>
+                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
+                        <div className="w-5 text-center text-slate-400">#</div>
+                        <div className="w-7 text-center">Εικ.</div>
+                        <div className="flex-1 px-1">Περιγραφη / SKU</div>
+                        <div className="w-7 text-center">Ποσ.</div>
+                        <div className="w-12 text-center">Βαρος</div>
+                        <div className="w-14 text-right">Συνολο</div>
+                    </div>
+                </div>
+
+                {/* Items Grid */}
+                <div className="grid grid-cols-2 text-[11px] leading-snug auto-rows-min">
                     {sortedInHouseBatches.map((batch, idx) => {
                         const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
                         return (
-                        <tr key={batch.id} className="border-b border-slate-50 break-inside-avoid">
-                            <td className="py-1 px-1 text-center text-slate-400 font-mono text-[9px] align-middle">{idx + 1}</td>
-                            <td className="py-1 px-1 align-middle">
-                                <div className="w-6 h-6 rounded bg-slate-100 overflow-hidden border border-slate-200">
-                                    {batch.product_details?.image_url && <img src={batch.product_details.image_url} className="w-full h-full object-cover" />}
-                                </div>
-                            </td>
-                            <td className="py-1 px-1 align-middle">
-                                <div className="flex items-baseline gap-1">
-                                    <span className="font-black text-slate-800 text-sm">{batch.sku}{batch.variant_suffix}</span>
-                                    {batch.size_info && <span className="text-[9px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200">{batch.size_info}</span>}
-                                    {batch.cord_color && <span className="text-[9px] font-bold bg-amber-50 px-1 rounded text-amber-700 border border-amber-100">Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}</span>}
-                                    {batch.enamel_color && <span className="text-[9px] font-bold bg-rose-50 px-1 rounded text-rose-700 border border-rose-100">Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}</span>}
-                                    {batch.product_details?.is_component && <span className="text-[8px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
-                                    {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[8px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase ml-1">IMP</span>}
-                                </div>
-                                {(batch.product_details?.supplier_sku || batch.notes) && (
-                                    <div className="flex flex-wrap gap-2 text-[9px] mt-0.5">
-                                        {batch.product_details?.supplier_sku && <span className="text-slate-400 font-mono">Ref: {batch.product_details.supplier_sku}</span>}
-                                        {batch.notes && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded flex items-center gap-0.5"><StickyNote size={8}/> {batch.notes}</span>}
+                            <div
+                                key={batch.id}
+                                className={`flex items-center py-1 border-b border-slate-50 break-inside-avoid${idx % 2 === 0 ? ' pr-3 border-r border-dashed border-slate-200' : ' pl-3'}`}
+                            >
+                                {/* Index */}
+                                <div className="w-5 text-center text-slate-400 font-mono text-[9px] shrink-0">{idx + 1}</div>
+
+                                {/* Image */}
+                                <div className="w-7 shrink-0">
+                                    <div className="w-5 h-5 rounded bg-slate-100 overflow-hidden border border-slate-200 mx-auto">
+                                        {batch.product_details?.image_url && (
+                                            <img src={batch.product_details.image_url} className="w-full h-full object-cover" />
+                                        )}
                                     </div>
-                                )}
-                            </td>
-                            <td className="py-1 px-1 text-center font-black text-slate-900 text-sm align-middle">{batch.quantity}</td>
-                            <td className="py-1 px-1 text-center font-mono text-[10px] text-slate-600 align-middle">
-                                {formatDecimal(totalWeight, 1)}g
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono text-[10px] text-slate-500 align-middle">{formatCurrency(batch.cost_per_piece)}</td>
-                            <td className="py-1 px-1 text-right font-mono font-bold text-slate-800 align-middle">{formatCurrency(batch.total_cost)}</td>
-                        </tr>
-                    )})}
-                </tbody>
-            </table>
+                                </div>
+
+                                {/* Description */}
+                                <div className="flex-1 px-1 min-w-0">
+                                    <div className="flex flex-wrap items-baseline gap-0.5">
+                                        <span className="font-black text-slate-800 text-[12px]">{batch.sku}{batch.variant_suffix}</span>
+                                        {batch.size_info && <span className="text-[8px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 whitespace-nowrap">{batch.size_info}</span>}
+                                        {batch.cord_color && <span className="text-[8px] font-bold bg-amber-50 px-0.5 rounded text-amber-700 border border-amber-100 whitespace-nowrap">Κ: {getProductOptionColorLabel(batch.cord_color)}</span>}
+                                        {batch.enamel_color && <span className="text-[8px] font-bold bg-rose-50 px-0.5 rounded text-rose-700 border border-rose-100 whitespace-nowrap">Σ: {getProductOptionColorLabel(batch.enamel_color)}</span>}
+                                        {batch.product_details?.is_component && <span className="text-[7px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
+                                        {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[7px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase">IMP</span>}
+                                    </div>
+                                    {(batch.product_details?.supplier_sku || batch.notes) && (
+                                        <div className="flex flex-wrap gap-1 text-[8px]">
+                                            {batch.product_details?.supplier_sku && <span className="text-slate-400 font-mono">Ref: {batch.product_details.supplier_sku}</span>}
+                                            {batch.notes && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded flex items-center gap-0.5"><StickyNote size={7}/> {batch.notes}</span>}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Quantity */}
+                                <div className="w-7 text-center font-black text-slate-900 text-[12px] shrink-0">{batch.quantity}</div>
+
+                                {/* Weight */}
+                                <div className="w-12 text-center font-mono text-[9px] text-slate-600 shrink-0">
+                                    {formatDecimal(totalWeight, 1)}g
+                                </div>
+
+                                {/* Total */}
+                                <div className="w-14 text-right font-mono font-bold text-slate-800 text-[10px] shrink-0">{formatCurrency(batch.total_cost)}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
 
             {importedBatches.length > 0 && (
                 <div className="mt-4 border border-amber-200 rounded-xl overflow-hidden">
