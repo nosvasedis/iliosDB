@@ -1275,8 +1275,8 @@ const FinderBatchStageSelector = ({
     );
 };
 
-const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage }, onClose: () => void, onConfirm: (qty: number, targetStage: ProductionStage) => void, isProcessing: boolean }) => {
-    const { batch, targetStage } = state;
+const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage, isReceive?: boolean }, onClose: () => void, onConfirm: (qty: number, targetStage: ProductionStage) => void, isProcessing: boolean }) => {
+    const { batch, targetStage, isReceive } = state;
     const [quantity, setQuantity] = useState(batch.quantity);
     const [selectedTarget, setSelectedTarget] = useState<ProductionStage>(targetStage);
 
@@ -1297,7 +1297,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Μετακίνηση Παρτίδας</h2>
+                        <h2 className="text-xl font-bold text-slate-800">{isReceive ? 'Παραλαβή Τεμαχίων' : 'Μετακίνηση Παρτίδας'}</h2>
                         <p className="text-sm text-slate-500 font-mono font-bold">{batch.sku}{batch.variant_suffix}</p>
                     </div>
                     <button onClick={onClose} disabled={isProcessing} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
@@ -1316,41 +1316,49 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                                 <div className={`p-3 rounded-xl border-2 ${targetColors.border} ${targetColors.bg} ${targetColors.text}`}>
                                     {selectedTargetInfo.icon}
                                 </div>
-                                <div className="flex items-center gap-1 text-slate-800 border-b border-dashed border-slate-400 pb-0.5 hover:text-emerald-600 transition-colors">
+                                <div className={`flex items-center gap-1 text-slate-800 pb-0.5 ${isReceive ? '' : 'border-b border-dashed border-slate-400 hover:text-emerald-600'} transition-colors`}>
                                     <span className="text-xs font-bold">{selectedTargetInfo.label}</span>
-                                    <ChevronDown size={12} />
+                                    {!isReceive && <ChevronDown size={12} />}
                                 </div>
                             </div>
 
-                            {/* Hidden Select for interaction */}
-                            <select
-                                value={selectedTarget}
-                                onChange={(e) => setSelectedTarget(e.target.value as ProductionStage)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            >
-                                {STAGES.map(s => {
-                                    // Check if stage is disabled for this batch
-                                    const isStageDisabled = 
-                                        (s.id === ProductionStage.Setting && !batch.requires_setting) ||
-                                        (s.id === ProductionStage.Assembly && !batch.requires_assembly);
-                                    
-                                    return (
-                                        <option 
-                                            key={s.id} 
-                                            value={s.id} 
-                                            disabled={s.id === batch.current_stage || isStageDisabled}
-                                        >
-                                            {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
-                                        </option>
-                                    );
-                                })}
-                            </select>
+                            {/* Hidden Select for interaction — disabled when receiving */}
+                            {!isReceive && (
+                                <select
+                                    value={selectedTarget}
+                                    onChange={(e) => setSelectedTarget(e.target.value as ProductionStage)}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                >
+                                    {STAGES.map(s => {
+                                        // Check if stage is disabled for this batch
+                                        const isStageDisabled = 
+                                            (s.id === ProductionStage.Setting && !batch.requires_setting) ||
+                                            (s.id === ProductionStage.Assembly && !batch.requires_assembly);
+                                        
+                                        return (
+                                            <option 
+                                                key={s.id} 
+                                                value={s.id} 
+                                                disabled={s.id === batch.current_stage || isStageDisabled}
+                                            >
+                                                {s.label}{isStageDisabled ? ' (παραλείπεται)' : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            )}
                         </div>
                     </div>
 
                     <div className="bg-slate-100 p-6 rounded-2xl border border-slate-200 text-center">
-                        <label className="text-sm font-bold text-slate-600 block mb-2">Ποσότητα για μετακίνηση</label>
-                        <p className="text-xs text-slate-400 mb-3">Διαθέσιμα σε αυτή την παρτίδα: {batch.quantity}</p>
+                        <label className="text-sm font-bold text-slate-600 block mb-2">
+                            {isReceive ? 'Ποσότητα παραληφθέντων' : 'Ποσότητα για μετακίνηση'}
+                        </label>
+                        <p className="text-xs text-slate-400 mb-3">
+                            {isReceive
+                                ? `Πόσα από τα ${batch.quantity} τμχ παραδόθηκαν από τον προμηθευτή;`
+                                : `Διαθέσιμα σε αυτή την παρτίδα: ${batch.quantity}`}
+                        </p>
                         <input
                             type="number"
                             value={quantity}
@@ -1801,6 +1809,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [splitModalState, setSplitModalState] = useState<{
         batch: ProductionBatch;
         targetStage: ProductionStage;
+        isReceive?: boolean;
     } | null>(null);
 
     // NEW: Sorting State - split into grouping and ordering
@@ -1816,6 +1825,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
     const [showSettingStones, setShowSettingStones] = useState(false);
     const [stageInspectorStage, setStageInspectorStage] = useState<ProductionStage | null>(null);
+
+    // Multi-select & bulk move
+    const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
+    const [bulkMoveTarget, setBulkMoveTarget] = useState<ProductionStage | null>(null);
+    const [isBulkMoving, setIsBulkMoving] = useState(false);
 
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
@@ -2161,29 +2175,35 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         const targetStageInfo = STAGES.find(s => s.id === targetStage);
         const confirmed = await confirm({
             title: 'Παραλαβή Εισαγόμενου',
-            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} και τη μετακίνηση στο στάδιο "${targetStageInfo?.label}"?`,
+            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ) και τη μετακίνηση στο στάδιο "${targetStageInfo?.label}"?`,
             confirmText: 'Επιβεβαίωση'
         });
 
-        if (confirmed) {
-            setIsProcessingSplit(true);
-            try {
-                await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
-                await api.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
-                void invalidateOrdersAndBatches(queryClient);
-                showToast('Η παρτίδα μετακινήθηκε.', 'success');
-            } catch (e: any) {
-                showToast(`Σφάλμα: ${e.message}`, 'error');
-            } finally {
-                setIsProcessingSplit(false);
-            }
+        if (!confirmed) return;
+
+        // If batch has more than 1 item, ask how many were actually delivered by the supplier
+        if (batch.quantity > 1) {
+            setSplitModalState({ batch, targetStage, isReceive: true });
+            return;
+        }
+
+        setIsProcessingSplit(true);
+        try {
+            await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
+            await api.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
+            void invalidateOrdersAndBatches(queryClient);
+            showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
         }
     };
 
     const handleConfirmSplit = async (quantityToMove: number, finalTargetStage: ProductionStage) => {
         if (!splitModalState) return;
 
-        const { batch } = splitModalState;
+        const { batch, isReceive } = splitModalState;
         const targetStage = finalTargetStage;
 
         setIsProcessingSplit(true);
@@ -2192,7 +2212,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             if (quantityToMove >= batch.quantity) {
                 // Move the whole batch
                 await api.updateBatchStage(batch.id, targetStage, profile?.full_name);
-                await api.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
+                await api.logAction(profile?.full_name || 'System', isReceive ? 'Παραλαβή Εισαγόμενου' : 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             } else {
                 // Split the batch
                 const originalNewQty = batch.quantity - quantityToMove;
@@ -2220,11 +2240,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 };
 
                 await api.splitBatch(batch.id, originalNewQty, newBatchData, profile?.full_name);
-                await api.logAction(profile?.full_name || 'System', 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
+                await api.logAction(profile?.full_name || 'System', isReceive ? 'Μερική Παραλαβή Εισαγόμενου' : 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
             void invalidateOrdersAndBatches(queryClient);
-            showToast('Η παρτίδα μετακινήθηκε.', 'success');
+            showToast(isReceive ? `Παραλήφθηκαν ${quantityToMove} τμχ. Τα υπόλοιπα παραμένουν στην Αναμονή.` : 'Η παρτίδα μετακινήθηκε.', 'success');
             setSplitModalState(null);
 
         } catch (e: any) {
@@ -2307,6 +2327,39 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
         attemptMove(batch, stage);
     }
+
+    const toggleBatchSelect = useCallback((batchId: string) => {
+        setMultiSelectIds(prev => {
+            const next = new Set(prev);
+            if (next.has(batchId)) next.delete(batchId);
+            else next.add(batchId);
+            return next;
+        });
+    }, []);
+
+    const handleBulkMove = async () => {
+        if (!bulkMoveTarget || multiSelectIds.size === 0) return;
+        const batchesToMove = enhancedBatches.filter(b =>
+            multiSelectIds.has(b.id) && !b.on_hold && b.current_stage !== bulkMoveTarget
+        );
+        if (batchesToMove.length === 0) {
+            showToast('Δεν υπάρχουν παρτίδες για μετακίνηση.', 'info');
+            return;
+        }
+        setIsBulkMoving(true);
+        try {
+            await Promise.all(batchesToMove.map(b => api.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name)));
+            await api.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
+            void invalidateOrdersAndBatches(queryClient);
+            showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
+            setMultiSelectIds(new Set());
+            setBulkMoveTarget(null);
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsBulkMoving(false);
+        }
+    };
 
     const handleViewHistory = async (batch: ProductionBatch) => {
         setHistoryModalBatch(batch);
@@ -2892,6 +2945,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                                     onDelete={() => handleDeleteBatch(batch)}
                                                                     onClick={() => setViewBuildBatch(batch)}
                                                                     onViewHistory={handleViewHistory}
+                                                                    isSelected={multiSelectIds.has(batch.id)}
+                                                                    onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
                                                                 />
                                                             </React.Fragment>
                                                         ))}
@@ -3066,6 +3121,50 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     />
                 );
             })()}
+
+            {/* BULK MOVE FLOATING BAR */}
+            {multiSelectIds.size > 0 && ReactDOM.createPortal(
+                <div className="fixed bottom-6 inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
+                    <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-lg w-full">
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/40">
+                                {multiSelectIds.size}
+                            </div>
+                            <span className="text-sm font-bold text-white/70 whitespace-nowrap">επιλεγμένες παρτίδες</span>
+                        </div>
+                        <div className="w-px h-6 bg-white/20 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <select
+                                value={bulkMoveTarget || ''}
+                                onChange={e => setBulkMoveTarget((e.target.value as ProductionStage) || null)}
+                                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
+                                style={{ colorScheme: 'dark' }}
+                            >
+                                <option value="" disabled>Επιλογή σταδίου...</option>
+                                {STAGES.map(s => (
+                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={handleBulkMove}
+                            disabled={!bulkMoveTarget || isBulkMoving}
+                            className="shrink-0 px-4 py-1.5 bg-blue-500 hover:bg-blue-400 disabled:bg-white/10 disabled:text-white/30 text-white rounded-xl text-sm font-black transition-all flex items-center gap-1.5 active:scale-95 shadow-lg shadow-blue-500/30"
+                        >
+                            {isBulkMoving ? <Loader2 size={14} className="animate-spin" /> : <MoveRight size={14} />}
+                            Μετακίνηση
+                        </button>
+                        <button
+                            onClick={() => { setMultiSelectIds(new Set()); setBulkMoveTarget(null); }}
+                            className="shrink-0 p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                            title="Αποεπιλογή όλων"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

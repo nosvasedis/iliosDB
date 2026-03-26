@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 
@@ -112,6 +112,9 @@ interface BatchCardProps {
     onViewHistory?: (batch: ProductionBatch) => void;
     // Optional: Hide action footer if used in restrictive views
     hideActions?: boolean;
+    // Multi-select support
+    isSelected?: boolean;
+    onToggleSelect?: (e: React.MouseEvent) => void;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -125,7 +128,9 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     onDelete,
     onClick,
     onViewHistory,
-    hideActions = false
+    hideActions = false,
+    isSelected = false,
+    onToggleSelect,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -260,15 +265,30 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             onClick={() => onClick(batch)}
             className={`p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
                     ${metalContainerClass}
-                    ${batch.on_hold
+                    ${isSelected
+                    ? 'ring-2 ring-blue-400 ring-offset-1 border-blue-300 bg-blue-50/20'
+                    : (batch.on_hold
                     ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
-                    : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md')}
+                    : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'))}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
         `}
         >
             {/* Header Badges */}
             <div className="flex justify-between items-start mb-3">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
+                    {onToggleSelect && (
+                        <button
+                            onClick={onToggleSelect}
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                                isSelected
+                                    ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                                    : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-sm'
+                            }`}
+                            title={isSelected ? 'Αποεπιλογή' : 'Επιλογή παρτίδας'}
+                        >
+                            {isSelected && <Check size={11} className="text-white" />}
+                        </button>
+                    )}
                     {batch.on_hold ? (
                         <div className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
                             <PauseCircle size={10} className="fill-current" />
