@@ -223,6 +223,8 @@ export const ASSEMBLY_SKU_PATTERNS = {
   SK_RANGES: [
     { min: 201, max: 220 },
   ],
+  // BR specific SKUs
+  BR_SPECIFIC: [297, 310],
 };
 
 /**
@@ -257,6 +259,11 @@ export function requiresAssemblyStage(sku: string): boolean {
     for (const range of ASSEMBLY_SKU_PATTERNS.SK_RANGES) {
       if (numPart >= range.min && numPart <= range.max) return true;
     }
+  }
+
+  // Check BR specific SKUs
+  if (prefix === 'BR') {
+    if (ASSEMBLY_SKU_PATTERNS.BR_SPECIFIC.includes(numPart)) return true;
   }
   
   return false;
