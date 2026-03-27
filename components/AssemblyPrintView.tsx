@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { AssemblyPrintRow, Product } from '../types';
+import { AssemblyPrintRow, Product, Material, MaterialType } from '../types';
 import { APP_LOGO } from '../constants';
 import { Layers, User, Hash } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
@@ -166,7 +166,18 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                     <div className="grid grid-cols-3 gap-1">
                                         {orderGroup.items.map((item) => {
                                             const { row, product } = item;
-                                            const { finish } = getVariantComponents(row.variant_suffix || '', product?.gender);
+                                            const { finish, stone } = getVariantComponents(row.variant_suffix || '', product?.gender);
+
+                                            const recipeRawMaterials = (product?.recipe || [])
+                                                .filter((r): r is { type: 'raw'; id: string; quantity: number; itemDetails?: Material } =>
+                                                    r.type === 'raw' &&
+                                                    (r.itemDetails as Material | undefined)?.type !== MaterialType.Cord &&
+                                                    (r.itemDetails as Material | undefined)?.type !== MaterialType.Enamel
+                                                );
+                                            const recipeComponents = (product?.recipe || [])
+                                                .filter((r): r is { type: 'component'; sku: string; quantity: number; itemDetails?: Product } =>
+                                                    r.type === 'component'
+                                                );
                                             const finishColor = TEXT_FINISH_COLORS[finish.code] || TEXT_FINISH_COLORS[''];
 
                                             return (
@@ -225,6 +236,27 @@ export default function AssemblyPrintView({ rows, allProducts }: Props) {
                                                             <span className="text-[8px] font-medium text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 line-clamp-2 leading-tight">
                                                                 {row.notes}
                                                             </span>
+                                                        )}
+
+                                                        {/* Stone & Recipe Materials */}
+                                                        {(stone.code || recipeRawMaterials.length > 0 || recipeComponents.length > 0) && (
+                                                            <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                                                {stone.code && (
+                                                                    <span className="text-[7px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded leading-tight whitespace-nowrap">
+                                                                        {stone.code}{stone.name ? ` · ${stone.name}` : ''}
+                                                                    </span>
+                                                                )}
+                                                                {recipeRawMaterials.map((r, i) => (
+                                                                    <span key={i} className="text-[7px] font-bold bg-slate-50 text-slate-600 border border-slate-200 px-1 py-0.5 rounded leading-tight whitespace-nowrap">
+                                                                        {r.itemDetails?.name ?? r.id}
+                                                                    </span>
+                                                                ))}
+                                                                {recipeComponents.map((r, i) => (
+                                                                    <span key={`c${i}`} className="text-[7px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.5 rounded leading-tight whitespace-nowrap">
+                                                                        {r.sku}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
                                                         )}
 
                                                         {/* Quantity */}
